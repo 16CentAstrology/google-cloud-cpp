@@ -17,6 +17,7 @@
 #include "google/cloud/internal/make_jwt_assertion.h"
 #include "google/cloud/internal/oauth2_access_token_credentials.h"
 #include "google/cloud/internal/oauth2_anonymous_credentials.h"
+#include "google/cloud/internal/oauth2_api_key_credentials.h"
 #include "google/cloud/internal/oauth2_decorate_credentials.h"
 #include "google/cloud/internal/oauth2_error_credentials.h"
 #include "google/cloud/internal/oauth2_external_account_credentials.h"
@@ -31,7 +32,9 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
 using ::google::cloud::internal::AccessTokenConfig;
+using ::google::cloud::internal::ApiKeyConfig;
 using ::google::cloud::internal::CredentialsVisitor;
+using ::google::cloud::internal::ErrorCredentialsConfig;
 using ::google::cloud::internal::ExternalAccountConfig;
 using ::google::cloud::internal::GoogleDefaultCredentialsConfig;
 using ::google::cloud::internal::ImpersonateServiceAccountConfig;
@@ -66,14 +69,14 @@ CreateServiceAccountCredentialsFromJsonContents(
 }  // namespace
 
 std::shared_ptr<oauth2_internal::Credentials> MapCredentials(
-    std::shared_ptr<google::cloud::Credentials> const& credentials) {
-  return MapCredentials(std::move(credentials), [](Options const& options) {
+    google::cloud::Credentials const& credentials) {
+  return MapCredentials(credentials, [](Options const& options) {
     return MakeDefaultRestClient("", options);
   });
 }
 
 std::shared_ptr<oauth2_internal::Credentials> MapCredentials(
-    std::shared_ptr<google::cloud::Credentials> const& credentials,
+    google::cloud::Credentials const& credentials,
     oauth2_internal::HttpClientFactory client_factory) {
   class Visitor : public CredentialsVisitor {
    public:
@@ -82,11 +85,16 @@ std::shared_ptr<oauth2_internal::Credentials> MapCredentials(
 
     std::shared_ptr<oauth2_internal::Credentials> result;
 
-    void visit(InsecureCredentialsConfig&) override {
+    void visit(ErrorCredentialsConfig const& cfg) override {
+      result =
+          std::make_shared<oauth2_internal::ErrorCredentials>(cfg.status());
+    }
+
+    void visit(InsecureCredentialsConfig const&) override {
       result = std::make_shared<oauth2_internal::AnonymousCredentials>();
     }
 
-    void visit(GoogleDefaultCredentialsConfig& cfg) override {
+    void visit(GoogleDefaultCredentialsConfig const& cfg) override {
       auto credentials =
           google::cloud::oauth2_internal::GoogleDefaultCredentials(
               cfg.options(), std::move(client_factory_));
@@ -97,26 +105,26 @@ std::shared_ptr<oauth2_internal::Credentials> MapCredentials(
       result = MakeErrorCredentials(std::move(credentials).status());
     }
 
-    void visit(AccessTokenConfig& cfg) override {
+    void visit(AccessTokenConfig const& cfg) override {
       result = std::make_shared<oauth2_internal::AccessTokenCredentials>(
           cfg.access_token());
     }
 
-    void visit(ImpersonateServiceAccountConfig& cfg) override {
+    void visit(ImpersonateServiceAccountConfig const& cfg) override {
       result = std::make_shared<
           oauth2_internal::ImpersonateServiceAccountCredentials>(
           cfg, std::move(client_factory_));
       result = Decorate(std::move(result), cfg.options());
     }
 
-    void visit(ServiceAccountConfig& cfg) override {
+    void visit(ServiceAccountConfig const& cfg) override {
       result = Decorate(
           CreateServiceAccountCredentialsFromJsonContents(
               cfg.json_object(), cfg.options(), std::move(client_factory_)),
           cfg.options());
     }
 
-    void visit(ExternalAccountConfig& cfg) override {
+    void visit(ExternalAccountConfig const& cfg) override {
       auto const ec = internal::ErrorContext();
       auto info = oauth2_internal::ParseExternalAccountConfiguration(
           cfg.json_object(), ec);
@@ -130,12 +138,17 @@ std::shared_ptr<oauth2_internal::Credentials> MapCredentials(
           cfg.options());
     }
 
+    void visit(ApiKeyConfig const& cfg) override {
+      result =
+          std::make_shared<oauth2_internal::ApiKeyCredentials>(cfg.api_key());
+    }
+
    private:
     oauth2_internal::HttpClientFactory client_factory_;
   };
 
   Visitor visitor(std::move(client_factory));
-  CredentialsVisitor::dispatch(*credentials, visitor);
+  CredentialsVisitor::dispatch(credentials, visitor);
   return std::move(visitor.result);
 }
 

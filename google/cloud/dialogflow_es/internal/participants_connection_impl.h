@@ -88,41 +88,27 @@ class ParticipantsConnectionImpl
       google::cloud::dialogflow::v2::SuggestSmartRepliesRequest const& request)
       override;
 
+  StatusOr<google::cloud::dialogflow::v2::SuggestKnowledgeAssistResponse>
+  SuggestKnowledgeAssist(
+      google::cloud::dialogflow::v2::SuggestKnowledgeAssistRequest const&
+          request) override;
+
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_es::ParticipantsRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::ParticipantsRetryPolicyOption>()) {
-      return options.get<dialogflow_es::ParticipantsRetryPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_es::ParticipantsRetryPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::ParticipantsBackoffPolicyOption>()) {
-      return options.get<dialogflow_es::ParticipantsBackoffPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_es::ParticipantsBackoffPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<dialogflow_es::ParticipantsConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<
-            dialogflow_es::ParticipantsConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_es::ParticipantsConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_es::ParticipantsConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_es_internal::ParticipantsStub> stub_;
   Options options_;

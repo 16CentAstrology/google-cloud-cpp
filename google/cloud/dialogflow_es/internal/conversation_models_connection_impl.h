@@ -57,6 +57,15 @@ class ConversationModelsConnectionImpl
       google::cloud::dialogflow::v2::CreateConversationModelRequest const&
           request) override;
 
+  StatusOr<google::longrunning::Operation> CreateConversationModel(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::CreateConversationModelRequest const&
+          request) override;
+
+  future<StatusOr<google::cloud::dialogflow::v2::ConversationModel>>
+  CreateConversationModel(
+      google::longrunning::Operation const& operation) override;
+
   StatusOr<google::cloud::dialogflow::v2::ConversationModel>
   GetConversationModel(
       google::cloud::dialogflow::v2::GetConversationModelRequest const& request)
@@ -73,17 +82,47 @@ class ConversationModelsConnectionImpl
       google::cloud::dialogflow::v2::DeleteConversationModelRequest const&
           request) override;
 
+  StatusOr<google::longrunning::Operation> DeleteConversationModel(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::DeleteConversationModelRequest const&
+          request) override;
+
+  future<StatusOr<
+      google::cloud::dialogflow::v2::DeleteConversationModelOperationMetadata>>
+  DeleteConversationModel(
+      google::longrunning::Operation const& operation) override;
+
   future<StatusOr<
       google::cloud::dialogflow::v2::DeployConversationModelOperationMetadata>>
   DeployConversationModel(
       google::cloud::dialogflow::v2::DeployConversationModelRequest const&
           request) override;
 
+  StatusOr<google::longrunning::Operation> DeployConversationModel(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::DeployConversationModelRequest const&
+          request) override;
+
+  future<StatusOr<
+      google::cloud::dialogflow::v2::DeployConversationModelOperationMetadata>>
+  DeployConversationModel(
+      google::longrunning::Operation const& operation) override;
+
   future<StatusOr<google::cloud::dialogflow::v2::
                       UndeployConversationModelOperationMetadata>>
   UndeployConversationModel(
       google::cloud::dialogflow::v2::UndeployConversationModelRequest const&
           request) override;
+
+  StatusOr<google::longrunning::Operation> UndeployConversationModel(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::UndeployConversationModelRequest const&
+          request) override;
+
+  future<StatusOr<google::cloud::dialogflow::v2::
+                      UndeployConversationModelOperationMetadata>>
+  UndeployConversationModel(
+      google::longrunning::Operation const& operation) override;
 
   StatusOr<google::cloud::dialogflow::v2::ConversationModelEvaluation>
   GetConversationModelEvaluation(
@@ -100,56 +139,31 @@ class ConversationModelsConnectionImpl
       google::cloud::dialogflow::v2::
           CreateConversationModelEvaluationRequest const& request) override;
 
+  StatusOr<google::longrunning::Operation> CreateConversationModelEvaluation(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::
+          CreateConversationModelEvaluationRequest const& request) override;
+
+  future<StatusOr<google::cloud::dialogflow::v2::ConversationModelEvaluation>>
+  CreateConversationModelEvaluation(
+      google::longrunning::Operation const& operation) override;
+
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_es::ConversationModelsRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::ConversationModelsRetryPolicyOption>()) {
-      return options.get<dialogflow_es::ConversationModelsRetryPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_es::ConversationModelsRetryPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::ConversationModelsBackoffPolicyOption>()) {
-      return options
-          .get<dialogflow_es::ConversationModelsBackoffPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_es::ConversationModelsBackoffPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<dialogflow_es::ConversationModelsConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options
-            .has<dialogflow_es::
-                     ConversationModelsConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_es::
-                   ConversationModelsConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_es::
-                 ConversationModelsConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<PollingPolicy> polling_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::ConversationModelsPollingPolicyOption>()) {
-      return options
-          .get<dialogflow_es::ConversationModelsPollingPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_es::ConversationModelsPollingPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_es_internal::ConversationModelsStub> stub_;
   Options options_;

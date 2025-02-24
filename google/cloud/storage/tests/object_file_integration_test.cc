@@ -19,9 +19,14 @@
 #include "google/cloud/testing_util/scoped_log.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
+#include <algorithm>
 #include <cstdio>
 #include <fstream>
+#include <random>
+#include <sstream>
+#include <string>
 #include <thread>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -32,10 +37,12 @@ namespace {
 using ::google::cloud::testing_util::IsOk;
 using ::google::cloud::testing_util::StatusIs;
 using ::testing::AnyOf;
+using ::testing::Contains;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::Not;
+using ::testing::Pair;
 
 class ObjectFileIntegrationTest
     : public google::cloud::storage::testing::StorageIntegrationTest {
@@ -47,52 +54,17 @@ class ObjectFileIntegrationTest
     ASSERT_FALSE(bucket_name_.empty());
   }
 
+  // Create a client configured to always use resumable uploads for files.
+  static Client ClientWithSimpleUploadDisabled() {
+    return MakeIntegrationTestClient(
+        Options{}.set<MaximumSimpleUploadSizeOption>(0));
+  }
+
   std::string bucket_name_;
 };
 
-// Create a client configured to always use resumable uploads for files.
-Client ClientWithSimpleUploadDisabled() {
-  return Client(Options{}.set<MaximumSimpleUploadSizeOption>(0));
-}
-
-TEST_F(ObjectFileIntegrationTest, XmlDownloadFile) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
-  auto object_name = MakeRandomObjectName();
-  auto file_name = MakeRandomFilename();
-
-  // We will construct the expected response while streaming the data up.
-  std::ostringstream expected;
-  // Create an object with the contents to download.
-  auto upload =
-      client->WriteObject(bucket_name_, object_name, IfGenerationMatch(0));
-  upload.exceptions(std::ios_base::failbit);
-  WriteRandomLines(upload, expected);
-  upload.Close();
-  ASSERT_STATUS_OK(upload.metadata());
-  auto meta = upload.metadata().value();
-  ScheduleForDelete(meta);
-
-  auto status = client->DownloadToFile(bucket_name_, object_name, file_name);
-  ASSERT_STATUS_OK(status);
-  // Create an iostream to read the object back.
-  std::ifstream stream(file_name, std::ios::binary);
-  std::string actual(std::istreambuf_iterator<char>{stream}, {});
-  ASSERT_FALSE(actual.empty());
-  auto expected_str = expected.str();
-  ASSERT_EQ(expected_str.size(), actual.size()) << " meta=" << meta;
-  EXPECT_EQ(expected_str, actual);
-
-  // On Windows one must close the stream before removing the file.
-  stream.close();
-  EXPECT_EQ(0, std::remove(file_name.c_str()));
-}
-
 TEST_F(ObjectFileIntegrationTest, JsonDownloadFile) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
   auto file_name = MakeRandomFilename();
 
@@ -100,15 +72,15 @@ TEST_F(ObjectFileIntegrationTest, JsonDownloadFile) {
   std::ostringstream expected;
   // Create an object with the contents to download.
   auto upload =
-      client->WriteObject(bucket_name_, object_name, IfGenerationMatch(0));
+      client.WriteObject(bucket_name_, object_name, IfGenerationMatch(0));
   WriteRandomLines(upload, expected);
   upload.Close();
   ASSERT_STATUS_OK(upload.metadata());
   auto meta = upload.metadata().value();
   ScheduleForDelete(meta);
 
-  auto status = client->DownloadToFile(bucket_name_, object_name, file_name,
-                                       IfMetagenerationNotMatch(0));
+  auto status = client.DownloadToFile(bucket_name_, object_name, file_name,
+                                      IfMetagenerationNotMatch(0));
   ASSERT_STATUS_OK(status);
   // Create an iostream to read the object back.
   std::ifstream stream(file_name, std::ios::binary);
@@ -124,43 +96,39 @@ TEST_F(ObjectFileIntegrationTest, JsonDownloadFile) {
 }
 
 TEST_F(ObjectFileIntegrationTest, DownloadFileFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
   auto file_name = MakeRandomFilename();
 
-  auto status = client->DownloadToFile(bucket_name_, object_name, file_name);
+  auto status = client.DownloadToFile(bucket_name_, object_name, file_name);
   EXPECT_THAT(status, StatusIs(Not(StatusCode::kOk), HasSubstr(object_name)));
 }
 
 TEST_F(ObjectFileIntegrationTest, DownloadFileCannotOpenFile) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
+
   StatusOr<ObjectMetadata> meta =
-      client->InsertObject(bucket_name_, object_name, LoremIpsum(),
-                           IfGenerationMatch(0), Projection::Full());
+      client.InsertObject(bucket_name_, object_name, LoremIpsum(),
+                          IfGenerationMatch(0), Projection::Full());
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
 
   // Create an invalid path for the destination object.
   auto file_name = MakeRandomFilename() + "/should-not-exist";
 
-  auto status = client->DownloadToFile(bucket_name_, object_name, file_name);
+  auto status = client.DownloadToFile(bucket_name_, object_name, file_name);
   EXPECT_THAT(status, StatusIs(Not(StatusCode::kOk), HasSubstr(object_name)));
 }
 
 TEST_F(ObjectFileIntegrationTest, DownloadFileCannotWriteToFile) {
 #if GTEST_OS_LINUX
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
+
   StatusOr<ObjectMetadata> meta =
-      client->InsertObject(bucket_name_, object_name, LoremIpsum(),
-                           IfGenerationMatch(0), Projection::Full());
+      client.InsertObject(bucket_name_, object_name, LoremIpsum(),
+                          IfGenerationMatch(0), Projection::Full());
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
 
@@ -175,15 +143,13 @@ TEST_F(ObjectFileIntegrationTest, DownloadFileCannotWriteToFile) {
   // order.
   auto constexpr kFileName = "/dev/full";
 
-  auto status = client->DownloadToFile(bucket_name_, object_name, kFileName);
+  auto status = client.DownloadToFile(bucket_name_, object_name, kFileName);
   EXPECT_THAT(status, StatusIs(Not(StatusCode::kOk), HasSubstr(object_name)));
 #endif  // GTEST_OS_LINUX
 }
 
 TEST_F(ObjectFileIntegrationTest, UploadFile) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto file_name = MakeRandomFilename();
   auto object_name = MakeRandomObjectName();
 
@@ -194,7 +160,7 @@ TEST_F(ObjectFileIntegrationTest, UploadFile) {
   WriteRandomLines(os, expected);
   os.close();
 
-  StatusOr<ObjectMetadata> meta = client->UploadFile(
+  StatusOr<ObjectMetadata> meta = client.UploadFile(
       file_name, bucket_name_, object_name, IfGenerationMatch(0));
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
@@ -204,7 +170,7 @@ TEST_F(ObjectFileIntegrationTest, UploadFile) {
   ASSERT_EQ(expected_str.size(), meta->size());
 
   // Create an iostream to read the object back.
-  auto stream = client->ReadObject(bucket_name_, object_name);
+  auto stream = client.ReadObject(bucket_name_, object_name);
   std::string actual(std::istreambuf_iterator<char>{stream}, {});
   ASSERT_FALSE(actual.empty());
   EXPECT_EQ(expected_str.size(), actual.size()) << " meta=" << *meta;
@@ -214,9 +180,7 @@ TEST_F(ObjectFileIntegrationTest, UploadFile) {
 }
 
 TEST_F(ObjectFileIntegrationTest, UploadFileBinary) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto file_name = MakeRandomFilename();
   auto object_name = MakeRandomObjectName();
 
@@ -236,7 +200,7 @@ TEST_F(ObjectFileIntegrationTest, UploadFileBinary) {
   os.write(expected.data(), expected.size());
   os.close();
 
-  StatusOr<ObjectMetadata> meta = client->UploadFile(
+  StatusOr<ObjectMetadata> meta = client.UploadFile(
       file_name, bucket_name_, object_name, IfGenerationMatch(0));
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
@@ -245,7 +209,7 @@ TEST_F(ObjectFileIntegrationTest, UploadFileBinary) {
   ASSERT_EQ(expected.size(), meta->size());
 
   // Create a iostream to read the object back.
-  auto stream = client->ReadObject(bucket_name_, object_name);
+  auto stream = client.ReadObject(bucket_name_, object_name);
   std::string actual(std::istreambuf_iterator<char>{stream}, {});
   ASSERT_FALSE(actual.empty());
   EXPECT_EQ(expected.size(), actual.size()) << " meta=" << *meta;
@@ -255,16 +219,14 @@ TEST_F(ObjectFileIntegrationTest, UploadFileBinary) {
 }
 
 TEST_F(ObjectFileIntegrationTest, UploadFileEmpty) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto file_name = MakeRandomFilename();
   auto object_name = MakeRandomObjectName();
 
   // Create a file with the contents to upload.
   std::ofstream(file_name, std::ios::binary).close();
 
-  StatusOr<ObjectMetadata> meta = client->UploadFile(
+  StatusOr<ObjectMetadata> meta = client.UploadFile(
       file_name, bucket_name_, object_name, IfGenerationMatch(0));
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
@@ -273,7 +235,7 @@ TEST_F(ObjectFileIntegrationTest, UploadFileEmpty) {
   EXPECT_EQ(0, meta->size());
 
   // Create an iostream to read the object back.
-  auto stream = client->ReadObject(bucket_name_, object_name);
+  auto stream = client.ReadObject(bucket_name_, object_name);
   std::string actual(std::istreambuf_iterator<char>{stream}, {});
   ASSERT_TRUE(actual.empty());
   EXPECT_EQ(0, actual.size());
@@ -283,21 +245,17 @@ TEST_F(ObjectFileIntegrationTest, UploadFileEmpty) {
 }
 
 TEST_F(ObjectFileIntegrationTest, UploadFileMissingFileFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto file_name = MakeRandomFilename();
   auto object_name = MakeRandomObjectName();
 
-  StatusOr<ObjectMetadata> meta = client->UploadFile(
+  StatusOr<ObjectMetadata> meta = client.UploadFile(
       file_name, bucket_name_, object_name, IfGenerationMatch(0));
   EXPECT_THAT(meta, StatusIs(StatusCode::kNotFound, HasSubstr(file_name)));
 }
 
 TEST_F(ObjectFileIntegrationTest, UploadFileUploadFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto file_name = MakeRandomFilename();
   auto object_name = MakeRandomObjectName();
 
@@ -305,14 +263,14 @@ TEST_F(ObjectFileIntegrationTest, UploadFileUploadFailure) {
   std::ofstream(file_name, std::ios::binary) << LoremIpsum();
 
   // Create the object.
-  StatusOr<ObjectMetadata> meta = client->InsertObject(
+  StatusOr<ObjectMetadata> meta = client.InsertObject(
       bucket_name_, object_name, LoremIpsum(), IfGenerationMatch(0));
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
 
   // Trying to upload the file to the same object with the IfGenerationMatch(0)
   // condition should fail because the object already exists.
-  StatusOr<ObjectMetadata> upload = client->UploadFile(
+  StatusOr<ObjectMetadata> upload = client.UploadFile(
       file_name, bucket_name_, object_name, IfGenerationMatch(0));
   // The GCS server returns a different error code depending on the protocol
   // (REST vs. gRPC) used
@@ -328,9 +286,7 @@ TEST_F(ObjectFileIntegrationTest, UploadFileNonRegularWarning) {
   // do on Linux, and hard to do on the other platforms we support, so just run
   // the test there.
 #if GTEST_OS_LINUX || GTEST_OS_MAC
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto file_name = MakeRandomFilename();
   auto object_name = MakeRandomObjectName();
 
@@ -344,8 +300,8 @@ TEST_F(ObjectFileIntegrationTest, UploadFileNonRegularWarning) {
   });
   testing_util::ScopedLog log;
   StatusOr<ObjectMetadata> meta =
-      client->UploadFile(file_name, bucket_name_, object_name,
-                         IfGenerationMatch(0), DisableMD5Hash(true));
+      client.UploadFile(file_name, bucket_name_, object_name,
+                        IfGenerationMatch(0), DisableMD5Hash(true));
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
 
@@ -354,50 +310,6 @@ TEST_F(ObjectFileIntegrationTest, UploadFileNonRegularWarning) {
   t.join();
   EXPECT_EQ(0, std::remove(file_name.c_str()));
 #endif  // GTEST_OS_LINUX
-}
-
-TEST_F(ObjectFileIntegrationTest, XmlUploadFile) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
-  auto file_name = MakeRandomFilename();
-  auto object_name = MakeRandomObjectName();
-
-  // We will construct the expected response while streaming the data up.
-  std::ostringstream expected;
-
-  auto generate_random_line = [this] {
-    std::string const characters =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "abcdefghijklmnopqrstuvwxyz"
-        "0123456789"
-        ".,/;:'[{]}=+-_}]`~!@#$%^&*()";
-    return google::cloud::internal::Sample(generator_, 200, characters);
-  };
-
-  // Create a file with the contents to upload.
-  std::ofstream os(file_name, std::ios::binary);
-  for (int line = 0; line != 1000; ++line) {
-    std::string random = generate_random_line() + "\n";
-    os << line << ": " << random;
-    expected << line << ": " << random;
-  }
-  os.close();
-
-  StatusOr<ObjectMetadata> meta = client->UploadFile(
-      file_name, bucket_name_, object_name, IfGenerationMatch(0), Fields(""));
-  ASSERT_STATUS_OK(meta);
-  ScheduleForDelete(*meta);
-  auto expected_str = expected.str();
-
-  // Create an iostream to read the object back.
-  auto stream = client->ReadObject(bucket_name_, object_name);
-  std::string actual(std::istreambuf_iterator<char>{stream}, {});
-  ASSERT_FALSE(actual.empty());
-  EXPECT_EQ(expected_str.size(), actual.size()) << " meta=" << *meta;
-  EXPECT_EQ(expected_str, actual);
-
-  EXPECT_EQ(0, std::remove(file_name.c_str()));
 }
 
 TEST_F(ObjectFileIntegrationTest, UploadFileResumableBySize) {
@@ -437,9 +349,7 @@ TEST_F(ObjectFileIntegrationTest, UploadFileResumableBySize) {
 }
 
 TEST_F(ObjectFileIntegrationTest, UploadFileResumableByOption) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto file_name = MakeRandomFilename();
   auto object_name = MakeRandomObjectName();
 
@@ -451,8 +361,8 @@ TEST_F(ObjectFileIntegrationTest, UploadFileResumableByOption) {
   os.close();
 
   StatusOr<ObjectMetadata> meta =
-      client->UploadFile(file_name, bucket_name_, object_name,
-                         IfGenerationMatch(0), NewResumableUploadSession());
+      client.UploadFile(file_name, bucket_name_, object_name,
+                        IfGenerationMatch(0), NewResumableUploadSession());
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
   EXPECT_EQ(object_name, meta->name());
@@ -466,7 +376,7 @@ TEST_F(ObjectFileIntegrationTest, UploadFileResumableByOption) {
   }
 
   // Create an iostream to read the object back.
-  auto stream = client->ReadObject(bucket_name_, object_name);
+  auto stream = client.ReadObject(bucket_name_, object_name);
   std::string actual(std::istreambuf_iterator<char>{stream}, {});
   ASSERT_FALSE(actual.empty());
   EXPECT_EQ(expected_str.size(), actual.size()) << " meta=" << *meta;
@@ -564,9 +474,7 @@ TEST_F(ObjectFileIntegrationTest, UploadFileResumableUploadFailure) {
 }
 
 TEST_F(ObjectFileIntegrationTest, UploadPortionRegularFile) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto file_name = MakeRandomFilename();
   auto object_name = MakeRandomObjectName();
 
@@ -577,7 +485,7 @@ TEST_F(ObjectFileIntegrationTest, UploadPortionRegularFile) {
   WriteRandomLines(os, expected);
   os.close();
 
-  StatusOr<ObjectMetadata> meta = client->UploadFile(
+  StatusOr<ObjectMetadata> meta = client.UploadFile(
       file_name, bucket_name_, object_name, UploadFromOffset(10),
       UploadLimit(10000), IfGenerationMatch(0));
   ASSERT_STATUS_OK(meta);
@@ -588,7 +496,7 @@ TEST_F(ObjectFileIntegrationTest, UploadPortionRegularFile) {
   ASSERT_EQ(expected_str.size(), meta->size());
 
   // Create an iostream to read the object back.
-  auto stream = client->ReadObject(bucket_name_, object_name);
+  auto stream = client.ReadObject(bucket_name_, object_name);
   std::string actual(std::istreambuf_iterator<char>{stream}, {});
   ASSERT_FALSE(actual.empty());
   EXPECT_EQ(expected_str.size(), actual.size()) << " meta=" << *meta;
@@ -598,12 +506,11 @@ TEST_F(ObjectFileIntegrationTest, UploadPortionRegularFile) {
 }
 
 TEST_F(ObjectFileIntegrationTest, ResumableUploadFileCustomHeader) {
-  // Test relies on emulator for capturing custom header
-  if (!UsingEmulator()) GTEST_SKIP();
+  // Test relies on emulator for capturing custom header. The emulator does not
+  // support this behavior with gRPC, so we need to skip the test in this case.
+  if (!UsingEmulator() || UsingGrpc()) GTEST_SKIP();
 
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto file_name = MakeRandomFilename();
   auto object_name = MakeRandomObjectName();
 
@@ -619,8 +526,8 @@ TEST_F(ObjectFileIntegrationTest, ResumableUploadFileCustomHeader) {
                              "custom_header_value");
 
   StatusOr<ObjectMetadata> meta =
-      client->UploadFile(file_name, bucket_name_, object_name, custom_header,
-                         IfGenerationMatch(0), NewResumableUploadSession());
+      client.UploadFile(file_name, bucket_name_, object_name, custom_header,
+                        IfGenerationMatch(0), NewResumableUploadSession());
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
 
@@ -629,11 +536,11 @@ TEST_F(ObjectFileIntegrationTest, ResumableUploadFileCustomHeader) {
   auto expected_str = expected.str();
   ASSERT_EQ(expected_str.size(), meta->size());
 
-  ASSERT_TRUE(meta->has_metadata("x_emulator_custom_header"));
-  EXPECT_EQ(custom_header.value(), meta->metadata("x_emulator_custom_header"));
+  EXPECT_THAT(meta->metadata(), Contains(Pair("x_emulator_custom_header",
+                                              "custom_header_value")));
 
   // Create an iostream to read the object back.
-  auto stream = client->ReadObject(bucket_name_, object_name);
+  auto stream = client.ReadObject(bucket_name_, object_name);
   std::string actual(std::istreambuf_iterator<char>{stream}, {});
   ASSERT_FALSE(actual.empty());
   EXPECT_EQ(expected_str.size(), actual.size()) << " meta=" << *meta;
@@ -643,9 +550,7 @@ TEST_F(ObjectFileIntegrationTest, ResumableUploadFileCustomHeader) {
 }
 
 TEST_F(ObjectFileIntegrationTest, UploadFileWithContentType) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto file_name = MakeRandomFilename();
   auto object_name = MakeRandomObjectName();
 
@@ -653,7 +558,7 @@ TEST_F(ObjectFileIntegrationTest, UploadFileWithContentType) {
   os << LoremIpsum();
   os.close();
 
-  StatusOr<ObjectMetadata> meta = client->UploadFile(
+  StatusOr<ObjectMetadata> meta = client.UploadFile(
       file_name, bucket_name_, object_name, IfGenerationMatch(0),
       ContentType("application/octet-stream"));
   EXPECT_EQ(0, std::remove(file_name.c_str()));
@@ -663,7 +568,7 @@ TEST_F(ObjectFileIntegrationTest, UploadFileWithContentType) {
   EXPECT_EQ(bucket_name_, meta->bucket());
   EXPECT_EQ(LoremIpsum().size(), meta->size());
 
-  auto stream = client->ReadObject(bucket_name_, object_name);
+  auto stream = client.ReadObject(bucket_name_, object_name);
   std::string actual(std::istreambuf_iterator<char>{stream}, {});
   ASSERT_FALSE(actual.empty());
   EXPECT_EQ(LoremIpsum(), actual);

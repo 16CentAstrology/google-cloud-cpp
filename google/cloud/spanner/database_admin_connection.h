@@ -90,6 +90,9 @@ using ListBackupsRange = ::google::cloud::internal::PaginationRange<
 /**
  * A connection to the Cloud Spanner instance administration service.
  *
+ * @deprecated Please use #google::cloud::spanner_admin::DatabaseAdminClient
+ *     and #google::cloud::spanner_admin::DatabaseAdminConnection instead.
+ *
  * This interface defines pure-virtual methods for each of the user-facing
  * overload sets in `DatabaseAdminClient`.  This allows users to inject custom
  * behavior (e.g., with a Google Mock object) in a `DatabaseAdminClient` object
@@ -103,7 +106,7 @@ class GOOGLE_CLOUD_CPP_SPANNER_ADMIN_API_DEPRECATED("DatabaseAdminConnection")
  public:
   virtual ~DatabaseAdminConnection() = 0;
 
-  //@{
+  ///@{
   /**
    * @name Define the arguments for each member function.
    *
@@ -239,7 +242,7 @@ class GOOGLE_CLOUD_CPP_SPANNER_ADMIN_API_DEPRECATED("DatabaseAdminConnection")
     Instance instance;
     std::string filter;
   };
-  //@}
+  ///@}
 
   virtual Options options() { return Options{}; }
 

@@ -90,8 +90,7 @@ class PublisherIntegrationTest : public testing_util::IntegrationTest {
     ASSERT_FALSE(project_id.empty()) << "GOOGLE_CLOUD_PROJECT is unset";
     auto const location_id = GetEnv("GOOGLE_CLOUD_CPP_TEST_ZONE").value_or("");
     ASSERT_FALSE(location_id.empty()) << "GOOGLE_CLOUD_CPP_TEST_ZONE is unset";
-    auto const parent =
-        std::string{"projects/"} + project_id + "/locations/" + location_id;
+    auto const parent = Location(project_id, location_id).FullName();
     auto ep = EndpointFromZone(location_id);
     ASSERT_STATUS_OK(ep);
 
@@ -106,7 +105,7 @@ class PublisherIntegrationTest : public testing_util::IntegrationTest {
     topic_name_ = topic.FullName();
 
     google::cloud::pubsublite::v1::Topic t;
-    t.mutable_partition_config()->set_count(3);
+    t.mutable_partition_config()->set_count(1);
     t.mutable_retention_config()->set_per_partition_bytes(kPartitionStorage);
     auto& capacity = *t.mutable_partition_config()->mutable_capacity();
     capacity.set_publish_mib_per_sec(kThroughputCapacityMiB);
@@ -114,7 +113,7 @@ class PublisherIntegrationTest : public testing_util::IntegrationTest {
     ASSERT_STATUS_OK(client.CreateTopic(parent, t, topic_id));
 
     auto publisher_connection = MakePublisherConnection(
-        std::move(topic),
+        admin_connection_, std::move(topic),
         Options{}.set<MaxBatchMessagesOption>(kMaxNumMessagesPerBatch));
     ASSERT_STATUS_OK(publisher_connection);
     publisher_connection_ = *std::move(publisher_connection);

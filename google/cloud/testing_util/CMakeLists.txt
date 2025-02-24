@@ -27,16 +27,21 @@ add_library(
     chrono_output.h
     command_line_parsing.cc
     command_line_parsing.h
-    contains_once.h
+    credentials.h
     example_driver.cc
     example_driver.h
     expect_exception.h
     expect_future_error.h
+    fake_clock.h
     integration_test.cc
     integration_test.h
+    mock_async_streaming_read_rpc.h
+    mock_async_streaming_write_rpc.h
     mock_backoff_policy.h
     mock_fake_clock.cc
     mock_fake_clock.h
+    opentelemetry_matchers.cc
+    opentelemetry_matchers.h
     scoped_environment.cc
     scoped_environment.h
     scoped_log.cc
@@ -54,6 +59,12 @@ target_link_libraries(
     google_cloud_cpp_testing
     PUBLIC absl::symbolize absl::failure_signal_handler
            google-cloud-cpp::common GTest::gmock)
+if (opentelemetry-cpp_FOUND)
+    target_link_libraries(
+        google_cloud_cpp_testing
+        PRIVATE opentelemetry-cpp::in_memory_span_exporter
+                opentelemetry-cpp::trace)
+endif ()
 google_cloud_cpp_add_common_options(google_cloud_cpp_testing)
 
 include(CheckCXXSymbolExists)
@@ -76,7 +87,6 @@ set(google_cloud_cpp_testing_unit_tests
     async_sequencer_test.cc
     chrono_output_test.cc
     command_line_parsing_test.cc
-    contains_once_test.cc
     example_driver_test.cc
     scoped_environment_test.cc
     setenv_test.cc
@@ -92,9 +102,6 @@ foreach (fname ${google_cloud_cpp_testing_unit_tests})
         ${target} PRIVATE google_cloud_cpp_testing google-cloud-cpp::common
                           GTest::gmock_main GTest::gmock GTest::gtest)
     google_cloud_cpp_add_common_options(${target})
-    if (MSVC)
-        target_compile_options(${target} PRIVATE "/bigobj")
-    endif ()
     add_test(NAME ${target} COMMAND ${target})
 endforeach ()
 

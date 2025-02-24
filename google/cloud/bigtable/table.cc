@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "google/cloud/bigtable/internal/legacy_row_reader.h"
 #include "google/cloud/bigtable/internal/unary_client_utils.h"
 #include "google/cloud/internal/async_retry_unary_rpc.h"
+#include "google/cloud/internal/make_status.h"
 #include <thread>
 #include <type_traits>
 
@@ -54,9 +55,10 @@ Status Table::Apply(SingleRowMutation mut, Options opts) {
     return connection_->Apply(table_name_, std::move(mut));
   }
   if (!google::cloud::internal::IsEmpty(opts)) {
-    return Status(StatusCode::kInvalidArgument,
-                  "Per-operation options only apply to `Table`s constructed "
-                  "with a `DataConnection`.");
+    return google::cloud::internal::InvalidArgumentError(
+        "Per-operation options only apply to `Table`s constructed "
+        "with a `DataConnection`.",
+        GCP_ERROR_INFO());
   }
 
   // Copy the policies in effect for this operation.  Many policy classes change
@@ -106,17 +108,16 @@ future<Status> Table::AsyncApply(SingleRowMutation mut, Options opts) {
     return connection_->AsyncApply(table_name_, std::move(mut));
   }
   if (!google::cloud::internal::IsEmpty(opts)) {
-    return make_ready_future(
-        Status(StatusCode::kInvalidArgument,
-               "Per-operation options only apply to `Table`s constructed "
-               "with a `DataConnection`."));
+    return make_ready_future(google::cloud::internal::InvalidArgumentError(
+        "Per-operation options only apply to `Table`s constructed "
+        "with a `DataConnection`.",
+        GCP_ERROR_INFO()));
   }
 
   google::bigtable::v2::MutateRowRequest request;
   SetCommonTableOperationRequest<google::bigtable::v2::MutateRowRequest>(
       request, app_profile_id(), table_name_);
   mut.MoveTo(request);
-  auto context = absl::make_unique<grpc::ClientContext>();
 
   // Determine if all the mutations are idempotent. The idempotency of the
   // mutations won't change as the retry loop executes, so we can just compute
@@ -157,9 +158,10 @@ std::vector<FailedMutation> Table::BulkApply(BulkMutation mut, Options opts) {
   }
   if (!google::cloud::internal::IsEmpty(opts)) {
     return bigtable_internal::MakeFailedMutations(
-        Status(StatusCode::kInvalidArgument,
-               "Per-operation options only apply to `Table`s constructed "
-               "with a `DataConnection`."),
+        google::cloud::internal::InvalidArgumentError(
+            "Per-operation options only apply to `Table`s constructed "
+            "with a `DataConnection`.",
+            GCP_ERROR_INFO()),
         mut.size());
   }
 
@@ -173,8 +175,8 @@ std::vector<FailedMutation> Table::BulkApply(BulkMutation mut, Options opts) {
   auto retry_policy = clone_rpc_retry_policy();
   auto idempotent_policy = clone_idempotent_mutation_policy();
 
-  bigtable::internal::BulkMutator mutator(app_profile_id(), table_name_,
-                                          *idempotent_policy, std::move(mut));
+  bigtable_internal::BulkMutator mutator(app_profile_id(), table_name_,
+                                         *idempotent_policy, std::move(mut));
   while (true) {
     grpc::ClientContext client_context;
     backoff_policy->Setup(client_context);
@@ -197,9 +199,10 @@ future<std::vector<FailedMutation>> Table::AsyncBulkApply(BulkMutation mut,
   }
   if (!google::cloud::internal::IsEmpty(opts)) {
     return make_ready_future(bigtable_internal::MakeFailedMutations(
-        Status(StatusCode::kInvalidArgument,
-               "Per-operation options only apply to `Table`s constructed "
-               "with a `DataConnection`."),
+        google::cloud::internal::InvalidArgumentError(
+            "Per-operation options only apply to `Table`s constructed "
+            "with a `DataConnection`.",
+            GCP_ERROR_INFO()),
         mut.size()));
   }
 
@@ -226,16 +229,17 @@ RowReader Table::ReadRows(RowSet row_set, std::int64_t rows_limit,
   if (!google::cloud::internal::IsEmpty(opts)) {
     return MakeRowReader(
         std::make_shared<bigtable_internal::StatusOnlyRowReader>(
-            Status(StatusCode::kInvalidArgument,
-                   "Per-operation options only apply to `Table`s constructed "
-                   "with a `DataConnection`.")));
+            google::cloud::internal::InvalidArgumentError(
+                "Per-operation options only apply to `Table`s constructed "
+                "with a `DataConnection`.",
+                GCP_ERROR_INFO())));
   }
 
   auto impl = std::make_shared<bigtable_internal::LegacyRowReader>(
       client_, app_profile_id(), table_name_, std::move(row_set), rows_limit,
       std::move(filter), clone_rpc_retry_policy(), clone_rpc_backoff_policy(),
       metadata_update_policy_,
-      absl::make_unique<bigtable::internal::ReadRowsParserFactory>());
+      std::make_unique<bigtable::internal::ReadRowsParserFactory>());
   return bigtable_internal::MakeRowReader(std::move(impl));
 }
 
@@ -247,9 +251,10 @@ StatusOr<std::pair<bool, Row>> Table::ReadRow(std::string row_key,
                                 std::move(filter));
   }
   if (!google::cloud::internal::IsEmpty(opts)) {
-    return Status(StatusCode::kInvalidArgument,
-                  "Per-operation options only apply to `Table`s constructed "
-                  "with a `DataConnection`.");
+    return google::cloud::internal::InvalidArgumentError(
+        "Per-operation options only apply to `Table`s constructed "
+        "with a `DataConnection`.",
+        GCP_ERROR_INFO());
   }
 
   RowSet row_set(std::move(row_key));
@@ -266,9 +271,9 @@ StatusOr<std::pair<bool, Row>> Table::ReadRow(std::string row_key,
   }
   auto result = std::make_pair(true, std::move(**it));
   if (++it != reader.end()) {
-    return Status(
-        StatusCode::kInternal,
-        "internal error - RowReader returned more than one row in ReadRow()");
+    return google::cloud::internal::InternalError(
+        "internal error - RowReader returned more than one row in ReadRow(, "
+        "GCP_ERROR_INFO())");
   }
   return result;
 }
@@ -283,9 +288,10 @@ StatusOr<MutationBranch> Table::CheckAndMutateRow(
         std::move(true_mutations), std::move(false_mutations));
   }
   if (!google::cloud::internal::IsEmpty(opts)) {
-    return Status(StatusCode::kInvalidArgument,
-                  "Per-operation options only apply to `Table`s constructed "
-                  "with a `DataConnection`.");
+    return google::cloud::internal::InvalidArgumentError(
+        "Per-operation options only apply to `Table`s constructed "
+        "with a `DataConnection`.",
+        GCP_ERROR_INFO());
   }
 
   grpc::Status status;
@@ -326,9 +332,10 @@ future<StatusOr<MutationBranch>> Table::AsyncCheckAndMutateRow(
   }
   if (!google::cloud::internal::IsEmpty(opts)) {
     return make_ready_future<StatusOr<MutationBranch>>(
-        Status(StatusCode::kInvalidArgument,
-               "Per-operation options only apply to `Table`s constructed "
-               "with a `DataConnection`."));
+        google::cloud::internal::InvalidArgumentError(
+            "Per-operation options only apply to `Table`s constructed "
+            "with a `DataConnection`.",
+            GCP_ERROR_INFO()));
   }
 
   btproto::CheckAndMutateRowRequest request;
@@ -383,9 +390,10 @@ StatusOr<std::vector<bigtable::RowKeySample>> Table::SampleRows(Options opts) {
     return connection_->SampleRows(table_name_);
   }
   if (!google::cloud::internal::IsEmpty(opts)) {
-    return Status(StatusCode::kInvalidArgument,
-                  "Per-operation options only apply to `Table`s constructed "
-                  "with a `DataConnection`.");
+    return google::cloud::internal::InvalidArgumentError(
+        "Per-operation options only apply to `Table`s constructed "
+        "with a `DataConnection`.",
+        GCP_ERROR_INFO());
   }
 
   // Copy the policies in effect for this operation.
@@ -436,9 +444,10 @@ future<StatusOr<std::vector<bigtable::RowKeySample>>> Table::AsyncSampleRows(
   }
   if (!google::cloud::internal::IsEmpty(opts)) {
     return make_ready_future<StatusOr<std::vector<RowKeySample>>>(
-        Status(StatusCode::kInvalidArgument,
-               "Per-operation options only apply to `Table`s constructed "
-               "with a `DataConnection`."));
+        google::cloud::internal::InvalidArgumentError(
+            "Per-operation options only apply to `Table`s constructed "
+            "with a `DataConnection`.",
+            GCP_ERROR_INFO()));
   }
 
   auto cq = background_threads_->cq();
@@ -457,9 +466,10 @@ StatusOr<Row> Table::ReadModifyWriteRowImpl(
     return connection_->ReadModifyWriteRow(std::move(request));
   }
   if (!google::cloud::internal::IsEmpty(opts)) {
-    return Status(StatusCode::kInvalidArgument,
-                  "Per-operation options only apply to `Table`s constructed "
-                  "with a `DataConnection`.");
+    return google::cloud::internal::InvalidArgumentError(
+        "Per-operation options only apply to `Table`s constructed "
+        "with a `DataConnection`.",
+        GCP_ERROR_INFO());
   }
 
   grpc::Status status;
@@ -485,9 +495,10 @@ future<StatusOr<Row>> Table::AsyncReadModifyWriteRowImpl(
   }
   if (!google::cloud::internal::IsEmpty(opts)) {
     return make_ready_future<StatusOr<Row>>(
-        Status(StatusCode::kInvalidArgument,
-               "Per-operation options only apply to `Table`s constructed "
-               "with a `DataConnection`."));
+        google::cloud::internal::InvalidArgumentError(
+            "Per-operation options only apply to `Table`s constructed "
+            "with a `DataConnection`.",
+            GCP_ERROR_INFO()));
   }
 
   auto cq = background_threads_->cq();
@@ -523,9 +534,10 @@ future<StatusOr<std::pair<bool, Row>>> Table::AsyncReadRow(std::string row_key,
   }
   if (!google::cloud::internal::IsEmpty(opts)) {
     return make_ready_future<StatusOr<std::pair<bool, Row>>>(
-        Status(StatusCode::kInvalidArgument,
-               "Per-operation options only apply to `Table`s constructed "
-               "with a `DataConnection`."));
+        google::cloud::internal::InvalidArgumentError(
+            "Per-operation options only apply to `Table`s constructed "
+            "with a `DataConnection`.",
+            GCP_ERROR_INFO()));
   }
 
   class AsyncReadRowHandler {

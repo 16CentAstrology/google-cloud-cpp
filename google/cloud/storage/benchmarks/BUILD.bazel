@@ -12,32 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load(":storage_benchmark_programs.bzl", "storage_benchmark_programs")
+load(":storage_benchmarks.bzl", "storage_benchmarks_hdrs", "storage_benchmarks_srcs")
+load(":storage_benchmarks_unit_tests.bzl", "storage_benchmarks_unit_tests")
+
 package(default_visibility = ["//visibility:private"])
 
 licenses(["notice"])  # Apache 2.0
-
-load(":storage_benchmarks.bzl", "storage_benchmarks_hdrs", "storage_benchmarks_srcs")
 
 cc_library(
     name = "storage_benchmarks",
     testonly = True,
     srcs = storage_benchmarks_srcs,
     hdrs = storage_benchmarks_hdrs,
+    local_defines = select({
+        "//google/cloud/storage:ctype_cord_workaround_enabled": ["GOOGLE_CLOUD_CPP_ENABLE_CTYPE_CORD_WORKAROUND"],
+        "//conditions:default": [],
+    }),
     deps = [
         "//:common",
         "//:grpc_utils",
         "//:storage",
         "//google/cloud/storage:storage_client_testing",
         "//google/cloud/testing_util:google_cloud_cpp_testing_private",
-        "@boringssl//:crypto",
-        "@boringssl//:ssl",
         "@com_github_curl_curl//:curl",
         "@com_google_googleapis//google/storage/v2:storage_cc_grpc",
         "@com_google_googleapis//google/storage/v2:storage_cc_proto",
     ],
 )
-
-load(":storage_benchmark_programs.bzl", "storage_benchmark_programs")
 
 [cc_binary(
     name = program.replace("/", "_").replace(".cc", ""),
@@ -53,14 +55,10 @@ load(":storage_benchmark_programs.bzl", "storage_benchmark_programs")
         "//:storage",
         "//google/cloud/storage:storage_client_testing",
         "//google/cloud/testing_util:google_cloud_cpp_testing_private",
-        "@boringssl//:crypto",
-        "@boringssl//:ssl",
         "@com_github_curl_curl//:curl",
         "@com_google_absl//absl/strings",
     ],
 ) for program in storage_benchmark_programs]
-
-load(":storage_benchmarks_unit_tests.bzl", "storage_benchmarks_unit_tests")
 
 [cc_test(
     name = test.replace("/", "_").replace(".cc", ""),
@@ -75,9 +73,19 @@ load(":storage_benchmarks_unit_tests.bzl", "storage_benchmarks_unit_tests")
         "//:storage",
         "//google/cloud/storage:storage_client_testing",
         "//google/cloud/testing_util:google_cloud_cpp_testing_private",
-        "@boringssl//:crypto",
-        "@boringssl//:ssl",
         "@com_github_curl_curl//:curl",
         "@com_google_googletest//:gtest_main",
     ],
 ) for test in storage_benchmarks_unit_tests]
+
+cc_binary(
+    name = "async_throughput_benchmark",
+    testonly = True,
+    srcs = ["async_throughput_benchmark.cc"],
+    tags = ["manual"],
+    deps = [
+        ":storage_benchmarks",
+        "//:storage_grpc",
+        "//google/cloud/testing_util:google_cloud_cpp_testing_private",
+    ],
+)

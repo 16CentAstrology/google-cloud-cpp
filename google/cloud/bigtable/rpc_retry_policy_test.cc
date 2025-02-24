@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ Status PermanentError() {
   return Status(StatusCode::kFailedPrecondition, "failed");
 }
 
-using ::google::cloud::testing_util::chrono_literals::operator"" _ms;  // NOLINT
+using ::google::cloud::testing_util::chrono_literals::operator""_ms;
 
 auto const kLimitedTimeTestPeriod = 100_ms;
 auto const kLimitedTimeTolerance = 20_ms;
@@ -56,29 +56,30 @@ auto const kLimitedTimeTolerance = 20_ms;
  *
  * This eliminates some amount of code duplication in the following tests.
  */
-void CheckLimitedTime(RPCRetryPolicy& tested) {
+void CheckLimitedTime(RPCRetryPolicy& tested, char const* where) {
   google::cloud::testing_util::CheckPredicateBecomesFalse(
       [&tested] { return tested.OnFailure(GrpcTransientError()); },
       std::chrono::system_clock::now() + kLimitedTimeTestPeriod,
-      kLimitedTimeTolerance);
+      kLimitedTimeTolerance, where);
 }
 
 void CheckLimitedTime(
-    std::unique_ptr<bigtable_admin::BigtableInstanceAdminRetryPolicy> common) {
+    std::unique_ptr<bigtable_admin::BigtableInstanceAdminRetryPolicy> common,
+    char const* where) {
   google::cloud::testing_util::CheckPredicateBecomesFalse(
       [&common] { return common->OnFailure(TransientError()); },
       std::chrono::system_clock::now() + kLimitedTimeTestPeriod,
-      kLimitedTimeTolerance);
+      kLimitedTimeTolerance, where);
 }
 
 /// @test A simple test for the LimitedTimeRetryPolicy.
 TEST(LimitedTimeRetryPolicy, Simple) {
   LimitedTimeRetryPolicy tested(kLimitedTimeTestPeriod);
-  CheckLimitedTime(tested);
+  CheckLimitedTime(tested, __func__);
 
   auto common = bigtable_internal::MakeCommonRetryPolicy<
       bigtable_admin::BigtableInstanceAdminRetryPolicy>(tested.clone());
-  CheckLimitedTime(std::move(common));
+  CheckLimitedTime(std::move(common), __func__);
 }
 
 /// @test A simple test for grpc::StatusCode::OK is not Permanent Error.
@@ -99,11 +100,11 @@ TEST(LimitedTimeRetryPolicy, PermanentFailureCheck) {
 TEST(LimitedTimeRetryPolicy, Clone) {
   LimitedTimeRetryPolicy original(kLimitedTimeTestPeriod);
   auto tested = original.clone();
-  CheckLimitedTime(*tested);
+  CheckLimitedTime(*tested, __func__);
 
   auto common = bigtable_internal::MakeCommonRetryPolicy<
       bigtable_admin::BigtableInstanceAdminRetryPolicy>(original.clone());
-  CheckLimitedTime(common->clone());
+  CheckLimitedTime(common->clone(), __func__);
 }
 
 /// @test Verify that non-retryable errors cause an immediate failure.
@@ -197,7 +198,7 @@ TEST(CommonRetryPolicy, IsExhaustedBestEffort) {
   class CustomRetryPolicy : public RPCRetryPolicy {
    public:
     std::unique_ptr<RPCRetryPolicy> clone() const override {
-      return absl::make_unique<CustomRetryPolicy>();
+      return std::make_unique<CustomRetryPolicy>();
     }
     void Setup(grpc::ClientContext&) const override {}
     bool OnFailure(Status const&) override { return false; }
@@ -210,14 +211,6 @@ TEST(CommonRetryPolicy, IsExhaustedBestEffort) {
       bigtable_admin::BigtableInstanceAdminRetryPolicy>(tested.clone());
   EXPECT_FALSE(common->OnFailure(TransientError()));
   EXPECT_TRUE(common->IsExhausted());
-}
-
-/// @test Verify that certain known internal errors are retryable.
-TEST(TransientInternalError, RstStreamRetried) {
-  EXPECT_FALSE(internal::SafeGrpcRetry::IsTransientFailure(
-      Status(StatusCode::kInternal, "non-retryable")));
-  EXPECT_TRUE(internal::SafeGrpcRetry::IsTransientFailure(
-      Status(StatusCode::kInternal, "RST_STREAM")));
 }
 
 }  // namespace

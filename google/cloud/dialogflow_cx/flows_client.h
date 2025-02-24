@@ -21,12 +21,15 @@
 
 #include "google/cloud/dialogflow_cx/flows_connection.h"
 #include "google/cloud/future.h"
+#include "google/cloud/no_await_tag.h"
 #include "google/cloud/options.h"
 #include "google/cloud/polling_policy.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/version.h"
 #include <google/longrunning/operations.grpc.pb.h>
+#include <map>
 #include <memory>
+#include <string>
 
 namespace google {
 namespace cloud {
@@ -59,6 +62,9 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 /// and move-construction is a relatively efficient operation, consider using
 /// such a copy when using this class from multiple threads.
 ///
+/// [google.cloud.dialogflow.cx.v3.Flow]:
+/// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L253}
+///
 class FlowsClient {
  public:
   explicit FlowsClient(std::shared_ptr<FlowsConnection> connection,
@@ -66,7 +72,7 @@ class FlowsClient {
   ~FlowsClient();
 
   ///@{
-  // @name Copy and move support
+  /// @name Copy and move support
   FlowsClient(FlowsClient const&) = default;
   FlowsClient& operator=(FlowsClient const&) = default;
   FlowsClient(FlowsClient&&) = default;
@@ -74,7 +80,7 @@ class FlowsClient {
   ///@}
 
   ///@{
-  // @name Equality
+  /// @name Equality
   friend bool operator==(FlowsClient const& a, FlowsClient const& b) {
     return a.connection_ == b.connection_;
   }
@@ -83,6 +89,7 @@ class FlowsClient {
   }
   ///@}
 
+  // clang-format off
   ///
   /// Creates a flow in the specified agent.
   ///
@@ -91,23 +98,30 @@ class FlowsClient {
   /// documentation](https://cloud.google.com/dialogflow/cx/docs/concept/training).
   ///
   /// @param parent  Required. The agent to create a flow for.
-  ///  Format: `projects/<Project ID>/locations/<Location ID>/agents/<Agent
-  ///  ID>`.
+  ///  Format: `projects/<ProjectID>/locations/<LocationID>/agents/<AgentID>`.
   /// @param flow  Required. The flow to create.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::Flow,google/cloud/dialogflow/cx/v3/flow.proto#L247}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.dialogflow.cx.v3.Flow])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.cloud.dialogflow.cx.v3.CreateFlowRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L316}
-  /// [google.cloud.dialogflow.cx.v3.Flow]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L247}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.CreateFlowRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L364}
+  /// [google.cloud.dialogflow.cx.v3.Flow]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L253}
   ///
+  // clang-format on
   StatusOr<google::cloud::dialogflow::cx::v3::Flow> CreateFlow(
       std::string const& parent,
       google::cloud::dialogflow::cx::v3::Flow const& flow, Options opts = {});
 
+  // clang-format off
   ///
   /// Creates a flow in the specified agent.
   ///
@@ -115,127 +129,218 @@ class FlowsClient {
   /// [training
   /// documentation](https://cloud.google.com/dialogflow/cx/docs/concept/training).
   ///
-  /// @param request
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::CreateFlowRequest,google/cloud/dialogflow/cx/v3/flow.proto#L316}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.dialogflow.cx.v3.CreateFlowRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::Flow,google/cloud/dialogflow/cx/v3/flow.proto#L247}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.dialogflow.cx.v3.Flow])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.cloud.dialogflow.cx.v3.CreateFlowRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L316}
-  /// [google.cloud.dialogflow.cx.v3.Flow]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L247}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.CreateFlowRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L364}
+  /// [google.cloud.dialogflow.cx.v3.Flow]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L253}
   ///
+  // clang-format on
   StatusOr<google::cloud::dialogflow::cx::v3::Flow> CreateFlow(
       google::cloud::dialogflow::cx::v3::CreateFlowRequest const& request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Deletes a specified flow.
   ///
   /// @param name  Required. The name of the flow to delete.
-  ///  Format: `projects/<Project ID>/locations/<Location ID>/agents/<Agent
-  ///  ID>/flows/<Flow ID>`.
+  ///  Format:
+  ///  `projects/<ProjectID>/locations/<LocationID>/agents/<AgentID>/flows/<FlowID>`.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
+  /// @return a [`Status`] object. If the request failed, the
+  ///     status contains the details of the failure.
   ///
-  /// [google.cloud.dialogflow.cx.v3.DeleteFlowRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L345}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.DeleteFlowRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L394}
   ///
+  // clang-format on
   Status DeleteFlow(std::string const& name, Options opts = {});
 
+  // clang-format off
   ///
   /// Deletes a specified flow.
   ///
-  /// @param request
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::DeleteFlowRequest,google/cloud/dialogflow/cx/v3/flow.proto#L345}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.dialogflow.cx.v3.DeleteFlowRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
+  /// @return a [`Status`] object. If the request failed, the
+  ///     status contains the details of the failure.
   ///
-  /// [google.cloud.dialogflow.cx.v3.DeleteFlowRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L345}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.DeleteFlowRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L394}
   ///
+  // clang-format on
   Status DeleteFlow(
       google::cloud::dialogflow::cx::v3::DeleteFlowRequest const& request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Returns the list of all flows in the specified agent.
   ///
   /// @param parent  Required. The agent containing the flows.
-  ///  Format: `projects/<Project ID>/locations/<Location ID>/agents/<Agent
-  ///  ID>`.
+  ///  Format: `projects/<ProjectID>/locations/<LocationID>/agents/<AgentID>`.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::Flow,google/cloud/dialogflow/cx/v3/flow.proto#L247}
+  /// @return a [StreamRange](@ref google::cloud::StreamRange)
+  ///     to iterate of the results. See the documentation of this type for
+  ///     details. In brief, this class has `begin()` and `end()` member
+  ///     functions returning a iterator class meeting the
+  ///     [input iterator requirements]. The value type for this iterator is a
+  ///     [`StatusOr`] as the iteration may fail even after some values are
+  ///     retrieved successfully, for example, if there is a network disconnect.
+  ///     An empty set of results does not indicate an error, it indicates
+  ///     that there are no resources meeting the request criteria.
+  ///     On a successful iteration the `StatusOr<T>` contains elements of type
+  ///     [google.cloud.dialogflow.cx.v3.Flow], or rather,
+  ///     the C++ class generated by Protobuf from that type. Please consult the
+  ///     Protobuf documentation for details on the [Protobuf mapping rules].
   ///
-  /// [google.cloud.dialogflow.cx.v3.ListFlowsRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L370}
-  /// [google.cloud.dialogflow.cx.v3.Flow]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L247}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.Flow]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L253}
+  /// [google.cloud.dialogflow.cx.v3.ListFlowsRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L418}
   ///
+  // clang-format on
   StreamRange<google::cloud::dialogflow::cx::v3::Flow> ListFlows(
       std::string const& parent, Options opts = {});
 
+  // clang-format off
   ///
   /// Returns the list of all flows in the specified agent.
   ///
-  /// @param request
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::ListFlowsRequest,google/cloud/dialogflow/cx/v3/flow.proto#L370}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.dialogflow.cx.v3.ListFlowsRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::Flow,google/cloud/dialogflow/cx/v3/flow.proto#L247}
+  /// @return a [StreamRange](@ref google::cloud::StreamRange)
+  ///     to iterate of the results. See the documentation of this type for
+  ///     details. In brief, this class has `begin()` and `end()` member
+  ///     functions returning a iterator class meeting the
+  ///     [input iterator requirements]. The value type for this iterator is a
+  ///     [`StatusOr`] as the iteration may fail even after some values are
+  ///     retrieved successfully, for example, if there is a network disconnect.
+  ///     An empty set of results does not indicate an error, it indicates
+  ///     that there are no resources meeting the request criteria.
+  ///     On a successful iteration the `StatusOr<T>` contains elements of type
+  ///     [google.cloud.dialogflow.cx.v3.Flow], or rather,
+  ///     the C++ class generated by Protobuf from that type. Please consult the
+  ///     Protobuf documentation for details on the [Protobuf mapping rules].
   ///
-  /// [google.cloud.dialogflow.cx.v3.ListFlowsRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L370}
-  /// [google.cloud.dialogflow.cx.v3.Flow]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L247}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.Flow]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L253}
+  /// [google.cloud.dialogflow.cx.v3.ListFlowsRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L418}
   ///
+  // clang-format on
   StreamRange<google::cloud::dialogflow::cx::v3::Flow> ListFlows(
       google::cloud::dialogflow::cx::v3::ListFlowsRequest request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Retrieves the specified flow.
   ///
   /// @param name  Required. The name of the flow to get.
-  ///  Format: `projects/<Project ID>/locations/<Location ID>/agents/<Agent
-  ///  ID>/flows/<Flow ID>`.
+  ///  Format:
+  ///  `projects/<ProjectID>/locations/<LocationID>/agents/<AgentID>/flows/<FlowID>`.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::Flow,google/cloud/dialogflow/cx/v3/flow.proto#L247}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.dialogflow.cx.v3.Flow])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.cloud.dialogflow.cx.v3.GetFlowRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L415}
-  /// [google.cloud.dialogflow.cx.v3.Flow]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L247}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.Flow]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L253}
+  /// [google.cloud.dialogflow.cx.v3.GetFlowRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L465}
   ///
+  // clang-format on
   StatusOr<google::cloud::dialogflow::cx::v3::Flow> GetFlow(
       std::string const& name, Options opts = {});
 
+  // clang-format off
   ///
   /// Retrieves the specified flow.
   ///
-  /// @param request
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::GetFlowRequest,google/cloud/dialogflow/cx/v3/flow.proto#L415}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.dialogflow.cx.v3.GetFlowRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::Flow,google/cloud/dialogflow/cx/v3/flow.proto#L247}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.dialogflow.cx.v3.Flow])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.cloud.dialogflow.cx.v3.GetFlowRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L415}
-  /// [google.cloud.dialogflow.cx.v3.Flow]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L247}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.Flow]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L253}
+  /// [google.cloud.dialogflow.cx.v3.GetFlowRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L465}
   ///
+  // clang-format on
   StatusOr<google::cloud::dialogflow::cx::v3::Flow> GetFlow(
       google::cloud::dialogflow::cx::v3::GetFlowRequest const& request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Updates the specified flow.
   ///
@@ -244,23 +349,30 @@ class FlowsClient {
   /// documentation](https://cloud.google.com/dialogflow/cx/docs/concept/training).
   ///
   /// @param flow  Required. The flow to update.
-  /// @param update_mask  The mask to control which fields get updated. If the
-  /// mask is not present,
+  /// @param update_mask  The mask to control which fields get updated. If the mask is not present,
   ///  all fields will be updated.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::Flow,google/cloud/dialogflow/cx/v3/flow.proto#L247}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.dialogflow.cx.v3.Flow])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.cloud.dialogflow.cx.v3.UpdateFlowRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L443}
-  /// [google.cloud.dialogflow.cx.v3.Flow]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L247}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.Flow]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L253}
+  /// [google.cloud.dialogflow.cx.v3.UpdateFlowRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L492}
   ///
+  // clang-format on
   StatusOr<google::cloud::dialogflow::cx::v3::Flow> UpdateFlow(
       google::cloud::dialogflow::cx::v3::Flow const& flow,
       google::protobuf::FieldMask const& update_mask, Options opts = {});
 
+  // clang-format off
   ///
   /// Updates the specified flow.
   ///
@@ -268,22 +380,34 @@ class FlowsClient {
   /// [training
   /// documentation](https://cloud.google.com/dialogflow/cx/docs/concept/training).
   ///
-  /// @param request
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::UpdateFlowRequest,google/cloud/dialogflow/cx/v3/flow.proto#L443}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.dialogflow.cx.v3.UpdateFlowRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::Flow,google/cloud/dialogflow/cx/v3/flow.proto#L247}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.dialogflow.cx.v3.Flow])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.cloud.dialogflow.cx.v3.UpdateFlowRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L443}
-  /// [google.cloud.dialogflow.cx.v3.Flow]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L247}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.Flow]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L253}
+  /// [google.cloud.dialogflow.cx.v3.UpdateFlowRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L492}
   ///
+  // clang-format on
   StatusOr<google::cloud::dialogflow::cx::v3::Flow> UpdateFlow(
       google::cloud::dialogflow::cx::v3::UpdateFlowRequest const& request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Trains the specified flow. Note that only the flow in 'draft' environment
   /// is trained.
@@ -302,21 +426,51 @@ class FlowsClient {
   /// documentation](https://cloud.google.com/dialogflow/cx/docs/concept/training).
   ///
   /// @param name  Required. The flow to train.
-  ///  Format: `projects/<Project ID>/locations/<Location ID>/agents/<Agent
-  ///  ID>/flows/<Flow ID>`.
+  ///  Format:
+  ///  `projects/<ProjectID>/locations/<LocationID>/agents/<AgentID>/flows/<FlowID>`.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::protobuf::Struct,google/protobuf/struct.proto#L51}
+  /// @return A [`future`] that becomes satisfied when the LRO
+  ///     ([Long Running Operation]) completes or the polling policy in effect
+  ///     for this call is exhausted. The future is satisfied with an error if
+  ///     the LRO completes with an error or the polling policy is exhausted.
+  ///     In this case the [`StatusOr`] returned by the future contains the
+  ///     error. If the LRO completes successfully the value of the future
+  ///     contains the LRO's result. For this RPC the result is a
+  ///     [google.protobuf.Struct] proto message.
+  ///     The C++ class representing this message is created by Protobuf, using
+  ///     the [Protobuf mapping rules].
   ///
-  /// [google.cloud.dialogflow.cx.v3.TrainFlowRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L467}
-  /// [google.protobuf.Struct]:
-  /// @googleapis_reference_link{google/protobuf/struct.proto#L51}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [Long Running Operation]: https://google.aip.dev/151
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.TrainFlowRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L517}
+  /// [google.protobuf.Struct]: @googleapis_reference_link{google/protobuf/struct.proto#L51}
   ///
+  // clang-format on
   future<StatusOr<google::protobuf::Struct>> TrainFlow(std::string const& name,
                                                        Options opts = {});
 
+  // clang-format off
+  ///
+  /// @copybrief TrainFlow
+  ///
+  /// Specifying the [`NoAwaitTag`] immediately returns the
+  /// [`google::longrunning::Operation`] that corresponds to the Long Running
+  /// Operation that has been started. No polling for operation status occurs.
+  ///
+  /// [`NoAwaitTag`]: @ref google::cloud::NoAwaitTag
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> TrainFlow(NoAwaitTag,
+                                                     std::string const& name,
+                                                     Options opts = {});
+
+  // clang-format off
   ///
   /// Trains the specified flow. Note that only the flow in 'draft' environment
   /// is trained.
@@ -334,86 +488,165 @@ class FlowsClient {
   /// [training
   /// documentation](https://cloud.google.com/dialogflow/cx/docs/concept/training).
   ///
-  /// @param request
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::TrainFlowRequest,google/cloud/dialogflow/cx/v3/flow.proto#L467}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.dialogflow.cx.v3.TrainFlowRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::protobuf::Struct,google/protobuf/struct.proto#L51}
+  /// @return A [`future`] that becomes satisfied when the LRO
+  ///     ([Long Running Operation]) completes or the polling policy in effect
+  ///     for this call is exhausted. The future is satisfied with an error if
+  ///     the LRO completes with an error or the polling policy is exhausted.
+  ///     In this case the [`StatusOr`] returned by the future contains the
+  ///     error. If the LRO completes successfully the value of the future
+  ///     contains the LRO's result. For this RPC the result is a
+  ///     [google.protobuf.Struct] proto message.
+  ///     The C++ class representing this message is created by Protobuf, using
+  ///     the [Protobuf mapping rules].
   ///
-  /// [google.cloud.dialogflow.cx.v3.TrainFlowRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L467}
-  /// [google.protobuf.Struct]:
-  /// @googleapis_reference_link{google/protobuf/struct.proto#L51}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [Long Running Operation]: https://google.aip.dev/151
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.TrainFlowRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L517}
+  /// [google.protobuf.Struct]: @googleapis_reference_link{google/protobuf/struct.proto#L51}
   ///
+  // clang-format on
   future<StatusOr<google::protobuf::Struct>> TrainFlow(
       google::cloud::dialogflow::cx::v3::TrainFlowRequest const& request,
       Options opts = {});
 
+  // clang-format off
+  ///
+  /// @copybrief TrainFlow
+  ///
+  /// Specifying the [`NoAwaitTag`] immediately returns the
+  /// [`google::longrunning::Operation`] that corresponds to the Long Running
+  /// Operation that has been started. No polling for operation status occurs.
+  ///
+  /// [`NoAwaitTag`]: @ref google::cloud::NoAwaitTag
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> TrainFlow(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::TrainFlowRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// @copybrief TrainFlow
+  ///
+  /// This method accepts a `google::longrunning::Operation` that corresponds
+  /// to a previously started Long Running Operation (LRO) and polls the status
+  /// of the LRO in the background.
+  ///
+  // clang-format on
+  future<StatusOr<google::protobuf::Struct>> TrainFlow(
+      google::longrunning::Operation const& operation, Options opts = {});
+
+  // clang-format off
   ///
   /// Validates the specified flow and creates or updates validation results.
   /// Please call this API after the training is completed to get the complete
   /// validation results.
   ///
-  /// @param request
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::ValidateFlowRequest,google/cloud/dialogflow/cx/v3/flow.proto#L480}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.dialogflow.cx.v3.ValidateFlowRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::FlowValidationResult,google/cloud/dialogflow/cx/v3/flow.proto#L512}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.dialogflow.cx.v3.FlowValidationResult])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.cloud.dialogflow.cx.v3.ValidateFlowRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L480}
-  /// [google.cloud.dialogflow.cx.v3.FlowValidationResult]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L512}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.FlowValidationResult]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L561}
+  /// [google.cloud.dialogflow.cx.v3.ValidateFlowRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L529}
   ///
+  // clang-format on
   StatusOr<google::cloud::dialogflow::cx::v3::FlowValidationResult>
   ValidateFlow(
       google::cloud::dialogflow::cx::v3::ValidateFlowRequest const& request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Gets the latest flow validation result. Flow validation is performed
   /// when ValidateFlow is called.
   ///
   /// @param name  Required. The flow name.
-  ///  Format: `projects/<Project ID>/locations/<Location ID>/agents/<Agent
-  ///  ID>/flows/<Flow ID>/validationResult`.
+  ///  Format:
+  ///  `projects/<ProjectID>/locations/<LocationID>/agents/<AgentID>/flows/<FlowID>/validationResult`.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::FlowValidationResult,google/cloud/dialogflow/cx/v3/flow.proto#L512}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.dialogflow.cx.v3.FlowValidationResult])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.cloud.dialogflow.cx.v3.GetFlowValidationResultRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L496}
-  /// [google.cloud.dialogflow.cx.v3.FlowValidationResult]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L512}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.FlowValidationResult]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L561}
+  /// [google.cloud.dialogflow.cx.v3.GetFlowValidationResultRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L544}
   ///
+  // clang-format on
   StatusOr<google::cloud::dialogflow::cx::v3::FlowValidationResult>
   GetFlowValidationResult(std::string const& name, Options opts = {});
 
+  // clang-format off
   ///
   /// Gets the latest flow validation result. Flow validation is performed
   /// when ValidateFlow is called.
   ///
-  /// @param request
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::GetFlowValidationResultRequest,google/cloud/dialogflow/cx/v3/flow.proto#L496}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.dialogflow.cx.v3.GetFlowValidationResultRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::FlowValidationResult,google/cloud/dialogflow/cx/v3/flow.proto#L512}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.dialogflow.cx.v3.FlowValidationResult])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.cloud.dialogflow.cx.v3.GetFlowValidationResultRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L496}
-  /// [google.cloud.dialogflow.cx.v3.FlowValidationResult]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L512}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.FlowValidationResult]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L561}
+  /// [google.cloud.dialogflow.cx.v3.GetFlowValidationResultRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L544}
   ///
+  // clang-format on
   StatusOr<google::cloud::dialogflow::cx::v3::FlowValidationResult>
   GetFlowValidationResult(
       google::cloud::dialogflow::cx::v3::GetFlowValidationResultRequest const&
           request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Imports the specified flow to the specified agent from a binary file.
   ///
@@ -430,23 +663,71 @@ class FlowsClient {
   /// [training
   /// documentation](https://cloud.google.com/dialogflow/cx/docs/concept/training).
   ///
-  /// @param request
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::ImportFlowRequest,google/cloud/dialogflow/cx/v3/flow.proto#L531}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.dialogflow.cx.v3.ImportFlowRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::ImportFlowResponse,google/cloud/dialogflow/cx/v3/flow.proto#L579}
+  /// @return A [`future`] that becomes satisfied when the LRO
+  ///     ([Long Running Operation]) completes or the polling policy in effect
+  ///     for this call is exhausted. The future is satisfied with an error if
+  ///     the LRO completes with an error or the polling policy is exhausted.
+  ///     In this case the [`StatusOr`] returned by the future contains the
+  ///     error. If the LRO completes successfully the value of the future
+  ///     contains the LRO's result. For this RPC the result is a
+  ///     [google.cloud.dialogflow.cx.v3.ImportFlowResponse] proto message.
+  ///     The C++ class representing this message is created by Protobuf, using
+  ///     the [Protobuf mapping rules].
   ///
-  /// [google.cloud.dialogflow.cx.v3.ImportFlowRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L531}
-  /// [google.cloud.dialogflow.cx.v3.ImportFlowResponse]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L579}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [Long Running Operation]: https://google.aip.dev/151
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.ImportFlowRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L581}
+  /// [google.cloud.dialogflow.cx.v3.ImportFlowResponse]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L646}
   ///
+  // clang-format on
   future<StatusOr<google::cloud::dialogflow::cx::v3::ImportFlowResponse>>
   ImportFlow(
       google::cloud::dialogflow::cx::v3::ImportFlowRequest const& request,
       Options opts = {});
 
+  // clang-format off
+  ///
+  /// @copybrief ImportFlow
+  ///
+  /// Specifying the [`NoAwaitTag`] immediately returns the
+  /// [`google::longrunning::Operation`] that corresponds to the Long Running
+  /// Operation that has been started. No polling for operation status occurs.
+  ///
+  /// [`NoAwaitTag`]: @ref google::cloud::NoAwaitTag
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> ImportFlow(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::ImportFlowRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// @copybrief ImportFlow
+  ///
+  /// This method accepts a `google::longrunning::Operation` that corresponds
+  /// to a previously started Long Running Operation (LRO) and polls the status
+  /// of the LRO in the background.
+  ///
+  // clang-format on
+  future<StatusOr<google::cloud::dialogflow::cx::v3::ImportFlowResponse>>
+  ImportFlow(google::longrunning::Operation const& operation,
+             Options opts = {});
+
+  // clang-format off
   ///
   /// Exports the specified flow to a binary file.
   ///
@@ -462,21 +743,349 @@ class FlowsClient {
   /// Note that resources (e.g. intents, entities, webhooks) that the flow
   /// references will also be exported.
   ///
-  /// @param request
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::ExportFlowRequest,google/cloud/dialogflow/cx/v3/flow.proto#L589}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.dialogflow.cx.v3.ExportFlowRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::ExportFlowResponse,google/cloud/dialogflow/cx/v3/flow.proto#L617}
+  /// @return A [`future`] that becomes satisfied when the LRO
+  ///     ([Long Running Operation]) completes or the polling policy in effect
+  ///     for this call is exhausted. The future is satisfied with an error if
+  ///     the LRO completes with an error or the polling policy is exhausted.
+  ///     In this case the [`StatusOr`] returned by the future contains the
+  ///     error. If the LRO completes successfully the value of the future
+  ///     contains the LRO's result. For this RPC the result is a
+  ///     [google.cloud.dialogflow.cx.v3.ExportFlowResponse] proto message.
+  ///     The C++ class representing this message is created by Protobuf, using
+  ///     the [Protobuf mapping rules].
   ///
-  /// [google.cloud.dialogflow.cx.v3.ExportFlowRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L589}
-  /// [google.cloud.dialogflow.cx.v3.ExportFlowResponse]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L617}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [Long Running Operation]: https://google.aip.dev/151
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.ExportFlowRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L657}
+  /// [google.cloud.dialogflow.cx.v3.ExportFlowResponse]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/flow.proto#L684}
   ///
+  // clang-format on
   future<StatusOr<google::cloud::dialogflow::cx::v3::ExportFlowResponse>>
   ExportFlow(
       google::cloud::dialogflow::cx::v3::ExportFlowRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// @copybrief ExportFlow
+  ///
+  /// Specifying the [`NoAwaitTag`] immediately returns the
+  /// [`google::longrunning::Operation`] that corresponds to the Long Running
+  /// Operation that has been started. No polling for operation status occurs.
+  ///
+  /// [`NoAwaitTag`]: @ref google::cloud::NoAwaitTag
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> ExportFlow(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::ExportFlowRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// @copybrief ExportFlow
+  ///
+  /// This method accepts a `google::longrunning::Operation` that corresponds
+  /// to a previously started Long Running Operation (LRO) and polls the status
+  /// of the LRO in the background.
+  ///
+  // clang-format on
+  future<StatusOr<google::cloud::dialogflow::cx::v3::ExportFlowResponse>>
+  ExportFlow(google::longrunning::Operation const& operation,
+             Options opts = {});
+
+  // clang-format off
+  ///
+  /// Lists information about the supported locations for this service.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.location.ListLocationsRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [StreamRange](@ref google::cloud::StreamRange)
+  ///     to iterate of the results. See the documentation of this type for
+  ///     details. In brief, this class has `begin()` and `end()` member
+  ///     functions returning a iterator class meeting the
+  ///     [input iterator requirements]. The value type for this iterator is a
+  ///     [`StatusOr`] as the iteration may fail even after some values are
+  ///     retrieved successfully, for example, if there is a network disconnect.
+  ///     An empty set of results does not indicate an error, it indicates
+  ///     that there are no resources meeting the request criteria.
+  ///     On a successful iteration the `StatusOr<T>` contains elements of type
+  ///     [google.cloud.location.Location], or rather,
+  ///     the C++ class generated by Protobuf from that type. Please consult the
+  ///     Protobuf documentation for details on the [Protobuf mapping rules].
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.location.ListLocationsRequest]: @googleapis_reference_link{google/cloud/location/locations.proto#L58}
+  /// [google.cloud.location.Location]: @googleapis_reference_link{google/cloud/location/locations.proto#L88}
+  ///
+  // clang-format on
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Gets information about a location.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.location.GetLocationRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.location.Location])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.location.GetLocationRequest]: @googleapis_reference_link{google/cloud/location/locations.proto#L82}
+  /// [google.cloud.location.Location]: @googleapis_reference_link{google/cloud/location/locations.proto#L88}
+  ///
+  // clang-format on
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// Lists operations that match the specified filter in the request. If the
+  /// server doesn't support this method, it returns `UNIMPLEMENTED`.
+  ///
+  /// @param name  The name of the operation's parent resource.
+  /// @param filter  The standard list filter.
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [StreamRange](@ref google::cloud::StreamRange)
+  ///     to iterate of the results. See the documentation of this type for
+  ///     details. In brief, this class has `begin()` and `end()` member
+  ///     functions returning a iterator class meeting the
+  ///     [input iterator requirements]. The value type for this iterator is a
+  ///     [`StatusOr`] as the iteration may fail even after some values are
+  ///     retrieved successfully, for example, if there is a network disconnect.
+  ///     An empty set of results does not indicate an error, it indicates
+  ///     that there are no resources meeting the request criteria.
+  ///     On a successful iteration the `StatusOr<T>` contains elements of type
+  ///     [google.longrunning.Operation], or rather,
+  ///     the C++ class generated by Protobuf from that type. Please consult the
+  ///     Protobuf documentation for details on the [Protobuf mapping rules].
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.ListOperationsRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L167}
+  /// [google.longrunning.Operation]: @googleapis_reference_link{google/longrunning/operations.proto#L121}
+  ///
+  // clang-format on
+  StreamRange<google::longrunning::Operation> ListOperations(
+      std::string const& name, std::string const& filter, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Lists operations that match the specified filter in the request. If the
+  /// server doesn't support this method, it returns `UNIMPLEMENTED`.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.longrunning.ListOperationsRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [StreamRange](@ref google::cloud::StreamRange)
+  ///     to iterate of the results. See the documentation of this type for
+  ///     details. In brief, this class has `begin()` and `end()` member
+  ///     functions returning a iterator class meeting the
+  ///     [input iterator requirements]. The value type for this iterator is a
+  ///     [`StatusOr`] as the iteration may fail even after some values are
+  ///     retrieved successfully, for example, if there is a network disconnect.
+  ///     An empty set of results does not indicate an error, it indicates
+  ///     that there are no resources meeting the request criteria.
+  ///     On a successful iteration the `StatusOr<T>` contains elements of type
+  ///     [google.longrunning.Operation], or rather,
+  ///     the C++ class generated by Protobuf from that type. Please consult the
+  ///     Protobuf documentation for details on the [Protobuf mapping rules].
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.ListOperationsRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L167}
+  /// [google.longrunning.Operation]: @googleapis_reference_link{google/longrunning/operations.proto#L121}
+  ///
+  // clang-format on
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Gets the latest state of a long-running operation.  Clients can use this
+  /// method to poll the operation result at intervals as recommended by the API
+  /// service.
+  ///
+  /// @param name  The name of the operation resource.
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return the result of the RPC. The response message type
+  ///     ([google.longrunning.Operation])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.GetOperationRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L160}
+  /// [google.longrunning.Operation]: @googleapis_reference_link{google/longrunning/operations.proto#L121}
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> GetOperation(std::string const& name,
+                                                        Options opts = {});
+
+  // clang-format off
+  ///
+  /// Gets the latest state of a long-running operation.  Clients can use this
+  /// method to poll the operation result at intervals as recommended by the API
+  /// service.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.longrunning.GetOperationRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return the result of the RPC. The response message type
+  ///     ([google.longrunning.Operation])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.GetOperationRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L160}
+  /// [google.longrunning.Operation]: @googleapis_reference_link{google/longrunning/operations.proto#L121}
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// Starts asynchronous cancellation on a long-running operation.  The server
+  /// makes a best effort to cancel the operation, but success is not
+  /// guaranteed.  If the server doesn't support this method, it returns
+  /// `google.rpc.Code.UNIMPLEMENTED`.  Clients can use
+  /// [Operations.GetOperation][google.longrunning.Operations.GetOperation] or
+  /// other methods to check whether the cancellation succeeded or whether the
+  /// operation completed despite cancellation. On successful cancellation,
+  /// the operation is not deleted; instead, it becomes an operation with
+  /// an [Operation.error][google.longrunning.Operation.error] value with a
+  /// [google.rpc.Status.code][google.rpc.Status.code] of `1`, corresponding to
+  /// `Code.CANCELLED`.
+  ///
+  /// @param name  The name of the operation resource to be cancelled.
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [`Status`] object. If the request failed, the
+  ///     status contains the details of the failure.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.CancelOperationRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L193}
+  /// [google.longrunning.Operation.error]: @googleapis_reference_link{google/longrunning/operations.proto#L144}
+  /// [google.longrunning.Operations.GetOperation]: @googleapis_reference_link{google/longrunning/operations.proto#L70}
+  /// [google.rpc.Status.code]: @googleapis_reference_link{google/rpc/status.proto#L38}
+  ///
+  // clang-format on
+  Status CancelOperation(std::string const& name, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Starts asynchronous cancellation on a long-running operation.  The server
+  /// makes a best effort to cancel the operation, but success is not
+  /// guaranteed.  If the server doesn't support this method, it returns
+  /// `google.rpc.Code.UNIMPLEMENTED`.  Clients can use
+  /// [Operations.GetOperation][google.longrunning.Operations.GetOperation] or
+  /// other methods to check whether the cancellation succeeded or whether the
+  /// operation completed despite cancellation. On successful cancellation,
+  /// the operation is not deleted; instead, it becomes an operation with
+  /// an [Operation.error][google.longrunning.Operation.error] value with a
+  /// [google.rpc.Status.code][google.rpc.Status.code] of `1`, corresponding to
+  /// `Code.CANCELLED`.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.longrunning.CancelOperationRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [`Status`] object. If the request failed, the
+  ///     status contains the details of the failure.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.CancelOperationRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L193}
+  /// [google.longrunning.Operation.error]: @googleapis_reference_link{google/longrunning/operations.proto#L144}
+  /// [google.longrunning.Operations.GetOperation]: @googleapis_reference_link{google/longrunning/operations.proto#L70}
+  /// [google.rpc.Status.code]: @googleapis_reference_link{google/rpc/status.proto#L38}
+  ///
+  // clang-format on
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request,
       Options opts = {});
 
  private:

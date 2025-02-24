@@ -59,48 +59,34 @@ class PoliciesConnectionImpl : public iam_v2::PoliciesConnection {
   future<StatusOr<google::iam::v2::Policy>> CreatePolicy(
       google::iam::v2::CreatePolicyRequest const& request) override;
 
+  StatusOr<google::longrunning::Operation> CreatePolicy(
+      NoAwaitTag, google::iam::v2::CreatePolicyRequest const& request) override;
+
+  future<StatusOr<google::iam::v2::Policy>> CreatePolicy(
+      google::longrunning::Operation const& operation) override;
+
   future<StatusOr<google::iam::v2::Policy>> UpdatePolicy(
       google::iam::v2::UpdatePolicyRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> UpdatePolicy(
+      NoAwaitTag, google::iam::v2::UpdatePolicyRequest const& request) override;
+
+  future<StatusOr<google::iam::v2::Policy>> UpdatePolicy(
+      google::longrunning::Operation const& operation) override;
 
   future<StatusOr<google::iam::v2::Policy>> DeletePolicy(
       google::iam::v2::DeletePolicyRequest const& request) override;
 
+  StatusOr<google::longrunning::Operation> DeletePolicy(
+      NoAwaitTag, google::iam::v2::DeletePolicyRequest const& request) override;
+
+  future<StatusOr<google::iam::v2::Policy>> DeletePolicy(
+      google::longrunning::Operation const& operation) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<iam_v2::PoliciesRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<iam_v2::PoliciesRetryPolicyOption>()) {
-      return options.get<iam_v2::PoliciesRetryPolicyOption>()->clone();
-    }
-    return options_.get<iam_v2::PoliciesRetryPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<iam_v2::PoliciesBackoffPolicyOption>()) {
-      return options.get<iam_v2::PoliciesBackoffPolicyOption>()->clone();
-    }
-    return options_.get<iam_v2::PoliciesBackoffPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<iam_v2::PoliciesConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<iam_v2::PoliciesConnectionIdempotencyPolicyOption>()) {
-      return options.get<iam_v2::PoliciesConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_.get<iam_v2::PoliciesConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<PollingPolicy> polling_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<iam_v2::PoliciesPollingPolicyOption>()) {
-      return options.get<iam_v2::PoliciesPollingPolicyOption>()->clone();
-    }
-    return options_.get<iam_v2::PoliciesPollingPolicyOption>()->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<iam_v2_internal::PoliciesStub> stub_;
   Options options_;

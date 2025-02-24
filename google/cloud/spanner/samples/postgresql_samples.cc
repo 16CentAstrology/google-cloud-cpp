@@ -260,11 +260,11 @@ void InsertUsingDmlReturning(google::cloud::spanner::Client client) {
           -> google::cloud::StatusOr<google::cloud::spanner::Mutations> {
         auto sql = google::cloud::spanner::SqlStatement(R"""(
             INSERT INTO Singers (SingerId, FirstName, LastName)
-              VALUES (12, 'Melissa', 'Garcia'),
-                     (13, 'Russell', 'Morales'),
-                     (14, 'Jacqueline', 'Long'),
-                     (15, 'Dylan', 'Shaw')
-              RETURNING FullName
+                VALUES (12, 'Melissa', 'Garcia'),
+                       (13, 'Russell', 'Morales'),
+                       (14, 'Jacqueline', 'Long'),
+                       (15, 'Dylan', 'Shaw')
+                RETURNING FullName
         )""");
         using RowType = std::tuple<std::string>;
         auto rows = client.ExecuteQuery(std::move(txn), std::move(sql));
@@ -850,6 +850,133 @@ void JsonbQueryWithParameter(google::cloud::spanner::Client client) {
 }
 // [END spanner_postgresql_jsonb_query_parameter]
 
+// [START spanner_postgresql_create_sequence]
+void CreateSequence(
+    google::cloud::spanner_admin::DatabaseAdminClient admin_client,
+    google::cloud::spanner::Database const& database,
+    google::cloud::spanner::Client client) {
+  std::vector<std::string> statements;
+  statements.emplace_back(R"""(
+      CREATE SEQUENCE Seq BIT_REVERSED_POSITIVE
+  )""");
+  statements.emplace_back(R"""(
+      CREATE TABLE Customers (
+          CustomerId    BIGINT DEFAULT NEXTVAL('Seq'),
+          CustomerName  CHARACTER VARYING(1024),
+          PRIMARY KEY (CustomerId)
+      )
+  )""");
+  auto metadata =
+      admin_client.UpdateDatabaseDdl(database.FullName(), std::move(statements))
+          .get();
+  google::cloud::spanner_testing::LogUpdateDatabaseDdl(  //! TODO(#4758)
+      admin_client, database, metadata.status());        //! TODO(#4758)
+  if (!metadata) throw std::move(metadata).status();
+  std::cout << "Created `Seq` sequence and `Customers` table,"
+            << " where the key column `CustomerId`"
+            << " uses the sequence as a default value,"
+            << " new DDL:\n"
+            << metadata->DebugString();
+  auto commit = client.Commit(
+      [&client](google::cloud::spanner::Transaction txn)
+          -> google::cloud::StatusOr<google::cloud::spanner::Mutations> {
+        auto sql = google::cloud::spanner::SqlStatement(R"""(
+            INSERT INTO Customers (CustomerName)
+                VALUES ('Alice'),
+                       ('David'),
+                       ('Marc')
+                RETURNING CustomerId
+        )""");
+        using RowType = std::tuple<std::int64_t>;
+        auto rows = client.ExecuteQuery(std::move(txn), std::move(sql));
+        // Note: This mutator might be re-run, or its effects discarded, so
+        // changing non-transactional state (e.g., by producing output) is,
+        // in general, not something to be imitated.
+        for (auto& row : google::cloud::spanner::StreamOf<RowType>(rows)) {
+          if (!row) return std::move(row).status();
+          std::cout << "Inserted customer record with CustomerId: "
+                    << std::get<0>(*row) << "\n";
+        }
+        std::cout << "Number of customer records inserted is: "
+                  << rows.RowsModified() << "\n";
+        return google::cloud::spanner::Mutations{};
+      });
+  if (!commit) throw std::move(commit).status();
+}
+// [END spanner_postgresql_create_sequence]
+
+// [START spanner_postgresql_alter_sequence]
+void AlterSequence(
+    google::cloud::spanner_admin::DatabaseAdminClient admin_client,
+    google::cloud::spanner::Database const& database,
+    google::cloud::spanner::Client client) {
+  std::vector<std::string> statements;
+  statements.emplace_back(R"""(
+      ALTER SEQUENCE Seq SKIP RANGE 1000 5000000
+  )""");
+  auto metadata =
+      admin_client.UpdateDatabaseDdl(database.FullName(), std::move(statements))
+          .get();
+  google::cloud::spanner_testing::LogUpdateDatabaseDdl(  //! TODO(#4758)
+      admin_client, database, metadata.status());        //! TODO(#4758)
+  if (!metadata) throw std::move(metadata).status();
+  std::cout << "Altered `Seq` sequence"
+            << "  to skip an inclusive range between 1000 and 5000000,"
+            << " new DDL:\n"
+            << metadata->DebugString();
+  auto commit = client.Commit(
+      [&client](google::cloud::spanner::Transaction txn)
+          -> google::cloud::StatusOr<google::cloud::spanner::Mutations> {
+        auto sql = google::cloud::spanner::SqlStatement(R"""(
+            INSERT INTO Customers (CustomerName)
+                VALUES ('Lea'),
+                       ('Catalina'),
+                       ('Smith')
+                RETURNING CustomerId
+        )""");
+        using RowType = std::tuple<std::int64_t>;
+        auto rows = client.ExecuteQuery(std::move(txn), std::move(sql));
+        // Note: This mutator might be re-run, or its effects discarded, so
+        // changing non-transactional state (e.g., by producing output) is,
+        // in general, not something to be imitated.
+        for (auto& row : google::cloud::spanner::StreamOf<RowType>(rows)) {
+          if (!row) return std::move(row).status();
+          std::cout << "Inserted customer record with CustomerId: "
+                    << std::get<0>(*row) << "\n";
+        }
+        std::cout << "Number of customer records inserted is: "
+                  << rows.RowsModified() << "\n";
+        return google::cloud::spanner::Mutations{};
+      });
+  if (!commit) throw std::move(commit).status();
+}
+// [END spanner_postgresql_alter_sequence]
+
+// [START spanner_postgresql_drop_sequence]
+void DropSequence(
+    google::cloud::spanner_admin::DatabaseAdminClient admin_client,
+    google::cloud::spanner::Database const& database) {
+  std::vector<std::string> statements;
+  statements.emplace_back(R"""(
+      ALTER TABLE Customers ALTER COLUMN CustomerId DROP DEFAULT
+  )""");
+  statements.emplace_back(R"""(
+      DROP SEQUENCE Seq
+  )""");
+  auto metadata =
+      admin_client.UpdateDatabaseDdl(database.FullName(), std::move(statements))
+          .get();
+  google::cloud::spanner_testing::LogUpdateDatabaseDdl(  //! TODO(#4758)
+      admin_client, database, metadata.status());        //! TODO(#4758)
+  if (!metadata) throw std::move(metadata).status();
+  std::cout << "Altered `Customers` table to"
+            << " drop DEFAULT from `CustomerId` column,"
+            << " and dropped the `Seq` sequence,"
+            << " new DDL:\n"
+            << metadata->DebugString();
+}
+// [END spanner_postgresql_drop_sequence]
+
 void DropDatabase(google::cloud::spanner_admin::DatabaseAdminClient client,
                   google::cloud::spanner::Database const& database) {
   auto status = client.DropDatabase(database.FullName());
@@ -1010,6 +1137,9 @@ int RunOneCommand(std::vector<std::string> argv,
       {"jsonb-add-column", Command(samples::JsonbAddColumn)},
       {"jsonb-update-data", Command(samples::JsonbUpdateData)},
       {"jsonb-query-with-parameter", Command(samples::JsonbQueryWithParameter)},
+      {"create-sequence", Command(samples::CreateSequence)},
+      {"alter-sequence", Command(samples::AlterSequence)},
+      {"drop-sequence", Command(samples::DropSequence)},
       {"drop-database", Command(samples::DropDatabase)},
       {"help", HelpCommand(commands)},
   };
@@ -1029,7 +1159,7 @@ void SampleBanner(std::string const& name) {
   GCP_LOG(DEBUG) << "Running " << name << " sample";
 }
 
-int RunAll() {
+int RunAll(bool emulator) {
   auto generator = google::cloud::internal::MakeDefaultPRNG();
 
   auto const project_id =
@@ -1087,8 +1217,10 @@ int RunAll() {
     SampleBanner("spanner_postgresql_update_dml_returning");
     samples::UpdateUsingDmlReturning(client);
 
-    SampleBanner("spanner_postgresql_insert_dml_returning");
-    samples::InsertUsingDmlReturning(client);
+    if (!emulator) {
+      SampleBanner("spanner_postgresql_insert_dml_returning");
+      samples::InsertUsingDmlReturning(client);
+    }
 
     SampleBanner("spanner_postgresql_delete_dml_returning");
     samples::DeleteUsingDmlReturning(client);
@@ -1135,6 +1267,17 @@ int RunAll() {
 
     SampleBanner("spanner_postgresql_jsonb_query_parameter");
     samples::JsonbQueryWithParameter(client);
+
+    if (!emulator) {
+      SampleBanner("spanner_postgresql_create_sequence");
+      samples::CreateSequence(database_admin_client, database, client);
+
+      SampleBanner("spanner_postgresql_alter_sequence");
+      samples::AlterSequence(database_admin_client, database, client);
+
+      SampleBanner("spanner_postgresql_drop_sequence");
+      samples::DropSequence(database_admin_client, database);
+    }
   } catch (...) {
     // Try to clean up after a failure.
     samples::DropDatabase(database_admin_client, database);
@@ -1147,18 +1290,22 @@ int RunAll() {
   return 0;
 }
 
+bool AutoRun() {
+  return google::cloud::internal::GetEnv("GOOGLE_CLOUD_CPP_AUTO_RUN_EXAMPLES")
+             .value_or("") == "yes";
+}
+
+bool Emulator() {
+  return google::cloud::internal::GetEnv("SPANNER_EMULATOR_HOST").has_value();
+}
+
 }  // namespace
 
 int main(int ac, char* av[]) try {
-  auto const* const emulator_host = "SPANNER_EMULATOR_HOST";
-  if (google::cloud::internal::GetEnv(emulator_host).has_value()) {
-    return 0;  // emulator does not support PostgreSQL dialect
+  if (AutoRun()) {
+    return RunAll(Emulator());
   }
-  auto const* const auto_run = "GOOGLE_CLOUD_CPP_AUTO_RUN_EXAMPLES";
-  if (google::cloud::internal::GetEnv(auto_run).value_or("") == "yes") {
-    return RunAll();
-  }
-  std::string program(ac ? (ac--, *av++) : "pg_samples");
+  std::string program(ac ? (ac--, *av++) : "postgresql_samples");
   auto extra_help =
       "\nUse \"" + program + " help\" to list the available commands.";
   if (ac == 0) {

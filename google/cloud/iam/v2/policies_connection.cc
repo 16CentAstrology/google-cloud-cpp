@@ -20,13 +20,16 @@
 #include "google/cloud/iam/v2/internal/policies_connection_impl.h"
 #include "google/cloud/iam/v2/internal/policies_option_defaults.h"
 #include "google/cloud/iam/v2/internal/policies_stub_factory.h"
+#include "google/cloud/iam/v2/internal/policies_tracing_connection.h"
 #include "google/cloud/iam/v2/policies_options.h"
 #include "google/cloud/background_threads.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/credentials.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/pagination_range.h"
+#include "google/cloud/internal/unified_grpc_credentials.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -53,8 +56,32 @@ future<StatusOr<google::iam::v2::Policy>> PoliciesConnection::CreatePolicy(
       Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
+StatusOr<google::longrunning::Operation> PoliciesConnection::CreatePolicy(
+    NoAwaitTag, google::iam::v2::CreatePolicyRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::iam::v2::Policy>> PoliciesConnection::CreatePolicy(
+    google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<StatusOr<google::iam::v2::Policy>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
 future<StatusOr<google::iam::v2::Policy>> PoliciesConnection::UpdatePolicy(
     google::iam::v2::UpdatePolicyRequest const&) {
+  return google::cloud::make_ready_future<StatusOr<google::iam::v2::Policy>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation> PoliciesConnection::UpdatePolicy(
+    NoAwaitTag, google::iam::v2::UpdatePolicyRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::iam::v2::Policy>> PoliciesConnection::UpdatePolicy(
+    google::longrunning::Operation const&) {
   return google::cloud::make_ready_future<StatusOr<google::iam::v2::Policy>>(
       Status(StatusCode::kUnimplemented, "not implemented"));
 }
@@ -65,16 +92,35 @@ future<StatusOr<google::iam::v2::Policy>> PoliciesConnection::DeletePolicy(
       Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
+StatusOr<google::longrunning::Operation> PoliciesConnection::DeletePolicy(
+    NoAwaitTag, google::iam::v2::DeletePolicyRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::iam::v2::Policy>> PoliciesConnection::DeletePolicy(
+    google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<StatusOr<google::iam::v2::Policy>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation> PoliciesConnection::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
 std::shared_ptr<PoliciesConnection> MakePoliciesConnection(Options options) {
   internal::CheckExpectedOptions<CommonOptionList, GrpcOptionList,
                                  UnifiedCredentialsOptionList,
                                  PoliciesPolicyOptionList>(options, __func__);
   options = iam_v2_internal::PoliciesDefaultOptions(std::move(options));
   auto background = internal::MakeBackgroundThreadsFactory(options)();
+  auto auth = internal::CreateAuthenticationStrategy(background->cq(), options);
   auto stub =
-      iam_v2_internal::CreateDefaultPoliciesStub(background->cq(), options);
-  return std::make_shared<iam_v2_internal::PoliciesConnectionImpl>(
-      std::move(background), std::move(stub), std::move(options));
+      iam_v2_internal::CreateDefaultPoliciesStub(std::move(auth), options);
+  return iam_v2_internal::MakePoliciesTracingConnection(
+      std::make_shared<iam_v2_internal::PoliciesConnectionImpl>(
+          std::move(background), std::move(stub), std::move(options)));
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

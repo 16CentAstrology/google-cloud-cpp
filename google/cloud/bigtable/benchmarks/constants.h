@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ namespace bigtable {
 /// Supporting classes and functions to implement benchmarks.
 namespace benchmarks {
 
-//@{
+///@{
 /**
  * @name Test constants.
  *
@@ -58,7 +58,7 @@ int constexpr kPopulateShardProgressMarks = 4;
 
 /// How many random bytes in the table id.
 int constexpr kTableIdRandomLetters = 8;
-//@}
+///@}
 
 }  // namespace benchmarks
 }  // namespace bigtable

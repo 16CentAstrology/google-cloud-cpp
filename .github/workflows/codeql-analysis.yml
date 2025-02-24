@@ -22,9 +22,9 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Checkout vcpkg
-        uses: actions/checkout@v3
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           path: "build/vcpkg"
           repository: "microsoft/vcpkg"
@@ -34,7 +34,7 @@ jobs:
           git -C build/vcpkg checkout -q $(<ci/etc/vcpkg-version.txt)
       - name: cache-vcpkg
         id: cache-vcpkg
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cache/vcpkg
@@ -66,7 +66,7 @@ jobs:
             --clean-after-build
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
 
@@ -86,4 +86,4 @@ jobs:
           cmake --build build/output
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@v3

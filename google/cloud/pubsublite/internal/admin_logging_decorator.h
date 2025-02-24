@@ -37,125 +37,149 @@ class AdminServiceLogging : public AdminServiceStub {
   ~AdminServiceLogging() override = default;
   AdminServiceLogging(std::shared_ptr<AdminServiceStub> child,
                       TracingOptions tracing_options,
-                      std::set<std::string> components);
+                      std::set<std::string> const& components);
 
   StatusOr<google::cloud::pubsublite::v1::Topic> CreateTopic(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::CreateTopicRequest const& request)
       override;
 
   StatusOr<google::cloud::pubsublite::v1::Topic> GetTopic(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::GetTopicRequest const& request) override;
 
   StatusOr<google::cloud::pubsublite::v1::TopicPartitions> GetTopicPartitions(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::GetTopicPartitionsRequest const& request)
       override;
 
   StatusOr<google::cloud::pubsublite::v1::ListTopicsResponse> ListTopics(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::ListTopicsRequest const& request) override;
 
   StatusOr<google::cloud::pubsublite::v1::Topic> UpdateTopic(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::UpdateTopicRequest const& request)
       override;
 
-  Status DeleteTopic(grpc::ClientContext& context,
+  Status DeleteTopic(grpc::ClientContext& context, Options const& options,
                      google::cloud::pubsublite::v1::DeleteTopicRequest const&
                          request) override;
 
   StatusOr<google::cloud::pubsublite::v1::ListTopicSubscriptionsResponse>
   ListTopicSubscriptions(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::ListTopicSubscriptionsRequest const&
           request) override;
 
   StatusOr<google::cloud::pubsublite::v1::Subscription> CreateSubscription(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::CreateSubscriptionRequest const& request)
       override;
 
   StatusOr<google::cloud::pubsublite::v1::Subscription> GetSubscription(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::GetSubscriptionRequest const& request)
       override;
 
   StatusOr<google::cloud::pubsublite::v1::ListSubscriptionsResponse>
   ListSubscriptions(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::ListSubscriptionsRequest const& request)
       override;
 
   StatusOr<google::cloud::pubsublite::v1::Subscription> UpdateSubscription(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::UpdateSubscriptionRequest const& request)
       override;
 
   Status DeleteSubscription(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::DeleteSubscriptionRequest const& request)
       override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncSeekSubscription(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::pubsublite::v1::SeekSubscriptionRequest const& request)
+      override;
+
+  StatusOr<google::longrunning::Operation> SeekSubscription(
+      grpc::ClientContext& context, Options options,
       google::cloud::pubsublite::v1::SeekSubscriptionRequest const& request)
       override;
 
   StatusOr<google::cloud::pubsublite::v1::Reservation> CreateReservation(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::CreateReservationRequest const& request)
       override;
 
   StatusOr<google::cloud::pubsublite::v1::Reservation> GetReservation(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::GetReservationRequest const& request)
       override;
 
   StatusOr<google::cloud::pubsublite::v1::ListReservationsResponse>
-  ListReservations(grpc::ClientContext& context,
+  ListReservations(grpc::ClientContext& context, Options const& options,
                    google::cloud::pubsublite::v1::ListReservationsRequest const&
                        request) override;
 
   StatusOr<google::cloud::pubsublite::v1::Reservation> UpdateReservation(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::UpdateReservationRequest const& request)
       override;
 
   Status DeleteReservation(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::DeleteReservationRequest const& request)
       override;
 
   StatusOr<google::cloud::pubsublite::v1::ListReservationTopicsResponse>
   ListReservationTopics(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::ListReservationTopicsRequest const&
           request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status DeleteOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::DeleteOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
 
   future<StatusOr<google::cloud::pubsublite::v1::TopicPartitions>>
   AsyncGetTopicPartitions(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::cloud::pubsublite::v1::GetTopicPartitionsRequest const& request)
       override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::GetOperationRequest const& request) override;
 
   future<Status> AsyncCancelOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::CancelOperationRequest const& request) override;
 
  private:
   std::shared_ptr<AdminServiceStub> child_;
   TracingOptions tracing_options_;
-  std::set<std::string> components_;
 };  // AdminServiceLogging
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

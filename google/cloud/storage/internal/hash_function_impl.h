@@ -17,11 +17,11 @@
 
 #include "google/cloud/storage/internal/hash_function.h"
 #include "google/cloud/storage/version.h"
-#include <openssl/evp.h>
+#include "absl/types/optional.h"
 #include <cstdint>
-#include <map>
 #include <memory>
 #include <string>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -36,9 +36,14 @@ class NullHashFunction : public HashFunction {
  public:
   NullHashFunction() = default;
 
-  std::string Name() const override { return "null"; }
-  void Update(char const*, std::size_t) override {}
-  HashValues Finish() && override { return HashValues{}; }
+  std::string Name() const override;
+  void Update(absl::string_view) override;
+  Status Update(std::int64_t offset, absl::string_view buffer) override;
+  Status Update(std::int64_t offset, absl::string_view buffer,
+                std::uint32_t buffer_crc) override;
+  Status Update(std::int64_t offset, absl::Cord const& buffer,
+                std::uint32_t buffer_crc) override;
+  HashValues Finish() override;
 };
 
 /**
@@ -51,8 +56,13 @@ class CompositeFunction : public HashFunction {
       : a_(std::move(a)), b_(std::move(b)) {}
 
   std::string Name() const override;
-  void Update(char const* buf, std::size_t n) override;
-  HashValues Finish() && override;
+  void Update(absl::string_view buffer) override;
+  Status Update(std::int64_t offset, absl::string_view buffer) override;
+  Status Update(std::int64_t offset, absl::string_view buffer,
+                std::uint32_t buffer_crc) override;
+  Status Update(std::int64_t offset, absl::Cord const& buffer,
+                std::uint32_t buffer_crc) override;
+  HashValues Finish() override;
 
  private:
   std::unique_ptr<HashFunction> a_;
@@ -64,21 +74,30 @@ class CompositeFunction : public HashFunction {
  */
 class MD5HashFunction : public HashFunction {
  public:
-  MD5HashFunction();
+  MD5HashFunction() = default;
 
   MD5HashFunction(MD5HashFunction const&) = delete;
   MD5HashFunction& operator=(MD5HashFunction const&) = delete;
 
-  std::string Name() const override { return "md5"; }
-  void Update(char const* buf, std::size_t n) override;
-  HashValues Finish() && override;
+  static std::unique_ptr<MD5HashFunction> Create();
 
-  struct ContextDeleter {
-    void operator()(EVP_MD_CTX*);
-  };
+  std::string Name() const override { return "md5"; }
+  void Update(absl::string_view buffer) override = 0;
+  Status Update(std::int64_t offset, absl::string_view buffer) override;
+  Status Update(std::int64_t offset, absl::string_view buffer,
+                std::uint32_t buffer_crc) override;
+  Status Update(std::int64_t offset, absl::Cord const& buffer,
+                std::uint32_t buffer_crc) override;
+  HashValues Finish() override;
+
+ protected:
+  // (8 bits per byte) * 16 bytes = 128 bits
+  using Hash = std::array<std::uint8_t, 16>;
+  virtual Hash FinishImpl() = 0;
 
  private:
-  std::unique_ptr<EVP_MD_CTX, ContextDeleter> impl_;
+  std::int64_t minimum_offset_ = 0;
+  absl::optional<HashValues> hashes_;
 };
 
 /**
@@ -92,11 +111,83 @@ class Crc32cHashFunction : public HashFunction {
   Crc32cHashFunction& operator=(Crc32cHashFunction const&) = delete;
 
   std::string Name() const override { return "crc32c"; }
-  void Update(char const* buf, std::size_t n) override;
-  HashValues Finish() && override;
+  void Update(absl::string_view buffer) override;
+  Status Update(std::int64_t offset, absl::string_view buffer) override;
+  Status Update(std::int64_t offset, absl::string_view buffer,
+                std::uint32_t buffer_crc) override;
+  Status Update(std::int64_t offset, absl::Cord const& buffer,
+                std::uint32_t buffer_crc) override;
+  HashValues Finish() override;
 
  private:
-  std::uint32_t current_{0};
+  std::uint32_t current_ = 0;
+  std::int64_t minimum_offset_ = 0;
+};
+
+/**
+ * A hash function returning a pre-computed hash.
+ */
+class PrecomputedHashFunction : public HashFunction {
+ public:
+  explicit PrecomputedHashFunction(HashValues p)
+      : precomputed_hash_(std::move(p)) {}
+
+  PrecomputedHashFunction(PrecomputedHashFunction const&) = delete;
+  PrecomputedHashFunction& operator=(PrecomputedHashFunction const&) = delete;
+
+  std::string Name() const override;
+  void Update(absl::string_view buffer) override;
+  Status Update(std::int64_t offset, absl::string_view buffer) override;
+  Status Update(std::int64_t offset, absl::string_view buffer,
+                std::uint32_t buffer_crc) override;
+  Status Update(std::int64_t offset, absl::Cord const& buffer,
+                std::uint32_t buffer_crc) override;
+  HashValues Finish() override;
+
+ private:
+  HashValues precomputed_hash_;
+};
+
+/**
+ * Validates per-message CRC32C checksums and delegates the full hashing
+ * computation.
+ *
+ * When performing downloads over gRPC the payload has per-message CRC32C
+ * checksums. We want to validate these checksums as the data is downloaded. The
+ * service may also return full object checksums. We can compose the per-message
+ * checksums to compute the full object checksums and validate this against the
+ * returned values. When the download range is not a full object download we do
+ * not want to compute the range checksum because the service will not return
+ * a value, so there is nothing to compare.
+ *
+ * Composing this class with a normal `Crc32cHashFunction` works well for full
+ * downloads. This class validates each message, the `Crc32cHashFunction`
+ * composes the checksums without reading all the data again.
+ *
+ * Composing this class with `NullHashFunction` works well for partial
+ * downloads. This class validates each message, and we do not waste CPU trying
+ * to compute the checksum for the partial download.
+ */
+class Crc32cMessageHashFunction : public HashFunction {
+ public:
+  explicit Crc32cMessageHashFunction(std::unique_ptr<HashFunction> child)
+      : child_(std::move(child)) {}
+
+  Crc32cMessageHashFunction(Crc32cMessageHashFunction const&) = delete;
+  Crc32cMessageHashFunction& operator=(Crc32cMessageHashFunction const&) =
+      delete;
+
+  std::string Name() const override;
+  void Update(absl::string_view buffer) override;
+  Status Update(std::int64_t offset, absl::string_view buffer) override;
+  Status Update(std::int64_t offset, absl::string_view buffer,
+                std::uint32_t buffer_crc) override;
+  Status Update(std::int64_t offset, absl::Cord const& buffer,
+                std::uint32_t buffer_crc) override;
+  HashValues Finish() override;
+
+ private:
+  std::unique_ptr<HashFunction> child_;
 };
 
 }  // namespace internal

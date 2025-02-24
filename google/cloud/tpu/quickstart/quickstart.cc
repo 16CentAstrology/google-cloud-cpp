@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/tpu/tpu_client.h"
+//! [all]
+#include "google/cloud/tpu/v2/tpu_client.h"
+#include "google/cloud/location.h"
 #include <iostream>
 
 int main(int argc, char* argv[]) try {
@@ -21,11 +23,12 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace tpu = ::google::cloud::tpu;
+  auto const location = google::cloud::Location(argv[1], "-");
+
+  namespace tpu = ::google::cloud::tpu_v2;
   auto client = tpu::TpuClient(tpu::MakeTpuConnection());
 
-  auto const parent = std::string{"projects/"} + argv[1] + "/locations/-";
-  for (auto n : client.ListNodes(parent)) {
+  for (auto n : client.ListNodes(location.FullName())) {
     if (!n) throw std::move(n).status();
     std::cout << n->DebugString() << "\n";
   }
@@ -35,3 +38,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

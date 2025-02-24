@@ -18,19 +18,26 @@
 #include "google/cloud/storage/auto_finalize.h"
 #include "google/cloud/storage/download_options.h"
 #include "google/cloud/storage/hashing_options.h"
+#include "google/cloud/storage/include_folders_as_prefixes.h"
 #include "google/cloud/storage/internal/const_buffer.h"
 #include "google/cloud/storage/internal/generic_object_request.h"
+#include "google/cloud/storage/internal/hash_function.h"
 #include "google/cloud/storage/internal/hash_values.h"
 #include "google/cloud/storage/internal/http_response.h"
 #include "google/cloud/storage/object_metadata.h"
+#include "google/cloud/storage/override_unlocked_retention.h"
+#include "google/cloud/storage/soft_deleted.h"
 #include "google/cloud/storage/upload_options.h"
 #include "google/cloud/storage/version.h"
 #include "google/cloud/storage/well_known_parameters.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include <map>
+#include <memory>
 #include <numeric>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace google {
@@ -43,8 +50,9 @@ namespace internal {
  */
 class ListObjectsRequest
     : public GenericRequest<ListObjectsRequest, MaxResults, Prefix, Delimiter,
-                            IncludeTrailingDelimiter, StartOffset, EndOffset,
-                            Projection, UserProject, Versions> {
+                            IncludeFoldersAsPrefixes, IncludeTrailingDelimiter,
+                            StartOffset, EndOffset, MatchGlob, Projection,
+                            SoftDeleted, UserProject, Versions> {
  public:
   ListObjectsRequest() = default;
   explicit ListObjectsRequest(std::string bucket_name)
@@ -84,12 +92,23 @@ class GetObjectMetadataRequest
     : public GenericObjectRequest<
           GetObjectMetadataRequest, Generation, IfGenerationMatch,
           IfGenerationNotMatch, IfMetagenerationMatch, IfMetagenerationNotMatch,
-          Projection, UserProject> {
+          Projection, SoftDeleted, UserProject> {
  public:
   using GenericObjectRequest::GenericObjectRequest;
 };
 
 std::ostream& operator<<(std::ostream& os, GetObjectMetadataRequest const& r);
+
+/**
+ * Refactors common attributes for `InsertObject*` requests.
+ */
+template <typename Derived>
+using InsertObjectRequestImpl = GenericObjectRequest<
+    Derived, ContentEncoding, ContentType, Crc32cChecksumValue,
+    DisableCrc32cChecksum, DisableMD5Hash, EncryptionKey, IfGenerationMatch,
+    IfGenerationNotMatch, IfMetagenerationMatch, IfMetagenerationNotMatch,
+    KmsKeyName, MD5HashValue, PredefinedAcl, Projection, UserProject,
+    UploadFromOffset, UploadLimit, WithObjectMetadata>;
 
 /**
  * Represents a request to the `Objects: insert` API with a string for the
@@ -100,31 +119,49 @@ std::ostream& operator<<(std::ostream& os, GetObjectMetadataRequest const& r);
  * objects.
  */
 class InsertObjectMediaRequest
-    : public GenericObjectRequest<
-          InsertObjectMediaRequest, ContentEncoding, ContentType,
-          Crc32cChecksumValue, DisableCrc32cChecksum, DisableMD5Hash,
-          EncryptionKey, IfGenerationMatch, IfGenerationNotMatch,
-          IfMetagenerationMatch, IfMetagenerationNotMatch, KmsKeyName,
-          MD5HashValue, PredefinedAcl, Projection, UserProject,
-          UploadFromOffset, UploadLimit, WithObjectMetadata> {
+    : public InsertObjectRequestImpl<InsertObjectMediaRequest> {
  public:
-  InsertObjectMediaRequest() = default;
+  InsertObjectMediaRequest();
+  InsertObjectMediaRequest(std::string bucket_name, std::string object_name,
+                           absl::string_view payload);
 
-  explicit InsertObjectMediaRequest(std::string bucket_name,
-                                    std::string object_name,
-                                    std::string contents)
-      : GenericObjectRequest(std::move(bucket_name), std::move(object_name)),
-        contents_(std::move(contents)) {}
+  absl::string_view payload() const { return payload_; }
+  void set_payload(absl::string_view payload);
 
-  std::string const& contents() const { return contents_; }
-  InsertObjectMediaRequest& set_contents(std::string&& v) {
-    contents_ = std::move(v);
+  template <typename... O>
+  InsertObjectMediaRequest& set_multiple_options(O&&... o) {
+    InsertObjectRequestImpl<InsertObjectMediaRequest>::set_multiple_options(
+        std::forward<O>(o)...);
+    reset_hash_function();
     return *this;
   }
+  HashFunction& hash_function() const { return *hash_function_; }
+
+  ///@{
+  /**
+   * @name Backwards compatibility.
+   *
+   * While this class is in the internal namespace, the storage library
+   * requires applications to use parts of the internal namespace in mocks.
+   *
+   * These functions are only provided for backwards compatibility. The library
+   * no longer uses them, and mocks (if any) should migrate to payload() and
+   * set_payload().
+   */
+  [[deprecated("use payload() instead")]] std::string const& contents() const;
+  [[deprecated("use set_payload() instead")]] void set_contents(std::string v);
+  ///@}
 
  private:
-  std::string contents_;
+  void reset_hash_function();
+
+  absl::string_view payload_;
+  std::shared_ptr<HashFunction> hash_function_;
+  mutable std::string contents_;
+  mutable bool dirty_ = true;
 };
+
+HashValues FinishHashes(InsertObjectMediaRequest const& request);
 
 std::ostream& operator<<(std::ostream& os, InsertObjectMediaRequest const& r);
 
@@ -206,7 +243,7 @@ class UpdateObjectRequest
     : public GenericObjectRequest<
           UpdateObjectRequest, Generation, EncryptionKey, IfGenerationMatch,
           IfGenerationNotMatch, IfMetagenerationMatch, IfMetagenerationNotMatch,
-          PredefinedAcl, Projection, UserProject> {
+          OverrideUnlockedRetention, PredefinedAcl, Projection, UserProject> {
  public:
   UpdateObjectRequest() = default;
   explicit UpdateObjectRequest(std::string bucket_name, std::string object_name,
@@ -253,13 +290,47 @@ class ComposeObjectRequest
 std::ostream& operator<<(std::ostream& os, ComposeObjectRequest const& r);
 
 /**
+ * Represents a request to the `Objects: move` API.
+ */
+class MoveObjectRequest
+    : public GenericObjectRequest<
+          MoveObjectRequest, IfGenerationMatch, IfGenerationNotMatch,
+          IfMetagenerationMatch, IfMetagenerationNotMatch,
+          IfSourceGenerationMatch, IfSourceGenerationNotMatch,
+          IfSourceMetagenerationMatch, IfSourceMetagenerationNotMatch,
+          Projection> {
+ public:
+  MoveObjectRequest() = default;
+  explicit MoveObjectRequest(std::string bucket_name,
+                             std::string source_object_name,
+                             std::string destination_object_name)
+      : bucket_name_(std::move(bucket_name)),
+        source_object_name_(std::move(source_object_name)),
+        destination_object_name_(std::move(destination_object_name)) {}
+
+  std::string const& bucket_name() const { return bucket_name_; }
+  std::string const& source_object_name() const { return source_object_name_; }
+  std::string const& destination_object_name() const {
+    return destination_object_name_;
+  }
+
+ private:
+  std::string bucket_name_;
+  std::string source_object_name_;
+  std::string destination_object_name_;
+};
+
+std::ostream& operator<<(std::ostream& os, MoveObjectRequest const& r);
+
+/**
  * Represents a request to the `Objects: patch` API.
  */
 class PatchObjectRequest
     : public GenericObjectRequest<
           PatchObjectRequest, Generation, IfGenerationMatch,
           IfGenerationNotMatch, IfMetagenerationMatch, IfMetagenerationNotMatch,
-          PredefinedAcl, EncryptionKey, Projection, UserProject,
+          OverrideUnlockedRetention, PredefinedAcl, EncryptionKey, Projection,
+          UserProject,
           // PredefinedDefaultObjectAcl has no effect in an `Objects: patch`
           // request.  We are keeping it here for backwards compatibility. It
           // was introduced in error (should have been PredefinedAcl), and it
@@ -341,6 +412,34 @@ struct RewriteObjectResponse {
 std::ostream& operator<<(std::ostream& os, RewriteObjectResponse const& r);
 
 /**
+ * Represents a request to the `Objects: restore` API
+ */
+class RestoreObjectRequest
+    : public GenericObjectRequest<
+          RestoreObjectRequest, Generation, CopySourceAcl, EncryptionKey,
+          IfGenerationMatch, IfGenerationNotMatch, IfMetagenerationMatch,
+          IfMetagenerationNotMatch, Projection, UserProject> {
+ public:
+  RestoreObjectRequest() = default;
+  RestoreObjectRequest(std::string bucket_name, std::string object_name,
+                       std::int64_t generation)
+      : bucket_name_(std::move(bucket_name)),
+        object_name_(std::move(object_name)),
+        generation_(std::move(generation)) {}
+
+  std::string const& bucket_name() const { return bucket_name_; }
+  std::string const& object_name() const { return object_name_; }
+  std::int64_t const& generation() const { return generation_; }
+
+ private:
+  std::string bucket_name_;
+  std::string object_name_;
+  std::int64_t generation_;
+};
+
+std::ostream& operator<<(std::ostream& os, RestoreObjectRequest const& r);
+
+/**
  * Represents a request to start a resumable upload in `Objects: insert`.
  *
  * This request type is used to start resumable uploads. A resumable upload is
@@ -411,26 +510,30 @@ class UploadChunkRequest
  public:
   UploadChunkRequest() = default;
 
-  // A non-final chunk
+  // A non-final chunk.
   UploadChunkRequest(std::string upload_session_url, std::uint64_t offset,
-                     ConstBufferSequence payload)
-      : upload_session_url_(std::move(upload_session_url)),
-        offset_(offset),
-        payload_(std::move(payload)) {}
+                     ConstBufferSequence payload,
+                     std::shared_ptr<HashFunction> hash_function);
 
+  // A chunk that finalizes the upload.
   UploadChunkRequest(std::string upload_session_url, std::uint64_t offset,
-                     ConstBufferSequence payload, HashValues full_object_hashes)
-      : upload_session_url_(std::move(upload_session_url)),
-        offset_(offset),
-        upload_size_(offset + TotalBytes(payload)),
-        payload_(std::move(payload)),
-        full_object_hashes_(std::move(full_object_hashes)) {}
+                     ConstBufferSequence payload,
+                     std::shared_ptr<HashFunction> hash_function,
+                     HashValues known_hashes);
 
   std::string const& upload_session_url() const { return upload_session_url_; }
   std::uint64_t offset() const { return offset_; }
   absl::optional<std::uint64_t> upload_size() const { return upload_size_; }
   ConstBufferSequence const& payload() const { return payload_; }
-  HashValues const& full_object_hashes() const { return full_object_hashes_; }
+
+  [[deprecated("use known_hashes() and hash_function()")]] HashValues const&
+  full_object_hashes() const {
+    return known_object_hashes_;
+  }
+
+  HashValues const& known_object_hashes() const { return known_object_hashes_; }
+
+  HashFunction& hash_function() const { return *hash_function_; }
 
   bool last_chunk() const { return upload_size_.has_value(); }
   std::size_t payload_size() const { return TotalBytes(payload_); }
@@ -465,8 +568,11 @@ class UploadChunkRequest
   std::uint64_t offset_ = 0;
   absl::optional<std::uint64_t> upload_size_;
   ConstBufferSequence payload_;
-  HashValues full_object_hashes_;
+  std::shared_ptr<HashFunction> hash_function_;
+  HashValues known_object_hashes_;
 };
+
+HashValues FinishHashes(UploadChunkRequest const& request);
 
 std::ostream& operator<<(std::ostream& os, UploadChunkRequest const& r);
 

@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 #include "google/cloud/bigtable/table_admin.h"
 #include "google/cloud/bigtable/admin/bigtable_table_admin_client.h"
 #include "google/cloud/bigtable/wait_for_consistency.h"
-#include "google/cloud/internal/retry_policy.h"
 #include "google/cloud/internal/time_utils.h"
 #include <google/protobuf/duration.pb.h>
 #include <sstream>

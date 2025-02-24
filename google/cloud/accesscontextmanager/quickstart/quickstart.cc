@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/accesscontextmanager/access_context_manager_client.h"
+//! [all]
+#include "google/cloud/accesscontextmanager/v1/access_context_manager_client.h"
 #include <iostream>
 
 int main(int argc, char* argv[]) try {
@@ -21,7 +22,7 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace accesscontextmanager = ::google::cloud::accesscontextmanager;
+  namespace accesscontextmanager = ::google::cloud::accesscontextmanager_v1;
   auto client = accesscontextmanager::AccessContextManagerClient(
       accesscontextmanager::MakeAccessContextManagerConnection());
 
@@ -36,3 +37,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

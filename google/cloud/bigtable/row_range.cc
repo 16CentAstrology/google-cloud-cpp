@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,23 @@ namespace cloud {
 namespace bigtable {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace btproto = ::google::bigtable::v2;
+
+RowRange::RowRange(::google::bigtable::v2::RowRange rhs)
+    : row_range_(std::move(rhs)) {
+  // The service treats an empty end key as end of table. Some of our
+  // intersection logic does not, though. So we are best off sanitizing the
+  // input, by clearing the end key if it is empty.
+  if (row_range_.has_end_key_closed()) {
+    if (internal::IsEmptyRowKey(row_range_.end_key_closed())) {
+      row_range_.clear_end_key_closed();
+    }
+  }
+  if (row_range_.has_end_key_open()) {
+    if (internal::IsEmptyRowKey(row_range_.end_key_open())) {
+      row_range_.clear_end_key_open();
+    }
+  }
+}
 
 bool RowRange::IsEmpty() const {
   RowKeyType unused;

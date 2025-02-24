@@ -65,36 +65,22 @@ class PagesConnectionImpl : public dialogflow_cx::PagesConnection {
   Status DeletePage(google::cloud::dialogflow::cx::v3::DeletePageRequest const&
                         request) override;
 
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_cx::PagesRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::PagesRetryPolicyOption>()) {
-      return options.get<dialogflow_cx::PagesRetryPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_cx::PagesRetryPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::PagesBackoffPolicyOption>()) {
-      return options.get<dialogflow_cx::PagesBackoffPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_cx::PagesBackoffPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<dialogflow_cx::PagesConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::PagesConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_cx::PagesConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_cx::PagesConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_cx_internal::PagesStub> stub_;
   Options options_;

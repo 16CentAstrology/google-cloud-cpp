@@ -13,8 +13,12 @@
 // limitations under the License.
 
 #include "google/cloud/internal/retry_loop.h"
+#include "google/cloud/idempotency.h"
+#include "google/cloud/internal/make_status.h"
+#include "google/cloud/internal/retry_policy_impl.h"
 #include "google/cloud/options.h"
 #include "google/cloud/testing_util/mock_backoff_policy.h"
+#include "google/cloud/testing_util/opentelemetry_matchers.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
 
@@ -24,9 +28,14 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace internal {
 namespace {
 
+using ::google::cloud::testing_util::IsOkAndHolds;
 using ::google::cloud::testing_util::MockBackoffPolicy;
+using ::google::cloud::testing_util::StatusIs;
+using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
+using ::testing::MockFunction;
+using ::testing::Pair;
 using ::testing::Return;
 
 struct StringOption {
@@ -40,17 +49,31 @@ struct TestRetryablePolicy {
   }
 };
 
+auto constexpr kNumRetries = 3;
+
 std::unique_ptr<RetryPolicy> TestRetryPolicy() {
-  return LimitedErrorCountRetryPolicy<TestRetryablePolicy>(5).clone();
+  return LimitedErrorCountRetryPolicy<TestRetryablePolicy>(kNumRetries).clone();
 }
 
 std::unique_ptr<BackoffPolicy> TestBackoffPolicy() {
-  return ExponentialBackoffPolicy(std::chrono::microseconds(1),
-                                  std::chrono::microseconds(5), 2.0)
+  return ExponentialBackoffPolicy(std::chrono::milliseconds(1),
+                                  std::chrono::milliseconds(5), 2.0)
       .clone();
 }
 
-TEST(RetryLoopTest, Success) {
+TEST(RetryLoopTest, SuccessExplicitOptions) {
+  StatusOr<int> actual = RetryLoop(
+      TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent,
+      [](grpc::ClientContext&, Options const& options, int request) {
+        EXPECT_EQ(options.get<StringOption>(), "Success");
+        return StatusOr<int>(2 * request);
+      },
+      Options{}.set<StringOption>("Success"), 42, "error message");
+  EXPECT_STATUS_OK(actual);
+  EXPECT_EQ(84, *actual);
+}
+
+TEST(RetryLoopTest, SuccessImplicitOptions) {
   OptionsSpan span(Options{}.set<StringOption>("Success"));
   StatusOr<int> actual = RetryLoop(
       TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent,
@@ -66,35 +89,33 @@ TEST(RetryLoopTest, Success) {
 
 TEST(RetryLoopTest, TransientThenSuccess) {
   int counter = 0;
-  OptionsSpan span(Options{}.set<StringOption>("TransientThenSuccess"));
   StatusOr<int> actual = RetryLoop(
       TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent,
-      [&counter](grpc::ClientContext&, int request) {
-        EXPECT_EQ(CurrentOptions().get<StringOption>(), "TransientThenSuccess");
+      [&counter](grpc::ClientContext&, Options const& options, int request) {
+        EXPECT_EQ(options.get<StringOption>(), "TransientThenSuccess");
         if (++counter < 3) {
           return StatusOr<int>(Status(StatusCode::kUnavailable, "try again"));
         }
         return StatusOr<int>(2 * request);
       },
-      42, "error message");
-  OptionsSpan overlay(Options{}.set<StringOption>("uh-oh"));
+      Options{}.set<StringOption>("TransientThenSuccess"), 42, "error message");
   EXPECT_STATUS_OK(actual);
   EXPECT_EQ(84, *actual);
 }
 
 TEST(RetryLoopTest, ReturnJustStatus) {
   int counter = 0;
-  OptionsSpan span(Options{}.set<StringOption>("ReturnJustStatus"));
   Status actual = RetryLoop(
       TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent,
-      [&counter](grpc::ClientContext&, int) {
-        EXPECT_EQ(CurrentOptions().get<StringOption>(), "ReturnJustStatus");
+      [&counter](grpc::ClientContext&, Options const& options, int) {
+        EXPECT_EQ(options.get<StringOption>(), "ReturnJustStatus");
         if (++counter <= 3) {
           return Status(StatusCode::kResourceExhausted, "slow-down");
         }
         return Status();
       },
-      42, "error message");
+      Options{}.set<StringOption>("ReturnJustStatus"),
+      /*request=*/42, "error message");
   OptionsSpan overlay(Options{}.set<StringOption>("uh-oh"));
   EXPECT_STATUS_OK(actual);
 }
@@ -115,17 +136,19 @@ TEST(RetryLoopTest, UsesBackoffPolicy) {
 
   int counter = 0;
   std::vector<ms> sleep_for;
-  OptionsSpan span(Options{}.set<StringOption>("UsesBackoffPolicy"));
+  auto retry_policy = TestRetryPolicy();
   StatusOr<int> actual = RetryLoopImpl(
-      TestRetryPolicy(), std::move(mock), Idempotency::kIdempotent,
-      [&counter](grpc::ClientContext&, int request) {
-        EXPECT_EQ(CurrentOptions().get<StringOption>(), "UsesBackoffPolicy");
+      *retry_policy, *mock, Idempotency::kIdempotent,
+      [&counter](grpc::ClientContext&, Options const& options, int request) {
+        EXPECT_EQ(options.get<StringOption>(), "UsesBackoffPolicy");
         if (++counter <= 3) {
           return StatusOr<int>(Status(StatusCode::kUnavailable, "try again"));
         }
         return StatusOr<int>(2 * request);
       },
-      42, "error message", [&sleep_for](ms p) { sleep_for.push_back(p); });
+      Options{}.set<StringOption>("UsesBackoffPolicy"),
+      /*request=*/42, "error message",
+      [&sleep_for](ms p) { sleep_for.push_back(p); });
   OptionsSpan overlay(Options{}.set<StringOption>("uh-oh"));
   EXPECT_STATUS_OK(actual);
   EXPECT_EQ(84, *actual);
@@ -134,78 +157,163 @@ TEST(RetryLoopTest, UsesBackoffPolicy) {
 }
 
 TEST(RetryLoopTest, TransientFailureNonIdempotent) {
-  OptionsSpan span(
-      Options{}.set<StringOption>("TransientFailureNonIdempotent"));
   StatusOr<int> actual = RetryLoop(
       TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kNonIdempotent,
-      [](grpc::ClientContext&, int) {
-        EXPECT_EQ(CurrentOptions().get<StringOption>(),
-                  "TransientFailureNonIdempotent");
+      [](grpc::ClientContext&, Options const& options, int) {
+        EXPECT_EQ(options.get<StringOption>(), "TransientFailureNonIdempotent");
         return StatusOr<int>(Status(StatusCode::kUnavailable, "try again"));
       },
-      42, "the answer to everything");
+      Options{}.set<StringOption>("TransientFailureNonIdempotent"),
+      /*request=*/42, __func__);
   OptionsSpan overlay(Options{}.set<StringOption>("uh-oh"));
   EXPECT_EQ(StatusCode::kUnavailable, actual.status().code());
   EXPECT_THAT(actual.status().message(), HasSubstr("try again"));
-  EXPECT_THAT(actual.status().message(), HasSubstr("the answer to everything"));
-  EXPECT_THAT(actual.status().message(), HasSubstr("Error in non-idempotent"));
+  auto const& metadata = actual.status().error_info().metadata();
+  EXPECT_THAT(metadata,
+              Contains(Pair("gcloud-cpp.retry.original-message", "try again")));
+  EXPECT_THAT(metadata,
+              Contains(Pair("gcloud-cpp.retry.reason", "non-idempotent")));
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.function", __func__)));
 }
 
 TEST(RetryLoopTest, PermanentFailureFailureIdempotent) {
-  OptionsSpan span(
-      Options{}.set<StringOption>("PermanentFailureFailureIdempotent"));
   StatusOr<int> actual = RetryLoop(
       TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent,
-      [](grpc::ClientContext&, int) {
-        EXPECT_EQ(CurrentOptions().get<StringOption>(),
+      [](grpc::ClientContext&, Options const& options, int) {
+        EXPECT_EQ(options.get<StringOption>(),
                   "PermanentFailureFailureIdempotent");
         return StatusOr<int>(Status(StatusCode::kPermissionDenied, "uh oh"));
       },
-      42, "the answer to everything");
+      Options{}.set<StringOption>("PermanentFailureFailureIdempotent"),
+      /*request=*/42, __func__);
   OptionsSpan overlay(Options{}.set<StringOption>("uh-oh"));
   EXPECT_EQ(StatusCode::kPermissionDenied, actual.status().code());
   EXPECT_THAT(actual.status().message(), HasSubstr("uh oh"));
-  EXPECT_THAT(actual.status().message(), HasSubstr("the answer to everything"));
-  EXPECT_THAT(actual.status().message(), HasSubstr("Permanent error"));
+  auto const& metadata = actual.status().error_info().metadata();
+  EXPECT_THAT(metadata,
+              Contains(Pair("gcloud-cpp.retry.original-message", "uh oh")));
+  EXPECT_THAT(metadata,
+              Contains(Pair("gcloud-cpp.retry.reason", "permanent-error")));
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.function", __func__)));
 }
 
 TEST(RetryLoopTest, TooManyTransientFailuresIdempotent) {
-  OptionsSpan span(
-      Options{}.set<StringOption>("TransientFailureNonIdempotent"));
   StatusOr<int> actual = RetryLoop(
       TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent,
-      [](grpc::ClientContext&, int) {
-        EXPECT_EQ(CurrentOptions().get<StringOption>(),
-                  "TransientFailureNonIdempotent");
+      [](grpc::ClientContext&, Options const& options, int) {
+        EXPECT_EQ(options.get<StringOption>(), "TransientFailureNonIdempotent");
         return StatusOr<int>(Status(StatusCode::kUnavailable, "try again"));
       },
-      42, "the answer to everything");
+      Options{}.set<StringOption>("TransientFailureNonIdempotent"),
+      /*request=*/42, __func__);
   OptionsSpan overlay(Options{}.set<StringOption>("uh-oh"));
   EXPECT_EQ(StatusCode::kUnavailable, actual.status().code());
   EXPECT_THAT(actual.status().message(), HasSubstr("try again"));
-  EXPECT_THAT(actual.status().message(), HasSubstr("the answer to everything"));
-  EXPECT_THAT(actual.status().message(), HasSubstr("Retry policy exhausted"));
+  auto const& metadata = actual.status().error_info().metadata();
+  EXPECT_THAT(metadata,
+              Contains(Pair("gcloud-cpp.retry.original-message", "try again")));
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.reason",
+                                      "retry-policy-exhausted")));
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.on-entry", "false")));
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.function", __func__)));
+}
+
+TEST(RetryLoopTest, ExhaustedOnStart) {
+  auto retry_policy = internal::LimitedTimeRetryPolicy<TestRetryablePolicy>(
+      std::chrono::seconds(0));
+  ASSERT_TRUE(retry_policy.IsExhausted());
+  StatusOr<int> actual = RetryLoop(
+      retry_policy.clone(), TestBackoffPolicy(), Idempotency::kIdempotent,
+      [](grpc::ClientContext&, Options const& options, int) {
+        EXPECT_EQ(options.get<StringOption>(), "ExhaustedOnStart");
+        return StatusOr<int>(Status(StatusCode::kUnavailable, "try again"));
+      },
+      /*options=*/Options{}.set<StringOption>("ExhaustedOnStart"),
+      /*request=*/42, __func__);
+  internal::OptionsSpan overlay(Options{}.set<StringOption>("uh-oh"));
+  EXPECT_THAT(actual, StatusIs(StatusCode::kDeadlineExceeded));
+  auto const& metadata = actual.status().error_info().metadata();
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.reason",
+                                      "retry-policy-exhausted")));
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.on-entry", "true")));
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.function", __func__)));
+}
+
+TEST(RetryLoopTest, HeedsRetryInfo) {
+  MockFunction<StatusOr<int>(grpc::ClientContext&, Options const&, int)> mock;
+  EXPECT_CALL(mock, Call)
+      .WillOnce([] {
+        auto status = ResourceExhaustedError("try again");
+        SetRetryInfo(status, RetryInfo{std::chrono::seconds(0)});
+        return status;
+      })
+      .WillOnce(Return(make_status_or(5)));
+
+  StatusOr<int> actual = RetryLoop(
+      TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kNonIdempotent,
+      mock.AsStdFunction(), Options{}.set<EnableServerRetriesOption>(true),
+      /*request=*/42, __func__);
+  EXPECT_THAT(actual, IsOkAndHolds(5));
 }
 
 TEST(RetryLoopTest, ConfigureContext) {
   auto setup = [](grpc::ClientContext& context) {
     context.set_compression_algorithm(GRPC_COMPRESS_DEFLATE);
   };
-  OptionsSpan span(Options{}
-                       .set<StringOption>("ConfigureContext")
-                       .set<internal::GrpcSetupOption>(setup));
 
   StatusOr<int> actual = RetryLoop(
       TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent,
-      [](grpc::ClientContext& context, int) {
-        EXPECT_EQ(CurrentOptions().get<StringOption>(), "ConfigureContext");
+      [](grpc::ClientContext& context, Options const& options, int) {
+        EXPECT_EQ(options.get<StringOption>(), "ConfigureContext");
         // Ensure that our options have taken affect on the ClientContext
         // before we start using it.
         EXPECT_EQ(GRPC_COMPRESS_DEFLATE, context.compression_algorithm());
         return StatusOr<int>(0);
       },
-      0, "error message");
+      Options{}
+          .set<StringOption>("ConfigureContext")
+          .set<internal::GrpcSetupOption>(setup),
+      /*request=*/0, "error message");
 }
+
+#ifdef GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
+using ::google::cloud::testing_util::DisableTracing;
+using ::google::cloud::testing_util::EnableTracing;
+using ::google::cloud::testing_util::SpanNamed;
+using ::testing::AllOf;
+using ::testing::Each;
+using ::testing::IsEmpty;
+using ::testing::SizeIs;
+
+TEST(RetryLoopTest, TracingEnabled) {
+  auto span_catcher = testing_util::InstallSpanCatcher();
+
+  StatusOr<int> actual = RetryLoop(
+      TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent,
+      [](grpc::ClientContext&, Options const&, int) {
+        return StatusOr<int>(UnavailableError("try again"));
+      },
+      /*options=*/EnableTracing(Options{}), /*request=*/0, "error message");
+
+  auto spans = span_catcher->GetSpans();
+  EXPECT_THAT(spans, AllOf(SizeIs(kNumRetries), Each(SpanNamed("Backoff"))));
+}
+
+TEST(RetryLoopTest, TracingDisabled) {
+  auto span_catcher = testing_util::InstallSpanCatcher();
+
+  StatusOr<int> actual = RetryLoop(
+      TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent,
+      [](grpc::ClientContext&, Options const&, int) {
+        return StatusOr<int>(0);
+      },
+      /*options=*/DisableTracing(Options{}), /*request=*/0, "error message");
+
+  auto spans = span_catcher->GetSpans();
+  EXPECT_THAT(spans, IsEmpty());
+}
+
+#endif  // GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
 
 }  // namespace
 }  // namespace internal

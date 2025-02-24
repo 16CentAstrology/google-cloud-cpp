@@ -27,3 +27,13 @@ cmake-build-*/
 # Ignore Visual Studio Code files
 .vsbuild/
 .vscode/
+
+# `google-cloud-cpp` developers use this file to configure the development
+# workflow build.
+.cloudcxxrc
+
+# Ignore the file with user-defined CMake presets
+CMakeUserPresets.json
+
+# Lock files created by bzlmod. We do not want to accidentally commit these.
+MODULE.bazel.lock

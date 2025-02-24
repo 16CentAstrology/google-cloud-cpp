@@ -21,12 +21,15 @@
 
 #include "google/cloud/completion_queue.h"
 #include "google/cloud/future.h"
+#include "google/cloud/options.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/version.h"
 #include <generator/integration_tests/backup.pb.h>
-#include <generator/integration_tests/test.grpc.pb.h>
+#include <google/cloud/location/locations.grpc.pb.h>
 #include <google/longrunning/operations.grpc.pb.h>
+#include <generator/integration_tests/test.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -38,102 +41,159 @@ class GoldenThingAdminStub {
   virtual ~GoldenThingAdminStub() = 0;
 
   virtual StatusOr<google::test::admin::database::v1::ListDatabasesResponse> ListDatabases(
-    grpc::ClientContext& context,
-    google::test::admin::database::v1::ListDatabasesRequest const& request) = 0;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::ListDatabasesRequest const& request) = 0;
 
   virtual future<StatusOr<google::longrunning::Operation>> AsyncCreateDatabase(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::test::admin::database::v1::CreateDatabaseRequest const& request) = 0;
+
+  virtual StatusOr<google::longrunning::Operation> CreateDatabase(
+      grpc::ClientContext& context,
+      Options options,
       google::test::admin::database::v1::CreateDatabaseRequest const& request) = 0;
 
   virtual StatusOr<google::test::admin::database::v1::Database> GetDatabase(
-    grpc::ClientContext& context,
-    google::test::admin::database::v1::GetDatabaseRequest const& request) = 0;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::GetDatabaseRequest const& request) = 0;
 
   virtual future<StatusOr<google::longrunning::Operation>> AsyncUpdateDatabaseDdl(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::test::admin::database::v1::UpdateDatabaseDdlRequest const& request) = 0;
+
+  virtual StatusOr<google::longrunning::Operation> UpdateDatabaseDdl(
+      grpc::ClientContext& context,
+      Options options,
       google::test::admin::database::v1::UpdateDatabaseDdlRequest const& request) = 0;
 
   virtual Status DropDatabase(
-    grpc::ClientContext& context,
-    google::test::admin::database::v1::DropDatabaseRequest const& request) = 0;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::DropDatabaseRequest const& request) = 0;
 
   virtual StatusOr<google::test::admin::database::v1::GetDatabaseDdlResponse> GetDatabaseDdl(
-    grpc::ClientContext& context,
-    google::test::admin::database::v1::GetDatabaseDdlRequest const& request) = 0;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::GetDatabaseDdlRequest const& request) = 0;
 
   virtual StatusOr<google::iam::v1::Policy> SetIamPolicy(
-    grpc::ClientContext& context,
-    google::iam::v1::SetIamPolicyRequest const& request) = 0;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::iam::v1::SetIamPolicyRequest const& request) = 0;
 
   virtual StatusOr<google::iam::v1::Policy> GetIamPolicy(
-    grpc::ClientContext& context,
-    google::iam::v1::GetIamPolicyRequest const& request) = 0;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::iam::v1::GetIamPolicyRequest const& request) = 0;
 
   virtual StatusOr<google::iam::v1::TestIamPermissionsResponse> TestIamPermissions(
-    grpc::ClientContext& context,
-    google::iam::v1::TestIamPermissionsRequest const& request) = 0;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::iam::v1::TestIamPermissionsRequest const& request) = 0;
 
   virtual future<StatusOr<google::longrunning::Operation>> AsyncCreateBackup(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::test::admin::database::v1::CreateBackupRequest const& request) = 0;
+
+  virtual StatusOr<google::longrunning::Operation> CreateBackup(
+      grpc::ClientContext& context,
+      Options options,
       google::test::admin::database::v1::CreateBackupRequest const& request) = 0;
 
   virtual StatusOr<google::test::admin::database::v1::Backup> GetBackup(
-    grpc::ClientContext& context,
-    google::test::admin::database::v1::GetBackupRequest const& request) = 0;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::GetBackupRequest const& request) = 0;
 
   virtual StatusOr<google::test::admin::database::v1::Backup> UpdateBackup(
-    grpc::ClientContext& context,
-    google::test::admin::database::v1::UpdateBackupRequest const& request) = 0;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::UpdateBackupRequest const& request) = 0;
 
   virtual Status DeleteBackup(
-    grpc::ClientContext& context,
-    google::test::admin::database::v1::DeleteBackupRequest const& request) = 0;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::DeleteBackupRequest const& request) = 0;
 
   virtual StatusOr<google::test::admin::database::v1::ListBackupsResponse> ListBackups(
-    grpc::ClientContext& context,
-    google::test::admin::database::v1::ListBackupsRequest const& request) = 0;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::ListBackupsRequest const& request) = 0;
 
   virtual future<StatusOr<google::longrunning::Operation>> AsyncRestoreDatabase(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::test::admin::database::v1::RestoreDatabaseRequest const& request) = 0;
+
+  virtual StatusOr<google::longrunning::Operation> RestoreDatabase(
+      grpc::ClientContext& context,
+      Options options,
       google::test::admin::database::v1::RestoreDatabaseRequest const& request) = 0;
 
   virtual StatusOr<google::test::admin::database::v1::ListDatabaseOperationsResponse> ListDatabaseOperations(
-    grpc::ClientContext& context,
-    google::test::admin::database::v1::ListDatabaseOperationsRequest const& request) = 0;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::ListDatabaseOperationsRequest const& request) = 0;
 
   virtual StatusOr<google::test::admin::database::v1::ListBackupOperationsResponse> ListBackupOperations(
-    grpc::ClientContext& context,
-    google::test::admin::database::v1::ListBackupOperationsRequest const& request) = 0;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::ListBackupOperationsRequest const& request) = 0;
 
   virtual future<StatusOr<google::longrunning::Operation>> AsyncLongRunningWithoutRouting(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::test::admin::database::v1::RestoreDatabaseRequest const& request) = 0;
+
+  virtual StatusOr<google::longrunning::Operation> LongRunningWithoutRouting(
+      grpc::ClientContext& context,
+      Options options,
+      google::test::admin::database::v1::RestoreDatabaseRequest const& request) = 0;
+
+  virtual StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::cloud::location::GetLocationRequest const& request) = 0;
+
+  virtual StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::longrunning::ListOperationsRequest const& request) = 0;
 
   virtual future<StatusOr<google::test::admin::database::v1::Database>>
   AsyncGetDatabase(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::test::admin::database::v1::GetDatabaseRequest const& request) = 0;
 
   virtual future<Status>
   AsyncDropDatabase(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::test::admin::database::v1::DropDatabaseRequest const& request) = 0;
 
   virtual future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
       google::longrunning::GetOperationRequest const& request) = 0;
 
   virtual future<Status> AsyncCancelOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::CancelOperationRequest const& request) = 0;
 };
 
@@ -141,125 +201,170 @@ class DefaultGoldenThingAdminStub : public GoldenThingAdminStub {
  public:
   DefaultGoldenThingAdminStub(
       std::unique_ptr<google::test::admin::database::v1::GoldenThingAdmin::StubInterface> grpc_stub,
-      std::unique_ptr<google::longrunning::Operations::StubInterface> operations)
+      std::unique_ptr<google::cloud::location::Locations::StubInterface> locations_stub,
+      std::unique_ptr<google::longrunning::Operations::StubInterface> operations_stub)
       : grpc_stub_(std::move(grpc_stub)),
-        operations_(std::move(operations)) {}
+        locations_stub_(std::move(locations_stub)),
+        operations_stub_(std::move(operations_stub)) {}
 
-  StatusOr<google::test::admin::database::v1::ListDatabasesResponse>
-  ListDatabases(
-    grpc::ClientContext& client_context,
-    google::test::admin::database::v1::ListDatabasesRequest const& request) override;
+  StatusOr<google::test::admin::database::v1::ListDatabasesResponse> ListDatabases(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::ListDatabasesRequest const& request) override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncCreateDatabase(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::test::admin::database::v1::CreateDatabaseRequest const& request) override;
 
-  StatusOr<google::test::admin::database::v1::Database>
-  GetDatabase(
-    grpc::ClientContext& client_context,
-    google::test::admin::database::v1::GetDatabaseRequest const& request) override;
+  StatusOr<google::longrunning::Operation> CreateDatabase(
+      grpc::ClientContext& context,
+      Options options,
+      google::test::admin::database::v1::CreateDatabaseRequest const& request) override;
+
+  StatusOr<google::test::admin::database::v1::Database> GetDatabase(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::GetDatabaseRequest const& request) override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncUpdateDatabaseDdl(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::test::admin::database::v1::UpdateDatabaseDdlRequest const& request) override;
 
-  Status
-  DropDatabase(
-    grpc::ClientContext& client_context,
-    google::test::admin::database::v1::DropDatabaseRequest const& request) override;
+  StatusOr<google::longrunning::Operation> UpdateDatabaseDdl(
+      grpc::ClientContext& context,
+      Options options,
+      google::test::admin::database::v1::UpdateDatabaseDdlRequest const& request) override;
 
-  StatusOr<google::test::admin::database::v1::GetDatabaseDdlResponse>
-  GetDatabaseDdl(
-    grpc::ClientContext& client_context,
-    google::test::admin::database::v1::GetDatabaseDdlRequest const& request) override;
+  Status DropDatabase(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::DropDatabaseRequest const& request) override;
 
-  StatusOr<google::iam::v1::Policy>
-  SetIamPolicy(
-    grpc::ClientContext& client_context,
-    google::iam::v1::SetIamPolicyRequest const& request) override;
+  StatusOr<google::test::admin::database::v1::GetDatabaseDdlResponse> GetDatabaseDdl(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::GetDatabaseDdlRequest const& request) override;
 
-  StatusOr<google::iam::v1::Policy>
-  GetIamPolicy(
-    grpc::ClientContext& client_context,
-    google::iam::v1::GetIamPolicyRequest const& request) override;
+  StatusOr<google::iam::v1::Policy> SetIamPolicy(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::iam::v1::SetIamPolicyRequest const& request) override;
 
-  StatusOr<google::iam::v1::TestIamPermissionsResponse>
-  TestIamPermissions(
-    grpc::ClientContext& client_context,
-    google::iam::v1::TestIamPermissionsRequest const& request) override;
+  StatusOr<google::iam::v1::Policy> GetIamPolicy(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::iam::v1::GetIamPolicyRequest const& request) override;
+
+  StatusOr<google::iam::v1::TestIamPermissionsResponse> TestIamPermissions(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::iam::v1::TestIamPermissionsRequest const& request) override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncCreateBackup(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::test::admin::database::v1::CreateBackupRequest const& request) override;
 
-  StatusOr<google::test::admin::database::v1::Backup>
-  GetBackup(
-    grpc::ClientContext& client_context,
-    google::test::admin::database::v1::GetBackupRequest const& request) override;
+  StatusOr<google::longrunning::Operation> CreateBackup(
+      grpc::ClientContext& context,
+      Options options,
+      google::test::admin::database::v1::CreateBackupRequest const& request) override;
 
-  StatusOr<google::test::admin::database::v1::Backup>
-  UpdateBackup(
-    grpc::ClientContext& client_context,
-    google::test::admin::database::v1::UpdateBackupRequest const& request) override;
+  StatusOr<google::test::admin::database::v1::Backup> GetBackup(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::GetBackupRequest const& request) override;
 
-  Status
-  DeleteBackup(
-    grpc::ClientContext& client_context,
-    google::test::admin::database::v1::DeleteBackupRequest const& request) override;
+  StatusOr<google::test::admin::database::v1::Backup> UpdateBackup(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::UpdateBackupRequest const& request) override;
 
-  StatusOr<google::test::admin::database::v1::ListBackupsResponse>
-  ListBackups(
-    grpc::ClientContext& client_context,
-    google::test::admin::database::v1::ListBackupsRequest const& request) override;
+  Status DeleteBackup(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::DeleteBackupRequest const& request) override;
+
+  StatusOr<google::test::admin::database::v1::ListBackupsResponse> ListBackups(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::ListBackupsRequest const& request) override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncRestoreDatabase(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::test::admin::database::v1::RestoreDatabaseRequest const& request) override;
 
-  StatusOr<google::test::admin::database::v1::ListDatabaseOperationsResponse>
-  ListDatabaseOperations(
-    grpc::ClientContext& client_context,
-    google::test::admin::database::v1::ListDatabaseOperationsRequest const& request) override;
+  StatusOr<google::longrunning::Operation> RestoreDatabase(
+      grpc::ClientContext& context,
+      Options options,
+      google::test::admin::database::v1::RestoreDatabaseRequest const& request) override;
 
-  StatusOr<google::test::admin::database::v1::ListBackupOperationsResponse>
-  ListBackupOperations(
-    grpc::ClientContext& client_context,
-    google::test::admin::database::v1::ListBackupOperationsRequest const& request) override;
+  StatusOr<google::test::admin::database::v1::ListDatabaseOperationsResponse> ListDatabaseOperations(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::ListDatabaseOperationsRequest const& request) override;
+
+  StatusOr<google::test::admin::database::v1::ListBackupOperationsResponse> ListBackupOperations(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::ListBackupOperationsRequest const& request) override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncLongRunningWithoutRouting(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::test::admin::database::v1::RestoreDatabaseRequest const& request) override;
 
-  future<StatusOr<google::test::admin::database::v1::Database>>
-  AsyncGetDatabase(
-    google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
-    google::test::admin::database::v1::GetDatabaseRequest const& request) override;
+  StatusOr<google::longrunning::Operation> LongRunningWithoutRouting(
+      grpc::ClientContext& context,
+      Options options,
+      google::test::admin::database::v1::RestoreDatabaseRequest const& request) override;
 
-  future<Status>
-  AsyncDropDatabase(
-    google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
-    google::test::admin::database::v1::DropDatabaseRequest const& request) override;
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  future<StatusOr<google::test::admin::database::v1::Database>> AsyncGetDatabase(
+      google::cloud::CompletionQueue& cq,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::test::admin::database::v1::GetDatabaseRequest const& request) override;
+
+  future<Status> AsyncDropDatabase(
+      google::cloud::CompletionQueue& cq,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::test::admin::database::v1::DropDatabaseRequest const& request) override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::GetOperationRequest const& request) override;
 
   future<Status> AsyncCancelOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::CancelOperationRequest const& request) override;
 
  private:
   std::unique_ptr<google::test::admin::database::v1::GoldenThingAdmin::StubInterface> grpc_stub_;
-  std::unique_ptr<google::longrunning::Operations::StubInterface> operations_;
+  std::unique_ptr<google::cloud::location::Locations::StubInterface> locations_stub_;
+  std::unique_ptr<google::longrunning::Operations::StubInterface> operations_stub_;
 };
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

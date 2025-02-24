@@ -22,6 +22,7 @@
 #include "google/cloud/status_or.h"
 #include <google/cloud/dialogflow/v2/participant.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -32,11 +33,10 @@ ParticipantsStub::~ParticipantsStub() = default;
 
 StatusOr<google::cloud::dialogflow::v2::Participant>
 DefaultParticipantsStub::CreateParticipant(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::CreateParticipantRequest const& request) {
   google::cloud::dialogflow::v2::Participant response;
-  auto status =
-      grpc_stub_->CreateParticipant(&client_context, request, &response);
+  auto status = grpc_stub_->CreateParticipant(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -45,10 +45,10 @@ DefaultParticipantsStub::CreateParticipant(
 
 StatusOr<google::cloud::dialogflow::v2::Participant>
 DefaultParticipantsStub::GetParticipant(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::GetParticipantRequest const& request) {
   google::cloud::dialogflow::v2::Participant response;
-  auto status = grpc_stub_->GetParticipant(&client_context, request, &response);
+  auto status = grpc_stub_->GetParticipant(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -57,11 +57,10 @@ DefaultParticipantsStub::GetParticipant(
 
 StatusOr<google::cloud::dialogflow::v2::ListParticipantsResponse>
 DefaultParticipantsStub::ListParticipants(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::ListParticipantsRequest const& request) {
   google::cloud::dialogflow::v2::ListParticipantsResponse response;
-  auto status =
-      grpc_stub_->ListParticipants(&client_context, request, &response);
+  auto status = grpc_stub_->ListParticipants(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -70,11 +69,10 @@ DefaultParticipantsStub::ListParticipants(
 
 StatusOr<google::cloud::dialogflow::v2::Participant>
 DefaultParticipantsStub::UpdateParticipant(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::UpdateParticipantRequest const& request) {
   google::cloud::dialogflow::v2::Participant response;
-  auto status =
-      grpc_stub_->UpdateParticipant(&client_context, request, &response);
+  auto status = grpc_stub_->UpdateParticipant(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -83,10 +81,10 @@ DefaultParticipantsStub::UpdateParticipant(
 
 StatusOr<google::cloud::dialogflow::v2::AnalyzeContentResponse>
 DefaultParticipantsStub::AnalyzeContent(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::AnalyzeContentRequest const& request) {
   google::cloud::dialogflow::v2::AnalyzeContentResponse response;
-  auto status = grpc_stub_->AnalyzeContent(&client_context, request, &response);
+  auto status = grpc_stub_->AnalyzeContent(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -98,11 +96,12 @@ std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
     google::cloud::dialogflow::v2::StreamingAnalyzeContentResponse>>
 DefaultParticipantsStub::AsyncStreamingAnalyzeContent(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context) {
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options) {
   return google::cloud::internal::MakeStreamingReadWriteRpc<
       google::cloud::dialogflow::v2::StreamingAnalyzeContentRequest,
       google::cloud::dialogflow::v2::StreamingAnalyzeContentResponse>(
-      cq, std::move(context),
+      cq, std::move(context), std::move(options),
       [this](grpc::ClientContext* context, grpc::CompletionQueue* cq) {
         return grpc_stub_->PrepareAsyncStreamingAnalyzeContent(context, cq);
       });
@@ -110,11 +109,10 @@ DefaultParticipantsStub::AsyncStreamingAnalyzeContent(
 
 StatusOr<google::cloud::dialogflow::v2::SuggestArticlesResponse>
 DefaultParticipantsStub::SuggestArticles(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::SuggestArticlesRequest const& request) {
   google::cloud::dialogflow::v2::SuggestArticlesResponse response;
-  auto status =
-      grpc_stub_->SuggestArticles(&client_context, request, &response);
+  auto status = grpc_stub_->SuggestArticles(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -123,11 +121,10 @@ DefaultParticipantsStub::SuggestArticles(
 
 StatusOr<google::cloud::dialogflow::v2::SuggestFaqAnswersResponse>
 DefaultParticipantsStub::SuggestFaqAnswers(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::SuggestFaqAnswersRequest const& request) {
   google::cloud::dialogflow::v2::SuggestFaqAnswersResponse response;
-  auto status =
-      grpc_stub_->SuggestFaqAnswers(&client_context, request, &response);
+  auto status = grpc_stub_->SuggestFaqAnswers(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -136,15 +133,86 @@ DefaultParticipantsStub::SuggestFaqAnswers(
 
 StatusOr<google::cloud::dialogflow::v2::SuggestSmartRepliesResponse>
 DefaultParticipantsStub::SuggestSmartReplies(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::SuggestSmartRepliesRequest const& request) {
   google::cloud::dialogflow::v2::SuggestSmartRepliesResponse response;
-  auto status =
-      grpc_stub_->SuggestSmartReplies(&client_context, request, &response);
+  auto status = grpc_stub_->SuggestSmartReplies(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
   return response;
+}
+
+StatusOr<google::cloud::dialogflow::v2::SuggestKnowledgeAssistResponse>
+DefaultParticipantsStub::SuggestKnowledgeAssist(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::dialogflow::v2::SuggestKnowledgeAssistRequest const&
+        request) {
+  google::cloud::dialogflow::v2::SuggestKnowledgeAssistResponse response;
+  auto status =
+      grpc_stub_->SuggestKnowledgeAssist(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::cloud::location::ListLocationsResponse>
+DefaultParticipantsStub::ListLocations(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::location::ListLocationsRequest const& request) {
+  google::cloud::location::ListLocationsResponse response;
+  auto status = locations_stub_->ListLocations(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::cloud::location::Location>
+DefaultParticipantsStub::GetLocation(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::location::GetLocationRequest const& request) {
+  google::cloud::location::Location response;
+  auto status = locations_stub_->GetLocation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+DefaultParticipantsStub::ListOperations(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::ListOperationsRequest const& request) {
+  google::longrunning::ListOperationsResponse response;
+  auto status = operations_stub_->ListOperations(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::longrunning::Operation> DefaultParticipantsStub::GetOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::GetOperationRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = operations_stub_->GetOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+Status DefaultParticipantsStub::CancelOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::CancelOperationRequest const& request) {
+  google::protobuf::Empty response;
+  auto status = operations_stub_->CancelOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return google::cloud::Status();
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

@@ -21,12 +21,15 @@
 #include "google/cloud/dialogflow_cx/internal/flows_connection_impl.h"
 #include "google/cloud/dialogflow_cx/internal/flows_option_defaults.h"
 #include "google/cloud/dialogflow_cx/internal/flows_stub_factory.h"
+#include "google/cloud/dialogflow_cx/internal/flows_tracing_connection.h"
 #include "google/cloud/background_threads.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/credentials.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/pagination_range.h"
+#include "google/cloud/internal/unified_grpc_credentials.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -68,6 +71,18 @@ future<StatusOr<google::protobuf::Struct>> FlowsConnection::TrainFlow(
       Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
+StatusOr<google::longrunning::Operation> FlowsConnection::TrainFlow(
+    NoAwaitTag, google::cloud::dialogflow::cx::v3::TrainFlowRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::protobuf::Struct>> FlowsConnection::TrainFlow(
+    google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<StatusOr<google::protobuf::Struct>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
 StatusOr<google::cloud::dialogflow::cx::v3::FlowValidationResult>
 FlowsConnection::ValidateFlow(
     google::cloud::dialogflow::cx::v3::ValidateFlowRequest const&) {
@@ -88,12 +103,67 @@ FlowsConnection::ImportFlow(
       Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
+StatusOr<google::longrunning::Operation> FlowsConnection::ImportFlow(
+    NoAwaitTag, google::cloud::dialogflow::cx::v3::ImportFlowRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::cloud::dialogflow::cx::v3::ImportFlowResponse>>
+FlowsConnection::ImportFlow(google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::dialogflow::cx::v3::ImportFlowResponse>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
 future<StatusOr<google::cloud::dialogflow::cx::v3::ExportFlowResponse>>
 FlowsConnection::ExportFlow(
     google::cloud::dialogflow::cx::v3::ExportFlowRequest const&) {
   return google::cloud::make_ready_future<
       StatusOr<google::cloud::dialogflow::cx::v3::ExportFlowResponse>>(
       Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation> FlowsConnection::ExportFlow(
+    NoAwaitTag, google::cloud::dialogflow::cx::v3::ExportFlowRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::cloud::dialogflow::cx::v3::ExportFlowResponse>>
+FlowsConnection::ExportFlow(google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::dialogflow::cx::v3::ExportFlowResponse>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StreamRange<google::cloud::location::Location> FlowsConnection::ListLocations(
+    google::cloud::location::
+        ListLocationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::cloud::location::Location>>();
+}
+
+StatusOr<google::cloud::location::Location> FlowsConnection::GetLocation(
+    google::cloud::location::GetLocationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+StreamRange<google::longrunning::Operation> FlowsConnection::ListOperations(
+    google::longrunning::
+        ListOperationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::longrunning::Operation>>();
+}
+
+StatusOr<google::longrunning::Operation> FlowsConnection::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+Status FlowsConnection::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
 }
 
 std::shared_ptr<FlowsConnection> MakeFlowsConnection(
@@ -104,10 +174,12 @@ std::shared_ptr<FlowsConnection> MakeFlowsConnection(
   options =
       dialogflow_cx_internal::FlowsDefaultOptions(location, std::move(options));
   auto background = internal::MakeBackgroundThreadsFactory(options)();
+  auto auth = internal::CreateAuthenticationStrategy(background->cq(), options);
   auto stub =
-      dialogflow_cx_internal::CreateDefaultFlowsStub(background->cq(), options);
-  return std::make_shared<dialogflow_cx_internal::FlowsConnectionImpl>(
-      std::move(background), std::move(stub), std::move(options));
+      dialogflow_cx_internal::CreateDefaultFlowsStub(std::move(auth), options);
+  return dialogflow_cx_internal::MakeFlowsTracingConnection(
+      std::make_shared<dialogflow_cx_internal::FlowsConnectionImpl>(
+          std::move(background), std::move(stub), std::move(options)));
 }
 
 std::shared_ptr<FlowsConnection> MakeFlowsConnection(Options options) {

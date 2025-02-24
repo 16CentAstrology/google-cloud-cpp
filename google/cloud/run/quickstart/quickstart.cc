@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/run/services_client.h"
+//! [all]
+#include "google/cloud/run/v2/services_client.h"
+#include "google/cloud/location.h"
 #include <iostream>
 
 int main(int argc, char* argv[]) try {
@@ -21,14 +23,14 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace run = ::google::cloud::run;
+  auto const location = google::cloud::Location(argv[1], argv[2]);
+
+  namespace run = ::google::cloud::run_v2;
   auto client = run::ServicesClient(run::MakeServicesConnection());
 
-  auto const parent =
-      std::string{"projects/"} + argv[1] + "/locations/" + argv[2];
-  for (auto r : client.ListServices(parent)) {
-    if (!r) throw std::move(r).status();
-    std::cout << r->DebugString() << "\n";
+  for (auto s : client.ListServices(location.FullName())) {
+    if (!s) throw std::move(s).status();
+    std::cout << s->DebugString() << "\n";
   }
 
   return 0;
@@ -36,3 +38,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

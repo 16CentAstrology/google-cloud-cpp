@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -122,7 +122,7 @@ Mutation SetCell(std::string family, ColumnType&& column, std::int64_t value) {
  */
 Mutation SetCell(Cell cell);
 
-//@{
+///@{
 /**
  * @name Create mutations to delete a range of cells from a column.
  *
@@ -182,7 +182,7 @@ Mutation DeleteFromColumn(std::string family, ColumnType&& column,
   return m;
 }
 
-//@{
+///@{
 /**
  * @name The following functions create a mutation that deletes all the
  * cells in the given column family and column, starting from and
@@ -225,7 +225,7 @@ Mutation DeleteFromColumnStartingFrom(
   return m;
 }
 
-//@{
+///@{
 /**
  * @name The following functions create a mutation that deletes all the
  * cells in the given column family and column, Delete up to @a timestamp_end,
@@ -277,7 +277,7 @@ Mutation DeleteFromColumn(std::string family, ColumnType&& column) {
   d.set_column_qualifier(std::forward<ColumnType>(column));
   return m;
 }
-//@}
+///@}
 
 /// Create a mutation to delete all the cells in a column family.
 Mutation DeleteFromFamily(std::string family);
@@ -296,10 +296,12 @@ Mutation DeleteFromRow();
 class SingleRowMutation {
  public:
   /// Create an empty mutation.
-  template <
-      typename RowKey,
-      typename std::enable_if<std::is_constructible<RowKeyType, RowKey>::value,
-                              int>::type = 0>
+  template <typename RowKey,
+            /// @cond implementation_details
+            std::enable_if_t<std::is_constructible<RowKeyType, RowKey>::value,
+                             int> = 0
+            /// @endcond
+            >
   // NOLINTNEXTLINE(bugprone-forwarding-reference-overload)
   explicit SingleRowMutation(RowKey&& row_key) {
     request_.set_row_key(RowKeyType(std::forward<RowKey>(row_key)));
@@ -315,10 +317,12 @@ class SingleRowMutation {
   }
 
   /// Create a single-row multiple-cell mutation from a variadic list.
-  template <
-      typename RowKey, typename... M,
-      typename std::enable_if<std::is_constructible<RowKeyType, RowKey>::value,
-                              int>::type = 0>
+  template <typename RowKey, typename... M,
+            /// @cond implementation_details
+            std::enable_if_t<std::is_constructible<RowKeyType, RowKey>::value,
+                             int> = 0
+            /// @endcond
+            >
   explicit SingleRowMutation(RowKey&& row_key, M&&... m) {
     static_assert(
         absl::conjunction<std::is_convertible<M, Mutation>...>::value,
@@ -424,11 +428,11 @@ class FailedMutation {
     return !(a == b);
   }
 
-  //@{
+  ///@{
   /// @name accessors
   google::cloud::Status const& status() const { return status_; }
   int original_index() const { return original_index_; }
-  //@}
+  ///@}
 
   friend class BulkMutation;
 
@@ -518,9 +522,12 @@ class BulkMutation {
 
   /// Create a multi-row mutation from a variadic list.
   template <typename... M,
-            typename std::enable_if<absl::conjunction<std::is_convertible<
-                                        M, SingleRowMutation>...>::value,
-                                    int>::type = 0>
+            /// @cond implementation_details
+            std::enable_if_t<absl::conjunction<std::is_convertible<
+                                 M, SingleRowMutation>...>::value,
+                             int> = 0
+            /// @endcond
+            >
   // NOLINTNEXTLINE(google-explicit-constructor)
   BulkMutation(M&&... m) : BulkMutation() {
     emplace_many(std::forward<M>(m)...);

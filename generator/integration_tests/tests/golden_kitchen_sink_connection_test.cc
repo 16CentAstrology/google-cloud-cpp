@@ -13,14 +13,16 @@
 // limitations under the License.
 
 #include "generator/integration_tests/golden/v1/golden_kitchen_sink_connection.h"
-#include "google/cloud/grpc_options.h"
-#include "google/cloud/polling_policy.h"
-#include "google/cloud/testing_util/scoped_log.h"
-#include "google/cloud/testing_util/status_matchers.h"
 #include "generator/integration_tests/golden/v1/golden_kitchen_sink_options.h"
 #include "generator/integration_tests/golden/v1/internal/golden_kitchen_sink_connection_impl.h"
 #include "generator/integration_tests/golden/v1/internal/golden_kitchen_sink_option_defaults.h"
 #include "generator/integration_tests/tests/mock_golden_kitchen_sink_stub.h"
+#include "google/cloud/common_options.h"
+#include "google/cloud/grpc_options.h"
+#include "google/cloud/polling_policy.h"
+#include "google/cloud/testing_util/opentelemetry_matchers.h"
+#include "google/cloud/testing_util/scoped_log.h"
+#include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
 #include <memory>
 
@@ -69,7 +71,7 @@ std::shared_ptr<golden_v1::GoldenKitchenSinkConnection> CreateTestingConnection(
 TEST(GoldenKitchenSinkConnectionTest, GenerateAccessTokenSuccess) {
   auto mock = std::make_shared<MockGoldenKitchenSinkStub>();
   EXPECT_CALL(*mock, GenerateAccessToken)
-      .WillOnce([](grpc::ClientContext&,
+      .WillOnce([](grpc::ClientContext&, Options const&,
                    ::google::test::admin::database::v1::
                        GenerateAccessTokenRequest const&) {
         ::google::test::admin::database::v1::GenerateAccessTokenResponse
@@ -78,6 +80,8 @@ TEST(GoldenKitchenSinkConnectionTest, GenerateAccessTokenSuccess) {
       });
   auto conn = CreateTestingConnection(std::move(mock));
   ::google::test::admin::database::v1::GenerateAccessTokenRequest request;
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
   auto response = conn->GenerateAccessToken(request);
   EXPECT_STATUS_OK(response);
 }
@@ -88,6 +92,8 @@ TEST(GoldenKitchenSinkConnectionTest, GenerateAccessTokenPermanentError) {
       .WillOnce(Return(Status(StatusCode::kPermissionDenied, "uh-oh")));
   auto conn = CreateTestingConnection(std::move(mock));
   ::google::test::admin::database::v1::GenerateAccessTokenRequest request;
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
   auto response = conn->GenerateAccessToken(request);
   EXPECT_EQ(StatusCode::kPermissionDenied, response.status().code());
 }
@@ -100,6 +106,8 @@ TEST(GoldenKitchenSinkConnectionTest, GenerateAccessTokenTooManyTransients) {
       .WillRepeatedly(Return(Status(StatusCode::kUnavailable, "try-again")));
   auto conn = CreateTestingConnection(std::move(mock));
   ::google::test::admin::database::v1::GenerateAccessTokenRequest request;
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
   auto response = conn->GenerateAccessToken(request);
   EXPECT_EQ(StatusCode::kUnavailable, response.status().code());
 }
@@ -107,13 +115,16 @@ TEST(GoldenKitchenSinkConnectionTest, GenerateAccessTokenTooManyTransients) {
 TEST(GoldenKitchenSinkConnectionTest, GenerateIdTokenSuccess) {
   auto mock = std::make_shared<MockGoldenKitchenSinkStub>();
   EXPECT_CALL(*mock, GenerateIdToken)
-      .WillOnce([](grpc::ClientContext&, ::google::test::admin::database::v1::
-                                             GenerateIdTokenRequest const&) {
+      .WillOnce([](grpc::ClientContext&, Options const&,
+                   ::google::test::admin::database::v1::
+                       GenerateIdTokenRequest const&) {
         ::google::test::admin::database::v1::GenerateIdTokenResponse response;
         return response;
       });
   auto conn = CreateTestingConnection(std::move(mock));
   ::google::test::admin::database::v1::GenerateIdTokenRequest request;
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
   auto response = conn->GenerateIdToken(request);
   EXPECT_STATUS_OK(response);
 }
@@ -124,6 +135,8 @@ TEST(GoldenKitchenSinkConnectionTest, GenerateIdTokenPermanentError) {
       .WillOnce(Return(Status(StatusCode::kPermissionDenied, "uh-oh")));
   auto conn = CreateTestingConnection(std::move(mock));
   ::google::test::admin::database::v1::GenerateIdTokenRequest request;
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
   auto response = conn->GenerateIdToken(request);
   EXPECT_EQ(StatusCode::kPermissionDenied, response.status().code());
 }
@@ -136,6 +149,8 @@ TEST(GoldenKitchenSinkConnectionTest, GenerateIdTokenTooManyTransients) {
       .WillRepeatedly(Return(Status(StatusCode::kUnavailable, "try-again")));
   auto conn = CreateTestingConnection(std::move(mock));
   ::google::test::admin::database::v1::GenerateIdTokenRequest request;
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
   auto response = conn->GenerateIdToken(request);
   EXPECT_EQ(StatusCode::kUnavailable, response.status().code());
 }
@@ -143,13 +158,16 @@ TEST(GoldenKitchenSinkConnectionTest, GenerateIdTokenTooManyTransients) {
 TEST(GoldenKitchenSinkConnectionTest, WriteLogEntriesSuccess) {
   auto mock = std::make_shared<MockGoldenKitchenSinkStub>();
   EXPECT_CALL(*mock, WriteLogEntries)
-      .WillOnce([](grpc::ClientContext&, ::google::test::admin::database::v1::
-                                             WriteLogEntriesRequest const&) {
+      .WillOnce([](grpc::ClientContext&, Options const&,
+                   ::google::test::admin::database::v1::
+                       WriteLogEntriesRequest const&) {
         ::google::test::admin::database::v1::WriteLogEntriesResponse response;
         return response;
       });
   auto conn = CreateTestingConnection(std::move(mock));
   ::google::test::admin::database::v1::WriteLogEntriesRequest request;
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
   auto response = conn->WriteLogEntries(request);
   EXPECT_STATUS_OK(response);
 }
@@ -160,6 +178,8 @@ TEST(GoldenKitchenSinkConnectionTest, WriteLogEntriesPermanentError) {
       .WillOnce(Return(Status(StatusCode::kPermissionDenied, "uh-oh")));
   auto conn = CreateTestingConnection(std::move(mock));
   ::google::test::admin::database::v1::WriteLogEntriesRequest request;
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
   auto response = conn->WriteLogEntries(request);
   EXPECT_EQ(StatusCode::kPermissionDenied, response.status().code());
 }
@@ -172,6 +192,8 @@ TEST(GoldenKitchenSinkConnectionTest, WriteLogEntriesTooManyTransients) {
       .WillRepeatedly(Return(Status(StatusCode::kUnavailable, "try-again")));
   auto conn = CreateTestingConnection(std::move(mock));
   ::google::test::admin::database::v1::WriteLogEntriesRequest request;
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
   auto response = conn->WriteLogEntries(request);
   EXPECT_EQ(StatusCode::kUnavailable, response.status().code());
 }
@@ -181,7 +203,7 @@ TEST(GoldenKitchenSinkConnectionTest, ListLogsSuccess) {
   std::string const expected_parent = "projects/my-project";
   EXPECT_CALL(*mock, ListLogs)
       .WillOnce([&expected_parent](
-                    grpc::ClientContext&,
+                    grpc::ClientContext&, Options const&,
                     ::google::test::admin::database::v1::ListLogsRequest const&
                         request) {
         EXPECT_EQ(expected_parent, request.parent());
@@ -192,7 +214,7 @@ TEST(GoldenKitchenSinkConnectionTest, ListLogsSuccess) {
         return make_status_or(page);
       })
       .WillOnce([&expected_parent](
-                    grpc::ClientContext&,
+                    grpc::ClientContext&, Options const&,
                     ::google::test::admin::database::v1::ListLogsRequest const&
                         request) {
         EXPECT_EQ(expected_parent, request.parent());
@@ -203,7 +225,7 @@ TEST(GoldenKitchenSinkConnectionTest, ListLogsSuccess) {
         return make_status_or(page);
       })
       .WillOnce([&expected_parent](
-                    grpc::ClientContext&,
+                    grpc::ClientContext&, Options const&,
                     ::google::test::admin::database::v1::ListLogsRequest const&
                         request) {
         EXPECT_EQ(expected_parent, request.parent());
@@ -217,6 +239,8 @@ TEST(GoldenKitchenSinkConnectionTest, ListLogsSuccess) {
   std::vector<std::string> actual_log_names;
   ::google::test::admin::database::v1::ListLogsRequest request;
   request.set_parent("projects/my-project");
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
   for (auto const& log_name : conn->ListLogs(request)) {
     ASSERT_STATUS_OK(log_name);
     actual_log_names.push_back(*log_name);
@@ -231,6 +255,8 @@ TEST(GoldenKitchenSinkConnectionTest, ListLogsPermanentError) {
   auto conn = CreateTestingConnection(std::move(mock));
   ::google::test::admin::database::v1::ListLogsRequest request;
   request.set_parent("projects/my-project");
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
   auto range = conn->ListLogs(request);
   auto begin = range.begin();
   ASSERT_NE(begin, range.end());
@@ -240,11 +266,12 @@ TEST(GoldenKitchenSinkConnectionTest, ListLogsPermanentError) {
 TEST(GoldenKitchenSinkConnectionTest, ListLogsTooManyTransients) {
   auto mock = std::make_shared<MockGoldenKitchenSinkStub>();
   EXPECT_CALL(*mock, ListLogs)
-      .Times(AtLeast(2))
-      .WillRepeatedly(Return(Status(StatusCode::kUnavailable, "try-again")));
+      .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")));
   auto conn = CreateTestingConnection(std::move(mock));
   ::google::test::admin::database::v1::ListLogsRequest request;
   request.set_parent("projects/my-project");
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
   auto range = conn->ListLogs(request);
   auto begin = range.begin();
   ASSERT_NE(begin, range.end());
@@ -255,7 +282,7 @@ TEST(GoldenKitchenSinkConnectionTest, ListServiceAccountKeysSuccess) {
   auto mock = std::make_shared<MockGoldenKitchenSinkStub>();
   EXPECT_CALL(*mock, ListServiceAccountKeys)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
-      .WillOnce([](grpc::ClientContext&,
+      .WillOnce([](grpc::ClientContext&, Options const&,
                    ::google::test::admin::database::v1::
                        ListServiceAccountKeysRequest const&) {
         ::google::test::admin::database::v1::ListServiceAccountKeysResponse
@@ -264,6 +291,8 @@ TEST(GoldenKitchenSinkConnectionTest, ListServiceAccountKeysSuccess) {
       });
   auto conn = CreateTestingConnection(std::move(mock));
   ::google::test::admin::database::v1::ListServiceAccountKeysRequest request;
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
   auto response = conn->ListServiceAccountKeys(request);
   EXPECT_STATUS_OK(response);
 }
@@ -275,6 +304,8 @@ TEST(GoldenKitchenSinkConnectionTest, ListServiceAccountKeysTooManyTransients) {
       .WillRepeatedly(Return(Status(StatusCode::kUnavailable, "try-again")));
   auto conn = CreateTestingConnection(std::move(mock));
   ::google::test::admin::database::v1::ListServiceAccountKeysRequest request;
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
   auto response = conn->ListServiceAccountKeys(request);
   EXPECT_EQ(StatusCode::kUnavailable, response.status().code());
 }
@@ -285,12 +316,14 @@ TEST(GoldenKitchenSinkConnectionTest, ListServiceAccountKeysPermanentError) {
       .WillOnce(Return(Status(StatusCode::kPermissionDenied, "uh-oh")));
   auto conn = CreateTestingConnection(std::move(mock));
   ::google::test::admin::database::v1::ListServiceAccountKeysRequest request;
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
   auto response = conn->ListServiceAccountKeys(request);
   EXPECT_EQ(StatusCode::kPermissionDenied, response.status().code());
 }
 
 std::unique_ptr<MockStreamingReadRpc> MakeFailingReader(Status status) {
-  auto reader = absl::make_unique<MockStreamingReadRpc>();
+  auto reader = std::make_unique<MockStreamingReadRpc>();
   EXPECT_CALL(*reader, Read).WillOnce(Return(std::move(status)));
   return reader;
 }
@@ -301,6 +334,8 @@ TEST(GoldenKitchenSinkConnectionTest, StreamingReadPermanentError) {
       .WillOnce(Return(ByMove(MakeFailingReader(
           Status(StatusCode::kPermissionDenied, "Permission Denied.")))));
   auto conn = CreateTestingConnection(std::move(mock));
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
   auto range = conn->StreamingRead(Request{});
   auto begin = range.begin();
   ASSERT_NE(begin, range.end());
@@ -313,10 +348,12 @@ TEST(GoldenKitchenSinkConnectionTest, StreamingReadWriteError) {
       ::google::cloud::internal::AsyncStreamingReadWriteRpcError<Request,
                                                                  Response>;
   EXPECT_CALL(*mock, AsyncStreamingReadWrite).WillOnce([] {
-    return absl::make_unique<ErrorStream>(
+    return std::make_unique<ErrorStream>(
         Status{StatusCode::kUnavailable, "try-again"});
   });
   auto conn = CreateTestingConnection(std::move(mock));
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
   auto stream = conn->AsyncStreamingReadWrite();
   ASSERT_FALSE(stream->Start().get());
   auto status = stream->Finish().get();
@@ -333,6 +370,54 @@ TEST(GoldenKitchenSinkConnectionTest, CheckExpectedOptions) {
   EXPECT_THAT(log.ExtractLines(),
               Contains(ContainsRegex("Unexpected option.+UnexpectedOption")));
 }
+
+#ifdef GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
+using ::google::cloud::testing_util::DisableTracing;
+using ::google::cloud::testing_util::EnableTracing;
+using ::google::cloud::testing_util::SpanNamed;
+using ::testing::Not;
+
+TEST(GoldenKitchenSinkConnectionTest, TracingEnabled) {
+  auto span_catcher = testing_util::InstallSpanCatcher();
+
+  auto options = EnableTracing(
+      Options{}
+          .set<EndpointOption>("localhost:1")
+          .set<GoldenKitchenSinkRetryPolicyOption>(
+              GoldenKitchenSinkLimitedErrorCountRetryPolicy(0).clone()));
+  auto conn = MakeGoldenKitchenSinkConnection(std::move(options));
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
+  // Make a call, which should fail fast. The error itself is not important.
+  (void)conn->DoNothing({});
+
+  auto spans = span_catcher->GetSpans();
+  EXPECT_THAT(
+      spans,
+      Contains(SpanNamed("golden_v1::GoldenKitchenSinkConnection::DoNothing")));
+}
+
+TEST(GoldenKitchenSinkConnectionTest, TracingDisabled) {
+  auto span_catcher = testing_util::InstallSpanCatcher();
+
+  auto options = DisableTracing(
+      Options{}
+          .set<EndpointOption>("localhost:1")
+          .set<GoldenKitchenSinkRetryPolicyOption>(
+              GoldenKitchenSinkLimitedErrorCountRetryPolicy(0).clone()));
+  auto conn = MakeGoldenKitchenSinkConnection(std::move(options));
+  google::cloud::internal::OptionsSpan span(
+      google::cloud::internal::MergeOptions(Options{}, conn->options()));
+  // Make a call, which should fail fast. The error itself is not important.
+  (void)conn->DoNothing({});
+
+  auto spans = span_catcher->GetSpans();
+  EXPECT_THAT(spans,
+              Not(Contains(SpanNamed(
+                  "golden_v1::GoldenKitchenSinkConnection::DoNothing"))));
+}
+
+#endif  // GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
 
 }  // namespace
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

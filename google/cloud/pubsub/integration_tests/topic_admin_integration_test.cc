@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// TODO(#12987): Remove this file after the deprecation period expires
+#include "google/cloud/internal/disable_deprecation_warnings.inc"
 #include "google/cloud/pubsub/testing/random_names.h"
 #include "google/cloud/pubsub/testing/test_retry_policies.h"
 #include "google/cloud/pubsub/topic_admin_client.h"
@@ -105,21 +107,6 @@ TEST_F(TopicAdminIntegrationTest, TopicCRUD) {
   names = TopicNames(publisher, project_id);
   ASSERT_STATUS_OK(names);
   EXPECT_THAT(*names, Not(Contains(topic.FullName())));
-}
-
-TEST_F(TopicAdminIntegrationTest, UnifiedCredentials) {
-  auto project_id =
-      google::cloud::internal::GetEnv("GOOGLE_CLOUD_PROJECT").value_or("");
-  ASSERT_THAT(project_id, Not(IsEmpty()));
-  auto options =
-      Options{}.set<UnifiedCredentialsOption>(MakeGoogleDefaultCredentials());
-  if (UsingEmulator()) {
-    options = Options{}
-                  .set<UnifiedCredentialsOption>(MakeInsecureCredentials())
-                  .set<internal::UseInsecureChannelOption>(true);
-  }
-  auto client = TopicAdminClient(MakeTopicAdminConnection(std::move(options)));
-  ASSERT_STATUS_OK(TopicNames(client, project_id));
 }
 
 TEST_F(TopicAdminIntegrationTest, CreateTopicFailure) {

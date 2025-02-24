@@ -13,23 +13,27 @@
 // limitations under the License.
 
 #include "google/cloud/pubsub/internal/subscription_message_queue.h"
+#include "google/cloud/pubsub/internal/batch_callback_wrapper.h"
 #include "google/cloud/pubsub/message.h"
 #include <algorithm>
+#include <memory>
 
 namespace google {
 namespace cloud {
 namespace pubsub_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
-void SubscriptionMessageQueue::Start(MessageCallback cb) {
+void SubscriptionMessageQueue::Start(std::shared_ptr<BatchCallback> cb) {
   std::unique_lock<std::mutex> lk(mu_);
   if (callback_) return;
-  callback_ = std::move(cb);
+  callback_ = cb;
   lk.unlock();
+
   auto weak = std::weak_ptr<SubscriptionMessageQueue>(shared_from_this());
-  source_->Start([weak](StatusOr<google::pubsub::v1::StreamingPullResponse> r) {
-    if (auto self = weak.lock()) self->OnRead(std::move(r));
-  });
+  source_->Start(std::make_shared<BatchCallbackWrapper>(
+      std::move(cb), [weak](BatchCallback::StreamingPullResponse r) {
+        if (auto self = weak.lock()) self->OnRead(std::move(r.response));
+      }));
 }
 
 void SubscriptionMessageQueue::Shutdown() {
@@ -73,6 +77,7 @@ void SubscriptionMessageQueue::OnRead(
     shutdown_manager_->FinishedOperation("OnRead");
     for (auto& m : *r.mutable_received_messages()) {
       auto key = m.message().ordering_key();
+      callback_->StartScheduler(m.ack_id());
       if (key.empty()) {
         // Empty key, requires no ordering and therefore immediately runnable.
         runnable_messages_.push_back(std::move(m));
@@ -125,6 +130,7 @@ void SubscriptionMessageQueue::Shutdown(std::unique_lock<std::mutex> lk) {
     }
   }
   for (auto& m : runnable_messages) {
+    callback_->EndScheduler(m.ack_id());
     ack_ids.push_back(std::move(*m.mutable_ack_id()));
   }
 
@@ -137,15 +143,17 @@ void SubscriptionMessageQueue::DrainQueue(std::unique_lock<std::mutex> lk) {
     auto m = std::move(runnable_messages_.front());
     runnable_messages_.pop_front();
     --available_slots_;
+    callback_->EndScheduler(m.ack_id());
     // No need to track messages without an ordering key, as there is no action
     // to take in their HandlerDone() member function.
     if (!m.message().ordering_key().empty()) {
       ordering_key_by_ack_id_[m.ack_id()] = m.message().ordering_key();
     }
+
     // Don't hold a lock during the callback, as the callee may call `Read()`
     // or something similar.
     lk.unlock();
-    callback_(std::move(m));
+    callback_->message_callback(BatchCallback::ReceivedMessage{std::move(m)});
     lk.lock();
   }
 }

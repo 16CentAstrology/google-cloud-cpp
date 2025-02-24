@@ -67,37 +67,22 @@ class WebhooksConnectionImpl : public dialogflow_cx::WebhooksConnection {
       google::cloud::dialogflow::cx::v3::DeleteWebhookRequest const& request)
       override;
 
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_cx::WebhooksRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::WebhooksRetryPolicyOption>()) {
-      return options.get<dialogflow_cx::WebhooksRetryPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_cx::WebhooksRetryPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::WebhooksBackoffPolicyOption>()) {
-      return options.get<dialogflow_cx::WebhooksBackoffPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_cx::WebhooksBackoffPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<dialogflow_cx::WebhooksConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options
-            .has<dialogflow_cx::WebhooksConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_cx::WebhooksConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_cx::WebhooksConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_cx_internal::WebhooksStub> stub_;
   Options options_;

@@ -18,6 +18,7 @@ set -euo pipefail
 
 source "$(dirname "$0")/../../lib/init.sh"
 source module ci/cloudbuild/builds/lib/bazel.sh
+source module ci/cloudbuild/builds/lib/cloudcxxrc.sh
 source module ci/cloudbuild/builds/lib/integration.sh
 
 export CC=gcc
@@ -28,6 +29,7 @@ export CXX=g++
 instrumented_patterns=(
   "/examples[/:]"
   "/generator[/:]"
+  "/docfx[/:]"
   "/google/cloud:"
   "/google/cloud/testing_util:"
   "/google/cloud/bigtable[/:]"
@@ -35,6 +37,7 @@ instrumented_patterns=(
   "/google/cloud/pubsublite[/:]"
   "/google/cloud/spanner[/:]"
   "/google/cloud/storage[/:]"
+  "/google/cloud/bigquery[/:]"
 )
 instrumentation_filter="$(printf ",%s" "${instrumented_patterns[@]}")"
 instrumentation_filter="${instrumentation_filter:1}"
@@ -47,15 +50,28 @@ args+=("--instrument_test_targets")
 # Based on the recommendations from:
 #     https://github.com/bazelbuild/bazel/issues/3236
 args+=("--sandbox_tmpfs_path=/tmp")
-bazel coverage "${args[@]}" --test_tag_filters=-integration-test ...
+io::log_h2 "Running coverage on non-integration tests."
+bazel coverage "${args[@]}" --test_tag_filters=-integration-test "${BAZEL_TARGETS[@]}"
+
 GOOGLE_CLOUD_CPP_SPANNER_SLOW_INTEGRATION_TESTS="instance"
 mapfile -t integration_args < <(integration::bazel_args)
+# With code coverage the `--flaky_test_attempts` flag works in unexpected ways.
+# A flake produces an empty `coverage.dat` file, which breaks the build when
+# trying to consolidate all the `coverage.dat` files.
+#
+# This combination of a "successful" test (because the flake is retried) and a
+# failure in the consolidation of coverage results, which happens much later
+# in the build, easily leads the developer astray.
+i=0
+for arg in "${integration_args[@]}"; do
+  case "${arg}" in
+    --flaky_test_attempts=*)
+      unset "integration_args[$i]"
+      ;;
+  esac
+  i=$((++i))
+done
 integration::bazel_with_emulators coverage "${args[@]}" "${integration_args[@]}"
-
-io::log_h2 "Running Storage integration tests (with emulator and Legacy http)"
-"google/cloud/storage/ci/run_integration_tests_emulator_bazel.sh" \
-  bazel coverage "${args[@]}" "${integration_args[@]}" \
-  "--test_env=GOOGLE_CLOUD_CPP_STORAGE_USE_LEGACY_HTTP=yes"
 
 # Where does this token come from? For triggered ci/pr builds GCB will securely
 # inject this into the environment. See the "secretEnv" setting in the
@@ -76,7 +92,7 @@ time {
   mapfile -t coverage_dat < <(find "$(bazel info output_path)" -name "coverage.dat")
   io::log "Found ${#coverage_dat[@]} coverage.dat files"
   mapfile -t lcov_flags < <(printf -- "--add-tracefile=%s\n" "${coverage_dat[@]}")
-  lcov --quiet "${lcov_flags[@]}" --output-file "${MERGED_COVERAGE}"
+  lcov --quiet --ignore-errors negative "${lcov_flags[@]}" --output-file "${MERGED_COVERAGE}"
   ls -lh "${MERGED_COVERAGE}"
 }
 
@@ -95,8 +111,8 @@ TIMEFORMAT="==> 🕑 codecov.io upload done in %R seconds"
 time {
   # Downloads and verifies the codecov uploader before executing it.
   codecov="$(mktemp -u -t codecov.XXXXXXXXXX)"
-  curl -sSL -o "${codecov}" https://uploader.codecov.io/v0.3.1/linux/codecov
-  sha256sum="0146032e40bc0179db3afa3de179dab4da59ece0449af03d881f3c509eaabc8b"
+  curl -fsSL -o "${codecov}" https://github.com/codecov/uploader/releases/download/v0.6.3/codecov-linux
+  sha256sum="e6aa8429d6ff91eddc7eced927e6ec936364a88fe755eed28b1f627a6499980d"
   if ! sha256sum -c <(echo "${sha256sum} *${codecov}"); then
     io::log_h2 "ERROR: Invalid sha256sum for codecov program"
     exit 1

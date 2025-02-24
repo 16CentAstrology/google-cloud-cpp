@@ -13,13 +13,17 @@
 // limitations under the License.
 
 #include "google/cloud/spanner/value.h"
+#include "google/cloud/internal/base64_transforms.h"
 #include "google/cloud/testing_util/is_proto_equal.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include "absl/time/time.h"
 #include "absl/types/optional.h"
+#include <google/cloud/spanner/testing/singer.pb.h>
 #include <google/protobuf/text_format.h>
 #include <gmock/gmock.h>
 #include <cmath>
+#include <cstdint>
+#include <iomanip>
 #include <ios>
 #include <limits>
 #include <string>
@@ -34,13 +38,46 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
 using ::google::cloud::testing_util::IsOk;
+using ::google::cloud::testing_util::IsOkAndHolds;
 using ::google::cloud::testing_util::IsProtoEqual;
 using ::google::cloud::testing_util::StatusIs;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
 using ::testing::Not;
 
-absl::Time MakeTime(std::time_t sec, int nanos) {
-  return absl::FromTimeT(sec) + absl::Nanoseconds(nanos);
+absl::Time MakeTime(std::int64_t sec, int nanos) {
+  return absl::FromUnixSeconds(sec) + absl::Nanoseconds(nanos);
+}
+
+std::vector<Timestamp> TestTimes() {
+  std::vector<Timestamp> times;
+  for (auto s : {
+           std::int64_t{-9223372035LL},  // near the limit of 64-bit/ns clock
+           std::int64_t{-2147483649LL},  // below min 32-bit value
+           std::int64_t{-2147483648LL},  // min 32-bit value
+           std::int64_t{-1},             // just before Unix epoch
+           std::int64_t{0},              // Unix epoch
+           std::int64_t{1},              // just after Unix epoch
+           std::int64_t{1561147549LL},   // contemporary
+           std::int64_t{2147483647LL},   // max 32-bit value
+           std::int64_t{2147483648LL},   // above max 32-bit value
+           std::int64_t{9223372036LL},   // near the limit of 64-bit/ns clock
+       }) {
+    for (auto nanos : {-1, 0, 1}) {
+      times.push_back(MakeTimestamp(MakeTime(s, nanos)).value());
+    }
+  }
+  return times;
+}
+
+testing::SingerInfo MakeSinger(std::int64_t singer_id, std::string birth_date,
+                               std::string nationality, testing::Genre genre) {
+  testing::SingerInfo singer;
+  singer.set_singer_id(singer_id);
+  singer.set_birth_date(std::move(birth_date));
+  singer.set_nationality(std::move(nationality));
+  singer.set_genre(genre);
+  return singer;
 }
 
 template <typename T>
@@ -50,7 +87,7 @@ void TestBasicSemantics(T init) {
 
   Value const v{init};
 
-  EXPECT_STATUS_OK(v.get<T>());
+  ASSERT_STATUS_OK(v.get<T>());
   EXPECT_EQ(init, *v.get<T>());
 
   Value copy = v;
@@ -62,7 +99,7 @@ void TestBasicSemantics(T init) {
   Value const null = MakeNullValue<T>();
 
   EXPECT_THAT(null.get<T>(), Not(IsOk()));
-  EXPECT_STATUS_OK(null.get<absl::optional<T>>());
+  ASSERT_STATUS_OK(null.get<absl::optional<T>>());
   EXPECT_EQ(absl::optional<T>{}, *null.get<absl::optional<T>>());
 
   Value copy_null = null;
@@ -81,9 +118,9 @@ void TestBasicSemantics(T init) {
             google::protobuf::NullValue::NULL_VALUE);
 
   Value const not_null{absl::optional<T>(init)};
-  EXPECT_STATUS_OK(not_null.get<T>());
+  ASSERT_STATUS_OK(not_null.get<T>());
   EXPECT_EQ(init, *not_null.get<T>());
-  EXPECT_STATUS_OK(not_null.get<absl::optional<T>>());
+  ASSERT_STATUS_OK(not_null.get<absl::optional<T>>());
   EXPECT_EQ(init, **not_null.get<absl::optional<T>>());
 }
 
@@ -110,12 +147,26 @@ TEST(Value, BasicSemantics) {
 
   // Note: We skip testing the NaN case here because NaN always compares not
   // equal, even with itself. So NaN is handled in a separate test.
+  static_assert(std::numeric_limits<double>::has_infinity, "");
   auto const inf = std::numeric_limits<double>::infinity();
   for (auto x : {-inf, -1.0, -0.5, 0.0, 0.5, 1.0, inf}) {
     SCOPED_TRACE("Testing: double " + std::to_string(x));
     TestBasicSemantics(x);
     TestBasicSemantics(std::vector<double>(5, x));
     std::vector<absl::optional<double>> v(5, x);
+    v.resize(10);
+    TestBasicSemantics(v);
+  }
+
+  // Note: We skip testing the NaN case here because NaN always compares not
+  // equal, even with itself. So NaN is handled in a separate test.
+  static_assert(std::numeric_limits<float>::has_infinity, "");
+  auto const inff = std::numeric_limits<float>::infinity();
+  for (auto x : {-inff, -1.0F, -0.5F, 0.0F, 0.5F, 1.0F, inff}) {
+    SCOPED_TRACE("Testing: float " + std::to_string(x));
+    TestBasicSemantics(x);
+    TestBasicSemantics(std::vector<float>(5, x));
+    std::vector<absl::optional<float>> v(5, x);
     v.resize(10);
     TestBasicSemantics(v);
   }
@@ -177,27 +228,15 @@ TEST(Value, BasicSemantics) {
     TestBasicSemantics(v);
   }
 
-  for (time_t t : {
-           -9223372035LL,   // near the limit of 64-bit/ns system_clock
-           -2147483649LL,   // below min 32-bit int
-           -2147483648LL,   // min 32-bit int
-           -1LL, 0LL, 1LL,  // around the unix epoch
-           1561147549LL,    // contemporary
-           2147483647LL,    // max 32-bit int
-           2147483648LL,    // above max 32-bit int
-           9223372036LL     // near the limit of 64-bit/ns system_clock
-       }) {
-    for (auto nanos : {-1, 0, 1}) {
-      auto ts = MakeTimestamp(MakeTime(t, nanos)).value();
-      SCOPED_TRACE("Testing: google::cloud::spanner::Timestamp " +
-                   spanner_internal::TimestampToRFC3339(ts));
-      TestBasicSemantics(ts);
-      std::vector<Timestamp> v(5, ts);
-      TestBasicSemantics(v);
-      std::vector<absl::optional<Timestamp>> ov(5, ts);
-      ov.resize(10);
-      TestBasicSemantics(ov);
-    }
+  for (auto ts : TestTimes()) {
+    SCOPED_TRACE("Testing: google::cloud::spanner::Timestamp " +
+                 spanner_internal::TimestampToRFC3339(ts));
+    TestBasicSemantics(ts);
+    std::vector<Timestamp> v(5, ts);
+    TestBasicSemantics(v);
+    std::vector<absl::optional<Timestamp>> ov(5, ts);
+    ov.resize(10);
+    TestBasicSemantics(ov);
   }
 
   for (auto x : {
@@ -224,6 +263,29 @@ TEST(Value, BasicSemantics) {
   std::vector<absl::optional<CommitTimestamp>> v(5, x);
   v.resize(10);
   TestBasicSemantics(v);
+
+  for (auto x : {testing::Genre::POP, testing::Genre::JAZZ,
+                 testing::Genre::FOLK, testing::Genre::ROCK}) {
+    SCOPED_TRACE("Testing: ProtoEnum<testing::Genre> " +
+                 testing::Genre_Name(x));
+    TestBasicSemantics(ProtoEnum<testing::Genre>(x));
+    TestBasicSemantics(std::vector<ProtoEnum<testing::Genre>>(5, x));
+    std::vector<absl::optional<ProtoEnum<testing::Genre>>> v(5, x);
+    v.resize(10);
+    TestBasicSemantics(v);
+  }
+
+  for (auto const& x :
+       {MakeSinger(1, "1817-05-25", "French", testing::Genre::FOLK),
+        MakeSinger(2123139547, "1942-06-18", "British", testing::Genre::POP)}) {
+    SCOPED_TRACE("Testing: ProtoMessage<testing::SingerInfo> { " +
+                 x.ShortDebugString() + " }");
+    TestBasicSemantics(ProtoMessage<testing::SingerInfo>(x));
+    TestBasicSemantics(std::vector<ProtoMessage<testing::SingerInfo>>(5, x));
+    std::vector<absl::optional<ProtoMessage<testing::SingerInfo>>> v(5, x);
+    v.resize(10);
+    TestBasicSemantics(v);
+  }
 }
 
 TEST(Value, Equality) {
@@ -237,7 +299,13 @@ TEST(Value, Equality) {
       {Value(JsonB("42")), Value(JsonB("true"))},
       {Value(MakeNumeric(0).value()), Value(MakeNumeric(1).value())},
       {Value(MakePgNumeric(0).value()), Value(MakePgNumeric(1).value())},
+      {Value(PgOid(200)), Value(PgOid(999))},
       {Value(absl::CivilDay(1970, 1, 1)), Value(absl::CivilDay(2020, 3, 15))},
+      {Value(ProtoEnum<testing::Genre>(testing::Genre::POP)),
+       Value(ProtoEnum<testing::Genre>(testing::Genre::JAZZ))},
+      {Value(ProtoMessage<testing::SingerInfo>()),
+       Value(ProtoMessage<testing::SingerInfo>(
+           MakeSinger(1, "1817-05-25", "French", testing::Genre::FOLK)))},
       {Value(std::vector<double>{1.2, 3.4}),
        Value(std::vector<double>{4.5, 6.7})},
       {Value(std::make_tuple(false, 123, "foo")),
@@ -268,16 +336,16 @@ TEST(Value, RvalueGetString) {
   Value v(data);
 
   auto s = v.get<Type>();
-  EXPECT_STATUS_OK(s);
+  ASSERT_STATUS_OK(s);
   EXPECT_EQ(data, *s);
 
   s = std::move(v).get<Type>();
-  EXPECT_STATUS_OK(s);
+  ASSERT_STATUS_OK(s);
   EXPECT_EQ(data, *s);
 
   // NOLINTNEXTLINE(bugprone-use-after-move)
   s = v.get<Type>();
-  EXPECT_STATUS_OK(s);
+  ASSERT_STATUS_OK(s);
   EXPECT_EQ("", *s);
 }
 
@@ -293,16 +361,16 @@ TEST(Value, RvalueGetOptionalString) {
   Value v(data);
 
   auto s = v.get<Type>();
-  EXPECT_STATUS_OK(s);
+  ASSERT_STATUS_OK(s);
   EXPECT_EQ(*data, **s);
 
   s = std::move(v).get<Type>();
-  EXPECT_STATUS_OK(s);
+  ASSERT_STATUS_OK(s);
   EXPECT_EQ(*data, **s);
 
   // NOLINTNEXTLINE(bugprone-use-after-move)
   s = v.get<Type>();
-  EXPECT_STATUS_OK(s);
+  ASSERT_STATUS_OK(s);
   EXPECT_EQ("", **s);
 }
 
@@ -318,16 +386,16 @@ TEST(Value, RvalueGetVectorString) {
   Value v(data);
 
   auto s = v.get<Type>();
-  EXPECT_STATUS_OK(s);
+  ASSERT_STATUS_OK(s);
   EXPECT_EQ(data, *s);
 
   s = std::move(v).get<Type>();
-  EXPECT_STATUS_OK(s);
+  ASSERT_STATUS_OK(s);
   EXPECT_EQ(data, *s);
 
   // NOLINTNEXTLINE(bugprone-use-after-move)
   s = v.get<Type>();
-  EXPECT_STATUS_OK(s);
+  ASSERT_STATUS_OK(s);
   EXPECT_EQ(Type(data.size(), ""), *s);
 }
 
@@ -344,16 +412,16 @@ TEST(Value, RvalueGetStructString) {
   Value v(data);
 
   auto s = v.get<Type>();
-  EXPECT_STATUS_OK(s);
+  ASSERT_STATUS_OK(s);
   EXPECT_EQ(data, *s);
 
   s = std::move(v).get<Type>();
-  EXPECT_STATUS_OK(s);
+  ASSERT_STATUS_OK(s);
   EXPECT_EQ(data, *s);
 
   // NOLINTNEXTLINE(bugprone-use-after-move)
   s = v.get<Type>();
-  EXPECT_STATUS_OK(s);
+  ASSERT_STATUS_OK(s);
   EXPECT_EQ(Type({"name", ""}, ""), *s);
 }
 
@@ -414,6 +482,9 @@ TEST(Value, ConstructionFromLiterals) {
   Value v_int64(42);
   EXPECT_EQ(42, *v_int64.get<std::int64_t>());
 
+  Value v_float64(1.5);
+  EXPECT_EQ(1.5, *v_float64.get<double>());
+
   Value v_string("hello");
   EXPECT_EQ("hello", *v_string.get<std::string>());
 
@@ -439,7 +510,6 @@ TEST(Value, MixingTypes) {
   Value a(A{});
   EXPECT_STATUS_OK(a.get<A>());
   EXPECT_THAT(a.get<B>(), Not(IsOk()));
-  EXPECT_THAT(a.get<B>(), Not(IsOk()));
 
   Value null_a = MakeNullValue<A>();
   EXPECT_THAT(null_a.get<A>(), Not(IsOk()));
@@ -449,7 +519,6 @@ TEST(Value, MixingTypes) {
 
   Value b(B{});
   EXPECT_STATUS_OK(b.get<B>());
-  EXPECT_THAT(b.get<A>(), Not(IsOk()));
   EXPECT_THAT(b.get<A>(), Not(IsOk()));
 
   EXPECT_NE(b, a);
@@ -467,18 +536,19 @@ TEST(Value, MixingTypes) {
 TEST(Value, SpannerArray) {
   using ArrayInt64 = std::vector<std::int64_t>;
   using ArrayDouble = std::vector<double>;
+  using ArrayFloat = std::vector<float>;
 
   ArrayInt64 const empty = {};
   Value const ve(empty);
   EXPECT_EQ(ve, ve);
-  EXPECT_STATUS_OK(ve.get<ArrayInt64>());
+  ASSERT_STATUS_OK(ve.get<ArrayInt64>());
   EXPECT_THAT(ve.get<ArrayDouble>(), Not(IsOk()));
   EXPECT_EQ(empty, *ve.get<ArrayInt64>());
 
   ArrayInt64 const ai = {1, 2, 3};
   Value const vi(ai);
   EXPECT_EQ(vi, vi);
-  EXPECT_STATUS_OK(vi.get<ArrayInt64>());
+  ASSERT_STATUS_OK(vi.get<ArrayInt64>());
   EXPECT_THAT(vi.get<ArrayDouble>(), Not(IsOk()));
   EXPECT_EQ(ai, *vi.get<ArrayInt64>());
 
@@ -487,8 +557,16 @@ TEST(Value, SpannerArray) {
   EXPECT_EQ(vd, vd);
   EXPECT_NE(vi, vd);
   EXPECT_THAT(vd.get<ArrayInt64>(), Not(IsOk()));
-  EXPECT_STATUS_OK(vd.get<ArrayDouble>());
+  ASSERT_STATUS_OK(vd.get<ArrayDouble>());
   EXPECT_EQ(ad, *vd.get<ArrayDouble>());
+
+  ArrayFloat const af = {1.0, 2.0, 3.0};
+  Value const vf(af);
+  EXPECT_EQ(vf, vf);
+  EXPECT_NE(vi, vf);
+  EXPECT_THAT(vf.get<ArrayInt64>(), Not(IsOk()));
+  ASSERT_STATUS_OK(vf.get<ArrayFloat>());
+  EXPECT_EQ(af, *vf.get<ArrayFloat>());
 
   Value const null_vi = MakeNullValue<ArrayInt64>();
   EXPECT_EQ(null_vi, null_vi);
@@ -504,6 +582,14 @@ TEST(Value, SpannerArray) {
   EXPECT_NE(null_vd, vi);
   EXPECT_THAT(null_vd.get<ArrayDouble>(), Not(IsOk()));
   EXPECT_THAT(null_vd.get<ArrayInt64>(), Not(IsOk()));
+
+  Value const null_vf = MakeNullValue<ArrayFloat>();
+  EXPECT_EQ(null_vf, null_vf);
+  EXPECT_NE(null_vf, null_vi);
+  EXPECT_NE(null_vf, vf);
+  EXPECT_NE(null_vf, vi);
+  EXPECT_THAT(null_vf.get<ArrayFloat>(), Not(IsOk()));
+  EXPECT_THAT(null_vf.get<ArrayInt64>(), Not(IsOk()));
 }
 
 TEST(Value, SpannerStruct) {
@@ -518,30 +604,29 @@ TEST(Value, SpannerStruct) {
   auto tup1 = make_tuple(false, int64_t{123});
   using T1 = decltype(tup1);
   Value v1(tup1);
-  EXPECT_STATUS_OK(v1.get<T1>());
+  ASSERT_STATUS_OK(v1.get<T1>());
   EXPECT_EQ(tup1, *v1.get<T1>());
   EXPECT_EQ(v1, v1);
 
   // Verify we can extract tuple elements even if they're wrapped in a pair.
   auto const pair0 = v1.get<tuple<pair<string, bool>, int64_t>>();
-  EXPECT_STATUS_OK(pair0);
+  ASSERT_STATUS_OK(pair0);
   EXPECT_EQ(std::get<0>(tup1), std::get<0>(*pair0).second);
   EXPECT_EQ(std::get<1>(tup1), std::get<1>(*pair0));
   auto const pair1 = v1.get<tuple<bool, pair<string, int64_t>>>();
-  EXPECT_STATUS_OK(pair1);
+  ASSERT_STATUS_OK(pair1);
   EXPECT_EQ(std::get<0>(tup1), std::get<0>(*pair1));
   EXPECT_EQ(std::get<1>(tup1), std::get<1>(*pair1).second);
   auto const pair01 =
       v1.get<tuple<pair<string, bool>, pair<string, int64_t>>>();
-  EXPECT_STATUS_OK(pair01);
+  ASSERT_STATUS_OK(pair01);
   EXPECT_EQ(std::get<0>(tup1), std::get<0>(*pair01).second);
   EXPECT_EQ(std::get<1>(tup1), std::get<1>(*pair01).second);
 
   auto tup2 = make_tuple(false, make_pair(string("f2"), int64_t{123}));
   using T2 = decltype(tup2);
   Value v2(tup2);
-  EXPECT_STATUS_OK(v2.get<T2>());
-  EXPECT_EQ(tup2, *v2.get<T2>());
+  EXPECT_THAT(v2.get<T2>(), IsOkAndHolds(tup2));
   EXPECT_EQ(v2, v2);
   EXPECT_NE(v2, v1);
 
@@ -552,8 +637,7 @@ TEST(Value, SpannerStruct) {
   auto tup3 = make_tuple(false, make_pair(string("Other"), int64_t{123}));
   using T3 = decltype(tup3);
   Value v3(tup3);
-  EXPECT_STATUS_OK(v3.get<T3>());
-  EXPECT_EQ(tup3, *v3.get<T3>());
+  EXPECT_THAT(v3.get<T3>(), IsOkAndHolds(tup3));
   EXPECT_EQ(v3, v3);
   EXPECT_NE(v3, v2);
   EXPECT_NE(v3, v1);
@@ -584,8 +668,7 @@ TEST(Value, SpannerStruct) {
   EXPECT_THAT(v4.get<T2>(), Not(IsOk()));
   EXPECT_THAT(v4.get<T1>(), Not(IsOk()));
 
-  EXPECT_STATUS_OK(v4.get<T4>());
-  EXPECT_EQ(array_struct, *v4.get<T4>());
+  EXPECT_THAT(v4.get<T4>(), IsOkAndHolds(array_struct));
 
   auto empty = tuple<>{};
   using T5 = decltype(empty);
@@ -595,8 +678,7 @@ TEST(Value, SpannerStruct) {
   EXPECT_EQ(v5, v5);
   EXPECT_NE(v5, v4);
 
-  EXPECT_STATUS_OK(v5.get<T5>());
-  EXPECT_EQ(empty, *v5.get<T5>());
+  EXPECT_THAT(v5.get<T5>(), IsOkAndHolds(empty));
 
   auto deeply_nested = tuple<tuple<std::vector<absl::optional<bool>>>>{};
   using T6 = decltype(deeply_nested);
@@ -606,8 +688,7 @@ TEST(Value, SpannerStruct) {
   EXPECT_EQ(v6, v6);
   EXPECT_NE(v6, v5);
 
-  EXPECT_STATUS_OK(v6.get<T6>());
-  EXPECT_EQ(deeply_nested, *v6.get<T6>());
+  EXPECT_THAT(v6.get<T6>(), IsOkAndHolds(deeply_nested));
 }
 
 TEST(Value, SpannerStructWithNull) {
@@ -683,6 +764,39 @@ TEST(Value, ProtoConversionFloat64) {
   EXPECT_EQ("NaN", p.second.string_value());
 }
 
+TEST(Value, ProtoConversionFloat32) {
+  for (auto x : {-1.0F, -0.5F, 0.0F, 0.5F, 1.0F}) {
+    Value const v(x);
+    auto const p = spanner_internal::ToProto(v);
+    EXPECT_EQ(v, spanner_internal::FromProto(p.first, p.second));
+    EXPECT_EQ(google::spanner::v1::TypeCode::FLOAT32, p.first.code());
+    EXPECT_EQ(x, p.second.number_value());
+  }
+
+  // Tests special cases
+  auto const inf = std::numeric_limits<float>::infinity();
+  Value v(inf);
+  auto p = spanner_internal::ToProto(v);
+  EXPECT_EQ(v, spanner_internal::FromProto(p.first, p.second));
+  EXPECT_EQ(google::spanner::v1::TypeCode::FLOAT32, p.first.code());
+  EXPECT_EQ("Infinity", p.second.string_value());
+
+  v = Value(-inf);
+  p = spanner_internal::ToProto(v);
+  EXPECT_EQ(v, spanner_internal::FromProto(p.first, p.second));
+  EXPECT_EQ(google::spanner::v1::TypeCode::FLOAT32, p.first.code());
+  EXPECT_EQ("-Infinity", p.second.string_value());
+
+  auto const nan = std::nanf("NaN");
+  v = Value(nan);
+  p = spanner_internal::ToProto(v);
+  // Note: Unlike IEEE 754, Spanner NaN values are considered equal
+  // (for easy sorting), so spanner::Value behaves the same way.
+  EXPECT_EQ(v, spanner_internal::FromProto(p.first, p.second));
+  EXPECT_EQ(google::spanner::v1::TypeCode::FLOAT32, p.first.code());
+  EXPECT_EQ("NaN", p.second.string_value());
+}
+
 TEST(Value, ProtoConversionString) {
   for (auto const& x :
        std::vector<std::string>{"", "f", "foo", "12345678901234567890"}) {
@@ -750,26 +864,31 @@ TEST(Value, ProtoConversionNumeric) {
   }
 }
 
-TEST(Value, ProtoConversionTimestamp) {
-  for (time_t t : {
-           -9223372035LL,   // near the limit of 64-bit/ns system_clock
-           -2147483649LL,   // below min 32-bit int
-           -2147483648LL,   // min 32-bit int
-           -1LL, 0LL, 1LL,  // around the unix epoch
-           1561147549LL,    // contemporary
-           2147483647LL,    // max 32-bit int
-           2147483648LL,    // above max 32-bit int
-           9223372036LL     // near the limit of 64-bit/ns system_clock
+TEST(Value, ProtoConversionPgOid) {
+  for (auto const& x : std::vector<PgOid>{
+           PgOid(0),
+           PgOid(200),
+           PgOid(999),
        }) {
-    for (auto nanos : {-1, 0, 1}) {
-      auto ts = MakeTimestamp(MakeTime(t, nanos)).value();
-      Value const v(ts);
-      auto const p = spanner_internal::ToProto(v);
-      EXPECT_EQ(v, spanner_internal::FromProto(p.first, p.second));
-      EXPECT_EQ(google::spanner::v1::TypeCode::TIMESTAMP, p.first.code());
-      EXPECT_EQ(spanner_internal::TimestampToRFC3339(ts),
-                p.second.string_value());
-    }
+    Value const v(x);
+    auto const p = spanner_internal::ToProto(v);
+    EXPECT_EQ(v, spanner_internal::FromProto(p.first, p.second));
+    EXPECT_EQ(google::spanner::v1::TypeCode::INT64, p.first.code());
+    EXPECT_EQ(google::spanner::v1::TypeAnnotationCode::PG_OID,
+              p.first.type_annotation());
+    EXPECT_EQ(std::to_string(static_cast<std::uint64_t>(x)),
+              p.second.string_value());
+  }
+}
+
+TEST(Value, ProtoConversionTimestamp) {
+  for (auto ts : TestTimes()) {
+    Value const v(ts);
+    auto const p = spanner_internal::ToProto(v);
+    EXPECT_EQ(v, spanner_internal::FromProto(p.first, p.second));
+    EXPECT_EQ(google::spanner::v1::TypeCode::TIMESTAMP, p.first.code());
+    EXPECT_EQ(spanner_internal::TimestampToRFC3339(ts),
+              p.second.string_value());
   }
 }
 
@@ -801,6 +920,34 @@ TEST(Value, ProtoConversionDate) {
     EXPECT_EQ(google::spanner::v1::TypeCode::DATE, p.first.code());
     EXPECT_EQ(tc.expected, p.second.string_value());
   }
+}
+
+TEST(Value, ProtoConversionProtoEnum) {
+  for (auto e : {testing::Genre::POP, testing::Genre::JAZZ,
+                 testing::Genre::FOLK, testing::Genre::ROCK}) {
+    Value const v{ProtoEnum<testing::Genre>(e)};
+    auto const p = spanner_internal::ToProto(v);
+    EXPECT_EQ(v, spanner_internal::FromProto(p.first, p.second));
+    EXPECT_EQ(google::spanner::v1::TypeCode::ENUM, p.first.code());
+    EXPECT_EQ("google.cloud.spanner.testing.Genre", p.first.proto_type_fqn());
+    EXPECT_EQ(std::to_string(e), p.second.string_value());
+  }
+}
+
+TEST(Value, ProtoConversionProtoMessage) {
+  auto m = ProtoMessage<testing::SingerInfo>(
+      MakeSinger(1, "1817-05-25", "French", testing::Genre::FOLK));
+
+  Value const v{m};
+  auto const p = spanner_internal::ToProto(v);
+  EXPECT_EQ(v, spanner_internal::FromProto(p.first, p.second));
+  EXPECT_EQ(google::spanner::v1::TypeCode::PROTO, p.first.code());
+  EXPECT_EQ("google.cloud.spanner.testing.SingerInfo",
+            p.first.proto_type_fqn());
+
+  auto bytes = internal::Base64DecodeToBytes(p.second.string_value());
+  ASSERT_STATUS_OK(bytes);
+  EXPECT_EQ(std::string{m}, std::string(bytes->begin(), bytes->end()));
 }
 
 TEST(Value, ProtoConversionArray) {
@@ -852,6 +999,12 @@ void SetProtoKind(Value& v, double x) {
   v = spanner_internal::FromProto(p.first, p.second);
 }
 
+void SetProtoKind(Value& v, float x) {
+  auto p = spanner_internal::ToProto(v);
+  p.second.set_number_value(x);
+  v = spanner_internal::FromProto(p.first, p.second);
+}
+
 void SetProtoKind(Value& v, char const* x) {
   auto p = spanner_internal::ToProto(v);
   p.second.set_string_value(x);
@@ -881,6 +1034,9 @@ TEST(Value, GetBadBool) {
   SetProtoKind(v, 0.0);
   EXPECT_THAT(v.get<bool>(), Not(IsOk()));
 
+  SetProtoKind(v, 0.0F);
+  EXPECT_THAT(v.get<bool>(), Not(IsOk()));
+
   SetProtoKind(v, "hello");
   EXPECT_THAT(v.get<bool>(), Not(IsOk()));
 }
@@ -898,6 +1054,21 @@ TEST(Value, GetBadDouble) {
 
   SetProtoKind(v, "bad string");
   EXPECT_THAT(v.get<double>(), Not(IsOk()));
+}
+
+TEST(Value, GetBadFloat) {
+  Value v(0.0F);
+  ClearProtoKind(v);
+  EXPECT_THAT(v.get<float>(), Not(IsOk()));
+
+  SetProtoKind(v, google::protobuf::NULL_VALUE);
+  EXPECT_THAT(v.get<float>(), Not(IsOk()));
+
+  SetProtoKind(v, true);
+  EXPECT_THAT(v.get<float>(), Not(IsOk()));
+
+  SetProtoKind(v, "bad string");
+  EXPECT_THAT(v.get<float>(), Not(IsOk()));
 }
 
 TEST(Value, GetBadString) {
@@ -974,6 +1145,9 @@ TEST(Value, GetBadNumeric) {
   SetProtoKind(v, 0.0);
   EXPECT_THAT(v.get<std::string>(), Not(IsOk()));
 
+  SetProtoKind(v, 0.0F);
+  EXPECT_THAT(v.get<std::string>(), Not(IsOk()));
+
   SetProtoKind(v, "");
   EXPECT_THAT(v.get<std::int64_t>(), Not(IsOk()));
 
@@ -982,6 +1156,21 @@ TEST(Value, GetBadNumeric) {
 
   SetProtoKind(v, "123blah");
   EXPECT_THAT(v.get<std::int64_t>(), Not(IsOk()));
+}
+
+TEST(Value, GetBadPgOid) {
+  Value v(PgOid(1));
+  ClearProtoKind(v);
+  EXPECT_THAT(v.get<std::string>(), Not(IsOk()));
+
+  SetProtoKind(v, google::protobuf::NULL_VALUE);
+  EXPECT_THAT(v.get<PgOid>(), Not(IsOk()));
+
+  SetProtoKind(v, true);
+  EXPECT_THAT(v.get<PgOid>(), Not(IsOk()));
+
+  SetProtoKind(v, 0.0);
+  EXPECT_THAT(v.get<PgOid>(), Not(IsOk()));
 }
 
 TEST(Value, GetBadInt) {
@@ -1062,6 +1251,63 @@ TEST(Value, GetBadDate) {
   EXPECT_THAT(v.get<absl::CivilDay>(), Not(IsOk()));
 }
 
+TEST(Value, GetBadProtoEnum) {
+  Value v(ProtoEnum<testing::Genre>{});
+  ClearProtoKind(v);
+  EXPECT_THAT(v.get<ProtoEnum<testing::Genre>>(), Not(IsOk()));
+
+  SetProtoKind(v, google::protobuf::NULL_VALUE);
+  EXPECT_THAT(v.get<ProtoEnum<testing::Genre>>(), Not(IsOk()));
+
+  SetProtoKind(v, "");
+  EXPECT_THAT(v.get<ProtoEnum<testing::Genre>>(), Not(IsOk()));
+
+  SetProtoKind(v, "blah");
+  EXPECT_THAT(v.get<ProtoEnum<testing::Genre>>(), Not(IsOk()));
+
+  SetProtoKind(v, "1blah");
+  EXPECT_THAT(v.get<ProtoEnum<testing::Genre>>(), Not(IsOk()));
+
+  SetProtoKind(v, "2147483648");
+  EXPECT_THAT(v.get<ProtoEnum<testing::Genre>>(), Not(IsOk()));
+}
+
+TEST(Value, GetBadProtoEnumFQN) {
+  Value v(ProtoEnum<testing::Genre>{});
+  EXPECT_THAT(v.get<ProtoEnum<testing::Genre>>(), IsOk());
+
+  auto p = spanner_internal::ToProto(v);
+  ASSERT_THAT(p.first.proto_type_fqn(), Not(IsEmpty()));
+  p.first.mutable_proto_type_fqn()->pop_back();
+  v = spanner_internal::FromProto(p.first, p.second);
+  EXPECT_THAT(v.get<ProtoEnum<testing::Genre>>(), Not(IsOk()));
+}
+
+TEST(Value, GetBadProtoMessage) {
+  Value v(ProtoMessage<testing::SingerInfo>(
+      MakeSinger(1, "1817-05-25", "French", testing::Genre::FOLK)));
+  ClearProtoKind(v);
+  EXPECT_THAT(v.get<ProtoMessage<testing::SingerInfo>>(), Not(IsOk()));
+
+  SetProtoKind(v, google::protobuf::NULL_VALUE);
+  EXPECT_THAT(v.get<ProtoMessage<testing::SingerInfo>>(), Not(IsOk()));
+
+  SetProtoKind(v, "invalid-base64-because-of-hyphens");
+  EXPECT_THAT(v.get<ProtoMessage<testing::SingerInfo>>(), Not(IsOk()));
+}
+
+TEST(Value, GetBadProtoMessageFQN) {
+  Value v(ProtoMessage<testing::SingerInfo>(
+      MakeSinger(1, "1817-05-25", "French", testing::Genre::FOLK)));
+  EXPECT_THAT(v.get<ProtoMessage<testing::SingerInfo>>(), IsOk());
+
+  auto p = spanner_internal::ToProto(v);
+  ASSERT_THAT(p.first.proto_type_fqn(), Not(IsEmpty()));
+  p.first.mutable_proto_type_fqn()->pop_back();
+  v = spanner_internal::FromProto(p.first, p.second);
+  EXPECT_THAT(v.get<ProtoMessage<testing::SingerInfo>>(), Not(IsOk()));
+}
+
 TEST(Value, GetBadOptional) {
   Value v(absl::optional<double>{});
   ClearProtoKind(v);
@@ -1123,8 +1369,7 @@ TEST(Value, CommitTimestamp) {
   EXPECT_THAT(tv.second, IsProtoEqual(pv));
 
   auto good = v.get<CommitTimestamp>();
-  EXPECT_STATUS_OK(good);
-  EXPECT_EQ(CommitTimestamp{}, *good);
+  EXPECT_THAT(good, IsOkAndHolds(CommitTimestamp{}));
 
   auto bad = v.get<Timestamp>();
   EXPECT_THAT(bad, Not(IsOk()));
@@ -1146,6 +1391,9 @@ TEST(Value, OutputStream) {
   };
 
   auto const inf = std::numeric_limits<double>::infinity();
+  auto const inff = std::numeric_limits<float>::infinity();
+  auto const singer =
+      MakeSinger(1, "1817-05-25", "French", testing::Genre::FOLK);
 
   struct TestCase {
     Value value;
@@ -1164,6 +1412,10 @@ TEST(Value, OutputStream) {
       {Value(42.0), "42.00", float4},
       {Value(inf), "inf", normal},
       {Value(-inf), "-inf", normal},
+      {Value(42.0F), "42", normal},
+      {Value(42.0F), "42.00", float4},
+      {Value(inff), "inf", normal},
+      {Value(-inff), "-inf", normal},
       {Value(""), "", normal},
       {Value("foo"), "foo", normal},
       {Value("NULL"), "NULL", normal},
@@ -1174,8 +1426,15 @@ TEST(Value, OutputStream) {
       {Value(JsonB("true")), "true", normal},
       {Value(MakeNumeric(1234567890).value()), "1234567890", normal},
       {Value(MakePgNumeric(1234567890).value()), "1234567890", normal},
+      {Value(PgOid(1234567890)), "1234567890", normal},
       {Value(absl::CivilDay()), "1970-01-01", normal},
       {Value(Timestamp()), "1970-01-01T00:00:00Z", normal},
+      {Value(ProtoEnum<testing::Genre>(testing::Genre::POP)),
+       "google.cloud.spanner.testing.POP", normal},
+      {Value(ProtoMessage<testing::SingerInfo>(singer)),
+       R"(google.cloud.spanner.testing.SingerInfo { singer_id: 1)"
+       R"( birth_date: "1817-05-25" nationality: "French" genre: FOLK })",
+       normal},
 
       // Tests string quoting: No quotes for scalars; quotes within aggregates
       {Value(""), "", normal},
@@ -1194,13 +1453,17 @@ TEST(Value, OutputStream) {
       {MakeNullValue<bool>(), "NULL", normal},
       {MakeNullValue<std::int64_t>(), "NULL", normal},
       {MakeNullValue<double>(), "NULL", normal},
+      {MakeNullValue<float>(), "NULL", normal},
       {MakeNullValue<std::string>(), "NULL", normal},
       {MakeNullValue<Bytes>(), "NULL", normal},
       {MakeNullValue<Json>(), "NULL", normal},
       {MakeNullValue<JsonB>(), "NULL", normal},
       {MakeNullValue<Numeric>(), "NULL", normal},
+      {MakeNullValue<PgOid>(), "NULL", normal},
       {MakeNullValue<absl::CivilDay>(), "NULL", normal},
       {MakeNullValue<Timestamp>(), "NULL", normal},
+      {MakeNullValue<ProtoEnum<testing::Genre>>(), "NULL", normal},
+      {MakeNullValue<ProtoMessage<testing::SingerInfo>>(), "NULL", normal},
 
       // Tests arrays
       {Value(std::vector<bool>{false, true}), "[0, 1]", normal},
@@ -1209,6 +1472,8 @@ TEST(Value, OutputStream) {
       {Value(std::vector<std::int64_t>{10, 11}), "[a, b]", hex},
       {Value(std::vector<double>{1.0, 2.0}), "[1, 2]", normal},
       {Value(std::vector<double>{1.0, 2.0}), "[1.000, 2.000]", float4},
+      {Value(std::vector<float>{1.0F, 2.0F}), "[1, 2]", normal},
+      {Value(std::vector<float>{1.0F, 2.0F}), "[1.000, 2.000]", float4},
       {Value(std::vector<std::string>{"a", "b"}), R"(["a", "b"])", normal},
       {Value(std::vector<Bytes>{2}), R"([B"", B""])", normal},
       {Value(std::vector<Json>{2}), R"([null, null])", normal},
@@ -1217,6 +1482,14 @@ TEST(Value, OutputStream) {
       {Value(std::vector<absl::CivilDay>{2}), "[1970-01-01, 1970-01-01]",
        normal},
       {Value(std::vector<Timestamp>{1}), "[1970-01-01T00:00:00Z]", normal},
+      {Value(std::vector<ProtoEnum<testing::Genre>>{testing::JAZZ,
+                                                    testing::FOLK}),
+       "[google.cloud.spanner.testing.JAZZ, google.cloud.spanner.testing.FOLK]",
+       normal},
+      {Value(std::vector<ProtoMessage<testing::SingerInfo>>{singer}),
+       R"([google.cloud.spanner.testing.SingerInfo { singer_id: 1)"
+       R"( birth_date: "1817-05-25" nationality: "French" genre: FOLK }])",
+       normal},
 
       // Tests arrays with null elements
       {Value(std::vector<absl::optional<double>>{1, {}, 2}), "[1, NULL, 2]",
@@ -1226,6 +1499,7 @@ TEST(Value, OutputStream) {
       {MakeNullValue<std::vector<bool>>(), "NULL", normal},
       {MakeNullValue<std::vector<std::int64_t>>(), "NULL", normal},
       {MakeNullValue<std::vector<double>>(), "NULL", normal},
+      {MakeNullValue<std::vector<float>>(), "NULL", normal},
       {MakeNullValue<std::vector<std::string>>(), "NULL", normal},
       {MakeNullValue<std::vector<Bytes>>(), "NULL", normal},
       {MakeNullValue<std::vector<Json>>(), "NULL", normal},
@@ -1233,6 +1507,9 @@ TEST(Value, OutputStream) {
       {MakeNullValue<std::vector<Numeric>>(), "NULL", normal},
       {MakeNullValue<std::vector<absl::CivilDay>>(), "NULL", normal},
       {MakeNullValue<std::vector<Timestamp>>(), "NULL", normal},
+      {MakeNullValue<std::vector<ProtoEnum<testing::Genre>>>(), "NULL", normal},
+      {MakeNullValue<std::vector<ProtoMessage<testing::SingerInfo>>>(), "NULL",
+       normal},
 
       // Tests structs
       {Value(std::make_tuple(true, 123)), "(1, 123)", normal},
@@ -1270,7 +1547,7 @@ TEST(Value, OutputStream) {
       // Tests null structs
       {MakeNullValue<std::tuple<bool>>(), "NULL", normal},
       {MakeNullValue<std::tuple<bool, std::int64_t>>(), "NULL", normal},
-      {MakeNullValue<std::tuple<bool, std::string>>(), "NULL", normal},
+      {MakeNullValue<std::tuple<float, std::string>>(), "NULL", normal},
       {MakeNullValue<std::tuple<double, Bytes, Timestamp>>(), "NULL", normal},
       {MakeNullValue<std::tuple<Numeric, absl::CivilDay>>(), "NULL", normal},
       {MakeNullValue<std::tuple<Json, std::vector<bool>>>(), "NULL", normal},
@@ -1288,6 +1565,12 @@ TEST(Value, OutputStream) {
   std::stringstream ss;
   ss << Value(std::nan(""));
   EXPECT_THAT(ss.str(), HasSubstr("nan"));
+
+  // `float std::nanf("")` is a special case because the output conversion
+  // is implementation defined. So, we just look for a "nan" substring.
+  std::stringstream ssf;
+  ssf << Value(std::nanf(""));
+  EXPECT_THAT(ssf.str(), HasSubstr("nan"));
 }
 
 // Ensures that the following expressions produce the same output.
@@ -1321,6 +1604,13 @@ TEST(Value, OutputStreamMatchesT) {
   StreamMatchesValueStream(std::numeric_limits<double>::infinity());
   StreamMatchesValueStream(-std::numeric_limits<double>::infinity());
 
+  // float
+  StreamMatchesValueStream(0.0F);
+  StreamMatchesValueStream(3.14F);
+  StreamMatchesValueStream(std::nanf("NaN"));
+  StreamMatchesValueStream(std::numeric_limits<float>::infinity());
+  StreamMatchesValueStream(-std::numeric_limits<float>::infinity());
+
   // std::string
   StreamMatchesValueStream("");
   StreamMatchesValueStream("foo");
@@ -1353,6 +1643,11 @@ TEST(Value, OutputStreamMatchesT) {
   StreamMatchesValueStream(MakePgNumeric(42).value());
   StreamMatchesValueStream(MakePgNumeric("NaN").value());
 
+  // PgOid
+  StreamMatchesValueStream(PgOid(999));
+  StreamMatchesValueStream(PgOid(42));
+  StreamMatchesValueStream(PgOid(0));
+
   // Date
   StreamMatchesValueStream(absl::CivilDay(1, 1, 1));
   StreamMatchesValueStream(absl::CivilDay());
@@ -1361,6 +1656,17 @@ TEST(Value, OutputStreamMatchesT) {
   // Timestamp
   StreamMatchesValueStream(Timestamp());
   StreamMatchesValueStream(MakeTimestamp(MakeTime(1, 1)).value());
+
+  // ProtoEnum
+  StreamMatchesValueStream(ProtoEnum<testing::Genre>());
+  StreamMatchesValueStream(ProtoEnum<testing::Genre>(testing::ROCK));
+  StreamMatchesValueStream(
+      ProtoEnum<testing::Genre>(static_cast<testing::Genre>(42)));
+
+  // ProtoMessage
+  StreamMatchesValueStream(ProtoMessage<testing::SingerInfo>());
+  StreamMatchesValueStream(ProtoMessage<testing::SingerInfo>(
+      MakeSinger(1, "1817-05-25", "French", testing::Genre::FOLK)));
 
   // std::vector<T>
   // Not included, because a raw vector cannot be streamed.

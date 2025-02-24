@@ -14,22 +14,20 @@
 
 #ifndef GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_FUTURE_GENERIC_H
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_FUTURE_GENERIC_H
-/**
- * @file
- *
- * Fully specialize `future<void>` and `promise<R>` for void.
- */
 
 #include "google/cloud/internal/future_base.h"
 #include "google/cloud/internal/future_fwd.h"
 #include "google/cloud/internal/future_impl.h"
-#include "google/cloud/internal/future_then_meta.h"
+#include "google/cloud/internal/invoke_result.h"
 #include "google/cloud/version.h"
 #include "absl/meta/type_traits.h"
+#include <future>
+#include <type_traits>
 
 namespace google {
 namespace cloud {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
+
 /**
  * Implement ISO/IEC TS 19571:2016 `future<T>`.
  */
@@ -67,8 +65,7 @@ class future final : private internal::future_base<T> {
    */
   template <class U, typename Enable =
                          absl::enable_if_t<std::is_constructible<T, U>::value>>
-  explicit future(future<U>&& rhs)
-      : future<T>(rhs.then([](future<U> other) { return T(other.get()); })) {}
+  explicit future(future<U>&& rhs);
 
   /**
    * Waits until the shared state becomes ready, then retrieves the value stored
@@ -77,7 +74,7 @@ class future final : private internal::future_base<T> {
    * @note This operation invalidates the future, subsequent calls will fail,
    *   the application should capture the returned value because it would.
    *
-   * @throws any exceptions stored in the shared state.
+   * @throws ... any exceptions stored in the shared state.
    * @throws std::future_error with std::no_state if the future does not have
    *   a shared state.
    */
@@ -112,36 +109,27 @@ class future final : private internal::future_base<T> {
    * Side effects: `valid() == false` if the operation is successful.
    */
   template <typename F>
-  typename internal::then_helper<F, T>::future_t then(F&& func) {
-    this->check_valid();
-    using requires_unwrap_t =
-        typename internal::then_helper<F, T>::requires_unwrap_t;
-    return then_impl(std::forward<F>(func), requires_unwrap_t{});
-  }
+  auto then(F&& func)
+      -> future<
+          /// @cond implementation_details
+          internal::UnwrappedType<internal::invoke_result_t<F, future<T>>>
+          /// @endcond
+          >;
 
   explicit future(std::shared_ptr<shared_state_type> state)
       : internal::future_base<T>(std::move(state)) {}
 
  private:
-  /// Implement `then()` if the result does not require unwrapping.
-  template <typename F>
-  typename internal::then_helper<F, T>::future_t then_impl(F&& functor,
-                                                           std::false_type);
-
-  /// Implement `then()` if the result requires unwrapping.
-  template <typename F>
-  typename internal::then_helper<F, T>::future_t then_impl(F&& functor,
-                                                           std::true_type);
-
   template <typename U>
   friend class future;
   friend class future<void>;
 
+  friend struct internal::FutureThenImpl;
   friend struct internal::CoroutineSupport;
 };
 
 /**
- * Implement `promise<T>` as defined in ISO/IEC TS 19571:2016.
+ * Implement ISO/IEC TS 19571:2016 `promise<T>`.
  */
 template <typename T>
 class promise final : private internal::promise_base<T> {
@@ -158,8 +146,7 @@ class promise final : private internal::promise_base<T> {
       : internal::promise_base<T>(std::move(x)) {}
 
   /// Constructs a new promise and transfer any shared state from @p rhs.
-  // NOLINTNEXTLINE(performance-noexcept-move-constructor)
-  promise(promise&&) = default;
+  promise(promise&&) noexcept = default;
 
   /// Abandons the shared state in `*this`, if any, and transfers the shared
   /// state from @p rhs.
@@ -214,11 +201,11 @@ class promise final : private internal::promise_base<T> {
 
 /// Create a future<void> that is immediately ready.
 template <typename T>
-inline future<typename internal::make_ready_return<T>::type> make_ready_future(
-    T&& t) {
-  using V = typename internal::make_ready_return<T>::type;
+inline auto make_ready_future(T&& t) {
   // TODO(#1410) - Implement specializations of future<R&> and promise<R&>.
-  static_assert(!std::is_reference<V>::value, "future<R&> is not implemented");
+  using V = std::decay_t<T>;
+  static_assert(!internal::IsReferenceWrapper<V>::value,
+                "future<R&> is not implemented");
   promise<V> p;
   p.set_value(std::forward<T>(t));
   return p.get_future();

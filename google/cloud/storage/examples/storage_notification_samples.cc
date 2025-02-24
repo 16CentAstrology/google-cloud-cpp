@@ -16,7 +16,12 @@
 #include "google/cloud/storage/examples/storage_examples_common.h"
 #include "google/cloud/internal/getenv.h"
 #include <iostream>
+#include <random>
+#include <stdexcept>
+#include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -28,7 +33,7 @@ void ListNotifications(google::cloud::storage::Client client,
   [](gcs::Client client, std::string const& bucket_name) {
     StatusOr<std::vector<gcs::NotificationMetadata>> items =
         client.ListNotifications(bucket_name);
-    if (!items) throw std::runtime_error(items.status().message());
+    if (!items) throw std::move(items).status();
 
     std::cout << "Notifications for bucket=" << bucket_name << "\n";
     for (gcs::NotificationMetadata const& notification : *items) {
@@ -49,10 +54,7 @@ void CreateNotification(google::cloud::storage::Client client,
     StatusOr<gcs::NotificationMetadata> notification =
         client.CreateNotification(bucket_name, topic_name,
                                   gcs::NotificationMetadata());
-
-    if (!notification) {
-      throw std::runtime_error(notification.status().message());
-    }
+    if (!notification) throw std::move(notification).status();
 
     std::cout << "Successfully created notification " << notification->id()
               << " for bucket " << bucket_name << "\n";
@@ -72,9 +74,7 @@ void GetNotification(google::cloud::storage::Client client,
      std::string const& notification_id) {
     StatusOr<gcs::NotificationMetadata> notification =
         client.GetNotification(bucket_name, notification_id);
-    if (!notification) {
-      throw std::runtime_error(notification.status().message());
-    }
+    if (!notification) throw std::move(notification).status();
 
     std::cout << "Notification " << notification->id() << " for bucket "
               << bucket_name << "\n";
@@ -129,7 +129,8 @@ void RunAll(std::vector<std::string> const& argv) {
   std::cout << "\nCreating bucket to run the example (" << bucket_name << ")"
             << std::endl;
   (void)client
-      .CreateBucketForProject(bucket_name, project_id, gcs::BucketMetadata{})
+      .CreateBucketForProject(bucket_name, project_id, gcs::BucketMetadata{},
+                              examples::CreateBucketOptions())
       .value();
   // In GCS a single project cannot create or delete buckets more often than
   // once every two seconds. We will pause until that time before deleting the

@@ -15,8 +15,8 @@
 #ifndef GOOGLE_CLOUD_CPP_GENERATOR_INTERNAL_SAMPLE_GENERATOR_H
 #define GOOGLE_CLOUD_CPP_GENERATOR_INTERNAL_SAMPLE_GENERATOR_H
 
-#include "google/cloud/status.h"
 #include "generator/internal/service_code_generator.h"
+#include "google/cloud/status.h"
 #include <google/protobuf/compiler/code_generator.h>
 #include <google/protobuf/descriptor.h>
 #include <map>
@@ -35,7 +35,8 @@ class SampleGenerator : public ServiceCodeGenerator {
   SampleGenerator(google::protobuf::ServiceDescriptor const* service_descriptor,
                   VarsDictionary service_vars,
                   std::map<std::string, VarsDictionary> service_method_vars,
-                  google::protobuf::compiler::GeneratorContext* context);
+                  google::protobuf::compiler::GeneratorContext* context,
+                  std::vector<MixinMethod> const& mixin_methods);
 
   ~SampleGenerator() override = default;
 

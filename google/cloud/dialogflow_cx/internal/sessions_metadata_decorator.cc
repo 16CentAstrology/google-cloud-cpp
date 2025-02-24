@@ -17,28 +17,51 @@
 // source: google/cloud/dialogflow/cx/v3/session.proto
 
 #include "google/cloud/dialogflow_cx/internal/sessions_metadata_decorator.h"
-#include "google/cloud/common_options.h"
+#include "google/cloud/grpc_options.h"
+#include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/api_client_header.h"
+#include "google/cloud/internal/url_encode.h"
 #include "google/cloud/status_or.h"
 #include <google/cloud/dialogflow/cx/v3/session.grpc.pb.h>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
 namespace dialogflow_cx_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
-SessionsMetadata::SessionsMetadata(std::shared_ptr<SessionsStub> child)
+SessionsMetadata::SessionsMetadata(
+    std::shared_ptr<SessionsStub> child,
+    std::multimap<std::string, std::string> fixed_metadata,
+    std::string api_client_header)
     : child_(std::move(child)),
+      fixed_metadata_(std::move(fixed_metadata)),
       api_client_header_(
-          google::cloud::internal::ApiClientHeader("generator")) {}
+          api_client_header.empty()
+              ? google::cloud::internal::GeneratedLibClientHeader()
+              : std::move(api_client_header)) {}
 
 StatusOr<google::cloud::dialogflow::cx::v3::DetectIntentResponse>
 SessionsMetadata::DetectIntent(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::DetectIntentRequest const& request) {
-  SetMetadata(context, "session=" + request.session());
-  return child_->DetectIntent(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("session=", internal::UrlEncode(request.session())));
+  return child_->DetectIntent(context, options, request);
+}
+
+std::unique_ptr<google::cloud::internal::StreamingReadRpc<
+    google::cloud::dialogflow::cx::v3::DetectIntentResponse>>
+SessionsMetadata::ServerStreamingDetectIntent(
+    std::shared_ptr<grpc::ClientContext> context, Options const& options,
+    google::cloud::dialogflow::cx::v3::DetectIntentRequest const& request) {
+  SetMetadata(*context, options,
+              absl::StrCat("session=", internal::UrlEncode(request.session())));
+  return child_->ServerStreamingDetectIntent(std::move(context), options,
+                                             request);
 }
 
 std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
@@ -46,43 +69,96 @@ std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
     google::cloud::dialogflow::cx::v3::StreamingDetectIntentResponse>>
 SessionsMetadata::AsyncStreamingDetectIntent(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context) {
-  SetMetadata(*context);
-  return child_->AsyncStreamingDetectIntent(cq, std::move(context));
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options) {
+  SetMetadata(*context, *options);
+  return child_->AsyncStreamingDetectIntent(cq, std::move(context),
+                                            std::move(options));
 }
 
 StatusOr<google::cloud::dialogflow::cx::v3::MatchIntentResponse>
 SessionsMetadata::MatchIntent(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::MatchIntentRequest const& request) {
-  SetMetadata(context, "session=" + request.session());
-  return child_->MatchIntent(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("session=", internal::UrlEncode(request.session())));
+  return child_->MatchIntent(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::cx::v3::FulfillIntentResponse>
 SessionsMetadata::FulfillIntent(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::FulfillIntentRequest const& request) {
-  SetMetadata(context, "match_intent_request.session=" +
-                           request.match_intent_request().session());
-  return child_->FulfillIntent(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("match_intent_request.session=",
+                           internal::UrlEncode(
+                               request.match_intent_request().session())));
+  return child_->FulfillIntent(context, options, request);
+}
+
+StatusOr<google::cloud::dialogflow::cx::v3::AnswerFeedback>
+SessionsMetadata::SubmitAnswerFeedback(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::dialogflow::cx::v3::SubmitAnswerFeedbackRequest const&
+        request) {
+  SetMetadata(context, options,
+              absl::StrCat("session=", internal::UrlEncode(request.session())));
+  return child_->SubmitAnswerFeedback(context, options, request);
+}
+
+StatusOr<google::cloud::location::ListLocationsResponse>
+SessionsMetadata::ListLocations(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::ListLocationsRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->ListLocations(context, options, request);
+}
+
+StatusOr<google::cloud::location::Location> SessionsMetadata::GetLocation(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::GetLocationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetLocation(context, options, request);
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+SessionsMetadata::ListOperations(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::ListOperationsRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->ListOperations(context, options, request);
+}
+
+StatusOr<google::longrunning::Operation> SessionsMetadata::GetOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::GetOperationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetOperation(context, options, request);
+}
+
+Status SessionsMetadata::CancelOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::CancelOperationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->CancelOperation(context, options, request);
 }
 
 void SessionsMetadata::SetMetadata(grpc::ClientContext& context,
+                                   Options const& options,
                                    std::string const& request_params) {
   context.AddMetadata("x-goog-request-params", request_params);
-  SetMetadata(context);
+  SetMetadata(context, options);
 }
 
-void SessionsMetadata::SetMetadata(grpc::ClientContext& context) {
-  context.AddMetadata("x-goog-api-client", api_client_header_);
-  auto const& options = internal::CurrentOptions();
-  if (options.has<UserProjectOption>()) {
-    context.AddMetadata("x-goog-user-project",
-                        options.get<UserProjectOption>());
-  }
-  auto const& authority = options.get<AuthorityOption>();
-  if (!authority.empty()) context.set_authority(authority);
+void SessionsMetadata::SetMetadata(grpc::ClientContext& context,
+                                   Options const& options) {
+  google::cloud::internal::SetMetadata(context, options, fixed_metadata_,
+                                       api_client_header_);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

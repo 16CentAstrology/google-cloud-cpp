@@ -13,26 +13,11 @@
 # limitations under the License.
 
 include(CMakeFindDependencyMacro)
+find_dependency(google_cloud_cpp_storage)
 find_dependency(google_cloud_cpp_googleapis)
 find_dependency(google_cloud_cpp_grpc_utils)
-find_dependency(google_cloud_cpp_rest_internal)
-find_dependency(google_cloud_cpp_common)
+find_dependency(google_cloud_cpp_opentelemetry)
 find_dependency(absl)
-find_dependency(CURL)
 find_dependency(Crc32c)
-find_dependency(nlohmann_json)
-find_dependency(OpenSSL)
-find_dependency(ZLIB)
 
-# Some versions of FindCURL do not define CURL::libcurl, so we define it ourselves.
-if (NOT TARGET CURL::libcurl)
-    add_library(CURL::libcurl UNKNOWN IMPORTED)
-    set_property(TARGET CURL::libcurl
-                 APPEND
-                 PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${CURL_INCLUDE_DIR}")
-    set_property(TARGET CURL::libcurl
-                 APPEND
-                 PROPERTY IMPORTED_LOCATION "${CURL_LIBRARY}")
-endif ()
-
-include("${CMAKE_CURRENT_LIST_DIR}/storage-targets.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/storage_grpc-targets.cmake")

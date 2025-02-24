@@ -13,20 +13,22 @@
 // limitations under the License.
 
 #include "google/cloud/storage/client.h"
-#include "google/cloud/storage/internal/curl_request_builder.h"
+#include "google/cloud/storage/testing/retry_http_request.h"
 #include "google/cloud/storage/testing/storage_integration_test.h"
 #include "google/cloud/internal/getenv.h"
+#include "google/cloud/internal/rest_request.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
-#include <chrono>
-#include <functional>
-#include <thread>
+#include <string>
 
 namespace google {
 namespace cloud {
 namespace storage {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
+
+using ::google::cloud::storage::testing::RetryHttpGet;
+using ::google::cloud::testing_util::IsOkAndHolds;
 
 constexpr auto kJsonEnvVar = "GOOGLE_CLOUD_CPP_STORAGE_TEST_KEY_FILE_JSON";
 constexpr auto kP12EnvVar = "GOOGLE_CLOUD_CPP_STORAGE_TEST_KEY_FILE_P12";
@@ -65,24 +67,15 @@ class KeyFileIntegrationTest
   std::string service_account_;
 };
 
-StatusOr<internal::HttpResponse> RetryHttpRequest(
-    std::function<internal::CurlRequest()> const& factory) {
-  StatusOr<internal::HttpResponse> response;
-  for (int i = 0; i != 3; ++i) {
-    response = factory().MakeRequest({});
-    if (response) return response;
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-  }
-  return response;
-};
-
 TEST_P(KeyFileIntegrationTest, ObjectWriteSignAndReadDefaultAccount) {
+  if (UsingGrpc()) GTEST_SKIP();
+
   auto credentials =
       oauth2::CreateServiceAccountCredentialsFromFilePath(key_filename_);
   ASSERT_STATUS_OK(credentials);
 
-  Client client(Options{}.set<Oauth2CredentialsOption>(*credentials));
-
+  auto client = MakeIntegrationTestClient(
+      Options{}.set<Oauth2CredentialsOption>(*credentials));
   auto object_name = MakeRandomObjectName();
   std::string expected = LoremIpsum();
 
@@ -97,26 +90,20 @@ TEST_P(KeyFileIntegrationTest, ObjectWriteSignAndReadDefaultAccount) {
   ASSERT_STATUS_OK(signed_url);
 
   // Verify the signed URL can be used to download the object.
-  auto factory = [&] {
-    internal::CurlRequestBuilder builder(
-        *signed_url, storage::internal::GetDefaultCurlHandleFactory());
-    return std::move(builder).BuildRequest();
-  };
-
-  auto response = RetryHttpRequest(factory);
-  ASSERT_STATUS_OK(response);
-  EXPECT_EQ(200, response->status_code);
-
-  EXPECT_EQ(expected, response->payload);
+  auto response =
+      RetryHttpGet(*signed_url, [] { return rest_internal::RestRequest(); });
+  EXPECT_THAT(response, IsOkAndHolds(expected));
 }
 
 TEST_P(KeyFileIntegrationTest, ObjectWriteSignAndReadExplicitAccount) {
+  if (UsingGrpc()) GTEST_SKIP();
+
   auto credentials =
       oauth2::CreateServiceAccountCredentialsFromFilePath(key_filename_);
   ASSERT_STATUS_OK(credentials);
 
-  Client client(Options{}.set<Oauth2CredentialsOption>(*credentials));
-
+  auto client = MakeIntegrationTestClient(
+      Options{}.set<Oauth2CredentialsOption>(*credentials));
   auto object_name = MakeRandomObjectName();
   std::string expected = LoremIpsum();
 
@@ -131,17 +118,9 @@ TEST_P(KeyFileIntegrationTest, ObjectWriteSignAndReadExplicitAccount) {
   ASSERT_STATUS_OK(signed_url);
 
   // Verify the signed URL can be used to download the object.
-  auto factory = [&] {
-    internal::CurlRequestBuilder builder(
-        *signed_url, storage::internal::GetDefaultCurlHandleFactory());
-    return std::move(builder).BuildRequest();
-  };
-
-  auto response = RetryHttpRequest(factory);
-  ASSERT_STATUS_OK(response);
-  EXPECT_EQ(200, response->status_code);
-
-  EXPECT_EQ(expected, response->payload);
+  auto response =
+      RetryHttpGet(*signed_url, [] { return rest_internal::RestRequest(); });
+  EXPECT_THAT(response, IsOkAndHolds(expected));
 }
 
 INSTANTIATE_TEST_SUITE_P(KeyFileJsonTest, KeyFileIntegrationTest,

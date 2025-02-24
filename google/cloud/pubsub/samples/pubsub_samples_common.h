@@ -16,11 +16,10 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_PUBSUB_SAMPLES_PUBSUB_SAMPLES_COMMON_H
 
 #include "google/cloud/pubsub/publisher.h"
-#include "google/cloud/pubsub/schema_admin_client.h"
+#include "google/cloud/pubsub/schema_client.h"
 #include "google/cloud/pubsub/subscriber.h"
-#include "google/cloud/pubsub/subscription_admin_client.h"
-#include "google/cloud/pubsub/topic_admin_client.h"
 #include "google/cloud/testing_util/example_driver.h"
+#include "absl/time/time.h"
 #include <string>
 #include <vector>
 
@@ -43,27 +42,12 @@ google::cloud::testing_util::Commands::value_type CreateSubscriberCommand(
     std::string const& name, std::vector<std::string> const& arg_names,
     SubscriberCommand const& command);
 
-using TopicAdminCommand = std::function<void(pubsub::TopicAdminClient,
-                                             std::vector<std::string> const&)>;
+using SchemaServiceCommand = std::function<void(
+    pubsub::SchemaServiceClient, std::vector<std::string> const&)>;
 
-google::cloud::testing_util::Commands::value_type CreateTopicAdminCommand(
+google::cloud::testing_util::Commands::value_type CreateSchemaServiceCommand(
     std::string const& name, std::vector<std::string> const& arg_names,
-    TopicAdminCommand const& command);
-
-using SubscriptionAdminCommand = std::function<void(
-    pubsub::SubscriptionAdminClient, std::vector<std::string> const&)>;
-
-google::cloud::testing_util::Commands::value_type
-CreateSubscriptionAdminCommand(std::string const& name,
-                               std::vector<std::string> const& arg_names,
-                               SubscriptionAdminCommand const& command);
-
-using SchemaAdminCommand = std::function<void(pubsub::SchemaAdminClient,
-                                              std::vector<std::string> const&)>;
-
-google::cloud::testing_util::Commands::value_type CreateSchemaAdminCommand(
-    std::string const& name, std::vector<std::string> const& arg_names,
-    SchemaAdminCommand const& command);
+    SchemaServiceCommand const& command);
 
 bool UsingEmulator();
 
@@ -75,6 +59,32 @@ std::string RandomSubscriptionId(
 std::string RandomSnapshotId(google::cloud::internal::DefaultPRNG& generator);
 
 std::string RandomSchemaId(google::cloud::internal::DefaultPRNG& generator);
+
+std::string ReadFile(std::string const& path);
+
+// Commit a schema with a revision and return the first and last revision ids.
+std::pair<std::string, std::string> CommitSchemaWithRevisionsForTesting(
+    google::cloud::pubsub::SchemaServiceClient& client,
+    std::string const& project_id, std::string const& schema_id,
+    std::string const& schema_file, std::string const& revised_schema_file,
+    std::string const& type);
+
+// Delete all schemas older than 48 hours. Ignore any failures. If multiple
+// tests are cleaning up schemas in parallel, then the delete call might fail.
+void CleanupSchemas(google::cloud::pubsub::SchemaServiceClient& schema_admin,
+                    std::string const& project_id, absl::Time const& time_now);
+
+class Cleanup {
+ public:
+  Cleanup() = default;
+  ~Cleanup() {
+    for (auto i = actions_.rbegin(); i != actions_.rend(); ++i) (*i)();
+  }
+  void Defer(std::function<void()> f) { actions_.push_back(std::move(f)); }
+
+ private:
+  std::vector<std::function<void()>> actions_;
+};
 
 }  // namespace examples
 }  // namespace pubsub

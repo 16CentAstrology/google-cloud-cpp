@@ -16,6 +16,7 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_GRPC_OPTIONS_H
 
 #include "google/cloud/background_threads.h"
+#include "google/cloud/common_options.h"
 #include "google/cloud/completion_queue.h"
 #include "google/cloud/options.h"
 #include "google/cloud/tracing_options.h"
@@ -38,6 +39,16 @@ struct GrpcCredentialOption {
 };
 
 /**
+ * The gRPC compression algorithm used by clients/operations configured
+ * with this object.
+ *
+ * @ingroup options
+ */
+struct GrpcCompressionAlgorithmOption {
+  using Type = grpc_compression_algorithm;
+};
+
+/**
  * The number of transport channels to create.
  *
  * gRPC limits the number of simultaneous calls in progress on a channel to
@@ -49,7 +60,7 @@ struct GrpcCredentialOption {
  * - `pubsub::MakePublisherConnection()`
  * - `pubsub::MakeSubscriberConnection()`
  * - `spanner::MakeConnection()`
- * - `storage_experimental::DefaultGrpcClient()`
+ * - `storage::MakeGrpcClient()`
  *
  * @ingroup options
  */
@@ -174,10 +185,11 @@ struct GrpcBackgroundThreadsFactoryOption {
  * A list of all the gRPC options.
  */
 using GrpcOptionList =
-    OptionList<GrpcCredentialOption, GrpcNumChannelsOption,
-               GrpcChannelArgumentsOption, GrpcChannelArgumentsNativeOption,
-               GrpcTracingOptionsOption, GrpcBackgroundThreadPoolSizeOption,
-               GrpcCompletionQueueOption, GrpcBackgroundThreadsFactoryOption>;
+    OptionList<GrpcCredentialOption, GrpcCompressionAlgorithmOption,
+               GrpcNumChannelsOption, GrpcChannelArgumentsOption,
+               GrpcChannelArgumentsNativeOption, GrpcTracingOptionsOption,
+               GrpcBackgroundThreadPoolSizeOption, GrpcCompletionQueueOption,
+               GrpcBackgroundThreadsFactoryOption>;
 
 namespace internal {
 
@@ -190,6 +202,9 @@ namespace internal {
  *     `set_credentials()` directly on the context. Instead, use the Google
  *     Unified Auth Credentials library, via
  *     #google::cloud::UnifiedCredentialsOption.
+ *
+ * @warning `MergeOptions()` will simply select the preferred function, rather
+ *     than merging the behavior of the preferred and alternate functions.
  */
 struct GrpcSetupOption {
   using Type = std::function<void(grpc::ClientContext&)>;
@@ -206,16 +221,27 @@ struct GrpcSetupOption {
  *     `set_credentials()` directly on the context. Instead, use the Google
  *     Unified Auth Credentials library, via
  *     #google::cloud::UnifiedCredentialsOption.
+ *
+ * @warning `MergeOptions()` will simply select the preferred function, rather
+ *     than merging the behavior of the preferred and alternate functions.
  */
 struct GrpcSetupPollOption {
   using Type = std::function<void(grpc::ClientContext&)>;
 };
+
+/// Configure the metadata in @p context.
+void SetMetadata(grpc::ClientContext& context, Options const& options,
+                 std::multimap<std::string, std::string> const& fixed_metadata,
+                 std::string const& api_client_header);
 
 /// Configure the ClientContext using options.
 void ConfigureContext(grpc::ClientContext& context, Options const& opts);
 
 /// Configure the ClientContext for polling operations using options.
 void ConfigurePollContext(grpc::ClientContext& context, Options const& opts);
+
+/// Creates the value for GRPC_ARG_HTTP_PROXY based on @p config.
+std::string MakeGrpcHttpProxy(ProxyConfig const& config);
 
 /// Creates a new `grpc::ChannelArguments` configured with @p opts.
 grpc::ChannelArguments MakeChannelArguments(Options const& opts);

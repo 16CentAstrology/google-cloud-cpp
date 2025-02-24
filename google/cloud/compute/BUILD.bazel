@@ -1,0 +1,43 @@
+# Copyright 2023 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load(":compute_library.bzl", "compute_library")
+load(":service_dirs.bzl", "operation_service_dirs", "service_dirs")
+
+package(default_visibility = ["//visibility:private"])
+
+licenses(["notice"])  # Apache 2.0
+
+[compute_library(
+    service_dir = d,
+) for d in operation_service_dirs]
+
+operations = [":google_cloud_cpp_compute_" + d.replace("/v1/", "") for d in operation_service_dirs]
+
+[compute_library(
+    inner_deps = operations,
+    service_dir = d,
+) for d in service_dirs]
+
+[cc_test(
+    # Sample names include the name of the client, which is unique. Removing
+    # the directory saves enough characters to stay within the MSVC limitations.
+    name = sample[sample.rfind("/") + 1:].replace(".cc", ""),
+    srcs = [sample],
+    tags = ["integration-test"],
+    deps = [
+        ":google_cloud_cpp_compute_" + sample[0:sample.find("/v")],
+        "//google/cloud/testing_util:google_cloud_cpp_testing_private",
+    ],
+) for sample in glob([d + "samples/*.cc" for d in service_dirs + operation_service_dirs])]

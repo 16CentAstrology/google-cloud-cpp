@@ -15,8 +15,10 @@
 #include "google/cloud/testing_util/validate_metadata.h"
 #include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/absl_str_replace_quiet.h"
+#include "google/cloud/internal/url_encode.h"
 #include "google/cloud/log.h"
 #include "google/cloud/status_or.h"
+#include "absl/meta/type_traits.h"
 #include "absl/strings/str_split.h"
 #include <google/api/annotations.pb.h>
 #include <google/api/routing.pb.h>
@@ -30,6 +32,7 @@
 #include <deque>
 #include <iterator>
 #include <regex>
+#include <type_traits>
 
 // Undefine a Windows macro, which conflicts with
 // `protobuf::Reflection::GetMessage`
@@ -43,11 +46,11 @@ namespace testing_util {
 namespace {
 
 using ::google::protobuf::DescriptorPool;
+using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::IsEmpty;
 using ::testing::Matcher;
 using ::testing::Not;
-using ::testing::NotNull;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAreArray;
 
@@ -82,14 +85,31 @@ RoutingHeaders ExtractMDFromHeader(std::string header) {
 }
 
 /**
+ * Verify that the string contains no reserved characters, other than '%'.
+ *
+ * See: https://datatracker.ietf.org/doc/html/rfc3986#section-2.1
+ *
+ * Note that it will match something like "%xy", which is not URL encoded. A
+ * more accurate name might be: `IsntObviouslyNotUrlEncoded`. The important
+ * thing is that the match will fail if it encounters a '/', which is found in
+ * almost all of these routing values.
+ */
+MATCHER(IsUrlEncoded, "") {
+  std::regex regex(R"re([A-Za-z0-9%_.~-]*)re");
+  return std::regex_match(arg, regex);
+}
+
+/**
  * We do not use `::testing::MatchesRegex` because our Windows builds use a
  * googletest built with `GTEST_USES_SIMPLE_RE`, instead of
  * `GTEST_USES_POSIX_RE`.
  */
 MATCHER_P(MatchesGlob, glob, "matches the glob: \"" + glob + "\"") {
-  // Translate the glob into a regex pattern.
-  std::regex regex(absl::StrReplaceAll(glob, {{"*", "[^/]+"}}));
-  return std::regex_match(arg, regex);
+  // Translate the `glob` into a regex pattern.
+  auto matcher = absl::StrReplaceAll(glob, {{"*", "[^/]+"}});
+  std::regex regex(matcher);
+  // Decode the `arg` before trying to match it.
+  return std::regex_match(internal::UrlDecode(arg), regex);
 }
 
 // This method is recursive because dbolduc could not figure out the iterative
@@ -221,6 +241,18 @@ RoutingHeaders ExtractRoutingHeaders(
 
 }  // namespace
 
+/**
+ * Set server metadata on a `ClientContext`.
+ *
+ * @note A `grpc::ClientContext` can be used in only one gRPC. The caller
+ *   cannot reuse @p context for other RPCs or other calls to this function.
+ */
+void SetServerMetadata(grpc::ClientContext& context,
+                       RpcMetadata const& server_metadata) {
+  ValidateMetadataFixture f;
+  f.SetServerMetadata(context, server_metadata);
+}
+
 ValidateMetadataFixture::ValidateMetadataFixture() {
   // Start the generic server.
   grpc::ServerBuilder builder;
@@ -238,39 +270,22 @@ ValidateMetadataFixture::~ValidateMetadataFixture() {
   // Drain completion queues.
   void* placeholder;
   bool ok;
-  while (srv_cq_->Next(&placeholder, &ok))
-    ;
-  while (cli_cq_.Next(&placeholder, &ok))
-    ;
+  while (srv_cq_->Next(&placeholder, &ok)) continue;
+  while (cli_cq_.Next(&placeholder, &ok)) continue;
 }
 
 std::multimap<std::string, std::string> ValidateMetadataFixture::GetMetadata(
-    grpc::ClientContext& context) {
+    grpc::ClientContext& client_context) {
   // Set the deadline to far in the future. If the deadline is in the past,
   // gRPC doesn't send the initial metadata at all (which makes sense, given
   // that the context is already expired). The `context` is destroyed by this
   // function anyway, so we're not making things worse by changing the
   // deadline.
-  context.set_deadline(std::chrono::system_clock::now() +
-                       std::chrono::hours(24));
+  client_context.set_deadline(std::chrono::system_clock::now() +
+                              std::chrono::hours(24));
 
-  // Send some garbage with the supplied context.
-  grpc::GenericStub generic_stub(
-      server_->InProcessChannel(grpc::ChannelArguments()));
-
-  auto cli_stream =
-      generic_stub.PrepareCall(&context, "made_up_method", &cli_cq_);
-  cli_stream->StartCall(nullptr);
-  bool ok;
-  void* placeholder;
-  cli_cq_.Next(&placeholder, &ok);  // actually start the client call
-
-  // Receive the garbage with the supplied context.
   grpc::GenericServerContext server_context;
-  grpc::GenericServerAsyncReaderWriter reader_writer(&server_context);
-  generic_service_.RequestCall(&server_context, &reader_writer, srv_cq_.get(),
-                               srv_cq_.get(), nullptr);
-  srv_cq_->Next(&placeholder, &ok);  // actually receive the data
+  ExchangeMetadata(client_context, server_context);
 
   // Now we've got the data - save it before cleaning up.
   std::multimap<std::string, std::string> res;
@@ -283,6 +298,52 @@ std::multimap<std::string, std::string> ValidateMetadataFixture::GetMetadata(
                  });
 
   return res;
+}
+
+// Older versions of gRPC do not provide `ExperimentalGetAuthority()`. In that
+// case just return `absl::nullopt`, to indicate that the test cannot run.
+template <typename T, typename AlwaysVoid = void>
+struct GetAuthorityImpl {
+  absl::optional<std::string> Get(T& /*sc*/) { return absl::nullopt; }
+};
+
+template <typename T>
+struct GetAuthorityImpl<
+    T, absl::void_t<decltype(std::declval<T>().ExperimentalGetAuthority())>> {
+  absl::optional<std::string> Get(T& sc) {
+    auto result = sc.ExperimentalGetAuthority();
+    return std::string(result.data(), result.size());
+  }
+};
+
+absl::optional<std::string> ValidateMetadataFixture::GetAuthority(
+    grpc::ClientContext& client_context) {
+  // Set the deadline to far in the future. If the deadline is in the past,
+  // gRPC doesn't send the initial metadata at all (which makes sense, given
+  // that the context is already expired). The `context` is destroyed by this
+  // function anyway, so we're not making things worse by changing the
+  // deadline.
+  client_context.set_deadline(std::chrono::system_clock::now() +
+                              std::chrono::hours(24));
+
+  grpc::GenericServerContext server_context;
+  ExchangeMetadata(client_context, server_context);
+
+  return GetAuthorityImpl<grpc::GenericServerContext>{}.Get(server_context);
+}
+
+void ValidateMetadataFixture::SetServerMetadata(
+    grpc::ClientContext& client_context, RpcMetadata const& server_metadata) {
+  // Create a server context with the given server metadata.
+  grpc::GenericServerContext server_context;
+  for (auto const& kv : server_metadata.headers) {
+    server_context.AddInitialMetadata(kv.first, kv.second);
+  }
+  for (auto const& kv : server_metadata.trailers) {
+    server_context.AddTrailingMetadata(kv.first, kv.second);
+  }
+
+  ExchangeMetadata(client_context, server_context);
 }
 
 /**
@@ -316,7 +377,11 @@ void ValidateMetadataFixture::IsContextMDValid(
 
   auto const* method =
       DescriptorPool::generated_pool()->FindMethodByName(method_name);
-  ASSERT_THAT(method, NotNull()) << "Method " + method_name + " is unknown.";
+  if (method == nullptr) {
+    GCP_LOG(INFO) << "`x-goog-request-params` header not verified for "
+                  << method_name << ", because it is unknown.";
+    return;
+  }
 
   // Extract expectations on `x-goog-request-params` from the
   // `google.api.routing` or `google.api.http` annotation on the specified
@@ -335,9 +400,53 @@ void ValidateMetadataFixture::IsContextMDValid(
   std::vector<Matcher<std::pair<std::string, std::string>>> matchers;
   matchers.reserve(expected.size());
   for (auto const& param : expected) {
-    matchers.push_back(Pair(param.first, MatchesGlob(param.second)));
+    matchers.push_back(
+        Pair(param.first, AllOf(IsUrlEncoded(), MatchesGlob(param.second))));
   }
   EXPECT_THAT(actual, UnorderedElementsAreArray(matchers));
+}
+
+void ValidateMetadataFixture::ExchangeMetadata(
+    grpc::ClientContext& client_context,
+    grpc::GenericServerContext& server_context) {
+  void* tag;
+  bool ok;
+
+  // Create an in-process stub to make client calls with.
+  grpc::GenericStub generic_stub(
+      server_->InProcessChannel(grpc::ChannelArguments()));
+
+  // Start a call, the contents of which, do not matter.
+  auto cli_stream =
+      generic_stub.PrepareCall(&client_context, "made_up_method", &cli_cq_);
+  int call_tag;
+  cli_stream->StartCall(&call_tag);
+  cli_cq_.Next(&tag, &ok);
+  ASSERT_TRUE(ok && tag == &call_tag) << "stub.PrepareCall() failed.";
+
+  grpc::GenericServerAsyncReaderWriter reader_writer(&server_context);
+
+  // Process the request.
+  int request_tag;
+  generic_service_.RequestCall(&server_context, &reader_writer, srv_cq_.get(),
+                               srv_cq_.get(), &request_tag);
+  srv_cq_->Next(&tag, &ok);
+  ASSERT_TRUE(ok && tag == &request_tag) << "service.RequestCall() failed.";
+
+  // Finish the stream on the server-side.
+  int srv_finish_tag;
+  reader_writer.Finish(
+      grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "unimplemented"),
+      &srv_finish_tag);
+  srv_cq_->Next(&tag, &ok);
+  ASSERT_TRUE(ok && tag == &srv_finish_tag) << "reader_writer.Finish() failed.";
+
+  // Finish the stream on the client-side.
+  grpc::Status status;
+  int cli_finish_tag;
+  cli_stream->Finish(&status, &cli_finish_tag);
+  cli_cq_.Next(&tag, &ok);
+  ASSERT_TRUE(ok && tag == &cli_finish_tag) << "stream.Finish() failed.";
 }
 
 }  // namespace testing_util

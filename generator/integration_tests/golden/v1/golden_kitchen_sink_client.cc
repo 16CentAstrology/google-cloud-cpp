@@ -16,8 +16,10 @@
 // If you make any local changes, they will be lost.
 // source: generator/integration_tests/test.proto
 
+#include "google/cloud/internal/disable_deprecation_warnings.inc"
 #include "generator/integration_tests/golden/v1/golden_kitchen_sink_client.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -30,6 +32,15 @@ GoldenKitchenSinkClient::GoldenKitchenSinkClient(
       options_(internal::MergeOptions(std::move(opts),
       connection_->options())) {}
 GoldenKitchenSinkClient::~GoldenKitchenSinkClient() = default;
+
+StatusOr<google::test::admin::database::v1::GenerateAccessTokenResponse>
+GoldenKitchenSinkClient::GenerateAccessToken(std::string const& name, std::string const& not_used_anymore, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::test::admin::database::v1::GenerateAccessTokenRequest request;
+  request.set_name(name);
+  request.set_not_used_anymore(not_used_anymore);
+  return connection_->GenerateAccessToken(request);
+}
 
 StatusOr<google::test::admin::database::v1::GenerateAccessTokenResponse>
 GoldenKitchenSinkClient::GenerateAccessToken(std::string const& name, std::vector<std::string> const& delegates, std::vector<std::string> const& scope, google::protobuf::Duration const& lifetime, Options opts) {
@@ -122,6 +133,19 @@ GoldenKitchenSinkClient::DoNothing(google::protobuf::Empty const& request, Optio
   return connection_->DoNothing(request);
 }
 
+Status
+GoldenKitchenSinkClient::Deprecated2(Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::test::admin::database::v1::GenerateAccessTokenRequest request;
+  return connection_->Deprecated2(request);
+}
+
+Status
+GoldenKitchenSinkClient::Deprecated2(google::test::admin::database::v1::GenerateAccessTokenRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->Deprecated2(request);
+}
+
 StreamRange<google::test::admin::database::v1::Response>
 GoldenKitchenSinkClient::StreamingRead(std::string const& stream, Options opts) {
   internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
@@ -155,6 +179,33 @@ Status
 GoldenKitchenSinkClient::ExplicitRouting2(google::test::admin::database::v1::ExplicitRoutingRequest const& request, Options opts) {
   internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
   return connection_->ExplicitRouting2(request);
+}
+
+StatusOr<google::cloud::location::Location>
+GoldenKitchenSinkClient::GetLocation(google::cloud::location::GetLocationRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->GetLocation(request);
+}
+
+StatusOr<google::iam::v1::Policy>
+GoldenKitchenSinkClient::GetIamPolicy(google::iam::v1::GetIamPolicyRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->GetIamPolicy(request);
+}
+
+StreamRange<google::longrunning::Operation>
+GoldenKitchenSinkClient::ListOperations(std::string const& name, std::string const& filter, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::longrunning::ListOperationsRequest request;
+  request.set_name(name);
+  request.set_filter(filter);
+  return connection_->ListOperations(request);
+}
+
+StreamRange<google::longrunning::Operation>
+GoldenKitchenSinkClient::ListOperations(google::longrunning::ListOperationsRequest request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->ListOperations(std::move(request));
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

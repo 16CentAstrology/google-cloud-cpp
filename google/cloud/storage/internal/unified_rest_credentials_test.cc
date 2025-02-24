@@ -14,6 +14,7 @@
 
 #include "google/cloud/storage/internal/unified_rest_credentials.h"
 #include "google/cloud/storage/testing/constants.h"
+#include "google/cloud/internal/credentials_impl.h"
 #include "google/cloud/internal/filesystem.h"
 #include "google/cloud/internal/random.h"
 #include "google/cloud/testing_util/scoped_environment.h"
@@ -23,6 +24,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <random>
+#include <string>
 
 namespace google {
 namespace cloud {
@@ -36,6 +38,7 @@ using ::google::cloud::MakeGoogleDefaultCredentials;
 using ::google::cloud::MakeInsecureCredentials;
 using ::google::cloud::testing_util::IsOk;
 using ::google::cloud::testing_util::ScopedEnvironment;
+using ::google::cloud::testing_util::StatusIs;
 using ::testing::IsEmpty;
 
 class UnifiedRestCredentialsTest : public ::testing::Test {
@@ -55,15 +58,24 @@ class UnifiedRestCredentialsTest : public ::testing::Test {
 };
 
 TEST_F(UnifiedRestCredentialsTest, Insecure) {
-  auto credentials = MapCredentials(MakeInsecureCredentials());
+  auto credentials = MapCredentials(*MakeInsecureCredentials());
   auto header = credentials->AuthorizationHeader();
   ASSERT_THAT(header, IsOk());
   EXPECT_THAT(*header, IsEmpty());
 }
 
+TEST_F(UnifiedRestCredentialsTest, Error) {
+  Status const error_status{StatusCode::kFailedPrecondition,
+                            "Precondition failed."};
+  auto credentials = MapCredentials(
+      *google::cloud::internal::MakeErrorCredentials(error_status));
+  auto header = credentials->AuthorizationHeader();
+  EXPECT_THAT(header, StatusIs(error_status.code()));
+}
+
 TEST_F(UnifiedRestCredentialsTest, AccessToken) {
   auto credentials = MapCredentials(
-      MakeAccessTokenCredentials("token1", std::chrono::system_clock::now()));
+      *MakeAccessTokenCredentials("token1", std::chrono::system_clock::now()));
   for (std::string expected : {"token1", "token1", "token1"}) {
     auto header = credentials->AuthorizationHeader();
     ASSERT_THAT(header, IsOk());
@@ -77,7 +89,7 @@ TEST_F(UnifiedRestCredentialsTest, LoadError) {
   auto const filename = TempKeyFileName();
   ScopedEnvironment env("GOOGLE_APPLICATION_CREDENTIALS", filename);
 
-  auto credentials = MapCredentials(MakeGoogleDefaultCredentials());
+  auto credentials = MapCredentials(*MakeGoogleDefaultCredentials());
   EXPECT_THAT(credentials->AuthorizationHeader(), Not(IsOk()));
 }
 
@@ -107,8 +119,8 @@ TEST_F(UnifiedRestCredentialsTest, LoadSuccess) {
 
   ScopedEnvironment env("GOOGLE_APPLICATION_CREDENTIALS", filename);
 
-  auto credentials = MapCredentials(MakeGoogleDefaultCredentials());
-  // Calling AuthorizationHeader() makes RPCs which would turn this into an
+  auto credentials = MapCredentials(*MakeGoogleDefaultCredentials());
+  // Calling AuthenticationHeader() makes RPCs which would turn this into an
   // integration test, fortunately there are easier ways to verify the file was
   // loaded correctly:
   EXPECT_EQ(kClientEmail, credentials->AccountEmail());

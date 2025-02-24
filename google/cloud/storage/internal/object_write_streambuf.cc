@@ -15,8 +15,12 @@
 #include "google/cloud/storage/internal/object_write_streambuf.h"
 #include "google/cloud/storage/internal/object_requests.h"
 #include "google/cloud/storage/version.h"
-#include "absl/memory/memory.h"
+#include "google/cloud/internal/make_status.h"
+#include <algorithm>
+#include <memory>
 #include <sstream>
+#include <string>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -31,20 +35,18 @@ ObjectWriteStreambuf::ObjectWriteStreambuf(Status status)
     : last_status_(std::move(status)),
       max_buffer_size_(UploadChunkRequest::kChunkSizeQuantum),
       span_options_(CurrentOptions()) {
-  current_ios_buffer_.resize(max_buffer_size_);
-  auto* pbeg = current_ios_buffer_.data();
-  auto* pend = pbeg + current_ios_buffer_.size();
-  setp(pbeg, pend);
+  current_ios_buffer_.reserve(UploadChunkRequest::kChunkSizeQuantum);
+  UpdatePutArea();
 }
 
 ObjectWriteStreambuf::ObjectWriteStreambuf(
-    std::shared_ptr<RawClient> client, ResumableUploadRequest request,
-    std::string upload_id, std::uint64_t committed_size,
-    absl::optional<ObjectMetadata> metadata, std::size_t max_buffer_size,
-    std::unique_ptr<HashFunction> hash_function, HashValues known_hashes,
-    std::unique_ptr<HashValidator> hash_validator,
+    std::shared_ptr<StorageConnection> connection,
+    ResumableUploadRequest request, std::string upload_id,
+    std::uint64_t committed_size, absl::optional<ObjectMetadata> metadata,
+    std::size_t max_buffer_size, std::unique_ptr<HashFunction> hash_function,
+    HashValues known_hashes, std::unique_ptr<HashValidator> hash_validator,
     AutoFinalizeConfig auto_finalize)
-    : client_(std::move(client)),
+    : connection_(std::move(connection)),
       request_(std::move(request)),
       upload_id_(std::move(upload_id)),
       committed_size_(committed_size),
@@ -55,10 +57,8 @@ ObjectWriteStreambuf::ObjectWriteStreambuf(
       hash_validator_(std::move(hash_validator)),
       auto_finalize_(auto_finalize),
       span_options_(CurrentOptions()) {
-  current_ios_buffer_.resize(max_buffer_size_);
-  auto* pbeg = current_ios_buffer_.data();
-  auto* pend = pbeg + current_ios_buffer_.size();
-  setp(pbeg, pend);
+  current_ios_buffer_.reserve(UploadChunkRequest::kChunkSizeQuantum);
+  UpdatePutArea();
 }
 
 void ObjectWriteStreambuf::AutoFlushFinal() {
@@ -108,20 +108,22 @@ std::streamsize ObjectWriteStreambuf::xsputn(char const* s,
   if (!IsOpen()) return traits_type::eof();
 
   auto const actual_size = put_area_size();
-  if (count + actual_size >= max_buffer_size_) {
-    if (actual_size == 0) {
-      FlushRoundChunk({ConstBuffer(s, static_cast<std::size_t>(count))});
-    } else {
-      FlushRoundChunk({
-          ConstBuffer(pbase(), actual_size),
-          ConstBuffer(s, static_cast<std::size_t>(count)),
-      });
-    }
-    if (!last_status_.ok()) return traits_type::eof();
-  } else {
-    std::copy(s, s + count, pptr());
-    pbump(static_cast<int>(count));
+  // One of the invariants in this class is that actual_size is always less than
+  // max_buffer_size_. Using max_buffer_size_ - actual size avoids overflow.
+  if (static_cast<std::size_t>(count) < max_buffer_size_ - actual_size) {
+    current_ios_buffer_.insert(current_ios_buffer_.end(), s, s + count);
+    UpdatePutArea();
+    return count;
   }
+  if (actual_size == 0) {
+    FlushRoundChunk({ConstBuffer(s, static_cast<std::size_t>(count))});
+  } else {
+    FlushRoundChunk({
+        ConstBuffer(pbase(), actual_size),
+        ConstBuffer(s, static_cast<std::size_t>(count)),
+    });
+  }
+  if (!last_status_.ok()) return traits_type::eof();
   return count;
 }
 
@@ -132,8 +134,8 @@ ObjectWriteStreambuf::int_type ObjectWriteStreambuf::overflow(int_type ch) {
 
   auto actual_size = put_area_size();
   if (actual_size >= max_buffer_size_) Flush();
-  *pptr() = traits_type::to_char_type(ch);
-  pbump(1);
+  current_ios_buffer_.push_back(traits_type::to_char_type(ch));
+  UpdatePutArea();
   return last_status_.ok() ? ch : traits_type::eof();
 }
 
@@ -142,28 +144,29 @@ void ObjectWriteStreambuf::FlushFinal() {
 
   // Calculate the portion of the buffer that needs to be uploaded, if any.
   auto const actual_size = put_area_size();
-  hash_function_->Update(pbase(), actual_size);
 
   // After this point the session will be closed, and no more calls to the hash
   // function are possible.
-  auto function = std::move(hash_function_);
-  hash_values_ = std::move(*function).Finish();
   auto upload_request = UploadChunkRequest(upload_id_, committed_size_,
                                            {ConstBuffer(pbase(), actual_size)},
-                                           Merge(known_hashes_, hash_values_));
+                                           hash_function_, known_hashes_);
   request_.ForEachOption(internal::CopyCommonOptions(upload_request));
   OptionsSpan const span(span_options_);
-  auto response = client_->UploadChunk(upload_request);
+  auto response = connection_->UploadChunk(upload_request);
   if (!response) {
     last_status_ = std::move(response).status();
-  } else {
-    committed_size_ = response->committed_size.value_or(0);
-    metadata_ = std::move(response->payload);
-    headers_ = std::move(response->request_metadata);
+    return;
   }
 
+  auto function = std::move(hash_function_);
+  hash_values_ = std::move(*function).Finish();
+
+  committed_size_ = response->committed_size.value_or(0);
+  metadata_ = std::move(response->payload);
+  headers_ = std::move(response->request_metadata);
+
   // Reset the iostream put area with valid pointers, but empty.
-  current_ios_buffer_.resize(1);
+  current_ios_buffer_.clear();
   auto* pbeg = current_ios_buffer_.data();
   setp(pbeg, pbeg);
 }
@@ -193,54 +196,57 @@ void ObjectWriteStreambuf::FlushRoundChunk(ConstBufferSequence buffers) {
     if (payload.back().empty()) payload.pop_back();
   }
 
-  for (auto const& b : payload) {
-    hash_function_->Update(b.data(), b.size());
-  }
-
   // GCS upload returns an updated range header that sets the next expected
   // byte. Check to make sure it remains consistent with the bytes stored in the
   // buffer.
   auto const expected_committed_size = committed_size_ + actual_size;
   auto upload_request =
-      UploadChunkRequest(upload_id_, committed_size_, payload);
+      UploadChunkRequest(upload_id_, committed_size_, payload, hash_function_);
   request_.ForEachOption(internal::CopyCommonOptions(upload_request));
   OptionsSpan const span(span_options_);
-  auto response = client_->UploadChunk(upload_request);
+  auto response = connection_->UploadChunk(upload_request);
   if (!response) {
     // Upload failures are irrecoverable because the internal buffer is opaque
     // to the caller, so there is no way to know what byte range to specify
     // next.  Replace it with a SessionError so next_expected_byte and
     // resumable_session_id can still be retrieved.
     last_status_ = std::move(response).status();
-  } else {
-    // Reset the internal buffer and copy any trailing bytes from `buffers` to
-    // it.
-    auto* pbeg = current_ios_buffer_.data();
-    setp(pbeg, pbeg + current_ios_buffer_.size());
-    PopFrontBytes(buffers, rounded_size);
-    for (auto const& b : buffers) {
-      std::copy(b.begin(), b.end(), pptr());
-      pbump(static_cast<int>(b.size()));
-    }
-
-    metadata_ = std::move(response->payload);
-    committed_size_ = response->committed_size.value_or(0);
-
-    // If the upload completed, the stream was implicitly "closed". There is
-    // no need to verify anything else.
-    if (metadata_.has_value()) {
-      committed_size_ = expected_committed_size;
-      return;
-    }
-
-    if (committed_size_ != expected_committed_size) {
-      std::ostringstream error_message;
-      error_message << "Could not continue upload stream. GCS reports "
-                    << committed_size_ << " as committed, but we expected "
-                    << expected_committed_size;
-      last_status_ = Status(StatusCode::kAborted, error_message.str());
-    }
+    return;
   }
+
+  // Reset the internal buffer and copy any trailing bytes from `buffers` to
+  // it.
+  current_ios_buffer_.clear();
+  PopFrontBytes(buffers, rounded_size);
+  for (auto const& b : buffers) {
+    current_ios_buffer_.insert(current_ios_buffer_.end(), b.begin(), b.end());
+  }
+  UpdatePutArea();
+
+  metadata_ = std::move(response->payload);
+  committed_size_ = response->committed_size.value_or(0);
+
+  // If the upload completed, the stream was implicitly "closed". There is
+  // no need to verify anything else.
+  if (metadata_.has_value()) {
+    committed_size_ = expected_committed_size;
+    return;
+  }
+
+  if (committed_size_ != expected_committed_size) {
+    std::ostringstream os;
+    os << "Could not continue upload stream. GCS reports " << committed_size_
+       << " as committed, but we expected " << expected_committed_size;
+    last_status_ = google::cloud::internal::AbortedError(std::move(os).str(),
+                                                         GCP_ERROR_INFO());
+  }
+}
+
+void ObjectWriteStreambuf::UpdatePutArea() {
+  auto* pbeg = current_ios_buffer_.data();
+  auto const n = current_ios_buffer_.size();
+  setp(pbeg, pbeg + n);
+  if (!current_ios_buffer_.empty()) pbump(static_cast<int>(n));
 }
 
 }  // namespace internal

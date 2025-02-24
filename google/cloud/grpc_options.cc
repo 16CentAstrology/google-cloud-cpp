@@ -14,6 +14,7 @@
 
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/common_options.h"
+#include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/absl_str_join_quiet.h"
 #include "google/cloud/internal/background_threads_impl.h"
 
@@ -22,9 +23,41 @@ namespace cloud {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace internal {
 
+void SetMetadata(grpc::ClientContext& context, Options const& options,
+                 std::multimap<std::string, std::string> const& fixed_metadata,
+                 std::string const& api_client_header) {
+  for (auto const& kv : fixed_metadata) {
+    context.AddMetadata(kv.first, kv.second);
+  }
+  context.AddMetadata("x-goog-api-client", api_client_header);
+  if (options.has<UserProjectOption>()) {
+    context.AddMetadata("x-goog-user-project",
+                        options.get<UserProjectOption>());
+  }
+  auto const& authority = options.get<AuthorityOption>();
+  if (!authority.empty()) context.set_authority(authority);
+  for (auto const& h : options.get<CustomHeadersOption>()) {
+    context.AddMetadata(h.first, h.second);
+  }
+  if (options.has<UserIpOption>() && !options.has<QuotaUserOption>()) {
+    context.AddMetadata("x-goog-user-ip", options.get<UserIpOption>());
+  }
+  if (options.has<QuotaUserOption>()) {
+    context.AddMetadata("x-goog-quota-user", options.get<QuotaUserOption>());
+  }
+  if (options.has<FieldMaskOption>()) {
+    context.AddMetadata("x-goog-fieldmask", options.get<FieldMaskOption>());
+  }
+}
+
 void ConfigureContext(grpc::ClientContext& context, Options const& opts) {
   if (opts.has<GrpcSetupOption>()) {
     opts.get<GrpcSetupOption>()(context);
+  }
+  if (opts.has<GrpcCompressionAlgorithmOption>()) {
+    // Overwrites anything set by the GrpcSetupOption.
+    context.set_compression_algorithm(
+        opts.get<GrpcCompressionAlgorithmOption>());
   }
 }
 
@@ -32,6 +65,23 @@ void ConfigurePollContext(grpc::ClientContext& context, Options const& opts) {
   if (opts.has<GrpcSetupPollOption>()) {
     opts.get<GrpcSetupPollOption>()(context);
   }
+}
+
+std::string MakeGrpcHttpProxy(ProxyConfig const& config) {
+  if (config.hostname().empty()) return {};
+  auto result = absl::StrCat(config.scheme(), "://");
+  char const* sep = "";
+  if (!config.username().empty()) {
+    sep = "@";
+    absl::StrAppend(&result, config.username());
+  }
+  if (!config.password().empty()) {
+    sep = "@";
+    absl::StrAppend(&result, ":", config.password());
+  }
+  absl::StrAppend(&result, sep, config.hostname());
+  if (!config.port().empty()) absl::StrAppend(&result, ":", config.port());
+  return result;
 }
 
 grpc::ChannelArguments MakeChannelArguments(Options const& opts) {
@@ -61,6 +111,9 @@ grpc::ChannelArguments MakeChannelArguments(Options const& opts) {
     channel_arguments.SetInt(GRPC_ARG_KEEPALIVE_TIMEOUT_MS,
                              static_cast<int>(kKeepaliveTimeout.count()));
   }
+
+  auto const proxy = MakeGrpcHttpProxy(opts.get<ProxyOption>());
+  if (!proxy.empty()) channel_arguments.SetString(GRPC_ARG_HTTP_PROXY, proxy);
 
   return channel_arguments;
 }
@@ -95,7 +148,7 @@ BackgroundThreadsFactory MakeBackgroundThreadsFactory(Options const& opts) {
   if (opts.has<GrpcCompletionQueueOption>()) {
     auto const& cq = opts.get<GrpcCompletionQueueOption>();
     return [cq] {
-      return absl::make_unique<CustomerSuppliedBackgroundThreads>(cq);
+      return std::make_unique<CustomerSuppliedBackgroundThreads>(cq);
     };
   }
   if (opts.has<GrpcBackgroundThreadsFactoryOption>()) {
@@ -103,7 +156,7 @@ BackgroundThreadsFactory MakeBackgroundThreadsFactory(Options const& opts) {
   }
   auto const s = opts.get<GrpcBackgroundThreadPoolSizeOption>();
   return [s] {
-    return absl::make_unique<AutomaticallyCreatedBackgroundThreads>(s);
+    return std::make_unique<AutomaticallyCreatedBackgroundThreads>(s);
   };
 }
 

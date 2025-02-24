@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/memcache/cloud_memcache_client.h"
-#include "google/cloud/project.h"
+//! [all]
+#include "google/cloud/memcache/v1/cloud_memcache_client.h"
+#include "google/cloud/location.h"
 #include <iostream>
 
 int main(int argc, char* argv[]) try {
@@ -22,15 +23,15 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace memcache = ::google::cloud::memcache;
+  auto const location = google::cloud::Location(argv[1], "-");
+
+  namespace memcache = ::google::cloud::memcache_v1;
   auto client =
       memcache::CloudMemcacheClient(memcache::MakeCloudMemcacheConnection());
 
-  auto const project_id = std::string(argv[1]);
-  auto const parent = "projects/" + project_id + "/locations/-";
-  for (auto r : client.ListInstances(parent)) {
-    if (!r) throw std::move(r).status();
-    std::cout << r->DebugString() << "\n";
+  for (auto i : client.ListInstances(location.FullName())) {
+    if (!i) throw std::move(i).status();
+    std::cout << i->DebugString() << "\n";
   }
 
   return 0;
@@ -38,3 +39,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

@@ -67,10 +67,28 @@ class InstanceAdminConnectionImpl
       google::spanner::admin::instance::v1::CreateInstanceConfigRequest const&
           request) override;
 
+  StatusOr<google::longrunning::Operation> CreateInstanceConfig(
+      NoAwaitTag,
+      google::spanner::admin::instance::v1::CreateInstanceConfigRequest const&
+          request) override;
+
+  future<StatusOr<google::spanner::admin::instance::v1::InstanceConfig>>
+  CreateInstanceConfig(
+      google::longrunning::Operation const& operation) override;
+
   future<StatusOr<google::spanner::admin::instance::v1::InstanceConfig>>
   UpdateInstanceConfig(
       google::spanner::admin::instance::v1::UpdateInstanceConfigRequest const&
           request) override;
+
+  StatusOr<google::longrunning::Operation> UpdateInstanceConfig(
+      NoAwaitTag,
+      google::spanner::admin::instance::v1::UpdateInstanceConfigRequest const&
+          request) override;
+
+  future<StatusOr<google::spanner::admin::instance::v1::InstanceConfig>>
+  UpdateInstanceConfig(
+      google::longrunning::Operation const& operation) override;
 
   Status DeleteInstanceConfig(
       google::spanner::admin::instance::v1::DeleteInstanceConfigRequest const&
@@ -84,6 +102,11 @@ class InstanceAdminConnectionImpl
       google::spanner::admin::instance::v1::ListInstancesRequest request)
       override;
 
+  StreamRange<google::spanner::admin::instance::v1::InstancePartition>
+  ListInstancePartitions(
+      google::spanner::admin::instance::v1::ListInstancePartitionsRequest
+          request) override;
+
   StatusOr<google::spanner::admin::instance::v1::Instance> GetInstance(
       google::spanner::admin::instance::v1::GetInstanceRequest const& request)
       override;
@@ -93,10 +116,26 @@ class InstanceAdminConnectionImpl
       google::spanner::admin::instance::v1::CreateInstanceRequest const&
           request) override;
 
+  StatusOr<google::longrunning::Operation> CreateInstance(
+      NoAwaitTag,
+      google::spanner::admin::instance::v1::CreateInstanceRequest const&
+          request) override;
+
+  future<StatusOr<google::spanner::admin::instance::v1::Instance>>
+  CreateInstance(google::longrunning::Operation const& operation) override;
+
   future<StatusOr<google::spanner::admin::instance::v1::Instance>>
   UpdateInstance(
       google::spanner::admin::instance::v1::UpdateInstanceRequest const&
           request) override;
+
+  StatusOr<google::longrunning::Operation> UpdateInstance(
+      NoAwaitTag,
+      google::spanner::admin::instance::v1::UpdateInstanceRequest const&
+          request) override;
+
+  future<StatusOr<google::spanner::admin::instance::v1::Instance>>
+  UpdateInstance(google::longrunning::Operation const& operation) override;
 
   Status DeleteInstance(
       google::spanner::admin::instance::v1::DeleteInstanceRequest const&
@@ -111,51 +150,70 @@ class InstanceAdminConnectionImpl
   StatusOr<google::iam::v1::TestIamPermissionsResponse> TestIamPermissions(
       google::iam::v1::TestIamPermissionsRequest const& request) override;
 
+  StatusOr<google::spanner::admin::instance::v1::InstancePartition>
+  GetInstancePartition(
+      google::spanner::admin::instance::v1::GetInstancePartitionRequest const&
+          request) override;
+
+  future<StatusOr<google::spanner::admin::instance::v1::InstancePartition>>
+  CreateInstancePartition(
+      google::spanner::admin::instance::v1::
+          CreateInstancePartitionRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> CreateInstancePartition(
+      NoAwaitTag, google::spanner::admin::instance::v1::
+                      CreateInstancePartitionRequest const& request) override;
+
+  future<StatusOr<google::spanner::admin::instance::v1::InstancePartition>>
+  CreateInstancePartition(
+      google::longrunning::Operation const& operation) override;
+
+  Status DeleteInstancePartition(
+      google::spanner::admin::instance::v1::
+          DeleteInstancePartitionRequest const& request) override;
+
+  future<StatusOr<google::spanner::admin::instance::v1::InstancePartition>>
+  UpdateInstancePartition(
+      google::spanner::admin::instance::v1::
+          UpdateInstancePartitionRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> UpdateInstancePartition(
+      NoAwaitTag, google::spanner::admin::instance::v1::
+                      UpdateInstancePartitionRequest const& request) override;
+
+  future<StatusOr<google::spanner::admin::instance::v1::InstancePartition>>
+  UpdateInstancePartition(
+      google::longrunning::Operation const& operation) override;
+
+  StreamRange<google::longrunning::Operation> ListInstancePartitionOperations(
+      google::spanner::admin::instance::v1::
+          ListInstancePartitionOperationsRequest request) override;
+
+  future<StatusOr<google::spanner::admin::instance::v1::MoveInstanceResponse>>
+  MoveInstance(google::spanner::admin::instance::v1::MoveInstanceRequest const&
+                   request) override;
+
+  StatusOr<google::longrunning::Operation> MoveInstance(
+      NoAwaitTag,
+      google::spanner::admin::instance::v1::MoveInstanceRequest const& request)
+      override;
+
+  future<StatusOr<google::spanner::admin::instance::v1::MoveInstanceResponse>>
+  MoveInstance(google::longrunning::Operation const& operation) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status DeleteOperation(
+      google::longrunning::DeleteOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<spanner_admin::InstanceAdminRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<spanner_admin::InstanceAdminRetryPolicyOption>()) {
-      return options.get<spanner_admin::InstanceAdminRetryPolicyOption>()
-          ->clone();
-    }
-    return options_.get<spanner_admin::InstanceAdminRetryPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<spanner_admin::InstanceAdminBackoffPolicyOption>()) {
-      return options.get<spanner_admin::InstanceAdminBackoffPolicyOption>()
-          ->clone();
-    }
-    return options_.get<spanner_admin::InstanceAdminBackoffPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<spanner_admin::InstanceAdminConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<
-            spanner_admin::InstanceAdminConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<spanner_admin::InstanceAdminConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<spanner_admin::InstanceAdminConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<PollingPolicy> polling_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<spanner_admin::InstanceAdminPollingPolicyOption>()) {
-      return options.get<spanner_admin::InstanceAdminPollingPolicyOption>()
-          ->clone();
-    }
-    return options_.get<spanner_admin::InstanceAdminPollingPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<spanner_admin_internal::InstanceAdminStub> stub_;
   Options options_;

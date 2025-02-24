@@ -30,13 +30,13 @@ class MockAuthenticationStrategy
               (std::string const&, grpc::ChannelArguments const&), (override));
   MOCK_METHOD(bool, RequiresConfigureContext, (), (const, override));
   MOCK_METHOD(Status, ConfigureContext, (grpc::ClientContext&), (override));
-  MOCK_METHOD(future<StatusOr<std::unique_ptr<grpc::ClientContext>>>,
-              AsyncConfigureContext, (std::unique_ptr<grpc::ClientContext>),
+  MOCK_METHOD(future<StatusOr<std::shared_ptr<grpc::ClientContext>>>,
+              AsyncConfigureContext, (std::shared_ptr<grpc::ClientContext>),
               (override));
 };
 
 /**
- * Create and set expectations a mock authentication strategy.
+ * Create and set expectations on a mock authentication strategy.
  *
  * Many of our tests initialize a MockAuthenticationStrategy and set up the same
  * expectations, namely that the test will use the strategy twice, and the
@@ -49,12 +49,20 @@ class MockAuthenticationStrategy
 std::shared_ptr<MockAuthenticationStrategy> MakeTypicalMockAuth();
 
 /**
- * Create and set expectations a mock authentication strategy.
+ * Create and set expectations on a mock authentication strategy.
  *
  * Like MakeTypicalMockAuth() but set the expectations for an asynchronous
  * request.
  */
 std::shared_ptr<MockAuthenticationStrategy> MakeTypicalAsyncMockAuth();
+
+/**
+ * Create a mock authentication strategy with inoffensive default behavior.
+ *
+ * This is useful for testing the stub factory interfaces. If asked, it will
+ * create a channel that is not null.
+ */
+std::shared_ptr<MockAuthenticationStrategy> MakeStubFactoryMockAuth();
 
 }  // namespace testing_util
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

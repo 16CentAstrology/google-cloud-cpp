@@ -62,6 +62,14 @@ class VersionsConnectionImpl : public dialogflow_cx::VersionsConnection {
       google::cloud::dialogflow::cx::v3::CreateVersionRequest const& request)
       override;
 
+  StatusOr<google::longrunning::Operation> CreateVersion(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::CreateVersionRequest const& request)
+      override;
+
+  future<StatusOr<google::cloud::dialogflow::cx::v3::Version>> CreateVersion(
+      google::longrunning::Operation const& operation) override;
+
   StatusOr<google::cloud::dialogflow::cx::v3::Version> UpdateVersion(
       google::cloud::dialogflow::cx::v3::UpdateVersionRequest const& request)
       override;
@@ -74,50 +82,35 @@ class VersionsConnectionImpl : public dialogflow_cx::VersionsConnection {
       google::cloud::dialogflow::cx::v3::LoadVersionRequest const& request)
       override;
 
+  StatusOr<google::longrunning::Operation> LoadVersion(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::LoadVersionRequest const& request)
+      override;
+
+  future<StatusOr<google::protobuf::Struct>> LoadVersion(
+      google::longrunning::Operation const& operation) override;
+
   StatusOr<google::cloud::dialogflow::cx::v3::CompareVersionsResponse>
   CompareVersions(
       google::cloud::dialogflow::cx::v3::CompareVersionsRequest const& request)
       override;
 
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_cx::VersionsRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::VersionsRetryPolicyOption>()) {
-      return options.get<dialogflow_cx::VersionsRetryPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_cx::VersionsRetryPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::VersionsBackoffPolicyOption>()) {
-      return options.get<dialogflow_cx::VersionsBackoffPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_cx::VersionsBackoffPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<dialogflow_cx::VersionsConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options
-            .has<dialogflow_cx::VersionsConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_cx::VersionsConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_cx::VersionsConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<PollingPolicy> polling_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::VersionsPollingPolicyOption>()) {
-      return options.get<dialogflow_cx::VersionsPollingPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_cx::VersionsPollingPolicyOption>()->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_cx_internal::VersionsStub> stub_;
   Options options_;

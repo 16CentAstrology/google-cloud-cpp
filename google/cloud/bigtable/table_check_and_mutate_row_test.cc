@@ -1,4 +1,4 @@
-// Copyright 2018 Google Inc.
+// Copyright 2018 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
 using ::google::cloud::testing_util::ValidateMetadataFixture;
-using ::google::cloud::testing_util::chrono_literals::operator"" _ms;  // NOLINT
+using ::google::cloud::testing_util::chrono_literals::operator""_ms;
 
 class TableCheckAndMutateRowTest : public bigtable::testing::TableTestFixture {
  protected:
@@ -35,7 +35,8 @@ class TableCheckAndMutateRowTest : public bigtable::testing::TableTestFixture {
   void IsContextMDValid(grpc::ClientContext& context, std::string const& method,
                         google::protobuf::Message const& request) {
     return validate_metadata_fixture_.IsContextMDValid(
-        context, method, request, google::cloud::internal::ApiClientHeader());
+        context, method, request,
+        google::cloud::internal::HandCraftedLibClientHeader());
   }
 
   std::function<

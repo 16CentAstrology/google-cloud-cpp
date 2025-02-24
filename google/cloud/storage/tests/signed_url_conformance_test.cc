@@ -15,20 +15,29 @@
 #include "google/cloud/storage/testing/storage_integration_test.h"
 #if GOOGLE_CLOUD_CPP_STORAGE_HAVE_GRPC
 #include "google/cloud/storage/client.h"
-#include "google/cloud/storage/internal/openssl_util.h"
+#include "google/cloud/storage/internal/base64.h"
 #include "google/cloud/storage/internal/signed_url_requests.h"
 #include "google/cloud/storage/list_objects_reader.h"
-#include "google/cloud/storage/tests/conformance_tests.pb.h"
 #include "google/cloud/internal/format_time_point.h"
 #include "google/cloud/internal/getenv.h"
 #include "google/cloud/internal/time_utils.h"
 #include "google/cloud/terminate_handler.h"
+#include "google/cloud/testing_util/scoped_environment.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
+#include <google/cloud/storage/tests/conformance_tests.pb.h>
 #include <google/protobuf/util/json_util.h>
 #include <gmock/gmock.h>
+#include <algorithm>
 #include <fstream>
+#include <iostream>
+#include <iterator>
+#include <map>
+#include <memory>
+#include <set>
+#include <string>
 #include <type_traits>
+#include <utility>
+#include <vector>
 
 /**
  * @file
@@ -76,12 +85,15 @@ class V4SignedUrlConformanceTest
 class V4PostPolicyConformanceTest : public V4SignedUrlConformanceTest {};
 
 TEST_P(V4SignedUrlConformanceTest, V4SignJson) {
+  testing_util::ScopedEnvironment endpoint("CLOUD_STORAGE_EMULATOR_ENDPOINT",
+                                           absl::nullopt);
   auto creds = oauth2::CreateServiceAccountCredentialsFromJsonFilePath(
       service_account_key_filename_);
   ASSERT_STATUS_OK(creds);
 
   std::string account_email = (*creds)->AccountEmail();
-  Client client(Options{}.set<Oauth2CredentialsOption>(*creds));
+  auto client =
+      MakeIntegrationTestClient(Options{}.set<Oauth2CredentialsOption>(*creds));
   std::string actual_canonical_request;
   std::string actual_string_to_sign;
 
@@ -177,12 +189,15 @@ INSTANTIATE_TEST_SUITE_P(
     }()));
 
 TEST_P(V4PostPolicyConformanceTest, V4PostPolicy) {
+  testing_util::ScopedEnvironment endpoint("CLOUD_STORAGE_EMULATOR_ENDPOINT",
+                                           absl::nullopt);
   auto creds = oauth2::CreateServiceAccountCredentialsFromJsonFilePath(
       service_account_key_filename_);
   ASSERT_STATUS_OK(creds);
 
   std::string account_email = (*creds)->AccountEmail();
-  Client client(Options{}.set<Oauth2CredentialsOption>(*creds));
+  auto client =
+      MakeIntegrationTestClient(Options{}.set<Oauth2CredentialsOption>(*creds));
 
   auto const& test_params = (*post_policy_tests)[GetParam()];
   auto const& input = test_params.policyinput();
@@ -313,7 +328,7 @@ int main(int argc, char* argv[]) {  // NOLINT(bugprone-exception-escape)
   }
 
   auto signing_tests_destroyer =
-      absl::make_unique<std::map<std::string, SigningV4Test>>();
+      std::make_unique<std::map<std::string, SigningV4Test>>();
   google::cloud::storage::signing_tests = signing_tests_destroyer.get();
 
   // The implementation is not yet completed and these tests still fail, so skip
@@ -340,7 +355,7 @@ int main(int argc, char* argv[]) {  // NOLINT(bugprone-exception-escape)
   }
 
   auto post_policy_tests_destroyer =
-      absl::make_unique<std::map<std::string, PostPolicyV4Test>>();
+      std::make_unique<std::map<std::string, PostPolicyV4Test>>();
   google::cloud::storage::post_policy_tests = post_policy_tests_destroyer.get();
 
   for (auto const& policy_test : tests.post_policy_v4_tests()) {

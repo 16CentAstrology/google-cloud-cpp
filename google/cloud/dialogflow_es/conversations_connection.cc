@@ -21,12 +21,15 @@
 #include "google/cloud/dialogflow_es/internal/conversations_connection_impl.h"
 #include "google/cloud/dialogflow_es/internal/conversations_option_defaults.h"
 #include "google/cloud/dialogflow_es/internal/conversations_stub_factory.h"
+#include "google/cloud/dialogflow_es/internal/conversations_tracing_connection.h"
 #include "google/cloud/background_threads.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/credentials.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/pagination_range.h"
+#include "google/cloud/internal/unified_grpc_credentials.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -69,6 +72,62 @@ ConversationsConnection::ListMessages(
       StreamRange<google::cloud::dialogflow::v2::Message>>();
 }
 
+StatusOr<google::cloud::dialogflow::v2::SuggestConversationSummaryResponse>
+ConversationsConnection::SuggestConversationSummary(
+    google::cloud::dialogflow::v2::SuggestConversationSummaryRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+StatusOr<google::cloud::dialogflow::v2::GenerateStatelessSummaryResponse>
+ConversationsConnection::GenerateStatelessSummary(
+    google::cloud::dialogflow::v2::GenerateStatelessSummaryRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+StatusOr<google::cloud::dialogflow::v2::GenerateStatelessSuggestionResponse>
+ConversationsConnection::GenerateStatelessSuggestion(
+    google::cloud::dialogflow::v2::GenerateStatelessSuggestionRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+StatusOr<google::cloud::dialogflow::v2::SearchKnowledgeResponse>
+ConversationsConnection::SearchKnowledge(
+    google::cloud::dialogflow::v2::SearchKnowledgeRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+StreamRange<google::cloud::location::Location>
+ConversationsConnection::ListLocations(
+    google::cloud::location::
+        ListLocationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::cloud::location::Location>>();
+}
+
+StatusOr<google::cloud::location::Location>
+ConversationsConnection::GetLocation(
+    google::cloud::location::GetLocationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+StreamRange<google::longrunning::Operation>
+ConversationsConnection::ListOperations(
+    google::longrunning::
+        ListOperationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::longrunning::Operation>>();
+}
+
+StatusOr<google::longrunning::Operation> ConversationsConnection::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+Status ConversationsConnection::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
 std::shared_ptr<ConversationsConnection> MakeConversationsConnection(
     std::string const& location, Options options) {
   internal::CheckExpectedOptions<CommonOptionList, GrpcOptionList,
@@ -78,10 +137,12 @@ std::shared_ptr<ConversationsConnection> MakeConversationsConnection(
   options = dialogflow_es_internal::ConversationsDefaultOptions(
       location, std::move(options));
   auto background = internal::MakeBackgroundThreadsFactory(options)();
+  auto auth = internal::CreateAuthenticationStrategy(background->cq(), options);
   auto stub = dialogflow_es_internal::CreateDefaultConversationsStub(
-      background->cq(), options);
-  return std::make_shared<dialogflow_es_internal::ConversationsConnectionImpl>(
-      std::move(background), std::move(stub), std::move(options));
+      std::move(auth), options);
+  return dialogflow_es_internal::MakeConversationsTracingConnection(
+      std::make_shared<dialogflow_es_internal::ConversationsConnectionImpl>(
+          std::move(background), std::move(stub), std::move(options)));
 }
 
 std::shared_ptr<ConversationsConnection> MakeConversationsConnection(

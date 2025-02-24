@@ -37,54 +37,93 @@ class ConversationDatasetsLogging : public ConversationDatasetsStub {
   ~ConversationDatasetsLogging() override = default;
   ConversationDatasetsLogging(std::shared_ptr<ConversationDatasetsStub> child,
                               TracingOptions tracing_options,
-                              std::set<std::string> components);
+                              std::set<std::string> const& components);
 
   future<StatusOr<google::longrunning::Operation>>
   AsyncCreateConversationDataset(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::dialogflow::v2::CreateConversationDatasetRequest const&
+          request) override;
+
+  StatusOr<google::longrunning::Operation> CreateConversationDataset(
+      grpc::ClientContext& context, Options options,
       google::cloud::dialogflow::v2::CreateConversationDatasetRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::v2::ConversationDataset>
   GetConversationDataset(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::GetConversationDatasetRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::v2::ListConversationDatasetsResponse>
   ListConversationDatasets(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::ListConversationDatasetsRequest const&
           request) override;
 
   future<StatusOr<google::longrunning::Operation>>
   AsyncDeleteConversationDataset(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::dialogflow::v2::DeleteConversationDatasetRequest const&
+          request) override;
+
+  StatusOr<google::longrunning::Operation> DeleteConversationDataset(
+      grpc::ClientContext& context, Options options,
       google::cloud::dialogflow::v2::DeleteConversationDatasetRequest const&
           request) override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncImportConversationData(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::cloud::dialogflow::v2::ImportConversationDataRequest const&
           request) override;
 
+  StatusOr<google::longrunning::Operation> ImportConversationData(
+      grpc::ClientContext& context, Options options,
+      google::cloud::dialogflow::v2::ImportConversationDataRequest const&
+          request) override;
+
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
+
   future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::GetOperationRequest const& request) override;
 
   future<Status> AsyncCancelOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::CancelOperationRequest const& request) override;
 
  private:
   std::shared_ptr<ConversationDatasetsStub> child_;
   TracingOptions tracing_options_;
-  std::set<std::string> components_;
 };  // ConversationDatasetsLogging
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

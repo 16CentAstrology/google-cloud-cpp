@@ -36,22 +36,41 @@ class FulfillmentsLogging : public FulfillmentsStub {
   ~FulfillmentsLogging() override = default;
   FulfillmentsLogging(std::shared_ptr<FulfillmentsStub> child,
                       TracingOptions tracing_options,
-                      std::set<std::string> components);
+                      std::set<std::string> const& components);
 
   StatusOr<google::cloud::dialogflow::v2::Fulfillment> GetFulfillment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::GetFulfillmentRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::v2::Fulfillment> UpdateFulfillment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::UpdateFulfillmentRequest const& request)
       override;
+
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
 
  private:
   std::shared_ptr<FulfillmentsStub> child_;
   TracingOptions tracing_options_;
-  std::set<std::string> components_;
 };  // FulfillmentsLogging
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

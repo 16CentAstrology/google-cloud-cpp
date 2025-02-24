@@ -13,17 +13,21 @@
 // limitations under the License.
 
 #include "google/cloud/storage/client.h"
-#include "google/cloud/storage/internal/curl_client.h"
-#include "google/cloud/storage/internal/rest_client.h"
 #include "google/cloud/storage/oauth2/google_credentials.h"
 #include "google/cloud/storage/retry_policy.h"
 #include "google/cloud/storage/testing/canonical_errors.h"
 #include "google/cloud/storage/testing/mock_client.h"
 #include "google/cloud/internal/getenv.h"
+#include "google/cloud/opentelemetry_options.h"
 #include "google/cloud/testing_util/mock_backoff_policy.h"
+#include "google/cloud/testing_util/opentelemetry_matchers.h"
 #include "google/cloud/testing_util/scoped_environment.h"
+#include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
 #include <chrono>
+#include <memory>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -33,8 +37,11 @@ namespace {
 
 using ::google::cloud::storage::internal::ClientImplDetails;
 using ::google::cloud::storage::testing::canonical_errors::TransientError;
+using ::google::cloud::testing_util::IsOkAndHolds;
 using ::google::cloud::testing_util::MockBackoffPolicy;
 using ::google::cloud::testing_util::ScopedEnvironment;
+using ::testing::ElementsAre;
+using ::testing::NotNull;
 using ::testing::Return;
 
 class ObservableRetryPolicy : public LimitedErrorCountRetryPolicy {
@@ -151,52 +158,8 @@ TEST_F(ClientTest, OverrideBothPolicies) {
   EXPECT_LE(1, ObservableBackoffPolicy::on_completion_call_count_);
 }
 
-/// @test Verify the constructor creates the right set of RawClient decorations.
-TEST_F(ClientTest, DefaultDecoratorsCurlClient) {
-  ScopedEnvironment disable_grpc("CLOUD_STORAGE_ENABLE_TRACING", absl::nullopt);
-  ScopedEnvironment disable_rest("GOOGLE_CLOUD_CPP_STORAGE_USE_LEGACY_HTTP",
-                                 "yes");
-
-  // Create a client, use the anonymous credentials because on the CI
-  // environment there may not be other credentials configured.
-  auto tested =
-      Client(Options{}
-                 .set<UnifiedCredentialsOption>(MakeInsecureCredentials())
-                 .set<TracingComponentsOption>({}));
-
-  EXPECT_TRUE(ClientImplDetails::GetRawClient(tested) != nullptr);
-  auto* retry = dynamic_cast<internal::RetryClient*>(
-      ClientImplDetails::GetRawClient(tested).get());
-  ASSERT_TRUE(retry != nullptr);
-
-  auto* curl = dynamic_cast<internal::CurlClient*>(retry->client().get());
-  ASSERT_TRUE(curl != nullptr);
-}
-
-/// @test Verify the constructor creates the right set of RawClient decorations.
-TEST_F(ClientTest, LoggingDecoratorsCurlClient) {
-  ScopedEnvironment disable_rest("GOOGLE_CLOUD_CPP_STORAGE_USE_LEGACY_HTTP",
-                                 "yes");
-  // Create a client, use the anonymous credentials because on the CI
-  // environment there may not be other credentials configured.
-  auto tested =
-      Client(Options{}
-                 .set<UnifiedCredentialsOption>(MakeInsecureCredentials())
-                 .set<TracingComponentsOption>({"raw-client"}));
-
-  EXPECT_TRUE(ClientImplDetails::GetRawClient(tested) != nullptr);
-  auto* retry = dynamic_cast<internal::RetryClient*>(
-      ClientImplDetails::GetRawClient(tested).get());
-  ASSERT_TRUE(retry != nullptr);
-
-  auto* logging = dynamic_cast<internal::LoggingClient*>(retry->client().get());
-  ASSERT_TRUE(logging != nullptr);
-
-  auto* curl = dynamic_cast<internal::CurlClient*>(logging->client().get());
-  ASSERT_TRUE(curl != nullptr);
-}
-
-/// @test Verify the constructor creates the right set of RawClient decorations.
+/// @test Verify the constructor creates the right set of StorageConnection
+/// decorations.
 TEST_F(ClientTest, DefaultDecoratorsRestClient) {
   ScopedEnvironment disable_grpc("CLOUD_STORAGE_ENABLE_TRACING", absl::nullopt);
 
@@ -205,37 +168,78 @@ TEST_F(ClientTest, DefaultDecoratorsRestClient) {
   auto tested =
       Client(Options{}
                  .set<UnifiedCredentialsOption>(MakeInsecureCredentials())
-                 .set<TracingComponentsOption>({}));
+                 .set<LoggingComponentsOption>({}));
 
-  EXPECT_TRUE(ClientImplDetails::GetRawClient(tested) != nullptr);
-  auto* retry = dynamic_cast<internal::RetryClient*>(
-      ClientImplDetails::GetRawClient(tested).get());
-  ASSERT_TRUE(retry != nullptr);
-
-  auto* rest = dynamic_cast<internal::RestClient*>(retry->client().get());
-  ASSERT_TRUE(rest != nullptr);
+  auto const impl = ClientImplDetails::GetConnection(tested);
+  ASSERT_THAT(impl, NotNull());
+  EXPECT_THAT(impl->InspectStackStructure(),
+              ElementsAre("RestStub", "StorageConnectionImpl"));
 }
 
-/// @test Verify the constructor creates the right set of RawClient decorations.
+/// @test Verify the constructor creates the right set of StorageConnection
+/// decorations.
 TEST_F(ClientTest, LoggingDecoratorsRestClient) {
+  ScopedEnvironment logging("CLOUD_STORAGE_ENABLE_TRACING", absl::nullopt);
+  ScopedEnvironment legacy("GOOGLE_CLOUD_CPP_STORAGE_USE_LEGACY_HTTP",
+                           absl::nullopt);
+
   // Create a client, use the anonymous credentials because on the CI
   // environment there may not be other credentials configured.
   auto tested =
       Client(Options{}
                  .set<UnifiedCredentialsOption>(MakeInsecureCredentials())
-                 .set<TracingComponentsOption>({"raw-client"}));
+                 .set<LoggingComponentsOption>({"raw-client"}));
 
-  EXPECT_TRUE(ClientImplDetails::GetRawClient(tested) != nullptr);
-  auto* retry = dynamic_cast<internal::RetryClient*>(
-      ClientImplDetails::GetRawClient(tested).get());
-  ASSERT_TRUE(retry != nullptr);
-
-  auto* logging = dynamic_cast<internal::LoggingClient*>(retry->client().get());
-  ASSERT_TRUE(logging != nullptr);
-
-  auto* rest = dynamic_cast<internal::RestClient*>(logging->client().get());
-  ASSERT_TRUE(rest != nullptr);
+  auto const impl = ClientImplDetails::GetConnection(tested);
+  ASSERT_THAT(impl, NotNull());
+  EXPECT_THAT(impl->InspectStackStructure(),
+              ElementsAre("RestStub", "LoggingStub", "StorageConnectionImpl"));
 }
+
+#ifdef GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
+using ::google::cloud::testing_util::DisableTracing;
+using ::google::cloud::testing_util::EnableTracing;
+
+TEST_F(ClientTest, OTelEnableTracing) {
+  ScopedEnvironment logging("CLOUD_STORAGE_ENABLE_TRACING", absl::nullopt);
+  ScopedEnvironment legacy("GOOGLE_CLOUD_CPP_STORAGE_USE_LEGACY_HTTP",
+                           absl::nullopt);
+
+  // Create a client. Use the anonymous credentials because on the CI
+  // environment there may not be other credentials configured.
+  auto options = Options{}
+                     .set<UnifiedCredentialsOption>(MakeInsecureCredentials())
+                     .set<LoggingComponentsOption>({"raw-client"});
+
+  auto tested = Client(EnableTracing(std::move(options)));
+  auto const impl = ClientImplDetails::GetConnection(tested);
+  ASSERT_THAT(impl, NotNull());
+
+  EXPECT_THAT(impl->InspectStackStructure(),
+              ElementsAre("RestStub", "LoggingStub", "StorageConnectionImpl",
+                          "TracingConnection"));
+}
+
+TEST_F(ClientTest, OTelDisableTracing) {
+  ScopedEnvironment logging("CLOUD_STORAGE_ENABLE_TRACING", absl::nullopt);
+  ScopedEnvironment legacy("GOOGLE_CLOUD_CPP_STORAGE_USE_LEGACY_HTTP",
+                           absl::nullopt);
+
+  // Create a client. Use the anonymous credentials because on the CI
+  // environment there may not be other credentials configured.
+  auto options = Options{}
+                     .set<UnifiedCredentialsOption>(MakeInsecureCredentials())
+                     .set<LoggingComponentsOption>({"raw-client"});
+
+  auto tested = Client(DisableTracing(std::move(options)));
+  auto const impl = ClientImplDetails::GetConnection(tested);
+  ASSERT_THAT(impl, NotNull());
+
+  EXPECT_THAT(impl->InspectStackStructure(),
+              ElementsAre("RestStub", "LoggingStub", "StorageConnectionImpl"));
+}
+
+#endif  // GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
 
 #include "google/cloud/internal/disable_deprecation_warnings.inc"
 
@@ -252,11 +256,11 @@ TEST_F(ClientTest, DeprecatedButNotDecommissioned) {
 
 TEST_F(ClientTest, DeprecatedRetryPolicies) {
   auto constexpr kNumRetries = 2;
-  auto mock_b = absl::make_unique<MockBackoffPolicy>();
+  auto mock_b = std::make_unique<MockBackoffPolicy>();
   EXPECT_CALL(*mock_b, clone).WillOnce([=] {
-    auto clone_1 = absl::make_unique<MockBackoffPolicy>();
+    auto clone_1 = std::make_unique<MockBackoffPolicy>();
     EXPECT_CALL(*clone_1, clone).WillOnce([=] {
-      auto clone_2 = absl::make_unique<MockBackoffPolicy>();
+      auto clone_2 = std::make_unique<MockBackoffPolicy>();
       EXPECT_CALL(*clone_2, OnCompletion)
           .Times(kNumRetries)
           .WillRepeatedly(Return(std::chrono::milliseconds(0)));
@@ -272,7 +276,26 @@ TEST_F(ClientTest, DeprecatedRetryPolicies) {
 
   auto client = storage::Client(mock, LimitedErrorCountRetryPolicy(kNumRetries),
                                 std::move(*mock_b));
-  (void)client.ListBuckets();
+  (void)client.ListBuckets(OverrideDefaultProject("fake-project"));
+}
+
+TEST_F(ClientTest, DeprecatedClientFromMock) {
+  auto mock = std::make_shared<testing::MockClient>();
+  auto client = testing::ClientFromMock(mock);
+
+  internal::ListObjectsResponse response;
+  response.items.push_back(
+      ObjectMetadata{}.set_bucket("bucket").set_name("object/1"));
+  response.items.push_back(
+      ObjectMetadata{}.set_bucket("bucket").set_name("object/2"));
+  EXPECT_CALL(*mock, ListObjects)
+      .WillOnce(Return(TransientError()))
+      .WillOnce(Return(response));
+
+  auto stream = client.ListObjects("bucket", Prefix("object/"));
+  std::vector<StatusOr<ObjectMetadata>> objects{stream.begin(), stream.end()};
+  EXPECT_THAT(objects, ElementsAre(IsOkAndHolds(response.items[0]),
+                                   IsOkAndHolds(response.items[1])));
 }
 
 }  // namespace

@@ -16,8 +16,9 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_INTERNAL_ASYNC_READ_STREAM_IMPL_H
 
 #include "google/cloud/grpc_error_delegate.h"
+#include "google/cloud/internal/call_context.h"
 #include "google/cloud/internal/completion_queue_impl.h"
-#include "google/cloud/options.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/version.h"
 #include <grpcpp/support/async_stream.h>
 #include <memory>
@@ -140,7 +141,7 @@ class AsyncReadStreamImpl
    */
   template <typename AsyncFunctionType, typename Request>
   void Start(AsyncFunctionType&& async_call, Request const& request,
-             std::unique_ptr<grpc::ClientContext> context,
+             std::shared_ptr<grpc::ClientContext> context,
              std::shared_ptr<CompletionQueueImpl> cq) {
     // An adapter to call OnStart() via the completion queue.
     class NotifyStart final : public AsyncGrpcOperation {
@@ -151,19 +152,19 @@ class AsyncReadStreamImpl
      private:
       void Cancel() override {}  // LCOV_EXCL_LINE
       bool Notify(bool ok) override {
-        OptionsSpan span(options_);
+        ScopedCallContext scope(call_context_);
         control_->OnStart(ok);
         return true;
       }
       std::shared_ptr<AsyncReadStreamImpl> control_;
-      Options options_ = CurrentOptions();
+      CallContext call_context_;
     };
 
     context_ = std::move(context);
     cq_ = std::move(cq);
     auto callback = std::make_shared<NotifyStart>(this->shared_from_this());
     cq_->StartOperation(std::move(callback), [&](void* tag) {
-      // @note If the the `CompletionQueue` has been `Shutdown()` this lambda is
+      // @note If the `CompletionQueue` has been `Shutdown()` this lambda is
       //     never called. We leave `reader_` null in this case; other methods
       //     must make the same `tag != nullptr` check prior to accessing
       //     `reader_`.  This is safe since `Shutdown()` cannot be undone.
@@ -198,12 +199,12 @@ class AsyncReadStreamImpl
      private:
       void Cancel() override {}  // LCOV_EXCL_LINE
       bool Notify(bool ok) override {
-        OptionsSpan span(options_);
+        ScopedCallContext scope(call_context_);
         control_->OnRead(ok, std::move(response));
         return true;
       }
       std::shared_ptr<AsyncReadStreamImpl> control_;
-      Options options_ = CurrentOptions();
+      CallContext call_context_;
     };
 
     auto callback = std::make_shared<NotifyRead>(this->shared_from_this());
@@ -248,12 +249,12 @@ class AsyncReadStreamImpl
      private:
       void Cancel() override {}  // LCOV_EXCL_LINE
       bool Notify(bool ok) override {
-        OptionsSpan span(options_);
+        ScopedCallContext scope(call_context_);
         control_->OnFinish(ok, MakeStatusFromRpcError(status));
         return true;
       }
       std::shared_ptr<AsyncReadStreamImpl> control_;
-      Options options_ = CurrentOptions();
+      CallContext call_context_;
     };
 
     auto callback = std::make_shared<NotifyFinish>(this->shared_from_this());
@@ -264,8 +265,11 @@ class AsyncReadStreamImpl
 
   /// Handle the result of a Finish() request.
   void OnFinish(bool ok, Status status) {
-    on_finish_(ok ? std::move(status)
-                  : Status(StatusCode::kCancelled, "call cancelled"));
+    on_finish_(
+        ok ? std::move(status)
+           : internal::CancelledError("call cancelled",
+                                      GCP_ERROR_INFO().WithMetadata(
+                                          "gl-cpp.error.origin", "client")));
   }
 
   /**
@@ -288,12 +292,12 @@ class AsyncReadStreamImpl
      private:
       void Cancel() override {}  // LCOV_EXCL_LINE
       bool Notify(bool ok) override {
-        OptionsSpan span(options_);
+        ScopedCallContext scope(call_context_);
         control_->OnDiscard(ok, std::move(response));
         return true;
       }
       std::shared_ptr<AsyncReadStreamImpl> control_;
-      Options options_ = CurrentOptions();
+      CallContext call_context_;
     };
 
     auto callback = std::make_shared<NotifyDiscard>(this->shared_from_this());
@@ -315,9 +319,9 @@ class AsyncReadStreamImpl
                                OnFinishHandler&& on_finish)
       : on_read_(std::move(on_read)), on_finish_(std::move(on_finish)) {}
 
-  typename std::decay<OnReadHandler>::type on_read_;
-  typename std::decay<OnFinishHandler>::type on_finish_;
-  std::unique_ptr<grpc::ClientContext> context_;
+  std::decay_t<OnReadHandler> on_read_;
+  std::decay_t<OnFinishHandler> on_finish_;
+  std::shared_ptr<grpc::ClientContext> context_;
   std::shared_ptr<CompletionQueueImpl> cq_;
   std::unique_ptr<grpc::ClientAsyncReaderInterface<Response>> reader_;
 };
@@ -335,16 +339,19 @@ class AsyncReadStreamImpl
  */
 template <
     typename Response, typename OnReadHandler, typename OnFinishHandler,
-    typename std::enable_if<
+    std::enable_if_t<
         google::cloud::internal::is_invocable<OnReadHandler, Response>::value,
-        int>::type OnReadIsInvocableWithResponse = 0,
-    typename std::enable_if<
+        int>
+        OnReadIsInvocableWithResponse = 0,
+    std::enable_if_t<
         std::is_same<future<bool>, google::cloud::internal::invoke_result_t<
                                        OnReadHandler, Response>>::value,
-        int>::type OnReadReturnsFutureBool = 0,
-    typename std::enable_if<
+        int>
+        OnReadReturnsFutureBool = 0,
+    std::enable_if_t<
         google::cloud::internal::is_invocable<OnFinishHandler, Status>::value,
-        int>::type OnFinishIsInvocableWithStatus = 0>
+        int>
+        OnFinishIsInvocableWithStatus = 0>
 inline std::shared_ptr<
     AsyncReadStreamImpl<Response, OnReadHandler, OnFinishHandler>>
 MakeAsyncReadStreamImpl(OnReadHandler&& on_read, OnFinishHandler&& on_finish) {

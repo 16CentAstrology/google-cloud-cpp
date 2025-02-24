@@ -25,7 +25,10 @@ using ::testing::AtMost;
 
 std::unique_ptr<pubsub_testing::MockAsyncPullStream> FakeAsyncStreamingPull(
     google::cloud::CompletionQueue const& completion_queue,
-    std::unique_ptr<grpc::ClientContext>) {
+    // NOLINTNEXTLINE(performance-unnecessary-value-param)
+    std::shared_ptr<grpc::ClientContext>,
+    // NOLINTNEXTLINE(performance-unnecessary-value-param)
+    google::cloud::internal::ImmutableOptions) {
   using TimerFuture = future<StatusOr<std::chrono::system_clock::time_point>>;
   using us = std::chrono::microseconds;
 
@@ -76,7 +79,7 @@ std::unique_ptr<pubsub_testing::MockAsyncPullStream> FakeAsyncStreamingPull(
         [](TimerFuture) { return Status{}; });
   };
 
-  auto stream = absl::make_unique<pubsub_testing::MockAsyncPullStream>();
+  auto stream = std::make_unique<pubsub_testing::MockAsyncPullStream>();
   EXPECT_CALL(*stream, Start).WillOnce(start_response);
   EXPECT_CALL(*stream, Write).Times(AtLeast(1)).WillRepeatedly(write_response);
   EXPECT_CALL(*stream, Read).Times(AtLeast(1)).WillRepeatedly(read_response);

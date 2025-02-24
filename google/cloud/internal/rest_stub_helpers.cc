@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "google/cloud/internal/rest_stub_helpers.h"
+#include "google/cloud/internal/make_status.h"
 
 namespace google {
 namespace cloud {
@@ -26,25 +27,62 @@ Status RestResponseToProto(google::protobuf::Message& destination,
   }
   auto json_response =
       rest_internal::ReadAll(std::move(rest_response).ExtractPayload());
-  if (!json_response.ok()) return json_response.status();
-  auto json_to_proto_status =
-      google::protobuf::util::JsonStringToMessage(*json_response, &destination);
+  if (!json_response.ok()) return std::move(json_response).status();
+  google::protobuf::util::JsonParseOptions parse_options;
+  parse_options.ignore_unknown_fields = true;
+  auto json_to_proto_status = google::protobuf::util::JsonStringToMessage(
+      *json_response, &destination, parse_options);
   if (!json_to_proto_status.ok()) {
-    return Status{
-        StatusCode::kInternal, std::string{json_to_proto_status.message()}, {}};
+    return Status(
+        static_cast<StatusCode>(json_to_proto_status.code()),
+        std::string(json_to_proto_status.message()),
+        GCP_ERROR_INFO()
+            .WithReason("Failure creating proto Message from Json")
+            .WithMetadata("message_type", destination.GetTypeName())
+            .WithMetadata("json_string", *json_response)
+            .Build(static_cast<StatusCode>(json_to_proto_status.code())));
   }
   return {};
 }
 
-Status ProtoRequestToJsonPayload(google::protobuf::Message const& request,
-                                 std::string& json_payload) {
-  protobuf::util::Status proto_to_json_status =
-      protobuf::util::MessageToJsonString(request, &json_payload);
+StatusOr<std::string> ProtoRequestToJsonPayload(
+    google::protobuf::Message const& request, bool preserve_proto_field_names) {
+  std::string json_payload;
+  google::protobuf::util::JsonPrintOptions print_options;
+  print_options.preserve_proto_field_names = preserve_proto_field_names;
+  auto proto_to_json_status = google::protobuf::util::MessageToJsonString(
+      request, &json_payload, print_options);
+
   if (!proto_to_json_status.ok()) {
-    return Status{
-        StatusCode::kInternal, std::string{proto_to_json_status.message()}, {}};
+    return internal::InternalError(
+        std::string(proto_to_json_status.message()),
+        GCP_ERROR_INFO()
+            .WithReason("Failure converting proto request to HTTP")
+            .WithMetadata("message_type", request.GetTypeName()));
   }
-  return {};
+  return json_payload;
+}
+
+rest_internal::RestRequest CreateRestRequest(
+    std::string path,
+    std::vector<std::pair<std::string, std::string>> query_params) {
+  rest_internal::RestRequest rest_request;
+  rest_request.SetPath(std::move(path));
+  for (auto& p : query_params) {
+    rest_request.AddQueryParameter(std::move(p));
+  }
+  return rest_request;
+}
+
+std::vector<std::pair<std::string, std::string>> TrimEmptyQueryParameters(
+    std::vector<std::pair<std::string, std::string>> query_params) {
+  std::vector<std::pair<std::string, std::string>> trimmed_params;
+  for (auto& qp : query_params) {
+    if (!qp.first.empty() && !qp.second.empty()) {
+      trimmed_params.push_back(std::move(qp));
+    }
+  }
+  return trimmed_params;
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

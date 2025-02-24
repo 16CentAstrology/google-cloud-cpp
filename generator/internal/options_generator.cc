@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include "generator/internal/options_generator.h"
-#include "absl/memory/memory.h"
 #include "generator/internal/codegen_utils.h"
 #include "generator/internal/descriptor_utils.h"
 #include "generator/internal/predicate_utils.h"
@@ -28,10 +27,11 @@ OptionsGenerator::OptionsGenerator(
     google::protobuf::ServiceDescriptor const* service_descriptor,
     VarsDictionary service_vars,
     std::map<std::string, VarsDictionary> service_method_vars,
-    google::protobuf::compiler::GeneratorContext* context)
-    : ServiceCodeGenerator("options_header_path", service_descriptor,
-                           std::move(service_vars),
-                           std::move(service_method_vars), context) {}
+    google::protobuf::compiler::GeneratorContext* context,
+    std::vector<MixinMethod> const& mixin_methods)
+    : ServiceCodeGenerator(
+          "options_header_path", service_descriptor, std::move(service_vars),
+          std::move(service_method_vars), context, mixin_methods) {}
 
 Status OptionsGenerator::GenerateHeader() {
   HeaderPrint(CopyrightLicenseFileHeader());

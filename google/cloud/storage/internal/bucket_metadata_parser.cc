@@ -17,9 +17,14 @@
 #include "google/cloud/storage/internal/lifecycle_rule_parser.h"
 #include "google/cloud/storage/internal/metadata_parser.h"
 #include "google/cloud/storage/internal/object_access_control_parser.h"
+#include "google/cloud/internal/make_status.h"
 #include "absl/strings/str_format.h"
 #include <nlohmann/json.hpp>
 #include <functional>
+#include <map>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -88,7 +93,11 @@ Status ParseAutoclass(BucketMetadata& meta, nlohmann::json const& json) {
   if (!enabled) return std::move(enabled).status();
   auto toggle = internal::ParseTimestampField(*f, "toggleTime");
   if (!toggle) return std::move(toggle).status();
-  meta.set_autoclass(BucketAutoclass{*enabled, *toggle});
+  auto tsc = f->value("terminalStorageClass", "");
+  auto tscu =
+      internal::ParseTimestampField(*f, "terminalStorageClassUpdateTime");
+  if (!tscu) return std::move(tscu).status();
+  meta.set_autoclass(BucketAutoclass{*enabled, *toggle, std::move(tsc), *tscu});
   return Status{};
 }
 
@@ -117,18 +126,18 @@ Status ParseCustomPlacementConfig(BucketMetadata& meta,
                                   nlohmann::json const& json) {
   if (!json.contains("customPlacementConfig")) return Status{};
   auto const& field = json["customPlacementConfig"];
-  auto error = [] {
-    return Status{StatusCode::kInvalidArgument,
-                  "malformed customPlacementConfig"};
+  auto error = [](auto eib) {
+    return google::cloud::internal::InvalidArgumentError(
+        "malformed customPlacementConfig", std::move(eib));
   };
-  if (!field.is_object()) return error();
+  if (!field.is_object()) return error(GCP_ERROR_INFO());
   if (!field.contains("dataLocations")) return Status{};
   auto const& locations = field["dataLocations"];
-  if (!locations.is_array()) return error();
+  if (!locations.is_array()) return error(GCP_ERROR_INFO());
 
   BucketCustomPlacementConfig value;
   for (auto const& i : locations.items()) {
-    if (!i.value().is_string()) return error();
+    if (!i.value().is_string()) return error(GCP_ERROR_INFO());
     value.data_locations.push_back(i.value().get<std::string>());
   }
   meta.set_custom_placement_config(std::move(value));
@@ -153,6 +162,17 @@ Status ParseEncryption(BucketMetadata& meta, nlohmann::json const& json) {
     e.default_kms_key_name = json["encryption"].value("defaultKmsKeyName", "");
     meta.set_encryption(std::move(e));
   }
+  return Status{};
+}
+
+Status ParseHierarchicalNamespace(BucketMetadata& meta,
+                                  nlohmann::json const& json) {
+  auto const i = json.find("hierarchicalNamespace");
+  if (i == json.end()) return Status{};
+  if (!i->contains("enabled")) return Status{};
+  auto enabled = internal::ParseBoolField(*i, "enabled");
+  if (!enabled) return std::move(enabled).status();
+  meta.set_hierarchical_namespace(BucketHierarchicalNamespace{*enabled});
   return Status{};
 }
 
@@ -206,6 +226,14 @@ std::map<std::string, std::string> ParseLabels(nlohmann::json const& json) {
   return value;
 }
 
+Status ParseObjectRetention(BucketMetadata& meta, nlohmann::json const& json) {
+  auto l = json.find("objectRetention");
+  if (l == json.end()) return Status{};
+  auto enabled = l->value("mode", "") == "Enabled";
+  meta.set_object_retention(BucketObjectRetention{enabled});
+  return Status{};
+}
+
 Status ParseOwner(BucketMetadata& meta, nlohmann::json const& json) {
   if (!json.contains("owner")) return Status{};
   auto const& o = json["owner"];
@@ -227,6 +255,18 @@ Status ParseRetentionPolicy(BucketMetadata& meta, nlohmann::json const& json) {
   if (!effective_time) return std::move(effective_time).status();
   meta.set_retention_policy(BucketRetentionPolicy{
       std::chrono::seconds(*retention_period), *effective_time, *is_locked});
+  return Status{};
+}
+
+Status ParseSoftDeletePolicy(BucketMetadata& meta, nlohmann::json const& json) {
+  auto const l = json.find("softDeletePolicy");
+  if (l == json.end()) return Status{};
+  auto duration = internal::ParseLongField(*l, "retentionDurationSeconds");
+  if (!duration) return std::move(duration).status();
+  auto effective_time = internal::ParseTimestampField(*l, "effectiveTime");
+  if (!effective_time) return std::move(effective_time).status();
+  meta.set_soft_delete_policy(
+      BucketSoftDeletePolicy{std::chrono::seconds(*duration), *effective_time});
   return Status{};
 }
 
@@ -300,9 +340,11 @@ void ToJsonCors(nlohmann::json& json, BucketMetadata const& meta) {
 
 void ToJsonAutoclass(nlohmann::json& json, BucketMetadata const& meta) {
   if (!meta.has_autoclass()) return;
-  json["autoclass"] = nlohmann::json{
-      {"enabled", meta.autoclass().enabled},
-  };
+  auto a = nlohmann::json{{"enabled", meta.autoclass().enabled}};
+  if (!meta.autoclass().terminal_storage_class.empty()) {
+    a["terminalStorageClass"] = meta.autoclass().terminal_storage_class;
+  }
+  json["autoclass"] = std::move(a);
 }
 
 void ToJsonBilling(nlohmann::json& json, BucketMetadata const& meta) {
@@ -334,6 +376,13 @@ void ToJsonEncryption(nlohmann::json& json, BucketMetadata const& meta) {
   nlohmann::json e;
   SetIfNotEmpty(e, "defaultKmsKeyName", meta.encryption().default_kms_key_name);
   json["encryption"] = std::move(e);
+}
+
+void ToJsonHierarchicalNamespace(nlohmann::json& json,
+                                 BucketMetadata const& meta) {
+  if (!meta.has_hierarchical_namespace()) return;
+  json["hierarchicalNamespace"] =
+      nlohmann::json{{"enabled", meta.hierarchical_namespace().enabled}};
 }
 
 void ToJsonIamConfiguration(nlohmann::json& json, BucketMetadata const& meta) {
@@ -435,6 +484,13 @@ void ToJsonRpo(nlohmann::json& json, BucketMetadata const& meta) {
   SetIfNotEmpty(json, "rpo", meta.rpo());
 }
 
+void ToJsonSoftDeletePolicy(nlohmann::json& json, BucketMetadata const& meta) {
+  if (!meta.has_soft_delete_policy()) return;
+  json["softDeletePolicy"] =
+      nlohmann::json{{"retentionDurationSeconds",
+                      meta.soft_delete_policy().retention_duration.count()}};
+}
+
 void ToJsonStorageClass(nlohmann::json& json, BucketMetadata const& meta) {
   SetIfNotEmpty(json, "storageClass", meta.storage_class());
 }
@@ -464,9 +520,7 @@ void ToJsonCustomPlacementConfig(nlohmann::json& json,
 
 StatusOr<BucketMetadata> BucketMetadataParser::FromJson(
     nlohmann::json const& json) {
-  if (!json.is_object()) {
-    return Status(StatusCode::kInvalidArgument, __func__);
-  }
+  if (!json.is_object()) return NotJsonObject(json, GCP_ERROR_INFO());
 
   using Parser = std::function<Status(BucketMetadata&, nlohmann::json const&)>;
   Parser parsers[] = {
@@ -488,6 +542,7 @@ StatusOr<BucketMetadata> BucketMetadataParser::FromJson(
         meta.set_etag(json.value("etag", ""));
         return Status{};
       },
+      ParseHierarchicalNamespace,
       ParseIamConfiguration,
       [](BucketMetadata& meta, nlohmann::json const& json) {
         meta.set_id(json.value("id", ""));
@@ -527,6 +582,7 @@ StatusOr<BucketMetadata> BucketMetadataParser::FromJson(
         meta.set_project_number(*v);
         return Status{};
       },
+      ParseObjectRetention,
       ParseOwner,
       ParseRetentionPolicy,
       [](BucketMetadata& meta, nlohmann::json const& json) {
@@ -537,6 +593,7 @@ StatusOr<BucketMetadata> BucketMetadataParser::FromJson(
         meta.set_self_link(json.value("selfLink", ""));
         return Status{};
       },
+      ParseSoftDeletePolicy,
       [](BucketMetadata& meta, nlohmann::json const& json) {
         meta.set_storage_class(json.value("storageClass", ""));
         return Status{};
@@ -575,6 +632,7 @@ std::string BucketMetadataToJsonString(BucketMetadata const& meta) {
   ToJsonDefaultEventBasedHold(json, meta);
   ToJsonDefaultAcl(json, meta);
   ToJsonEncryption(json, meta);
+  ToJsonHierarchicalNamespace(json, meta);
   ToJsonIamConfiguration(json, meta);
   ToJsonLabels(json, meta);
   ToJsonLifecycle(json, meta);
@@ -584,6 +642,7 @@ std::string BucketMetadataToJsonString(BucketMetadata const& meta) {
   ToJsonName(json, meta);
   ToJsonRetentionPolicy(json, meta);
   ToJsonRpo(json, meta);
+  ToJsonSoftDeletePolicy(json, meta);
   ToJsonStorageClass(json, meta);
   ToJsonVersioning(json, meta);
   ToJsonWebsite(json, meta);

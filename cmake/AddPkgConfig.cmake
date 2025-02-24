@@ -35,18 +35,58 @@ macro (google_cloud_cpp_set_pkgconfig_paths)
 endmacro ()
 
 #
-# Implementation to create the pkgconfig configuration file (aka *.pc file) and
-# the rules to install it.
+# Create the pkgconfig configuration file (aka *.pc file) and the rules to
+# install it.
 #
 # * library: the name of the library, such as `storage`, or `spanner`
 # * ARGN: the names of any pkgconfig modules the generated module depends on
 #
-function (google_cloud_cpp_add_pkgconfig_impl library name description pc_libs)
+function (google_cloud_cpp_add_pkgconfig library name description)
+    cmake_parse_arguments(
+        _opt "WITH_SHORT_TARGET" ""
+        "LIBS;WIN32_LIBS;NON_WIN32_LIBS;WIN32_REQUIRES;NON_WIN32_REQUIRES"
+        ${ARGN})
+    if (_opt_WITH_SHORT_TARGET)
+        set(target "${library}")
+    else ()
+        set(target "google_cloud_cpp_${library}")
+    endif ()
     set(GOOGLE_CLOUD_CPP_PC_NAME "${name}")
     set(GOOGLE_CLOUD_CPP_PC_DESCRIPTION "${description}")
-    set(GOOGLE_CLOUD_CPP_PC_LIBS "${pc_libs}")
-    string(CONCAT GOOGLE_CLOUD_CPP_PC_REQUIRES ${ARGN})
+    string(JOIN " " GOOGLE_CLOUD_CPP_PC_REQUIRES ${_opt_UNPARSED_ARGUMENTS})
     google_cloud_cpp_set_pkgconfig_paths()
+    get_target_property(target_type ${target} TYPE)
+    if ("${target_type}" STREQUAL "INTERFACE_LIBRARY")
+        # Interface libraries only contain headers. They do not generate lib
+        # files to link against with `-l`.
+        set(GOOGLE_CLOUD_CPP_PC_LIBS "")
+    else ()
+        set(GOOGLE_CLOUD_CPP_PC_LIBS "-lgoogle_cloud_cpp_${library}")
+    endif ()
+    list(TRANSFORM _opt_LIBS PREPEND "-l" OUTPUT_VARIABLE _opt_LIBS)
+    string(JOIN " " GOOGLE_CLOUD_CPP_PC_LIBS "${GOOGLE_CLOUD_CPP_PC_LIBS}"
+           ${_opt_LIBS})
+    if (WIN32)
+        list(TRANSFORM _opt_WIN32_LIBS PREPEND "-l" OUTPUT_VARIABLE
+                                                    _opt_WIN32_LIBS)
+        string(JOIN " " GOOGLE_CLOUD_CPP_PC_LIBS "${GOOGLE_CLOUD_CPP_PC_LIBS}"
+               ${_opt_WIN32_LIBS})
+        string(JOIN " " GOOGLE_CLOUD_CPP_PC_REQUIRES
+               "${GOOGLE_CLOUD_CPP_PC_REQUIRES}" ${_opt_WIN32_REQUIRES})
+    else ()
+        list(TRANSFORM _opt_NON_WIN32_LIBS PREPEND "-l" OUTPUT_VARIABLE
+                                                        _opt_NON_WIN32_LIBS)
+        string(JOIN " " GOOGLE_CLOUD_CPP_PC_LIBS "${GOOGLE_CLOUD_CPP_PC_LIBS}"
+               ${_opt_NON_WIN32_LIBS})
+        string(JOIN " " GOOGLE_CLOUD_CPP_PC_REQUIRES
+               "${GOOGLE_CLOUD_CPP_PC_REQUIRES}" ${_opt_NON_WIN32_REQUIRES})
+    endif ()
+    get_target_property(target_defs ${target} INTERFACE_COMPILE_DEFINITIONS)
+    if (target_defs)
+        foreach (def ${target_defs})
+            string(APPEND GOOGLE_CLOUD_CPP_PC_CFLAGS " -D${def}")
+        endforeach ()
+    endif ()
 
     # Create and install the pkg-config files.
     configure_file("${PROJECT_SOURCE_DIR}/cmake/templates/config.pc.in"
@@ -55,29 +95,4 @@ function (google_cloud_cpp_add_pkgconfig_impl library name description pc_libs)
         FILES "${CMAKE_CURRENT_BINARY_DIR}/google_cloud_cpp_${library}.pc"
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
         COMPONENT google_cloud_cpp_development)
-endfunction ()
-
-#
-# Create the pkgconfig configuration file (aka *.pc file) and the rules to
-# install it.
-#
-# * library: the name of the library, such as `storage`, or `spanner`
-# * ARGN: the names of any pkgconfig modules the generated module depends on
-#
-function (google_cloud_cpp_add_pkgconfig library name description)
-    google_cloud_cpp_add_pkgconfig_impl("${library}" "${name}" "${description}"
-                                        "-lgoogle_cloud_cpp_${library}" ${ARGN})
-endfunction ()
-
-#
-# Create the pkgconfig configuration file (aka *.pc file) and the rules to
-# install it for an interface library. These libraries only contain headers, so
-# they do not generate lib files to link against with `-l`.
-#
-# * library: the name of the library, such as `storage`, or `spanner`
-# * ARGN: the names of any pkgconfig modules the generated module depends on
-#
-function (google_cloud_cpp_add_pkgconfig_interface library name description)
-    google_cloud_cpp_add_pkgconfig_impl("${library}" "${name}" "${description}"
-                                        "" ${ARGN})
 endfunction ()

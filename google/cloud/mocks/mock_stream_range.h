@@ -24,8 +24,9 @@ namespace cloud {
 /**
  * Contains helpers for testing the Google Cloud C++ Client Libraries.
  *
- * The symbols defined in this namespace are offered for public consumption.
- * They are not just for maintainers of the client library.
+ * The symbols defined in this namespace are part of `google-cloud-cpp`'s public
+ * API. Application developers may use them when mocking the client libraries in
+ * their own tests.
  */
 namespace mocks {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
@@ -38,12 +39,12 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  *
  * @code
  * auto sr = MakeStreamRange<T>({t1, t2});
- * for (StatusOr<int> const& v : sr) {
+ * for (StatusOr<T> const& t : sr) {
  *   // Yields t1 -> t2
  * }
  *
  * sr = MakeStreamRange<T>({t1, t2}, BadStatus());
- * for (StatusOr<int> const& v : sr) {
+ * for (StatusOr<T> const& t : sr) {
  *   // Yields t1 -> t2 -> BadStatus()
  * }
  * @endcode

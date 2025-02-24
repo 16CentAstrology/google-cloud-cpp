@@ -17,7 +17,6 @@
 // source: google/cloud/dialogflow/v2/conversation_dataset.proto
 
 #include "google/cloud/dialogflow_es/conversation_datasets_connection_idempotency_policy.h"
-#include "absl/memory/memory.h"
 #include <memory>
 
 namespace google {
@@ -32,7 +31,7 @@ ConversationDatasetsConnectionIdempotencyPolicy::
 
 std::unique_ptr<ConversationDatasetsConnectionIdempotencyPolicy>
 ConversationDatasetsConnectionIdempotencyPolicy::clone() const {
-  return absl::make_unique<ConversationDatasetsConnectionIdempotencyPolicy>(
+  return std::make_unique<ConversationDatasetsConnectionIdempotencyPolicy>(
       *this);
 }
 
@@ -66,9 +65,34 @@ ConversationDatasetsConnectionIdempotencyPolicy::ImportConversationData(
   return Idempotency::kNonIdempotent;
 }
 
+Idempotency ConversationDatasetsConnectionIdempotencyPolicy::ListLocations(
+    google::cloud::location::ListLocationsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency ConversationDatasetsConnectionIdempotencyPolicy::GetLocation(
+    google::cloud::location::GetLocationRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency ConversationDatasetsConnectionIdempotencyPolicy::ListOperations(
+    google::longrunning::ListOperationsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency ConversationDatasetsConnectionIdempotencyPolicy::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency ConversationDatasetsConnectionIdempotencyPolicy::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
 std::unique_ptr<ConversationDatasetsConnectionIdempotencyPolicy>
 MakeDefaultConversationDatasetsConnectionIdempotencyPolicy() {
-  return absl::make_unique<ConversationDatasetsConnectionIdempotencyPolicy>();
+  return std::make_unique<ConversationDatasetsConnectionIdempotencyPolicy>();
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

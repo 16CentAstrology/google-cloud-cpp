@@ -21,12 +21,12 @@ namespace oauth2_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
-inline bool ExpiringSoon(internal::AccessToken const& token,
+inline bool ExpiringSoon(AccessToken const& token,
                          std::chrono::system_clock::time_point now) {
   return now + GoogleOAuthAccessTokenExpirationSlack() >= token.expiration;
 }
 
-inline bool Expired(internal::AccessToken const& token,
+inline bool Expired(AccessToken const& token,
                     std::chrono::system_clock::time_point now) {
   return now >= token.expiration;
 }
@@ -38,7 +38,7 @@ CachedCredentials::CachedCredentials(std::shared_ptr<Credentials> impl)
 
 CachedCredentials::~CachedCredentials() = default;
 
-StatusOr<internal::AccessToken> CachedCredentials::GetToken(
+StatusOr<AccessToken> CachedCredentials::GetToken(
     std::chrono::system_clock::time_point now) {
   std::lock_guard<std::mutex> lk(mu_);
   if (!ExpiringSoon(token_, now)) return token_;
@@ -64,6 +64,24 @@ std::string CachedCredentials::AccountEmail() const {
 }
 
 std::string CachedCredentials::KeyId() const { return impl_->KeyId(); }
+
+StatusOr<std::string> CachedCredentials::universe_domain() const {
+  return impl_->universe_domain();
+}
+
+StatusOr<std::string> CachedCredentials::universe_domain(
+    Options const& options) const {
+  return impl_->universe_domain(options);
+}
+
+StatusOr<std::string> CachedCredentials::project_id() const {
+  return impl_->project_id();
+}
+
+StatusOr<std::string> CachedCredentials::project_id(
+    Options const& options) const {
+  return impl_->project_id(options);
+}
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace oauth2_internal

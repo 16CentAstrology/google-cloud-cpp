@@ -18,6 +18,7 @@
 
 #include "google/cloud/pubsublite/admin_client.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -237,6 +238,21 @@ AdminServiceClient::SeekSubscription(
   return connection_->SeekSubscription(request);
 }
 
+StatusOr<google::longrunning::Operation> AdminServiceClient::SeekSubscription(
+    NoAwaitTag,
+    google::cloud::pubsublite::v1::SeekSubscriptionRequest const& request,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->SeekSubscription(NoAwaitTag{}, request);
+}
+
+future<StatusOr<google::cloud::pubsublite::v1::SeekSubscriptionResponse>>
+AdminServiceClient::SeekSubscription(
+    google::longrunning::Operation const& operation, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->SeekSubscription(operation);
+}
+
 StatusOr<google::cloud::pubsublite::v1::Reservation>
 AdminServiceClient::CreateReservation(
     std::string const& parent,
@@ -337,6 +353,63 @@ StreamRange<std::string> AdminServiceClient::ListReservationTopics(
     Options opts) {
   internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
   return connection_->ListReservationTopics(std::move(request));
+}
+
+StreamRange<google::longrunning::Operation> AdminServiceClient::ListOperations(
+    std::string const& name, std::string const& filter, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::longrunning::ListOperationsRequest request;
+  request.set_name(name);
+  request.set_filter(filter);
+  return connection_->ListOperations(request);
+}
+
+StreamRange<google::longrunning::Operation> AdminServiceClient::ListOperations(
+    google::longrunning::ListOperationsRequest request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->ListOperations(std::move(request));
+}
+
+StatusOr<google::longrunning::Operation> AdminServiceClient::GetOperation(
+    std::string const& name, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::longrunning::GetOperationRequest request;
+  request.set_name(name);
+  return connection_->GetOperation(request);
+}
+
+StatusOr<google::longrunning::Operation> AdminServiceClient::GetOperation(
+    google::longrunning::GetOperationRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->GetOperation(request);
+}
+
+Status AdminServiceClient::DeleteOperation(std::string const& name,
+                                           Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::longrunning::DeleteOperationRequest request;
+  request.set_name(name);
+  return connection_->DeleteOperation(request);
+}
+
+Status AdminServiceClient::DeleteOperation(
+    google::longrunning::DeleteOperationRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->DeleteOperation(request);
+}
+
+Status AdminServiceClient::CancelOperation(std::string const& name,
+                                           Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::longrunning::CancelOperationRequest request;
+  request.set_name(name);
+  return connection_->CancelOperation(request);
+}
+
+Status AdminServiceClient::CancelOperation(
+    google::longrunning::CancelOperationRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->CancelOperation(request);
 }
 
 future<StatusOr<google::cloud::pubsublite::v1::TopicPartitions>>

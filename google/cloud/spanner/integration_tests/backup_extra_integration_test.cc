@@ -101,7 +101,7 @@ TEST_F(BackupExtraIntegrationTest, BackupRestoreWithVersionTime) {
       generator_, ProjectId(),
       "(labels.restore-database-partition:legacy-extra OR"
       " labels.restore-database-partition:all)");
-  ASSERT_THAT(instance_id, IsOk()) << instance_id.status();
+  ASSERT_THAT(instance_id, IsOk());
   Instance in(ProjectId(), *instance_id);
   Database db(in, spanner_testing::RandomDatabaseName(generator_));
 
@@ -118,7 +118,7 @@ TEST_F(BackupExtraIntegrationTest, BackupRestoreWithVersionTime) {
     EXPECT_THAT(database, Not(IsOk()));
     return;
   }
-  ASSERT_THAT(database, IsOk()) << database.status();
+  ASSERT_THAT(database, IsOk());
   auto create_time =
       MakeTimestamp(database->create_time()).value().get<absl::Time>().value();
 
@@ -236,9 +236,9 @@ TEST_F(BackupExtraIntegrationTest, BackupRestoreWithVersionTime) {
 
 /// @test Verify creating a backup with an expired version_time fails.
 TEST_F(BackupExtraIntegrationTest, BackupWithExpiredVersionTime) {
-  auto instance_id =
-      spanner_testing::PickRandomInstance(generator_, ProjectId());
-  ASSERT_THAT(instance_id, IsOk()) << instance_id.status();
+  auto instance_id = spanner_testing::PickRandomInstance(
+      generator_, ProjectId(), "NOT labels.edition:enterprise");
+  ASSERT_THAT(instance_id, IsOk());
   Instance in(ProjectId(), *instance_id);
   Database db(in, spanner_testing::RandomDatabaseName(generator_));
 
@@ -251,7 +251,7 @@ TEST_F(BackupExtraIntegrationTest, BackupWithExpiredVersionTime) {
     EXPECT_THAT(database, Not(IsOk()));
     return;
   }
-  ASSERT_THAT(database, IsOk()) << database.status();
+  ASSERT_THAT(database, IsOk());
 
   auto create_time =
       MakeTimestamp(database->create_time()).value().get<absl::Time>().value();
@@ -273,9 +273,9 @@ TEST_F(BackupExtraIntegrationTest, BackupWithExpiredVersionTime) {
 
 /// @test Verify creating a backup with a future version_time fails.
 TEST_F(BackupExtraIntegrationTest, BackupWithFutureVersionTime) {
-  auto instance_id =
-      spanner_testing::PickRandomInstance(generator_, ProjectId());
-  ASSERT_THAT(instance_id, IsOk()) << instance_id.status();
+  auto instance_id = spanner_testing::PickRandomInstance(
+      generator_, ProjectId(), "NOT labels.edition:enterprise");
+  ASSERT_THAT(instance_id, IsOk());
   Instance in(ProjectId(), *instance_id);
   Database db(in, spanner_testing::RandomDatabaseName(generator_));
 
@@ -288,7 +288,7 @@ TEST_F(BackupExtraIntegrationTest, BackupWithFutureVersionTime) {
     EXPECT_THAT(database, Not(IsOk()));
     return;
   }
-  ASSERT_THAT(database, IsOk()) << database.status();
+  ASSERT_THAT(database, IsOk());
 
   auto create_time =
       MakeTimestamp(database->create_time()).value().get<absl::Time>().value();

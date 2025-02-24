@@ -14,13 +14,15 @@
 
 #include "google/cloud/common_options.h"
 #include "google/cloud/credentials.h"
-#include "google/cloud/internal/curl_http_payload.h"
+#include "google/cloud/internal/api_client_header.h"
 #include "google/cloud/internal/curl_options.h"
 #include "google/cloud/internal/getenv.h"
 #include "google/cloud/internal/rest_client.h"
 #include "google/cloud/log.h"
-#include "google/cloud/testing_util/contains_once.h"
+#include "google/cloud/testing_util/chrono_output.h"
 #include "google/cloud/testing_util/status_matchers.h"
+#include "absl/strings/match.h"
+#include "absl/strings/str_split.h"
 #include <gmock/gmock.h>
 #include <nlohmann/json.hpp>
 
@@ -30,24 +32,34 @@ namespace rest_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
-using ::google::cloud::testing_util::ContainsOnce;
 using ::testing::_;
+using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::Not;
-using ::testing::NotNull;
 using ::testing::Pair;
+using ::testing::ResultOf;
+using ::testing::StartsWith;
+
+std::map<std::string, std::string> ExtractHeaders(
+    nlohmann::json const& parsed_response) {
+  auto sent_headers = parsed_response.find("headers");
+  if (sent_headers == parsed_response.end()) return {};
+  std::map<std::string, std::string> result;
+  for (auto const& kv : sent_headers->items()) {
+    if (!kv.value().is_string()) return {};
+    result[kv.key()] = kv.value().get<std::string>();
+  }
+  return result;
+}
 
 class RestClientIntegrationTest : public ::testing::Test {
  protected:
   void SetUp() override {
     auto httpbin_endpoint = google::cloud::internal::GetEnv("HTTPBIN_ENDPOINT");
-    if (httpbin_endpoint) {
-      url_ = *httpbin_endpoint;
-    } else {
-      url_ = "https://httpbin.org";
-    }
+    if (!httpbin_endpoint) GTEST_SKIP();
+    url_ = *httpbin_endpoint;
 
     json_payload_ = R"""({
     "type": "service_account",
@@ -79,9 +91,7 @@ class RestClientIntegrationTest : public ::testing::Test {
 
     EXPECT_THAT(headers,
                 Contains(std::make_pair("content-type", "application/json")));
-    std::unique_ptr<HttpPayload> payload =
-        std::move(*response).ExtractPayload();
-    auto body = ReadAll(std::move(payload));
+    auto body = ReadAll(std::move(*response).ExtractPayload());
     EXPECT_STATUS_OK(body);
     auto parsed_response = nlohmann::json::parse(*body, nullptr, false);
     EXPECT_FALSE(parsed_response.is_discarded());
@@ -91,25 +101,23 @@ class RestClientIntegrationTest : public ::testing::Test {
     ASSERT_FALSE(http_method == parsed_response.end());
     EXPECT_THAT(http_method.value(), Eq(method));
 
-    auto sent_headers = parsed_response.find("headers");
-    ASSERT_FALSE(sent_headers == parsed_response.end());
-    auto content_type = sent_headers->find("Content-Type");
-    ASSERT_FALSE(content_type == sent_headers->end());
-    EXPECT_THAT(content_type.value(), Eq("application/json"));
-    auto x_goog_api_client = sent_headers->find("X-Goog-Api-Client");
-    ASSERT_FALSE(x_goog_api_client == sent_headers->end());
-    EXPECT_THAT(x_goog_api_client.value(), HasSubstr("gl-cpp/"));
-    EXPECT_THAT(x_goog_api_client.value(), HasSubstr("gccl/"));
-    auto user_agent = sent_headers->find("User-Agent");
-    ASSERT_FALSE(user_agent == sent_headers->end());
-    EXPECT_THAT(user_agent.value(), HasSubstr("gcloud-cpp/"));
+    EXPECT_THAT(
+        parsed_response,
+        ResultOf(ExtractHeaders,
+                 AllOf(Contains(Pair("Content-Type", "application/json")),
+                       Contains(Pair("User-Agent", HasSubstr("gl-cpp/"))),
+                       // The metadata decorator adds this header, the
+                       // `CurlRestClient` should not duplicate it.
+                       Not(Contains(Pair("X-Goog-Api-Client", _))))));
+
     // TODO(#8396): httbin.org doesn't send back our content-length header on
     //  PUT methods.
     if (method == "POST" && request_content_length) {
-      auto sent_content_length = sent_headers->find("Content-Length");
-      ASSERT_FALSE(sent_content_length == sent_headers->end());
-      EXPECT_THAT(std::string(sent_content_length.value()),
-                  Eq(std::to_string(*request_content_length)));
+      EXPECT_THAT(
+          parsed_response,
+          ResultOf(ExtractHeaders,
+                   Contains(Pair("Content-Length",
+                                 std::to_string(*request_content_length)))));
     }
 
     auto response_json = parsed_response.find("json");
@@ -142,13 +150,15 @@ TEST_F(RestClientIntegrationTest, Get) {
   auto client = MakeDefaultRestClient(url_, {});
   RestRequest request;
   request.SetPath("get");
-  auto response_status = RetryRestRequest([&] { return client->Get(request); });
+  auto response_status = RetryRestRequest([&] {
+    rest_internal::RestContext context;
+    return client->Get(context, request);
+  });
   ASSERT_STATUS_OK(response_status);
   auto response = std::move(response_status.value());
   EXPECT_THAT(response->StatusCode(), Eq(HttpStatusCode::kOk));
   EXPECT_GT(response->Headers().size(), 0);
-  std::unique_ptr<HttpPayload> payload = std::move(*response).ExtractPayload();
-  auto body = ReadAll(std::move(payload));
+  auto body = ReadAll(std::move(*response).ExtractPayload());
   EXPECT_STATUS_OK(body);
   EXPECT_GT(body->size(), 0);
 }
@@ -160,14 +170,15 @@ TEST_F(RestClientIntegrationTest, Delete) {
   RestRequest request;
   request.SetPath("delete");
   request.AddQueryParameter({"key", "value"});
-  auto response_status =
-      RetryRestRequest([&] { return client->Delete(request); });
+  auto response_status = RetryRestRequest([&] {
+    rest_internal::RestContext context;
+    return client->Delete(context, request);
+  });
   ASSERT_STATUS_OK(response_status);
   auto response = std::move(response_status.value());
   EXPECT_THAT(response->StatusCode(), Eq(HttpStatusCode::kOk));
   EXPECT_GT(response->Headers().size(), 0);
-  std::unique_ptr<HttpPayload> payload = std::move(*response).ExtractPayload();
-  auto body = ReadAll(std::move(payload));
+  auto body = ReadAll(std::move(*response).ExtractPayload());
   EXPECT_STATUS_OK(body);
   EXPECT_GT(body->size(), 0);
   auto parsed_response = nlohmann::json::parse(*body, nullptr, false);
@@ -190,12 +201,13 @@ TEST_F(RestClientIntegrationTest, PatchJsonContentType) {
   request.AddQueryParameter({"project_id", "foo-project"});
   absl::Span<char const> span = absl::MakeConstSpan(patch_json_payload);
   request.AddHeader("content-type", "application/json");
-  auto response_status =
-      RetryRestRequest([&] { return client->Patch(request, {span}); });
+  auto response_status = RetryRestRequest([&] {
+    rest_internal::RestContext context;
+    return client->Patch(context, request, {span});
+  });
   ASSERT_STATUS_OK(response_status);
   auto response = std::move(response_status.value());
-  std::unique_ptr<HttpPayload> payload = std::move(*response).ExtractPayload();
-  auto body = ReadAll(std::move(payload));
+  auto body = ReadAll(std::move(*response).ExtractPayload());
   EXPECT_STATUS_OK(body);
   EXPECT_GT(body->size(), 0);
   auto parsed_response = nlohmann::json::parse(*body, nullptr, false);
@@ -220,8 +232,10 @@ TEST_F(RestClientIntegrationTest, AnythingPostNoContentType) {
   request.SetPath("anything");
 
   absl::Span<char const> span = absl::MakeConstSpan(json_payload_);
-  auto response_status =
-      RetryRestRequest([&] { return client->Post(request, {span}); });
+  auto response_status = RetryRestRequest([&] {
+    rest_internal::RestContext context;
+    return client->Post(context, request, {span});
+  });
   ASSERT_STATUS_OK(response_status);
   auto response = std::move(response_status.value());
   EXPECT_THAT(response->StatusCode(), Eq(HttpStatusCode::kOk));
@@ -234,8 +248,7 @@ TEST_F(RestClientIntegrationTest, AnythingPostNoContentType) {
 
   EXPECT_THAT(headers, testing::Contains(
                            std::make_pair("content-type", "application/json")));
-  std::unique_ptr<HttpPayload> payload = std::move(*response).ExtractPayload();
-  auto body = ReadAll(std::move(payload));
+  auto body = ReadAll(std::move(*response).ExtractPayload());
   EXPECT_STATUS_OK(body);
   auto parsed_response = nlohmann::json::parse(*body, nullptr, false);
   EXPECT_FALSE(parsed_response.is_discarded());
@@ -266,10 +279,70 @@ TEST_F(RestClientIntegrationTest, AnythingPostJsonContentType) {
 
   absl::Span<char const> span = absl::MakeConstSpan(json_payload_);
   request.AddHeader("content-type", "application/json");
-  auto response_status =
-      RetryRestRequest([&] { return client->Post(request, {span}); });
+  auto response_status = RetryRestRequest([&] {
+    rest_internal::RestContext context;
+    return client->Post(context, request, {span});
+  });
   VerifyJsonPayloadResponse("POST", json_payload_, std::move(response_status),
                             json_payload_.size());
+}
+
+TEST_F(RestClientIntegrationTest, AnythingGetVerifyHeaders) {
+  options_.set<UnifiedCredentialsOption>(MakeInsecureCredentials());
+  auto client = MakeDefaultRestClient(url_, options_);
+  RestRequest request;
+  request.SetPath("anything");
+
+  auto response = RetryRestRequest([&] {
+    rest_internal::RestContext context;
+    return client->Get(context, request);
+  });
+  ASSERT_STATUS_OK(response);
+  auto body = ReadAll(std::move(**response).ExtractPayload());
+  EXPECT_STATUS_OK(body);
+  auto parsed_response = nlohmann::json::parse(*body, nullptr, false);
+  ASSERT_TRUE(parsed_response.is_object());
+
+  auto http_method = parsed_response.find("method");
+  ASSERT_FALSE(http_method == parsed_response.end());
+  EXPECT_THAT(http_method.value(), Eq("GET"));
+
+  EXPECT_THAT(parsed_response,
+              ResultOf("sent headers are", ExtractHeaders,
+                       AllOf(Contains(Pair("User-Agent", HasSubstr("gl-cpp/"))),
+                             Not(Contains(Pair("X-Goog-Api-Client", _))))));
+}
+
+TEST_F(RestClientIntegrationTest, AnythingGetVerifyHeadersAsIfDecorated) {
+  options_.set<UnifiedCredentialsOption>(MakeInsecureCredentials());
+  auto client = MakeDefaultRestClient(url_, options_);
+  RestRequest request;
+  request.SetPath("anything");
+
+  auto response = RetryRestRequest([&] {
+    rest_internal::RestContext context;
+    context.AddHeader("x-goog-api-client",
+                      internal::GeneratedLibClientHeader());
+    return client->Get(context, request);
+  });
+  ASSERT_STATUS_OK(response);
+  auto body = ReadAll(std::move(**response).ExtractPayload());
+  EXPECT_STATUS_OK(body);
+  auto parsed_response = nlohmann::json::parse(*body, nullptr, false);
+  ASSERT_TRUE(parsed_response.is_object());
+
+  auto http_method = parsed_response.find("method");
+  ASSERT_FALSE(http_method == parsed_response.end());
+  EXPECT_THAT(http_method.value(), Eq("GET"));
+
+  EXPECT_THAT(
+      parsed_response,
+      ResultOf(
+          "sent headers are", ExtractHeaders,
+          AllOf(Contains(Pair("User-Agent", HasSubstr("gl-cpp/"))),
+                Contains(Pair("X-Goog-Api-Client",
+                              AllOf(HasSubstr("gl-cpp/"), HasSubstr("gapic/"),
+                                    Not(HasSubstr("gccl/"))))))));
 }
 
 TEST_F(RestClientIntegrationTest, AnythingPutJsonContentTypeSingleSpan) {
@@ -280,8 +353,10 @@ TEST_F(RestClientIntegrationTest, AnythingPutJsonContentTypeSingleSpan) {
 
   absl::Span<char const> span = absl::MakeConstSpan(json_payload_);
   request.AddHeader("content-type", "application/json");
-  auto response_status =
-      RetryRestRequest([&] { return client->Put(request, {span}); });
+  auto response_status = RetryRestRequest([&] {
+    rest_internal::RestContext context;
+    return client->Put(context, request, {span});
+  });
   VerifyJsonPayloadResponse("PUT", json_payload_, std::move(response_status),
                             json_payload_.size());
 }
@@ -304,7 +379,8 @@ TEST_F(RestClientIntegrationTest, AnythingPutJsonContentTypeTwoSpans) {
       concat.data() + payload1.size() + gap.size(), payload2.size());
   request.AddHeader("content-type", "application/json");
   auto response_status = RetryRestRequest([&] {
-    return client->Put(request, {span1, span2});
+    rest_internal::RestContext context;
+    return client->Put(context, request, {span1, span2});
   });
   VerifyJsonPayloadResponse("PUT", json_payload_, std::move(response_status),
                             span1.size() + span2.size());
@@ -326,7 +402,8 @@ TEST_F(RestClientIntegrationTest, AnythingPutJsonContentTypeEmptyMiddleSpan) {
   absl::Span<char const> span2 = absl::MakeConstSpan(payload2);
   request.AddHeader("content-type", "application/json");
   auto response_status = RetryRestRequest([&] {
-    return client->Put(request, {span1, empty_span, span2});
+    rest_internal::RestContext context;
+    return client->Put(context, request, {span1, empty_span, span2});
   });
   VerifyJsonPayloadResponse("PUT", json_payload_, std::move(response_status),
                             span1.size() + empty_span.size() + span2.size());
@@ -348,7 +425,8 @@ TEST_F(RestClientIntegrationTest, AnythingPutJsonContentTypeEmptyFirstSpan) {
   absl::Span<char const> span2 = absl::MakeConstSpan(payload2);
   request.AddHeader("content-type", "application/json");
   auto response_status = RetryRestRequest([&] {
-    return client->Put(request, {empty_span, span1, span2});
+    rest_internal::RestContext context;
+    return client->Put(context, request, {empty_span, span1, span2});
   });
   VerifyJsonPayloadResponse("PUT", json_payload_, std::move(response_status),
                             span1.size() + empty_span.size() + span2.size());
@@ -367,7 +445,9 @@ TEST_F(RestClientIntegrationTest, ResponseBodyLargerThanSpillBuffer) {
   request.SetPath("anything");
   request.AddHeader("content-type", "application/json");
   auto response_status = RetryRestRequest([&] {
-    return client->Put(request, {absl::MakeConstSpan(large_json_payload)});
+    rest_internal::RestContext context;
+    return client->Put(context, request,
+                       {absl::MakeConstSpan(large_json_payload)});
   });
   VerifyJsonPayloadResponse("PUT", large_json_payload,
                             std::move(response_status),
@@ -391,8 +471,10 @@ TEST_F(RestClientIntegrationTest, PostFormData) {
   form_data.push_back(form_pair_2);
   form_data.push_back(form_pair_3);
 
-  auto response_status =
-      RetryRestRequest([&] { return client->Post(request, form_data); });
+  auto response_status = RetryRestRequest([&] {
+    rest_internal::RestContext context;
+    return client->Post(context, request, form_data);
+  });
   ASSERT_STATUS_OK(response_status);
   auto response = std::move(response_status.value());
   EXPECT_THAT(response->StatusCode(), Eq(HttpStatusCode::kOk));
@@ -403,8 +485,7 @@ TEST_F(RestClientIntegrationTest, PostFormData) {
   ASSERT_TRUE(content_length != headers.end());
   EXPECT_GT(std::stoi(content_length->second), 0);
 
-  std::unique_ptr<HttpPayload> payload = std::move(*response).ExtractPayload();
-  auto body = ReadAll(std::move(payload));
+  auto body = ReadAll(std::move(*response).ExtractPayload());
   EXPECT_STATUS_OK(body);
   auto parsed_response = nlohmann::json::parse(*body, nullptr, false);
   EXPECT_FALSE(parsed_response.is_discarded());
@@ -430,11 +511,14 @@ TEST_F(RestClientIntegrationTest, PeerPseudoHeader) {
   auto client = MakeDefaultRestClient(url_, {});
   RestRequest request;
   request.SetPath("stream/100");
-  auto response_status = RetryRestRequest([&] { return client->Get(request); });
+  auto response_status = RetryRestRequest([&] {
+    rest_internal::RestContext context;
+    return client->Get(context, request);
+  });
   ASSERT_STATUS_OK(response_status);
   auto response = *std::move(response_status);
   EXPECT_THAT(response->StatusCode(), Eq(HttpStatusCode::kOk));
-  EXPECT_THAT(response->Headers(), ContainsOnce(Pair(":curl-peer", _)));
+  EXPECT_THAT(response->Headers(), Contains(Pair(":curl-peer", _)).Times(1));
 
   // Reading in small buffers used to cause errors.
   auto payload = std::move(*response).ExtractPayload();
@@ -445,10 +529,100 @@ TEST_F(RestClientIntegrationTest, PeerPseudoHeader) {
     ASSERT_STATUS_OK(bytes);
     if (*bytes == 0) break;
   }
-  auto* payload_impl =
-      dynamic_cast<rest_internal::CurlHttpPayload*>(payload.get());
-  ASSERT_THAT(payload_impl, NotNull());
-  EXPECT_THAT(payload_impl->headers(), ContainsOnce(Pair(":curl-peer", _)));
+  EXPECT_THAT(payload->DebugHeaders(),
+              Contains(Pair(":curl-peer", _)).Times(1));
+}
+
+TEST_F(RestClientIntegrationTest, RestContextHeaders) {
+  auto client = MakeDefaultRestClient(url_, {});
+  RestRequest request;
+  request.SetPath("anything");
+  auto response_status = RetryRestRequest([&] {
+    rest_internal::RestContext context;
+    context.AddHeader({"x-test-header-1", "header-value-1"});
+    context.AddHeader({"x-test-header-2", "header-value-2"});
+    return client->Get(context, request);
+  });
+  ASSERT_STATUS_OK(response_status);
+  auto response = *std::move(response_status);
+  ASSERT_THAT(response->StatusCode(), Eq(HttpStatusCode::kOk));
+  auto body = ReadAll(std::move(*response).ExtractPayload());
+  ASSERT_STATUS_OK(body);
+  auto parsed_response = nlohmann::json::parse(*body, nullptr, false);
+  ASSERT_TRUE(parsed_response.is_object()) << "body=" << *body;
+  auto sent_headers = parsed_response.find("headers");
+  ASSERT_TRUE(sent_headers != parsed_response.end()) << "body=" << *body;
+  EXPECT_EQ(sent_headers->value("X-Test-Header-1", ""), "header-value-1")
+      << "body=" << *body;
+  EXPECT_EQ(sent_headers->value("X-Test-Header-2", ""), "header-value-2")
+      << "body=" << *body;
+}
+
+TEST_F(RestClientIntegrationTest, CaptureMetadata) {
+  auto client = MakeDefaultRestClient(url_, {});
+  RestRequest request;
+  request.SetPath("anything");
+  rest_internal::RestContext context;
+  auto response_status = RetryRestRequest([&] {
+    context.AddHeader({"x-test-header-1", "header-value-1"});
+    context.AddHeader({"x-test-header-2", "header-value-2"});
+    return client->Get(context, request);
+  });
+  ASSERT_STATUS_OK(response_status);
+  auto response = *std::move(response_status);
+  ASSERT_THAT(response->StatusCode(), Eq(HttpStatusCode::kOk));
+
+  EXPECT_TRUE(context.local_ip_address());
+  EXPECT_TRUE(context.local_port());
+  EXPECT_TRUE(context.primary_ip_address());
+  EXPECT_TRUE(context.primary_port());
+
+  ASSERT_TRUE(context.namelookup_time());
+  ASSERT_TRUE(context.connect_time());
+  ASSERT_TRUE(context.appconnect_time());
+  // Times are relative from the start of the request, the should be increasing:
+  // namelookup <= connect <= appconnect
+  EXPECT_GE(*context.connect_time(), *context.namelookup_time());
+  // For HTTPS connections we expect appconnect_time to be >= connect_time. For
+  // HTTP connections we expect it to be 0 (there is no SSL negotiation to
+  // perform).  A EXPECT_THAT() here would not be very readable.
+  if (absl::StartsWith(url_, "https://")) {
+    EXPECT_GE(*context.appconnect_time(), *context.connect_time());
+  } else {
+    EXPECT_EQ(*context.appconnect_time(), std::chrono::microseconds(0));
+  }
+
+  auto body = ReadAll(std::move(*response).ExtractPayload());
+  ASSERT_STATUS_OK(body);
+  auto parsed_response = nlohmann::json::parse(*body, nullptr, false);
+  ASSERT_TRUE(parsed_response.is_object()) << "body=" << *body;
+}
+
+TEST_F(RestClientIntegrationTest, PerRequestOptions) {
+  auto client = MakeDefaultRestClient(url_, {});
+  RestRequest request;
+  request.SetPath("anything");
+  auto const version = google::cloud::version_string();
+  auto const p1 = "p1/" + google::cloud::version_string();
+  auto const p2 = "p2/" + google::cloud::version_string();
+  auto response_status = RetryRestRequest([&] {
+    rest_internal::RestContext context(
+        Options{}.set<UserAgentProductsOption>({p1, p2}));
+    return client->Get(context, request);
+  });
+  ASSERT_STATUS_OK(response_status);
+  auto response = *std::move(response_status);
+  ASSERT_THAT(response->StatusCode(), Eq(HttpStatusCode::kOk));
+  auto body = ReadAll(std::move(*response).ExtractPayload());
+  ASSERT_STATUS_OK(body);
+  auto parsed_response = nlohmann::json::parse(*body, nullptr, false);
+  ASSERT_TRUE(parsed_response.is_object()) << "body=" << *body;
+  auto headers = parsed_response.find("headers");
+  ASSERT_TRUE(headers != parsed_response.end()) << "body=" << *body;
+  auto const products = std::vector<std::string>(
+      absl::StrSplit(headers->value("User-Agent", ""), ' '));
+  EXPECT_THAT(products, AllOf(Contains(p1), Contains(p2),
+                              Contains(StartsWith("gl-cpp/"))));
 }
 
 }  // namespace

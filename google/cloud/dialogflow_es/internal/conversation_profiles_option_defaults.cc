@@ -23,6 +23,7 @@
 #include "google/cloud/internal/populate_common_options.h"
 #include "google/cloud/internal/populate_grpc_options.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -35,13 +36,12 @@ auto constexpr kBackoffScaling = 2.0;
 
 Options ConversationProfilesDefaultOptions(std::string const& location,
                                            Options options) {
-  options = google::cloud::internal::PopulateCommonOptions(
+  options = internal::PopulateCommonOptions(
       std::move(options), "GOOGLE_CLOUD_CPP_CONVERSATION_PROFILES_ENDPOINT", "",
       "GOOGLE_CLOUD_CPP_CONVERSATION_PROFILES_AUTHORITY",
       absl::StrCat(location, location.empty() ? "" : "-",
                    "dialogflow.googleapis.com"));
-  options =
-      google::cloud::internal::PopulateGrpcOptions(std::move(options), "");
+  options = internal::PopulateGrpcOptions(std::move(options));
   if (!options.has<dialogflow_es::ConversationProfilesRetryPolicyOption>()) {
     options.set<dialogflow_es::ConversationProfilesRetryPolicyOption>(
         dialogflow_es::ConversationProfilesLimitedTimeRetryPolicy(
@@ -50,8 +50,9 @@ Options ConversationProfilesDefaultOptions(std::string const& location,
   }
   if (!options.has<dialogflow_es::ConversationProfilesBackoffPolicyOption>()) {
     options.set<dialogflow_es::ConversationProfilesBackoffPolicyOption>(
-        ExponentialBackoffPolicy(std::chrono::seconds(1),
-                                 std::chrono::minutes(5), kBackoffScaling)
+        ExponentialBackoffPolicy(
+            std::chrono::seconds(0), std::chrono::seconds(1),
+            std::chrono::minutes(5), kBackoffScaling, kBackoffScaling)
             .clone());
   }
   if (!options.has<dialogflow_es::ConversationProfilesPollingPolicyOption>()) {
@@ -61,9 +62,9 @@ Options ConversationProfilesDefaultOptions(std::string const& location,
             dialogflow_es::ConversationProfilesBackoffPolicyOption::Type>(
             options.get<dialogflow_es::ConversationProfilesRetryPolicyOption>()
                 ->clone(),
-            options
-                .get<dialogflow_es::ConversationProfilesBackoffPolicyOption>()
-                ->clone())
+            ExponentialBackoffPolicy(std::chrono::seconds(1),
+                                     std::chrono::minutes(5), kBackoffScaling)
+                .clone())
             .clone());
   }
   if (!options

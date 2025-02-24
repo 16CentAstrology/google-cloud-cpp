@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,23 +15,21 @@
 #include "google/cloud/bigtable/internal/bulk_mutator.h"
 #include "google/cloud/bigtable/rpc_retry_policy.h"
 #include "google/cloud/bigtable/table.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/log.h"
 #include <numeric>
 
 namespace google {
 namespace cloud {
-namespace bigtable {
+namespace bigtable_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
-namespace internal {
 
 namespace btproto = ::google::bigtable::v2;
 
-using ::google::cloud::Idempotency;
-
-BulkMutatorState::BulkMutatorState(std::string const& app_profile_id,
-                                   std::string const& table_name,
-                                   IdempotentMutationPolicy& idempotent_policy,
-                                   BulkMutation mut) {
+BulkMutatorState::BulkMutatorState(
+    std::string const& app_profile_id, std::string const& table_name,
+    bigtable::IdempotentMutationPolicy& idempotent_policy,
+    bigtable::BulkMutation mut) {
   // Every time the client library calls MakeOneRequest(), the data in the
   // "pending_*" variables initializes the next request.  So in the constructor
   // we start by putting the data on the "pending_*" variables.
@@ -42,7 +40,7 @@ BulkMutatorState::BulkMutatorState(std::string const& app_profile_id,
   pending_mutations_.set_table_name(table_name);
 
   // As we receive successful responses, we shrink the size of the request (only
-  // those pending are resent).  But if any fails we want to report their index
+  // those pending are present).  But if any fails we want to report their index
   // in the original sequence provided by the user. This vector maps from the
   // index in the current sequence of mutations to the index in the original
   // sequence of mutations.
@@ -60,6 +58,7 @@ BulkMutatorState::BulkMutatorState(std::string const& app_profile_id,
                     });
     auto idempotency =
         is_idempotent ? Idempotency::kIdempotent : Idempotency::kNonIdempotent;
+    // NOLINTNEXTLINE(modernize-use-emplace) - brace initializer
     pending_annotations_.push_back(
         Annotations{index++, idempotency, false, Status()});
   }
@@ -98,6 +97,9 @@ void BulkMutatorState::OnRead(
     auto const index = static_cast<std::size_t>(entry.index());
     auto& annotation = annotations_[index];
     annotation.has_mutation_result = true;
+    // Note that we do not need to heed `RetryInfo` for the status of individual
+    // entries. The server only ever includes `RetryInfo` as the final status of
+    // the stream.
     auto status = MakeStatusFromRpcError(entry.status());
     // Successful responses are not even recorded, this class only reports
     // the failures.  The data for successful responses is discarded, because
@@ -123,8 +125,12 @@ void BulkMutatorState::OnRead(
   }
 }
 
-void BulkMutatorState::OnFinish(google::cloud::Status finish_status) {
+void BulkMutatorState::OnFinish(Status finish_status,
+                                bool enable_server_retries) {
   last_status_ = std::move(finish_status);
+  bool const retryable =
+      enable_server_retries &&
+      google::cloud::internal::GetRetryInfo(last_status_).has_value();
 
   int index = 0;
   for (auto& annotation : annotations_) {
@@ -134,32 +140,30 @@ void BulkMutatorState::OnFinish(google::cloud::Status finish_status) {
     }
     // If there are any mutations with unknown state, they need to be handled.
     auto& original = *mutations_.mutable_entries(index);
-    if (annotation.idempotency == Idempotency::kIdempotent) {
+    if (retryable || annotation.idempotency == Idempotency::kIdempotent) {
       // If the mutation was retryable, move it to the pending mutations to try
       // again, along with their index.
       pending_mutations_.add_entries()->Swap(&original);
       pending_annotations_.push_back(std::move(annotation));
     } else {
       if (last_status_.ok()) {
-        google::cloud::Status status(
-            google::cloud::StatusCode::kInternal,
+        auto status = internal::InternalError(
             "The server never sent a confirmation for this mutation but the "
             "stream didn't fail either. This is most likely a bug, please "
             "report it at "
-            "https://github.com/googleapis/google-cloud-cpp/issues/new");
-        failures_.emplace_back(
-            FailedMutation(std::move(status), annotation.original_index));
+            "https://github.com/googleapis/google-cloud-cpp/issues/new",
+            GCP_ERROR_INFO());
+        failures_.emplace_back(std::move(status), annotation.original_index);
       } else {
-        failures_.emplace_back(
-            FailedMutation(last_status_, annotation.original_index));
+        failures_.emplace_back(last_status_, annotation.original_index);
       }
     }
     ++index;
   }
 }
 
-std::vector<FailedMutation> BulkMutatorState::OnRetryDone() && {
-  std::vector<FailedMutation> result(std::move(failures_));
+std::vector<bigtable::FailedMutation> BulkMutatorState::OnRetryDone() && {
+  std::vector<bigtable::FailedMutation> result(std::move(failures_));
 
   auto size = pending_mutations_.mutable_entries()->size();
   for (int idx = 0; idx != size; idx++) {
@@ -170,12 +174,12 @@ std::vector<FailedMutation> BulkMutatorState::OnRetryDone() && {
     } else if (!last_status_.ok()) {
       result.emplace_back(last_status_, annotation.original_index);
     } else {
-      google::cloud::Status status(
-          google::cloud::StatusCode::kInternal,
+      auto status = internal::InternalError(
           "The server never sent a confirmation for this mutation but the "
           "stream didn't fail either. This is most likely a bug, please "
           "report it at "
-          "https://github.com/googleapis/google-cloud-cpp/issues/new");
+          "https://github.com/googleapis/google-cloud-cpp/issues/new",
+          GCP_ERROR_INFO());
       result.emplace_back(std::move(status), annotation.original_index);
     }
   }
@@ -185,8 +189,8 @@ std::vector<FailedMutation> BulkMutatorState::OnRetryDone() && {
 
 BulkMutator::BulkMutator(std::string const& app_profile_id,
                          std::string const& table_name,
-                         IdempotentMutationPolicy& idempotent_policy,
-                         BulkMutation mut)
+                         bigtable::IdempotentMutationPolicy& idempotent_policy,
+                         bigtable::BulkMutation mut)
     : state_(app_profile_id, table_name, idempotent_policy, std::move(mut)) {}
 
 grpc::Status BulkMutator::MakeOneRequest(bigtable::DataClient& client,
@@ -205,40 +209,51 @@ grpc::Status BulkMutator::MakeOneRequest(bigtable::DataClient& client,
   return grpc_status;
 }
 
-Status BulkMutator::MakeOneRequest(bigtable_internal::BigtableStub& stub) {
+Status BulkMutator::MakeOneRequest(BigtableStub& stub,
+                                   MutateRowsLimiter& limiter,
+                                   Options const& options) {
   // Send the request to the server.
   auto const& mutations = state_.BeforeStart();
 
   // Configure the context
-  auto const& options = google::cloud::internal::CurrentOptions();
-  auto context = absl::make_unique<grpc::ClientContext>();
+  auto context = std::make_shared<grpc::ClientContext>();
   google::cloud::internal::ConfigureContext(*context, options);
+  retry_context_.PreCall(*context);
+  bool enable_server_retries = options.get<EnableServerRetriesOption>();
 
   struct UnpackVariant {
     BulkMutatorState& state;
+    MutateRowsLimiter& limiter;
+    bool enable_server_retries;
+
     bool operator()(btproto::MutateRowsResponse r) {
+      limiter.Update(r);
       state.OnRead(std::move(r));
       return true;
     }
     bool operator()(Status s) {
-      state.OnFinish(std::move(s));
+      state.OnFinish(std::move(s), enable_server_retries);
       return false;
     }
   };
 
+  // Potentially throttle the request
+  limiter.Acquire();
+
   // Read the stream of responses.
-  auto stream = stub.MutateRows(std::move(context), mutations);
-  while (absl::visit(UnpackVariant{state_}, stream->Read())) {
+  auto stream = stub.MutateRows(context, options, mutations);
+  while (absl::visit(UnpackVariant{state_, limiter, enable_server_retries},
+                     stream->Read())) {
   }
+  retry_context_.PostCall(*context);
   return state_.last_status();
 }
 
-std::vector<FailedMutation> BulkMutator::OnRetryDone() && {
+std::vector<bigtable::FailedMutation> BulkMutator::OnRetryDone() && {
   return std::move(state_).OnRetryDone();
 }
 
-}  // namespace internal
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
-}  // namespace bigtable
+}  // namespace bigtable_internal
 }  // namespace cloud
 }  // namespace google

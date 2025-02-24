@@ -20,12 +20,16 @@
 #include "google/cloud/pubsublite/internal/topic_stats_connection_impl.h"
 #include "google/cloud/pubsublite/internal/topic_stats_option_defaults.h"
 #include "google/cloud/pubsublite/internal/topic_stats_stub_factory.h"
+#include "google/cloud/pubsublite/internal/topic_stats_tracing_connection.h"
 #include "google/cloud/pubsublite/topic_stats_options.h"
 #include "google/cloud/background_threads.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/credentials.h"
 #include "google/cloud/grpc_options.h"
+#include "google/cloud/internal/pagination_range.h"
+#include "google/cloud/internal/unified_grpc_credentials.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -52,6 +56,30 @@ TopicStatsServiceConnection::ComputeTimeCursor(
   return Status(StatusCode::kUnimplemented, "not implemented");
 }
 
+StreamRange<google::longrunning::Operation>
+TopicStatsServiceConnection::ListOperations(
+    google::longrunning::
+        ListOperationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::longrunning::Operation>>();
+}
+
+StatusOr<google::longrunning::Operation>
+TopicStatsServiceConnection::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+Status TopicStatsServiceConnection::DeleteOperation(
+    google::longrunning::DeleteOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+Status TopicStatsServiceConnection::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
 std::shared_ptr<TopicStatsServiceConnection> MakeTopicStatsServiceConnection(
     Options options) {
   internal::CheckExpectedOptions<CommonOptionList, GrpcOptionList,
@@ -61,10 +89,12 @@ std::shared_ptr<TopicStatsServiceConnection> MakeTopicStatsServiceConnection(
   options =
       pubsublite_internal::TopicStatsServiceDefaultOptions(std::move(options));
   auto background = internal::MakeBackgroundThreadsFactory(options)();
+  auto auth = internal::CreateAuthenticationStrategy(background->cq(), options);
   auto stub = pubsublite_internal::CreateDefaultTopicStatsServiceStub(
-      background->cq(), options);
-  return std::make_shared<pubsublite_internal::TopicStatsServiceConnectionImpl>(
-      std::move(background), std::move(stub), std::move(options));
+      std::move(auth), options);
+  return pubsublite_internal::MakeTopicStatsServiceTracingConnection(
+      std::make_shared<pubsublite_internal::TopicStatsServiceConnectionImpl>(
+          std::move(background), std::move(stub), std::move(options)));
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

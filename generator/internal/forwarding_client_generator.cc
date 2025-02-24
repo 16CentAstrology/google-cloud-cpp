@@ -22,10 +22,12 @@ ForwardingClientGenerator::ForwardingClientGenerator(
     google::protobuf::ServiceDescriptor const* service_descriptor,
     VarsDictionary service_vars,
     std::map<std::string, VarsDictionary> service_method_vars,
-    google::protobuf::compiler::GeneratorContext* context)
+    google::protobuf::compiler::GeneratorContext* context,
+    std::vector<MixinMethod> const& mixin_methods)
     : ServiceCodeGenerator("forwarding_client_header_path", service_descriptor,
                            std::move(service_vars),
-                           std::move(service_method_vars), context) {}
+                           std::move(service_method_vars), context,
+                           mixin_methods) {}
 
 Status ForwardingClientGenerator::GenerateHeader() {
   HeaderPrint(CopyrightLicenseFileHeader());
@@ -45,12 +47,16 @@ Status ForwardingClientGenerator::GenerateHeader() {
       vars("client_header_path"),
   });
 
-  auto result = HeaderOpenForwardingNamespaces();
+  auto result = HeaderOpenForwardingNamespaces(NamespaceType::kNormal, R"""(
+/// @deprecated This namespace exists for backwards compatibility. Use the
+///     types defined in $product_namespace$ instead of the aliases defined in
+///     this namespace.)""");
   if (!result.ok()) return result;
 
   // forwards
   HeaderPrint(
       R"""(
+/// @deprecated Use $product_namespace$::$client_class_name$ directly.
 using ::google::cloud::$product_namespace$::$client_class_name$;
 )""");
 

@@ -40,7 +40,7 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * While the example showcases types from the BigQuery library, the underlying
  * principles apply for any pair of `*Client` and `*Connection`.
  *
- * [bq-mock]: @googleapis_dev_link{bigquery,bigquery-read-mock.html}
+ * [bq-mock]: @cloud_cpp_docs_link{bigquery,bigquery-read-mock}
  */
 class MockGoldenKitchenSinkConnection : public golden_v1::GoldenKitchenSinkConnection {
  public:
@@ -58,7 +58,7 @@ class MockGoldenKitchenSinkConnection : public golden_v1::GoldenKitchenSinkConne
   WriteLogEntries,
   (google::test::admin::database::v1::WriteLogEntriesRequest const& request), (override));
 
-  MOCK_METHOD(StreamRange<std::string>,
+  MOCK_METHOD((StreamRange<std::string>),
   ListLogs,
   (google::test::admin::database::v1::ListLogsRequest request), (override));
 
@@ -69,6 +69,10 @@ class MockGoldenKitchenSinkConnection : public golden_v1::GoldenKitchenSinkConne
   MOCK_METHOD(Status,
   DoNothing,
   (google::protobuf::Empty const& request), (override));
+
+  MOCK_METHOD(Status,
+  Deprecated2,
+  (google::test::admin::database::v1::GenerateAccessTokenRequest const& request), (override));
 
   MOCK_METHOD(StreamRange<google::test::admin::database::v1::Response>,
   StreamingRead,
@@ -86,6 +90,18 @@ class MockGoldenKitchenSinkConnection : public golden_v1::GoldenKitchenSinkConne
   MOCK_METHOD(Status,
   ExplicitRouting2,
   (google::test::admin::database::v1::ExplicitRoutingRequest const& request), (override));
+
+  MOCK_METHOD(StatusOr<google::cloud::location::Location>,
+  GetLocation,
+  (google::cloud::location::GetLocationRequest const& request), (override));
+
+  MOCK_METHOD(StatusOr<google::iam::v1::Policy>,
+  GetIamPolicy,
+  (google::iam::v1::GetIamPolicyRequest const& request), (override));
+
+  MOCK_METHOD((StreamRange<google::longrunning::Operation>),
+  ListOperations,
+  (google::longrunning::ListOperationsRequest request), (override));
 };
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

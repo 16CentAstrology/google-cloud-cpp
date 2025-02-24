@@ -17,7 +17,6 @@
 // source: google/cloud/dialogflow/v2/context.proto
 
 #include "google/cloud/dialogflow_es/contexts_connection_idempotency_policy.h"
-#include "absl/memory/memory.h"
 #include <memory>
 
 namespace google {
@@ -32,7 +31,7 @@ ContextsConnectionIdempotencyPolicy::~ContextsConnectionIdempotencyPolicy() =
 
 std::unique_ptr<ContextsConnectionIdempotencyPolicy>
 ContextsConnectionIdempotencyPolicy::clone() const {
-  return absl::make_unique<ContextsConnectionIdempotencyPolicy>(*this);
+  return std::make_unique<ContextsConnectionIdempotencyPolicy>(*this);
 }
 
 Idempotency ContextsConnectionIdempotencyPolicy::ListContexts(
@@ -65,9 +64,34 @@ Idempotency ContextsConnectionIdempotencyPolicy::DeleteAllContexts(
   return Idempotency::kNonIdempotent;
 }
 
+Idempotency ContextsConnectionIdempotencyPolicy::ListLocations(
+    google::cloud::location::ListLocationsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency ContextsConnectionIdempotencyPolicy::GetLocation(
+    google::cloud::location::GetLocationRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency ContextsConnectionIdempotencyPolicy::ListOperations(
+    google::longrunning::ListOperationsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency ContextsConnectionIdempotencyPolicy::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency ContextsConnectionIdempotencyPolicy::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
 std::unique_ptr<ContextsConnectionIdempotencyPolicy>
 MakeDefaultContextsConnectionIdempotencyPolicy() {
-  return absl::make_unique<ContextsConnectionIdempotencyPolicy>();
+  return std::make_unique<ContextsConnectionIdempotencyPolicy>();
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

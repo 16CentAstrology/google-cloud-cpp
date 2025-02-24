@@ -21,6 +21,7 @@
 #include "google/cloud/storage/version.h"
 #include "google/cloud/backoff_policy.h"
 #include "google/cloud/credentials.h"
+#include "google/cloud/internal/rest_options.h"
 #include "google/cloud/options.h"
 #include <chrono>
 #include <cstdint>
@@ -60,18 +61,12 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace internal {
 /// This is only intended for testing against staging or development versions
 /// of the service. It is not for public use.
-struct TargetApiVersionOption {
-  using Type = std::string;
-};
+using TargetApiVersionOption =
+    ::google::cloud::rest_internal::TargetApiVersionOption;
 
 /// This is only intended for testing. It is not for public use.
 struct CAPathOption {
   using Type = std::string;
-};
-
-/// This is only intended for testing of the library. Not for public use.
-struct UseRestClientOption {
-  using Type = bool;
 };
 
 }  // namespace internal

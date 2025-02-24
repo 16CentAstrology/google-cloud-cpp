@@ -13,24 +13,33 @@
 // limitations under the License.
 
 #include "google/cloud/storage/hashing_options.h"
-#include "google/cloud/storage/internal/openssl_util.h"
+#include "google/cloud/storage/internal/base64.h"
+#include "google/cloud/storage/internal/crc32c.h"
+#include "google/cloud/storage/internal/md5hash.h"
 #include "google/cloud/internal/big_endian.h"
-#include <crc32c/crc32c.h>
+#include <string>
 
 namespace google {
 namespace cloud {
 namespace storage {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+std::string ComputeMD5Hash(absl::string_view payload) {
+  return internal::Base64Encode(storage_internal::MD5Hash(payload));
+}
+
 std::string ComputeMD5Hash(std::string const& payload) {
-  return internal::Base64Encode(internal::MD5Hash(payload));
+  return ComputeMD5Hash(absl::string_view(payload));
+}
+
+std::string ComputeCrc32cChecksum(absl::string_view payload) {
+  auto checksum = storage_internal::Crc32c(payload);
+  std::string const hash = google::cloud::internal::EncodeBigEndian(checksum);
+  return internal::Base64Encode(hash);
 }
 
 std::string ComputeCrc32cChecksum(std::string const& payload) {
-  auto checksum = crc32c::Extend(
-      0, reinterpret_cast<std::uint8_t const*>(payload.data()), payload.size());
-  std::string const hash = google::cloud::internal::EncodeBigEndian(checksum);
-  return internal::Base64Encode(hash);
+  return ComputeCrc32cChecksum(absl::string_view(payload));
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

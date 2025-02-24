@@ -23,6 +23,7 @@
 #include "google/cloud/storage/well_known_parameters.h"
 #include <iosfwd>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace google {
@@ -168,6 +169,7 @@ std::ostream& operator<<(std::ostream& os,
 class PatchDefaultObjectAclRequest
     : public GenericDefaultObjectAclRequest<PatchDefaultObjectAclRequest> {
  public:
+  PatchDefaultObjectAclRequest() = default;
   PatchDefaultObjectAclRequest(std::string bucket, std::string entity,
                                ObjectAccessControl const& original,
                                ObjectAccessControl const& new_acl);

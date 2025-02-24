@@ -19,6 +19,10 @@
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
 #include <nlohmann/json.hpp>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -62,7 +66,8 @@ TEST(ObjectRequestsTest, ParseAclListFailure) {
 TEST(ObjectRequestsTest, List) {
   ListObjectsRequest request("my-bucket");
   EXPECT_EQ("my-bucket", request.bucket_name());
-  request.set_multiple_options(UserProject("my-project"), Prefix("foo/"));
+  request.set_multiple_options(UserProject("my-project"), Prefix("foo/"),
+                               SoftDeleted(true));
 
   std::ostringstream os;
   os << request;
@@ -70,6 +75,7 @@ TEST(ObjectRequestsTest, List) {
   EXPECT_THAT(actual, HasSubstr("my-bucket"));
   EXPECT_THAT(actual, HasSubstr("userProject=my-project"));
   EXPECT_THAT(actual, HasSubstr("prefix=foo/"));
+  EXPECT_THAT(actual, HasSubstr("softDeleted=true"));
 }
 
 TEST(ObjectRequestsTest, ParseListResponse) {
@@ -146,7 +152,8 @@ TEST(ObjectRequestsTest, ParseListResponseFailureInItems) {
 
 TEST(ObjectRequestsTest, Get) {
   GetObjectMetadataRequest request("my-bucket", "my-object");
-  request.set_multiple_options(Generation(1), IfMetagenerationMatch(3));
+  request.set_multiple_options(Generation(1), IfMetagenerationMatch(3),
+                               SoftDeleted(true));
   std::ostringstream os;
   os << request;
   auto str = os.str();
@@ -154,6 +161,7 @@ TEST(ObjectRequestsTest, Get) {
   EXPECT_THAT(str, HasSubstr("my-object"));
   EXPECT_THAT(str, HasSubstr("generation=1"));
   EXPECT_THAT(str, HasSubstr("ifMetagenerationMatch=3"));
+  EXPECT_THAT(str, HasSubstr("softDeleted=true"));
 }
 
 TEST(ObjectRequestsTest, InsertObjectMedia) {
@@ -176,10 +184,24 @@ TEST(ObjectRequestsTest, InsertObjectMedia) {
 
 TEST(ObjectRequestsTest, InsertObjectMediaUpdateContents) {
   InsertObjectMediaRequest request("my-bucket", "my-object", "object contents");
-  EXPECT_EQ("object contents", request.contents());
-  request.set_contents("new contents");
-  EXPECT_EQ("new contents", request.contents());
+  EXPECT_EQ("object contents", request.payload());
+  request.set_payload("new contents");
+  EXPECT_EQ("new contents", request.payload());
 }
+
+#include "google/cloud/internal/disable_deprecation_warnings.inc"
+TEST(ObjectRequestsTest, InsertObjectBackwardsCompat) {
+  auto const payload =
+      std::string("The quick brown fox jumps over the lazy dog");
+  auto const zebras = std::string("How quickly daft jumping zebras vex");
+  InsertObjectMediaRequest request("my-bucket", "my-object", payload);
+  EXPECT_EQ(payload, request.payload());
+  EXPECT_EQ(payload, request.contents());
+  request.set_contents(zebras);
+  EXPECT_EQ(zebras, request.payload());
+  EXPECT_EQ(zebras, request.contents());
+}
+#include "google/cloud/internal/diagnostics_pop.inc"
 
 TEST(ObjectRequestsTest, Copy) {
   CopyObjectRequest request("source-bucket", "source-object", "my-bucket",
@@ -496,6 +518,57 @@ TEST(ObjectRequestsTest, RewriteObjectResponseFailureInResource) {
   EXPECT_THAT(actual, Not(IsOk()));
 }
 
+TEST(ObjectRequestsTest, RestoreObject) {
+  RestoreObjectRequest request("test-bucket", "test-object", 1234);
+  EXPECT_EQ("test-bucket", request.bucket_name());
+  EXPECT_EQ("test-object", request.object_name());
+  EXPECT_EQ(1234, request.generation());
+  request.set_multiple_options(IfGenerationMatch(7), IfGenerationNotMatch(8),
+                               IfMetagenerationMatch(9),
+                               IfMetagenerationNotMatch(10),
+                               UserProject("my-project"), CopySourceAcl(true));
+
+  std::ostringstream os;
+  os << request;
+  std::string actual = os.str();
+  EXPECT_THAT(actual, HasSubstr("test-bucket"));
+  EXPECT_THAT(actual, HasSubstr("test-object"));
+  EXPECT_THAT(actual, HasSubstr("generation=1234"));
+  EXPECT_THAT(actual, HasSubstr("ifGenerationMatch=7"));
+  EXPECT_THAT(actual, HasSubstr("ifGenerationNotMatch=8"));
+  EXPECT_THAT(actual, HasSubstr("ifMetagenerationMatch=9"));
+  EXPECT_THAT(actual, HasSubstr("ifMetagenerationNotMatch=10"));
+  EXPECT_THAT(actual, HasSubstr("userProject=my-project"));
+  EXPECT_THAT(actual, HasSubstr("copySourceAcl=true"));
+}
+
+TEST(ObjectRequestsTest, MoveObject) {
+  MoveObjectRequest request("test-bucket", "source-object-name",
+                            "destination-object-name");
+  EXPECT_EQ("test-bucket", request.bucket_name());
+  EXPECT_EQ("source-object-name", request.source_object_name());
+  EXPECT_EQ("destination-object-name", request.destination_object_name());
+  request.set_multiple_options(
+      IfGenerationMatch(1), IfGenerationNotMatch(2), IfMetagenerationMatch(3),
+      IfMetagenerationNotMatch(4), IfSourceGenerationMatch(5),
+      IfSourceGenerationNotMatch(6), IfSourceMetagenerationMatch(7),
+      IfSourceMetagenerationNotMatch(8));
+  std::ostringstream os;
+  os << request;
+  std::string actual = os.str();
+  EXPECT_THAT(actual, HasSubstr("test-bucket"));
+  EXPECT_THAT(actual, HasSubstr("source-object-name"));
+  EXPECT_THAT(actual, HasSubstr("destination-object-name"));
+  EXPECT_THAT(actual, HasSubstr("ifGenerationMatch=1"));
+  EXPECT_THAT(actual, HasSubstr("ifGenerationNotMatch=2"));
+  EXPECT_THAT(actual, HasSubstr("ifMetagenerationMatch=3"));
+  EXPECT_THAT(actual, HasSubstr("ifMetagenerationNotMatch=4"));
+  EXPECT_THAT(actual, HasSubstr("ifSourceGenerationMatch=5"));
+  EXPECT_THAT(actual, HasSubstr("ifSourceGenerationNotMatch=6"));
+  EXPECT_THAT(actual, HasSubstr("ifSourceMetagenerationMatch=7"));
+  EXPECT_THAT(actual, HasSubstr("ifSourceMetagenerationNotMatch=8"));
+}
+
 TEST(ObjectRequestsTest, ResumableUpload) {
   ResumableUploadRequest request("source-bucket", "source-object");
   EXPECT_EQ("source-bucket", request.bucket_name());
@@ -532,7 +605,8 @@ TEST(ObjectRequestsTest, UploadChunk) {
       "myBucket/o?uploadType=resumable"
       "&upload_id=xa298sd_sdlkj2";
   auto const payload = std::string(2048, 'A');
-  UploadChunkRequest request(url, 0, {{payload}}, HashValues{});
+  UploadChunkRequest request(url, 0, {{payload}}, CreateNullHashFunction(),
+                             HashValues{});
   EXPECT_EQ(url, request.upload_session_url());
   EXPECT_EQ(0, request.offset());
   EXPECT_EQ(2048, request.upload_size().value_or(0));
@@ -550,7 +624,8 @@ TEST(ObjectRequestsTest, UploadChunkRemainingChunk) {
   auto const p1 = std::string(256, '1');
   auto const p2 = std::string(1024, '2');
   auto const base_offset = 123456;
-  auto request = UploadChunkRequest("unused", base_offset, {{p0, p1, p2}});
+  auto request = UploadChunkRequest("unused", base_offset, {{p0, p1, p2}},
+                                    CreateNullHashFunction());
   EXPECT_EQ(request.offset(), base_offset);
   EXPECT_THAT(request.payload(), ElementsAre(p0, p1, p2));
   auto remaining = request.RemainingChunk(base_offset + 42);
@@ -563,33 +638,37 @@ TEST(ObjectRequestsTest, UploadChunkRemainingChunk) {
 
 TEST(ObjectRequestsTest, UploadChunkContentRangeNotLast) {
   std::string const url = "https://unused.googleapis.com/test-only";
-  UploadChunkRequest request(url, 1024, {ConstBuffer{"1234", 4}});
+  UploadChunkRequest request(url, 1024, {ConstBuffer{"1234", 4}},
+                             CreateNullHashFunction());
   EXPECT_EQ("Content-Range: bytes 1024-1027/*", request.RangeHeader());
 }
 
 TEST(ObjectRequestsTest, UploadChunkContentRangeLast) {
   std::string const url = "https://unused.googleapis.com/test-only";
-  UploadChunkRequest request(url, 2045, {ConstBuffer{"1234", 4}}, HashValues{});
+  UploadChunkRequest request(url, 2045, {ConstBuffer{"1234", 4}},
+                             CreateNullHashFunction(), HashValues{});
   EXPECT_EQ("Content-Range: bytes 2045-2048/2049", request.RangeHeader());
 }
 
 TEST(ObjectRequestsTest, UploadChunkContentRangeEmptyPayloadNotLast) {
   std::string const url = "https://unused.googleapis.com/test-only";
-  UploadChunkRequest request(url, 1024, {});
+  UploadChunkRequest request(url, 1024, {}, CreateNullHashFunction());
   EXPECT_EQ("Content-Range: bytes */*", request.RangeHeader());
 }
 
 TEST(ObjectRequestsTest, UploadChunkContentRangeEmptyPayloadLast) {
   std::string const url = "https://unused.googleapis.com/test-only";
-  UploadChunkRequest request(url, 2047, {}, HashValues{});
+  UploadChunkRequest request(url, 2047, {}, CreateNullHashFunction(),
+                             HashValues{});
   EXPECT_EQ("Content-Range: bytes */2047", request.RangeHeader());
 }
 
 TEST(ObjectRequestsTest, UploadChunkContentRangeEmptyPayloadEmpty) {
   std::string const url = "https://unused.googleapis.com/test-only";
-  UploadChunkRequest r0(url, 1024, {}, HashValues{});
+  UploadChunkRequest r0(url, 1024, {}, CreateNullHashFunction(), HashValues{});
   EXPECT_EQ("Content-Range: bytes */1024", r0.RangeHeader());
-  UploadChunkRequest r1(url, 1024, {{}, {}, {}}, HashValues{});
+  UploadChunkRequest r1(url, 1024, {{}, {}, {}}, CreateNullHashFunction(),
+                        HashValues{});
   EXPECT_EQ("Content-Range: bytes */1024", r1.RangeHeader());
 }
 

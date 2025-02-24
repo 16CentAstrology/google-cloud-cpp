@@ -21,12 +21,15 @@
 #include "google/cloud/dialogflow_es/internal/answer_records_connection_impl.h"
 #include "google/cloud/dialogflow_es/internal/answer_records_option_defaults.h"
 #include "google/cloud/dialogflow_es/internal/answer_records_stub_factory.h"
+#include "google/cloud/dialogflow_es/internal/answer_records_tracing_connection.h"
 #include "google/cloud/background_threads.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/credentials.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/pagination_range.h"
+#include "google/cloud/internal/unified_grpc_credentials.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -49,6 +52,38 @@ AnswerRecordsConnection::UpdateAnswerRecord(
   return Status(StatusCode::kUnimplemented, "not implemented");
 }
 
+StreamRange<google::cloud::location::Location>
+AnswerRecordsConnection::ListLocations(
+    google::cloud::location::
+        ListLocationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::cloud::location::Location>>();
+}
+
+StatusOr<google::cloud::location::Location>
+AnswerRecordsConnection::GetLocation(
+    google::cloud::location::GetLocationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+StreamRange<google::longrunning::Operation>
+AnswerRecordsConnection::ListOperations(
+    google::longrunning::
+        ListOperationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::longrunning::Operation>>();
+}
+
+StatusOr<google::longrunning::Operation> AnswerRecordsConnection::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+Status AnswerRecordsConnection::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
 std::shared_ptr<AnswerRecordsConnection> MakeAnswerRecordsConnection(
     std::string const& location, Options options) {
   internal::CheckExpectedOptions<CommonOptionList, GrpcOptionList,
@@ -58,10 +93,12 @@ std::shared_ptr<AnswerRecordsConnection> MakeAnswerRecordsConnection(
   options = dialogflow_es_internal::AnswerRecordsDefaultOptions(
       location, std::move(options));
   auto background = internal::MakeBackgroundThreadsFactory(options)();
+  auto auth = internal::CreateAuthenticationStrategy(background->cq(), options);
   auto stub = dialogflow_es_internal::CreateDefaultAnswerRecordsStub(
-      background->cq(), options);
-  return std::make_shared<dialogflow_es_internal::AnswerRecordsConnectionImpl>(
-      std::move(background), std::move(stub), std::move(options));
+      std::move(auth), options);
+  return dialogflow_es_internal::MakeAnswerRecordsTracingConnection(
+      std::make_shared<dialogflow_es_internal::AnswerRecordsConnectionImpl>(
+          std::move(background), std::move(stub), std::move(options)));
 }
 
 std::shared_ptr<AnswerRecordsConnection> MakeAnswerRecordsConnection(

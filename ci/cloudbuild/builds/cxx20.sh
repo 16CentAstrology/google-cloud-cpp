@@ -18,15 +18,26 @@ set -euo pipefail
 
 source "$(dirname "$0")/../../lib/init.sh"
 source module ci/cloudbuild/builds/lib/cmake.sh
+source module ci/cloudbuild/builds/lib/ctest.sh
+source module ci/cloudbuild/builds/lib/features.sh
 source module ci/cloudbuild/builds/lib/integration.sh
+source module ci/lib/io.sh
 
 export CC=gcc
 export CXX=g++
-mapfile -t cmake_args < <(cmake::common_args)
 
-cmake "${cmake_args[@]}" -DCMAKE_CXX_STANDARD=20
-cmake --build cmake-out
+mapfile -t cmake_args < <(cmake::common_args)
+read -r ENABLED_FEATURES < <(features::always_build_cmake)
+# We should test all the GA libraries
+ENABLED_FEATURES="${ENABLED_FEATURES},__ga_libraries__"
+readonly ENABLED_FEATURES
+
+io::run cmake "${cmake_args[@]}" \
+  -DCMAKE_CXX_STANDARD=20 \
+  -DGOOGLE_CLOUD_CPP_ENABLE_CLANG_ABI_COMPAT_17=ON \
+  -DGOOGLE_CLOUD_CPP_ENABLE="${ENABLED_FEATURES}"
+io::run cmake --build cmake-out
 mapfile -t ctest_args < <(ctest::common_args)
-env -C cmake-out ctest "${ctest_args[@]}" -LE "integration-test"
+io::run env -C cmake-out ctest "${ctest_args[@]}" -LE "integration-test"
 
 integration::ctest_with_emulators "cmake-out"

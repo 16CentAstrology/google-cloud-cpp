@@ -12,15 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/storage/client.h"
+#include "google/cloud/storage/internal/retry_object_read_source.h"
+#include "google/cloud/storage/internal/connection_impl.h"
 #include "google/cloud/storage/retry_policy.h"
 #include "google/cloud/storage/testing/canonical_errors.h"
 #include "google/cloud/storage/testing/mock_client.h"
-#include "google/cloud/storage/testing/retry_tests.h"
+#include "google/cloud/storage/testing/mock_generic_stub.h"
 #include "google/cloud/testing_util/chrono_literals.h"
+#include "google/cloud/testing_util/opentelemetry_matchers.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
 #include <gmock/gmock.h>
+#include <memory>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -29,9 +33,11 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace internal {
 namespace {
 
+using ::google::cloud::storage::testing::MockGenericStub;
 using ::google::cloud::storage::testing::MockObjectReadSource;
 using ::google::cloud::storage::testing::canonical_errors::PermanentError;
 using ::google::cloud::storage::testing::canonical_errors::TransientError;
+using ::google::cloud::testing_util::StatusIs;
 using ::testing::_;
 using ::testing::Contains;
 using ::testing::HasSubstr;
@@ -81,17 +87,16 @@ Options BasicTestPolicies() {
 
 /// @test No failures scenario.
 TEST(RetryObjectReadSourceTest, NoFailures) {
-  auto raw_client = std::make_shared<testing::MockClient>();
-  auto client =
-      RetryClient::Create(std::shared_ptr<internal::RawClient>(raw_client));
-  google::cloud::internal::OptionsSpan const span(BasicTestPolicies());
+  auto mock = std::make_unique<MockGenericStub>();
+  EXPECT_CALL(*mock, options);  // Required in RetryClient::Create()
+  EXPECT_CALL(*mock, ReadObject).WillOnce([] {
+    auto source = std::make_unique<MockObjectReadSource>();
+    EXPECT_CALL(*source, Read).WillOnce(Return(ReadSourceResult{}));
+    return std::unique_ptr<ObjectReadSource>(std::move(source));
+  });
 
-  EXPECT_CALL(*raw_client, ReadObject)
-      .WillOnce([](ReadObjectRangeRequest const&) {
-        auto source = absl::make_unique<MockObjectReadSource>();
-        EXPECT_CALL(*source, Read).WillOnce(Return(ReadSourceResult{}));
-        return std::unique_ptr<ObjectReadSource>(std::move(source));
-      });
+  auto client = StorageConnectionImpl::Create(std::move(mock));
+  google::cloud::internal::OptionsSpan const span(BasicTestPolicies());
 
   auto source = client->ReadObject(ReadObjectRangeRequest{});
   ASSERT_STATUS_OK(source);
@@ -100,13 +105,12 @@ TEST(RetryObjectReadSourceTest, NoFailures) {
 
 /// @test Permanent failure when creating the raw source
 TEST(RetryObjectReadSourceTest, PermanentFailureOnSessionCreation) {
-  auto raw_client = std::make_shared<testing::MockClient>();
-  auto client =
-      RetryClient::Create(std::shared_ptr<internal::RawClient>(raw_client));
-  google::cloud::internal::OptionsSpan const span(BasicTestPolicies());
+  auto mock = std::make_unique<MockGenericStub>();
+  EXPECT_CALL(*mock, options);  // Required in RetryClient::Create()
+  EXPECT_CALL(*mock, ReadObject).WillOnce(Return(PermanentError()));
 
-  EXPECT_CALL(*raw_client, ReadObject)
-      .WillOnce([](ReadObjectRangeRequest const&) { return PermanentError(); });
+  auto client = StorageConnectionImpl::Create(std::move(mock));
+  google::cloud::internal::OptionsSpan const span(BasicTestPolicies());
 
   auto source = client->ReadObject(ReadObjectRangeRequest{});
   ASSERT_FALSE(source);
@@ -115,15 +119,14 @@ TEST(RetryObjectReadSourceTest, PermanentFailureOnSessionCreation) {
 
 /// @test Transient failures exhaust retry policy when creating the raw source
 TEST(RetryObjectReadSourceTest, TransientFailuresExhaustOnSessionCreation) {
-  auto raw_client = std::make_shared<testing::MockClient>();
-  auto client =
-      RetryClient::Create(std::shared_ptr<internal::RawClient>(raw_client));
-  google::cloud::internal::OptionsSpan const span(BasicTestPolicies());
+  auto mock = std::make_unique<MockGenericStub>();
+  EXPECT_CALL(*mock, options);  // Required in RetryClient::Create()
+  EXPECT_CALL(*mock, ReadObject).Times(4).WillRepeatedly([] {
+    return TransientError();
+  });
 
-  EXPECT_CALL(*raw_client, ReadObject)
-      .Times(4)
-      .WillRepeatedly(
-          [](ReadObjectRangeRequest const&) { return TransientError(); });
+  auto client = StorageConnectionImpl::Create(std::move(mock));
+  google::cloud::internal::OptionsSpan const span(BasicTestPolicies());
 
   auto source = client->ReadObject(ReadObjectRangeRequest{});
   ASSERT_FALSE(source);
@@ -132,19 +135,19 @@ TEST(RetryObjectReadSourceTest, TransientFailuresExhaustOnSessionCreation) {
 
 /// @test Recovery from a transient failures when creating the raw source
 TEST(RetryObjectReadSourceTest, SessionCreationRecoversFromTransientFailures) {
-  auto raw_client = std::make_shared<testing::MockClient>();
-  auto client =
-      RetryClient::Create(std::shared_ptr<internal::RawClient>(raw_client));
-  google::cloud::internal::OptionsSpan const span(BasicTestPolicies());
-
-  EXPECT_CALL(*raw_client, ReadObject)
-      .WillOnce([](ReadObjectRangeRequest const&) { return TransientError(); })
-      .WillOnce([](ReadObjectRangeRequest const&) { return TransientError(); })
-      .WillOnce([](ReadObjectRangeRequest const&) {
-        auto source = absl::make_unique<MockObjectReadSource>();
+  auto mock = std::make_unique<MockGenericStub>();
+  EXPECT_CALL(*mock, options);  // Required in RetryClient::Create()
+  EXPECT_CALL(*mock, ReadObject)
+      .WillOnce(Return(TransientError()))
+      .WillOnce(Return(TransientError()))
+      .WillOnce([](auto const&, auto const&, ReadObjectRangeRequest const&) {
+        auto source = std::make_unique<MockObjectReadSource>();
         EXPECT_CALL(*source, Read).WillOnce(Return(ReadSourceResult{}));
         return std::unique_ptr<ObjectReadSource>(std::move(source));
       });
+
+  auto client = StorageConnectionImpl::Create(std::move(mock));
+  google::cloud::internal::OptionsSpan const span(BasicTestPolicies());
 
   auto source = client->ReadObject(ReadObjectRangeRequest{});
   ASSERT_STATUS_OK(source);
@@ -153,19 +156,18 @@ TEST(RetryObjectReadSourceTest, SessionCreationRecoversFromTransientFailures) {
 
 /// @test A permanent error after a successful read
 TEST(RetryObjectReadSourceTest, PermanentReadFailure) {
-  auto raw_client = std::make_shared<testing::MockClient>();
-  auto* raw_source = new MockObjectReadSource;
-  auto client =
-      RetryClient::Create(std::shared_ptr<internal::RawClient>(raw_client));
-  google::cloud::internal::OptionsSpan const span(BasicTestPolicies());
+  auto mock = std::make_unique<MockGenericStub>();
+  EXPECT_CALL(*mock, options);  // Required in RetryClient::Create()
+  EXPECT_CALL(*mock, ReadObject).WillOnce([] {
+    auto source = std::make_unique<MockObjectReadSource>();
+    EXPECT_CALL(*source, Read)
+        .WillOnce(Return(ReadSourceResult{}))
+        .WillOnce(Return(PermanentError()));
+    return std::unique_ptr<ObjectReadSource>(std::move(source));
+  });
 
-  EXPECT_CALL(*raw_client, ReadObject)
-      .WillOnce([raw_source](ReadObjectRangeRequest const&) {
-        return std::unique_ptr<ObjectReadSource>(raw_source);
-      });
-  EXPECT_CALL(*raw_source, Read)
-      .WillOnce(Return(ReadSourceResult{}))
-      .WillOnce(Return(PermanentError()));
+  auto client = StorageConnectionImpl::Create(std::move(mock));
+  google::cloud::internal::OptionsSpan const span(BasicTestPolicies());
 
   auto source = client->ReadObject(ReadObjectRangeRequest{});
   ASSERT_STATUS_OK(source);
@@ -177,46 +179,46 @@ TEST(RetryObjectReadSourceTest, PermanentReadFailure) {
 
 /// @test Test if backoff policy is reset on success
 TEST(RetryObjectReadSourceTest, BackoffPolicyResetOnSuccess) {
-  auto raw_client = std::make_shared<testing::MockClient>();
+  auto mock = std::make_unique<MockGenericStub>();
+  EXPECT_CALL(*mock, options);  // Required in RetryClient::Create()
+  EXPECT_CALL(*mock, ReadObject)
+      .WillOnce([] {
+        auto source = std::make_unique<MockObjectReadSource>();
+        EXPECT_CALL(*source, Read).WillOnce(Return(TransientError()));
+        return std::unique_ptr<ObjectReadSource>(std::move(source));
+      })
+      .WillOnce([] {
+        auto source = std::make_unique<MockObjectReadSource>();
+        EXPECT_CALL(*source, Read).WillOnce(Return(TransientError()));
+        return std::unique_ptr<ObjectReadSource>(std::move(source));
+      })
+      .WillOnce([] {
+        auto source = std::make_unique<MockObjectReadSource>();
+        EXPECT_CALL(*source, Read)
+            .WillOnce(Return(ReadSourceResult{}))
+            .WillOnce(Return(TransientError()));
+        return std::unique_ptr<ObjectReadSource>(std::move(source));
+      })
+      .WillOnce([] {
+        auto source = std::make_unique<MockObjectReadSource>();
+        EXPECT_CALL(*source, Read).WillOnce(Return(ReadSourceResult{}));
+        return std::unique_ptr<ObjectReadSource>(std::move(source));
+      });
+
   int num_backoff_policy_called = 0;
   BackoffPolicyMock backoff_policy_mock;
   EXPECT_CALL(*backoff_policy_mock.state_, OnCompletion()).WillRepeatedly([&] {
     ++num_backoff_policy_called;
     return std::chrono::milliseconds(0);
   });
-  auto client =
-      RetryClient::Create(std::shared_ptr<internal::RawClient>(raw_client));
+  auto client = StorageConnectionImpl::Create(std::move(mock));
   google::cloud::internal::OptionsSpan const span(
       BasicTestPolicies().set<BackoffPolicyOption>(
           backoff_policy_mock.clone()));
 
   EXPECT_EQ(0, num_backoff_policy_called);
 
-  EXPECT_CALL(*raw_client, ReadObject)
-      .WillOnce([](ReadObjectRangeRequest const&) {
-        auto source = absl::make_unique<MockObjectReadSource>();
-        EXPECT_CALL(*source, Read).WillOnce(Return(TransientError()));
-        return std::unique_ptr<ObjectReadSource>(std::move(source));
-      })
-      .WillOnce([](ReadObjectRangeRequest const&) {
-        auto source = absl::make_unique<MockObjectReadSource>();
-        EXPECT_CALL(*source, Read).WillOnce(Return(TransientError()));
-        return std::unique_ptr<ObjectReadSource>(std::move(source));
-      })
-      .WillOnce([](ReadObjectRangeRequest const&) {
-        auto source = absl::make_unique<MockObjectReadSource>();
-        EXPECT_CALL(*source, Read)
-            .WillOnce(Return(ReadSourceResult{}))
-            .WillOnce(Return(TransientError()));
-        return std::unique_ptr<ObjectReadSource>(std::move(source));
-      })
-      .WillOnce([](ReadObjectRangeRequest const&) {
-        auto source = absl::make_unique<MockObjectReadSource>();
-        EXPECT_CALL(*source, Read).WillOnce(Return(ReadSourceResult{}));
-        return std::unique_ptr<ObjectReadSource>(std::move(source));
-      });
-
-  // We really do not care how many times the policy is closed before we make
+  // We really do not care how many times the policy is cloned before we make
   // the first `Read()` call.  We only care about how it increases.
   auto const initial_clone_count = backoff_policy_mock.NumClones();
   auto source = client->ReadObject(ReadObjectRangeRequest{});
@@ -226,41 +228,42 @@ TEST(RetryObjectReadSourceTest, BackoffPolicyResetOnSuccess) {
 
   // raw_source1 and raw_source2 fail, then a success
   ASSERT_STATUS_OK((*source)->Read(nullptr, 1024));
-  // Two retries, so the backoff policy was called twice.
-  EXPECT_EQ(2, num_backoff_policy_called);
-  // The backoff should have been cloned during the read.
+  // Two retries, the first one does not get a backoff, so there should be one
+  // call to OnCompletion.
+  EXPECT_EQ(1, num_backoff_policy_called);
+  // The backoff should have been cloned during the Read() call.
   EXPECT_EQ(initial_clone_count + 2, backoff_policy_mock.NumClones());
-  // The backoff policy was used twice in the first retry.
-  EXPECT_EQ(2, backoff_policy_mock.NumCallsFromLastClone());
+  // The backoff policy was used once in the first retry.
+  EXPECT_EQ(1, backoff_policy_mock.NumCallsFromLastClone());
 
   // raw_source3 fails, then a success
   ASSERT_STATUS_OK((*source)->Read(nullptr, 1024));
-  // This read caused a third retry.
-  EXPECT_EQ(3, num_backoff_policy_called);
+  // This read caused another retry, but no call to backoff.
+  EXPECT_EQ(1, num_backoff_policy_called);
   // The backoff should have been cloned during the read.
   EXPECT_EQ(initial_clone_count + 3, backoff_policy_mock.NumClones());
-  // The backoff policy was only once in the second retry.
-  EXPECT_EQ(1, backoff_policy_mock.NumCallsFromLastClone());
+  // The backoff policy was cloned once, but never used in the second retry.
+  EXPECT_EQ(0, backoff_policy_mock.NumCallsFromLastClone());
 }
 
 /// @test Check that retry policy is shared between reads and resetting session
 TEST(RetryObjectReadSourceTest, RetryPolicyExhaustedOnResetSession) {
-  auto raw_client = std::make_shared<testing::MockClient>();
-  auto client =
-      RetryClient::Create(std::shared_ptr<internal::RawClient>(raw_client));
-  google::cloud::internal::OptionsSpan const span(BasicTestPolicies());
-
-  EXPECT_CALL(*raw_client, ReadObject)
-      .WillOnce([](ReadObjectRangeRequest const&) {
-        auto source = absl::make_unique<MockObjectReadSource>();
+  auto mock = std::make_unique<MockGenericStub>();
+  EXPECT_CALL(*mock, options);  // Required in RetryClient::Create()
+  EXPECT_CALL(*mock, ReadObject)
+      .WillOnce([] {
+        auto source = std::make_unique<MockObjectReadSource>();
         EXPECT_CALL(*source, Read)
             .WillOnce(Return(ReadSourceResult{}))
             .WillOnce(Return(TransientError()));
         return std::unique_ptr<ObjectReadSource>(std::move(source));
       })
-      .WillOnce([](ReadObjectRangeRequest const&) { return TransientError(); })
-      .WillOnce([](ReadObjectRangeRequest const&) { return TransientError(); })
-      .WillOnce([](ReadObjectRangeRequest const&) { return TransientError(); });
+      .WillOnce([] { return TransientError(); })
+      .WillOnce([] { return TransientError(); })
+      .WillOnce([] { return TransientError(); });
+
+  auto client = StorageConnectionImpl::Create(std::move(mock));
+  google::cloud::internal::OptionsSpan const span(BasicTestPolicies());
 
   auto source = client->ReadObject(ReadObjectRangeRequest{});
   ASSERT_STATUS_OK(source);
@@ -273,29 +276,72 @@ TEST(RetryObjectReadSourceTest, RetryPolicyExhaustedOnResetSession) {
   EXPECT_THAT(res.status().message(), HasSubstr("Retry policy exhausted"));
 }
 
+/// @test Check that retry policy is shared between reads and resetting session
+TEST(RetryObjectReadSourceTest, ResumePolicyOrder) {
+  ::testing::MockFunction<void(std::chrono::milliseconds)> backoff;
+  ::testing::MockFunction<StatusOr<std::unique_ptr<ObjectReadSource>>(
+      ReadObjectRangeRequest const&, RetryPolicy&, BackoffPolicy&)>
+      factory;
+
+  auto make_partial = [] {
+    auto source = std::make_unique<MockObjectReadSource>();
+    EXPECT_CALL(*source, Read).WillOnce(Return(TransientError()));
+    return std::unique_ptr<ObjectReadSource>(std::move(source));
+  };
+
+  auto source = std::make_unique<MockObjectReadSource>();
+  {
+    ::testing::InSequence sequence;
+    EXPECT_CALL(*source, Read)
+        .WillOnce(Return(ReadSourceResult{static_cast<std::size_t>(512 * 1024),
+                                          HttpResponse{100, "", {}}}));
+    EXPECT_CALL(*source, Read).WillOnce(Return(TransientError()));
+    // No backoffs to resume after a (partially) successful request:
+    EXPECT_CALL(factory, Call).WillOnce(make_partial);
+    EXPECT_CALL(backoff, Call).Times(1);
+    EXPECT_CALL(factory, Call).WillOnce(make_partial);
+    EXPECT_CALL(backoff, Call).Times(1);
+    EXPECT_CALL(factory, Call).WillOnce(make_partial);
+  }
+
+  auto options = BasicTestPolicies();
+  auto retry_policy = options.get<RetryPolicyOption>()->clone();
+  auto backoff_policy = options.get<BackoffPolicyOption>()->clone();
+
+  RetryObjectReadSource tested(
+      factory.AsStdFunction(),
+      google::cloud::internal::MakeImmutableOptions(std::move(options)),
+      ReadObjectRangeRequest{}, std::move(source), std::move(retry_policy),
+      std::move(backoff_policy), backoff.AsStdFunction());
+
+  ASSERT_STATUS_OK(tested.Read(nullptr, 1024));
+  auto response = tested.Read(nullptr, 1024);
+  EXPECT_THAT(response, StatusIs(TransientError().code()));
+}
+
 /// @test `ReadLast` behaviour after a transient failure
 TEST(RetryObjectReadSourceTest, TransientFailureWithReadLastOption) {
-  auto raw_client = std::make_shared<testing::MockClient>();
-  auto client =
-      RetryClient::Create(std::shared_ptr<internal::RawClient>(raw_client));
-  google::cloud::internal::OptionsSpan const span(BasicTestPolicies());
-
-  EXPECT_CALL(*raw_client, ReadObject)
-      .WillOnce([](ReadObjectRangeRequest const& req) {
+  auto mock = std::make_unique<MockGenericStub>();
+  EXPECT_CALL(*mock, options);  // Required in RetryClient::Create()
+  EXPECT_CALL(*mock, ReadObject)
+      .WillOnce([](auto&, auto const&, ReadObjectRangeRequest const& req) {
         EXPECT_EQ(1029, req.GetOption<ReadLast>().value());
-        auto source = absl::make_unique<MockObjectReadSource>();
+        auto source = std::make_unique<MockObjectReadSource>();
         EXPECT_CALL(*source, Read)
             .WillOnce(Return(ReadSourceResult{static_cast<std::size_t>(1024),
                                               HttpResponse{100, "", {}}}))
             .WillOnce(Return(TransientError()));
         return std::unique_ptr<ObjectReadSource>(std::move(source));
       })
-      .WillOnce([](ReadObjectRangeRequest const& req) {
+      .WillOnce([](auto&, auto const&, ReadObjectRangeRequest const& req) {
         EXPECT_EQ(5, req.GetOption<ReadLast>().value());
-        auto source = absl::make_unique<MockObjectReadSource>();
+        auto source = std::make_unique<MockObjectReadSource>();
         EXPECT_CALL(*source, Read).WillOnce(Return(ReadSourceResult{}));
         return std::unique_ptr<ObjectReadSource>(std::move(source));
       });
+
+  auto client = StorageConnectionImpl::Create(std::move(mock));
+  google::cloud::internal::OptionsSpan const span(BasicTestPolicies());
 
   ReadObjectRangeRequest req("test_bucket", "test_object");
   req.set_option(ReadLast(1029));
@@ -308,16 +354,13 @@ TEST(RetryObjectReadSourceTest, TransientFailureWithReadLastOption) {
 
 /// @test The generation is captured such that we resume from the same version
 TEST(RetryObjectReadSourceTest, TransientFailureWithGeneration) {
-  auto raw_client = std::make_shared<testing::MockClient>();
-  auto client =
-      RetryClient::Create(std::shared_ptr<internal::RawClient>(raw_client));
-  google::cloud::internal::OptionsSpan const span(BasicTestPolicies());
-
-  EXPECT_CALL(*raw_client, ReadObject)
-      .WillOnce([](ReadObjectRangeRequest const& req) {
+  auto mock = std::make_unique<MockGenericStub>();
+  EXPECT_CALL(*mock, options);  // Required in RetryClient::Create()
+  EXPECT_CALL(*mock, ReadObject)
+      .WillOnce([](auto&, auto const&, ReadObjectRangeRequest const& req) {
         EXPECT_FALSE(req.HasOption<ReadRange>());
         EXPECT_FALSE(req.HasOption<Generation>());
-        auto source = absl::make_unique<MockObjectReadSource>();
+        auto source = std::make_unique<MockObjectReadSource>();
         auto result = ReadSourceResult{static_cast<std::size_t>(1024),
                                        HttpResponse{200, "", {}}};
         result.generation = 23456;
@@ -326,13 +369,16 @@ TEST(RetryObjectReadSourceTest, TransientFailureWithGeneration) {
             .WillOnce(Return(TransientError()));
         return std::unique_ptr<ObjectReadSource>(std::move(source));
       })
-      .WillOnce([](ReadObjectRangeRequest const& req) {
+      .WillOnce([](auto&, auto const&, ReadObjectRangeRequest const& req) {
         EXPECT_EQ(1024, req.GetOption<ReadFromOffset>().value_or(0));
         EXPECT_EQ(23456, req.GetOption<Generation>().value_or(0));
-        auto source = absl::make_unique<MockObjectReadSource>();
+        auto source = std::make_unique<MockObjectReadSource>();
         EXPECT_CALL(*source, Read).WillOnce(Return(ReadSourceResult{}));
         return std::unique_ptr<ObjectReadSource>(std::move(source));
       });
+
+  auto client = StorageConnectionImpl::Create(std::move(mock));
+  google::cloud::internal::OptionsSpan const span(BasicTestPolicies());
 
   ReadObjectRangeRequest req("test_bucket", "test_object");
   auto source = client->ReadObject(req);
@@ -344,18 +390,14 @@ TEST(RetryObjectReadSourceTest, TransientFailureWithGeneration) {
 
 /// @test Downloads with decompressive transcoding require discarding data.
 TEST(RetryObjectReadSourceTest, DiscardDataForDecompressiveTranscoding) {
-  auto mock = std::make_shared<testing::MockClient>();
-  auto client = RetryClient::Create(std::shared_ptr<internal::RawClient>(mock));
-  google::cloud::internal::OptionsSpan const span(
-      BasicTestPolicies().set<RetryPolicyOption>(
-          LimitedErrorCountRetryPolicy(10).clone()));
-
+  auto mock = std::make_unique<MockGenericStub>();
+  EXPECT_CALL(*mock, options);  // Required in RetryClient::Create()
   EXPECT_CALL(*mock, ReadObject)
-      .WillOnce([](ReadObjectRangeRequest const&) {
+      .WillOnce([] {
         // Simulate an initial download that reveals the object is subject to
         // decompressive transcoding. It returns the requested amount of data
         // (512 * 1024 bytes), and then fails with a transient error.
-        auto source = absl::make_unique<MockObjectReadSource>();
+        auto source = std::make_unique<MockObjectReadSource>();
         auto r0 = ReadSourceResult{
             static_cast<std::size_t>(512 * 1024),
             HttpResponse{100, "", {{"x-test-only", "download 1 r0"}}}};
@@ -366,7 +408,7 @@ TEST(RetryObjectReadSourceTest, DiscardDataForDecompressiveTranscoding) {
             .WillOnce(Return(TransientError()));
         return std::unique_ptr<ObjectReadSource>(std::move(source));
       })
-      .WillOnce([](ReadObjectRangeRequest const& req) {
+      .WillOnce([](auto&, auto const&, ReadObjectRangeRequest const& req) {
         // The previous transient error should trigger a second download. We
         // simulate a successful start, but the download is interrupted before
         // it can reach the previous offset.
@@ -382,17 +424,17 @@ TEST(RetryObjectReadSourceTest, DiscardDataForDecompressiveTranscoding) {
             static_cast<std::size_t>(128 * 1024),
             HttpResponse{200, "", {{"x-test-only", "download 2 r1"}}}};
 
-        auto source = absl::make_unique<MockObjectReadSource>();
+        auto source = std::make_unique<MockObjectReadSource>();
         EXPECT_CALL(*source, Read).WillOnce(Return(r0)).WillOnce(Return(r1));
         return std::unique_ptr<ObjectReadSource>(std::move(source));
       })
-      .WillOnce([](ReadObjectRangeRequest const&) {
+      .WillOnce([] {
         // Because the previous download "completes" before reaching the desired
         // offset, we need to start a third download. Let's have this one fail
         // immediately.
         return TransientError();
       })
-      .WillOnce([](ReadObjectRangeRequest const& req) {
+      .WillOnce([](auto&, auto const&, ReadObjectRangeRequest const& req) {
         // That triggers a fourth download. We simulate a successful download.
         EXPECT_EQ(512 * 1024, req.GetOption<ReadFromOffset>().value_or(0));
         EXPECT_EQ(23456, req.GetOption<Generation>().value_or(0));
@@ -411,7 +453,7 @@ TEST(RetryObjectReadSourceTest, DiscardDataForDecompressiveTranscoding) {
         r1.generation = 23456;
         r1.transformation = "gunzipped";
 
-        auto source = absl::make_unique<MockObjectReadSource>();
+        auto source = std::make_unique<MockObjectReadSource>();
         // We expect 4 reads to reach the desired offset, and then return the
         // real data.
         ::testing::InSequence sequence;
@@ -421,6 +463,11 @@ TEST(RetryObjectReadSourceTest, DiscardDataForDecompressiveTranscoding) {
         EXPECT_CALL(*source, Read(_, 256 * 1024L)).WillOnce(Return(r1));
         return std::unique_ptr<ObjectReadSource>(std::move(source));
       });
+
+  auto client = StorageConnectionImpl::Create(std::move(mock));
+  google::cloud::internal::OptionsSpan const span(
+      BasicTestPolicies().set<RetryPolicyOption>(
+          LimitedErrorCountRetryPolicy(10).clone()));
 
   std::vector<char> buffer(1024 * 1024L);
 
@@ -441,6 +488,119 @@ TEST(RetryObjectReadSourceTest, DiscardDataForDecompressiveTranscoding) {
   EXPECT_THAT(response->response.headers,
               Contains(Pair("x-test-only", "download 3 r1")));
 }
+
+#ifdef GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
+using ::google::cloud::testing_util::DisableTracing;
+using ::google::cloud::testing_util::EnableTracing;
+using ::google::cloud::testing_util::SpanNamed;
+using ::testing::ElementsAre;
+using ::testing::IsEmpty;
+
+TEST(RetryObjectReadSourceTest, TracingEnabled) {
+  auto span_catcher = testing_util::InstallSpanCatcher();
+
+  ::testing::MockFunction<void(std::chrono::milliseconds)> backoff;
+  ::testing::MockFunction<StatusOr<std::unique_ptr<ObjectReadSource>>(
+      ReadObjectRangeRequest const&, RetryPolicy&, BackoffPolicy&)>
+      factory;
+
+  auto make_partial = [] {
+    auto source = std::make_unique<MockObjectReadSource>();
+    EXPECT_CALL(*source, Read).WillOnce(Return(TransientError()));
+    return std::unique_ptr<ObjectReadSource>(std::move(source));
+  };
+
+  auto source = std::make_unique<MockObjectReadSource>();
+  {
+    ::testing::InSequence sequence;
+    EXPECT_CALL(*source, Read)
+        .WillOnce(Return(ReadSourceResult{static_cast<std::size_t>(512 * 1024),
+                                          HttpResponse{100, "", {}}}));
+    EXPECT_CALL(*source, Read).WillOnce(Return(TransientError()));
+    // No backoffs to resume after a (partially) successful request:
+    //    EXPECT_CALL(backoff, Call).Times(1);
+    EXPECT_CALL(factory, Call).WillOnce(make_partial);
+    EXPECT_CALL(backoff, Call).Times(1);
+    EXPECT_CALL(factory, Call).WillOnce(make_partial);
+    EXPECT_CALL(backoff, Call).Times(1);
+    EXPECT_CALL(factory, Call).WillOnce(make_partial);
+  }
+
+  // Override the default backoff policy, it results in very short periods which
+  // are skipped by the span wrappers.
+  using ms = std::chrono::milliseconds;
+  auto options = EnableTracing(BasicTestPolicies().set<BackoffPolicyOption>(
+      ExponentialBackoffPolicy(ms(2), ms(2), 2.0).clone()));
+  auto retry_policy = options.get<RetryPolicyOption>()->clone();
+  auto backoff_policy = options.get<BackoffPolicyOption>()->clone();
+
+  RetryObjectReadSource tested(
+      factory.AsStdFunction(),
+      google::cloud::internal::MakeImmutableOptions(std::move(options)),
+      ReadObjectRangeRequest{}, std::move(source), std::move(retry_policy),
+      std::move(backoff_policy), backoff.AsStdFunction());
+
+  ASSERT_STATUS_OK(tested.Read(nullptr, 1024));
+  auto response = tested.Read(nullptr, 1024);
+  EXPECT_THAT(response, StatusIs(TransientError().code()));
+
+  auto spans = span_catcher->GetSpans();
+  EXPECT_THAT(spans, ElementsAre(SpanNamed("Backoff"), SpanNamed("Backoff")));
+}
+
+TEST(RetryObjectReadSourceTest, TracingDisabled) {
+  auto span_catcher = testing_util::InstallSpanCatcher();
+
+  ::testing::MockFunction<void(std::chrono::milliseconds)> backoff;
+  ::testing::MockFunction<StatusOr<std::unique_ptr<ObjectReadSource>>(
+      ReadObjectRangeRequest const&, RetryPolicy&, BackoffPolicy&)>
+      factory;
+
+  auto make_partial = [] {
+    auto source = std::make_unique<MockObjectReadSource>();
+    EXPECT_CALL(*source, Read).WillOnce(Return(TransientError()));
+    return std::unique_ptr<ObjectReadSource>(std::move(source));
+  };
+
+  auto source = std::make_unique<MockObjectReadSource>();
+  {
+    ::testing::InSequence sequence;
+    EXPECT_CALL(*source, Read)
+        .WillOnce(Return(ReadSourceResult{static_cast<std::size_t>(512 * 1024),
+                                          HttpResponse{100, "", {}}}));
+    EXPECT_CALL(*source, Read).WillOnce(Return(TransientError()));
+    // No backoffs to resume after a (partially) successful request:
+    //    EXPECT_CALL(backoff, Call).Times(1);
+    EXPECT_CALL(factory, Call).WillOnce(make_partial);
+    EXPECT_CALL(backoff, Call).Times(1);
+    EXPECT_CALL(factory, Call).WillOnce(make_partial);
+    EXPECT_CALL(backoff, Call).Times(1);
+    EXPECT_CALL(factory, Call).WillOnce(make_partial);
+  }
+
+  // Override the default backoff policy, it results in very short periods which
+  // are skipped by the span wrappers.
+  using ms = std::chrono::milliseconds;
+  auto options = DisableTracing(BasicTestPolicies().set<BackoffPolicyOption>(
+      ExponentialBackoffPolicy(ms(2), ms(2), 2.0).clone()));
+  auto retry_policy = options.get<RetryPolicyOption>()->clone();
+  auto backoff_policy = options.get<BackoffPolicyOption>()->clone();
+
+  RetryObjectReadSource tested(
+      factory.AsStdFunction(),
+      google::cloud::internal::MakeImmutableOptions(std::move(options)),
+      ReadObjectRangeRequest{}, std::move(source), std::move(retry_policy),
+      std::move(backoff_policy), backoff.AsStdFunction());
+
+  ASSERT_STATUS_OK(tested.Read(nullptr, 1024));
+  auto response = tested.Read(nullptr, 1024);
+  EXPECT_THAT(response, StatusIs(TransientError().code()));
+
+  auto spans = span_catcher->GetSpans();
+  EXPECT_THAT(spans, IsEmpty());
+}
+
+#endif  // GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
 
 }  // namespace
 }  // namespace internal

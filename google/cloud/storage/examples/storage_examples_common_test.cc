@@ -15,6 +15,9 @@
 #include "google/cloud/storage/examples/storage_examples_common.h"
 #include "google/cloud/testing_util/scoped_environment.h"
 #include <gmock/gmock.h>
+#include <random>
+#include <string>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -101,9 +104,7 @@ TEST(StorageExamplesCommon, CreateCommandEntryNoArguments) {
 
   // Too many args when not using varargs is an error.
   EXPECT_THROW(
-      try {
-        entry.second({"1", "2", "3"});
-      } catch (Usage const& ex) {
+      try { entry.second({"1", "2", "3"}); } catch (Usage const& ex) {
         EXPECT_THAT(ex.what(), HasSubstr("my-test foo bar"));
         throw;
       },

@@ -22,6 +22,7 @@
 #include "google/cloud/internal/populate_common_options.h"
 #include "google/cloud/internal/populate_grpc_options.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -33,12 +34,11 @@ auto constexpr kBackoffScaling = 2.0;
 }  // namespace
 
 Options GoldenThingAdminDefaultOptions(Options options) {
-  options = google::cloud::internal::PopulateCommonOptions(
+  options = internal::PopulateCommonOptions(
       std::move(options), "GOLDEN_KITCHEN_SINK_ENDPOINT",
       "GOLDEN_KITCHEN_SINK_EMULATOR_HOST", "GOLDEN_KITCHEN_SINK_AUTHORITY",
       "test.googleapis.com");
-  options = google::cloud::internal::PopulateGrpcOptions(
-      std::move(options), "GOLDEN_KITCHEN_SINK_EMULATOR_HOST");
+  options = internal::PopulateGrpcOptions(std::move(options));
   if (!options.has<golden_v1::GoldenThingAdminRetryPolicyOption>()) {
     options.set<golden_v1::GoldenThingAdminRetryPolicyOption>(
         golden_v1::GoldenThingAdminLimitedTimeRetryPolicy(
@@ -46,8 +46,8 @@ Options GoldenThingAdminDefaultOptions(Options options) {
   }
   if (!options.has<golden_v1::GoldenThingAdminBackoffPolicyOption>()) {
     options.set<golden_v1::GoldenThingAdminBackoffPolicyOption>(
-        ExponentialBackoffPolicy(std::chrono::seconds(1),
-            std::chrono::minutes(5), kBackoffScaling).clone());
+        ExponentialBackoffPolicy(std::chrono::seconds(0), std::chrono::seconds(1),
+            std::chrono::minutes(5), kBackoffScaling, kBackoffScaling).clone());
   }
   if (!options.has<golden_v1::GoldenThingAdminPollingPolicyOption>()) {
     options.set<golden_v1::GoldenThingAdminPollingPolicyOption>(
@@ -55,8 +55,8 @@ Options GoldenThingAdminDefaultOptions(Options options) {
             golden_v1::GoldenThingAdminRetryPolicyOption::Type,
             golden_v1::GoldenThingAdminBackoffPolicyOption::Type>(
             options.get<golden_v1::GoldenThingAdminRetryPolicyOption>()->clone(),
-            options.get<golden_v1::GoldenThingAdminBackoffPolicyOption>()->clone())
-            .clone());
+            ExponentialBackoffPolicy(std::chrono::seconds(1),
+            std::chrono::minutes(5), kBackoffScaling).clone()).clone());
   }
   if (!options.has<golden_v1::GoldenThingAdminConnectionIdempotencyPolicyOption>()) {
     options.set<golden_v1::GoldenThingAdminConnectionIdempotencyPolicyOption>(

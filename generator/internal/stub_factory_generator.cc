@@ -15,6 +15,7 @@
 #include "generator/internal/stub_factory_generator.h"
 #include "generator/internal/codegen_utils.h"
 #include "generator/internal/printer.h"
+#include "absl/strings/str_split.h"
 #include <google/protobuf/descriptor.h>
 
 namespace google {
@@ -25,10 +26,12 @@ StubFactoryGenerator::StubFactoryGenerator(
     google::protobuf::ServiceDescriptor const* service_descriptor,
     VarsDictionary service_vars,
     std::map<std::string, VarsDictionary> service_method_vars,
-    google::protobuf::compiler::GeneratorContext* context)
+    google::protobuf::compiler::GeneratorContext* context,
+    std::vector<MixinMethod> const& mixin_methods)
     : ServiceCodeGenerator("stub_factory_header_path", "stub_factory_cc_path",
                            service_descriptor, std::move(service_vars),
-                           std::move(service_method_vars), context) {}
+                           std::move(service_method_vars), context,
+                           mixin_methods) {}
 
 Status StubFactoryGenerator::GenerateHeader() {
   HeaderPrint(CopyrightLicenseFileHeader());
@@ -45,10 +48,8 @@ Status StubFactoryGenerator::GenerateHeader() {
   // includes
   HeaderPrint("\n");
   HeaderLocalIncludes({vars("stub_header_path"),
-                       "google/cloud/completion_queue.h",
-                       "google/cloud/credentials.h",
                        "google/cloud/internal/unified_grpc_credentials.h",
-                       "google/cloud/version.h"});
+                       "google/cloud/options.h", "google/cloud/version.h"});
   HeaderSystemIncludes({"memory"});
 
   auto result = HeaderOpenNamespaces(NamespaceType::kInternal);
@@ -57,7 +58,8 @@ Status StubFactoryGenerator::GenerateHeader() {
   HeaderPrint(
       R"""(
 std::shared_ptr<$stub_class_name$> CreateDefault$stub_class_name$(
-    google::cloud::CompletionQueue cq, Options const& options);
+    std::shared_ptr<internal::GrpcAuthenticationStrategy> auth,
+    Options const& options);
 )""");
 
   HeaderCloseNamespaces();
@@ -79,52 +81,87 @@ Status StubFactoryGenerator::GenerateCc() {
   CcPrint("\n");
   CcLocalIncludes({vars("stub_factory_header_path"), vars("auth_header_path"),
                    vars("logging_header_path"), vars("metadata_header_path"),
-                   vars("stub_header_path"), "google/cloud/common_options.h",
+                   vars("stub_header_path"), vars("tracing_stub_header_path"),
+                   "google/cloud/common_options.h",
                    "google/cloud/grpc_options.h",
                    "google/cloud/internal/algorithm.h",
+                   "google/cloud/internal/opentelemetry.h",
                    "google/cloud/options.h", "google/cloud/log.h"});
-  CcSystemIncludes({vars("proto_grpc_header_path"), "memory"});
+
+  std::vector<std::string> headers =
+      absl::StrSplit(vars("mixin_proto_grpc_header_paths"), ',');
+  headers.insert(headers.end(),
+                 {vars("proto_grpc_header_path"), "memory", "utility"});
+  CcSystemIncludes(headers);
 
   auto result = CcOpenNamespaces(NamespaceType::kInternal);
   if (!result.ok()) return result;
+
+  std::unordered_map<std::string, std::string> mixin_grpc_stubs;
+  for (auto const& mixin_method : MixinMethods()) {
+    // We create operations stub for service with LRO no matter it has LRO mixin
+    // or not, so we skip creating mixin operations stub for the services with
+    // LRO.
+    if (HasLongrunningMethod() &&
+        mixin_method.grpc_stub_name == "operations_stub")
+      continue;
+    mixin_grpc_stubs[mixin_method.grpc_stub_name] = mixin_method.grpc_stub_fqn;
+  }
+  std::string mixin_stub_inits;
+  std::string mixin_stub_moves;
+  for (auto const& mixin_grpc_stub : mixin_grpc_stubs) {
+    mixin_stub_inits += absl::StrFormat(
+        R"""(
+  auto service_%s = %s::NewStub(channel);)""",
+        mixin_grpc_stub.first, mixin_grpc_stub.second);
+    mixin_stub_moves +=
+        absl::StrFormat(", std::move(service_%s)", mixin_grpc_stub.first);
+  }
 
   // factory function implementation
   CcPrint(R"""(
 std::shared_ptr<$stub_class_name$>
 CreateDefault$stub_class_name$(
-    google::cloud::CompletionQueue cq, Options const& options) {
-  auto auth = google::cloud::internal::CreateAuthenticationStrategy(
-      std::move(cq), options);
+    std::shared_ptr<internal::GrpcAuthenticationStrategy> auth,
+    Options const& options) {
   auto channel = auth->CreateChannel(
     options.get<EndpointOption>(), internal::MakeChannelArguments(options));
   auto service_grpc_stub = $grpc_stub_fqn$::NewStub(channel);)""");
 
+  CcPrint(mixin_stub_inits);
+
   if (!HasLongrunningMethod()) {
-    CcPrint(R"""(
+    CcPrint(absl::StrFormat(R"""(
   std::shared_ptr<$stub_class_name$> stub =
-    std::make_shared<Default$stub_class_name$>(std::move(service_grpc_stub));
-)""");
+    std::make_shared<Default$stub_class_name$>(std::move(service_grpc_stub)%s);
+)""",
+                            mixin_stub_moves));
   } else {
-    CcPrint(R"""(
+    CcPrint(absl::StrFormat(R"""(
   std::shared_ptr<$stub_class_name$> stub =
     std::make_shared<Default$stub_class_name$>(
-      std::move(service_grpc_stub),
+      std::move(service_grpc_stub)%s,
       google::longrunning::Operations::NewStub(channel));
-)""");
+)""",
+                            mixin_stub_moves));
   }
   CcPrint(R"""(
   if (auth->RequiresConfigureContext()) {
     stub = std::make_shared<$auth_class_name$>(
         std::move(auth), std::move(stub));
   }
-  stub = std::make_shared<$metadata_class_name$>(std::move(stub));
+  stub = std::make_shared<$metadata_class_name$>(
+      std::move(stub), std::multimap<std::string, std::string>{});
   if (internal::Contains(
-      options.get<TracingComponentsOption>(), "rpc")) {
+      options.get<LoggingComponentsOption>(), "rpc")) {
     GCP_LOG(INFO) << "Enabled logging for gRPC calls";
     stub = std::make_shared<$logging_class_name$>(
         std::move(stub),
         options.get<GrpcTracingOptionsOption>(),
-        options.get<TracingComponentsOption>());
+        options.get<LoggingComponentsOption>());
+  }
+  if (internal::TracingEnabled(options)) {
+    stub = Make$tracing_stub_class_name$(std::move(stub));
   }
   return stub;
 }

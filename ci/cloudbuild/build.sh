@@ -63,8 +63,8 @@
 # Advanced Examples:
 #
 # 1. Runs the ci/cloudbuild/builds/asan.sh script using the
-#    ci/cloudbuild/dockerfiles/fedora-36-bazel.Dockerfile distro.
-#    $ build.sh --build asan --distro fedora-36-bazel
+#    ci/cloudbuild/dockerfiles/fedora-latest-bazel.Dockerfile distro.
+#    $ build.sh --build asan --distro fedora-latest-bazel
 #
 # Note: Builds with the `--docker` flag inherit some (but not all) environment
 # variables from the calling process, such as USE_BAZEL_VERSION
@@ -92,7 +92,7 @@ function die() {
 # Use getopt to parse and normalize all the args.
 PARSED="$(getopt -a \
   --options="t:c:ldsh" \
-  --longoptions="arch:,build:,distro:,trigger:,cloud:,local,docker,docker-shell,docker-clean,verbose,help" \
+  --longoptions="arch:,build:,distro:,trigger:,cloud:,pool-region:,pool-id:,cache-bucket:,logs-bucket:,local,docker,docker-shell,docker-clean,verbose,help" \
   --name="${PROGRAM_NAME}" \
   -- "$@")"
 eval set -- "${PARSED}"
@@ -102,6 +102,10 @@ BUILD_FLAG=""
 DISTRO_FLAG=""
 TRIGGER_FLAG=""
 CLOUD_FLAG=""
+POOL_REGION_FLAG="us-east1"
+POOL_ID_FLAG="google-cloud-cpp-pool"
+CACHE_BUCKET_FLAG=""
+LOGS_BUCKET_FLAG=""
 CLEAN_FLAG="false"
 LOCAL_FLAG="false"
 DOCKER_FLAG="false"
@@ -127,6 +131,22 @@ while true; do
       ;;
     -c | --cloud)
       CLOUD_FLAG="$2"
+      shift 2
+      ;;
+    --pool-region)
+      POOL_REGION_FLAG="$2"
+      shift 2
+      ;;
+    --pool-id)
+      POOL_ID_FLAG="$2"
+      shift 2
+      ;;
+    --cache-bucket)
+      CACHE_BUCKET_FLAG="$2"
+      shift 2
+      ;;
+    --logs-bucket)
+      LOGS_BUCKET_FLAG="$2"
       shift 2
       ;;
     -l | --local)
@@ -169,6 +189,8 @@ if [[ -n "${TRIGGER_FLAG}" ]]; then
   test -r "${trigger_file}" || die "Cannot open ${trigger_file}"
   : "${BUILD_FLAG:="$(grep _BUILD_NAME "${trigger_file}" | awk '{print $2}')"}"
   : "${DISTRO_FLAG:="$(grep _DISTRO "${trigger_file}" | awk '{print $2}')"}"
+  : "${LIBRARIES:="$(grep _LIBRARIES "${trigger_file}" | awk '{print $2}')"}"
+  : "${SHARD:="$(grep ' _SHARD:' "${trigger_file}" | awk '{print $2}')"}"
 fi
 
 if [[ -z "${BUILD_FLAG}" ]]; then
@@ -181,15 +203,16 @@ fi
 : "${TRIGGER_TYPE:=manual}"
 : "${BRANCH_NAME:=$(git branch --show-current)}"
 : "${COMMIT_SHA:=$(git rev-parse HEAD)}"
+: "${LIBRARIES:=all}"
+: "${SHARD:=__default__}"
 CODECOV_TOKEN="$(tr -d '[:space:]' <<<"${CODECOV_TOKEN:-}")"
-LOG_LINKER_PAT="$(tr -d '[:space:]' <<<"${LOG_LINKER_PAT:-}")"
 
 export CODECOV_TOKEN
 export BRANCH_NAME
 export COMMIT_SHA
 export TRIGGER_TYPE
 export VERBOSE_FLAG
-export LOG_LINKER_PAT
+export LIBRARIES
 
 # --local is the most fundamental build mode, in that all other builds
 # eventually call this one. For example, a --docker build will build the
@@ -220,8 +243,8 @@ if [[ "${LOCAL_FLAG}" = "true" ]]; then
   fi
 
   if [[ "${TRIGGER_TYPE}" != "manual" || "${VERBOSE_FLAG}" == "true" ]]; then
-    # Prints information about the machine and compiler. In manual builds this
-    # information is almost never useful.
+    # Prints information about the machine, compiler, and gcloud.
+    # In manual builds this information is almost never useful.
     io::log_h1 "Machine Info"
     printf "%10s %s\n" "host:" "$(date -u --rfc-3339=seconds)"
     printf "%10s %s\n" "google:" "$(date -ud "$(google_time)" --rfc-3339=seconds)"
@@ -233,6 +256,10 @@ if [[ "${LOCAL_FLAG}" = "true" ]]; then
     printf "%10s %s\n" "gcc:" "$(gcc --version 2>&1 | head -1)"
     printf "%10s %s\n" "clang:" "$(clang --version 2>&1 | head -1)"
     printf "%10s %s\n" "cc:" "$(cc --version 2>&1 | head -1)"
+    if type gcloud >/dev/null 2>&1; then
+      io::log_h1 "gcloud Versions"
+      gcloud --version
+    fi
   fi
 
   io::log_h1 "Starting local build: ${BUILD_FLAG}"
@@ -260,21 +287,28 @@ if [[ -n "${CLOUD_FLAG}" ]]; then
   # project's "Secret Manager". This is true for our main production project, but
   # for personal projects we may need to create them (with empty strings).
   if [[ "${CLOUD_FLAG}" != "cloud-cpp-testing-resources" ]]; then
-    for secret in "CODECOV_TOKEN" "LOG_LINKER_PAT"; do
-      if ! gcloud --project "${CLOUD_FLAG}" secrets describe "${secret}" >/dev/null; then
-        io::log_yellow "Adding missing secret ${secret} to ${CLOUD_FLAG}"
-        echo | gcloud --project "${CLOUD_FLAG}" secrets create "${secret}" --data-file=-
-      fi
-    done
+    if ! gcloud --project "${CLOUD_FLAG}" secrets describe "CODECOV_TOKEN" >/dev/null; then
+      io::log_yellow "Adding missing secret CODECOV_TOKEN to ${CLOUD_FLAG}"
+      echo | gcloud --project "${CLOUD_FLAG}" secrets create "CODECOV_TOKEN" --data-file=-
+    fi
   fi
   account="$(gcloud config get-value account 2>/dev/null)"
   subs=("_DISTRO=${DISTRO_FLAG}")
   subs+=("_BUILD_NAME=${BUILD_FLAG}")
   subs+=("_TRIGGER_SOURCE=manual-${account}")
   subs+=("_PR_NUMBER=") # Must be empty or a number, and this is not a PR
-  subs+=("_LOGS_BUCKET=${CLOUD_FLAG}_cloudbuild")
+  subs+=("_POOL_REGION=${POOL_REGION_FLAG}")
+  subs+=("_POOL_ID=${POOL_ID_FLAG}")
+  if [[ -n "${CACHE_BUCKET_FLAG}" ]]; then
+    subs+=("_CACHE_BUCKET=${CACHE_BUCKET_FLAG}")
+  fi
+  if [[ -n "${LOGS_BUCKET_FLAG}" ]]; then
+    subs+=("_LOGS_BUCKET=${LOGS_BUCKET_FLAG}")
+  fi
   subs+=("BRANCH_NAME=${BRANCH_NAME}")
   subs+=("COMMIT_SHA=${COMMIT_SHA}")
+  subs+=("_LIBRARIES=${LIBRARIES}")
+  subs+=("_SHARD=${SHARD}")
   printf "Substitutions:\n"
   printf "  %s\n" "${subs[@]}"
   args=(
@@ -282,7 +316,7 @@ if [[ -n "${CLOUD_FLAG}" ]]; then
     "--substitutions=$(printf "%s," "${subs[@]}")"
     "--project=${CLOUD_FLAG}"
     # This value must match the workerPool configured in cloudbuild.yaml
-    "--region=us-east1"
+    "--region=${POOL_REGION_FLAG}"
   )
   io::run gcloud builds submit "${args[@]}" .
   exit
@@ -294,7 +328,10 @@ DOCKER_FLAG="true"
 # Uses docker to locally build the specified image and run the build command.
 if [[ "${DOCKER_FLAG}" = "true" ]]; then
   io::log_h1 "Starting docker build: ${BUILD_FLAG}"
-  out_dir="${PROJECT_ROOT}/build-out/${DISTRO_FLAG}-${BUILD_FLAG}"
+  out_dir="${PROJECT_ROOT}/build-out/${DISTRO_FLAG}/${BUILD_FLAG}"
+  if [[ -n "${SHARD:-}" ]]; then
+    out_dir="${out_dir}/${SHARD}"
+  fi
   out_home="${out_dir}/h"
   out_cmake="${out_dir}/cmake-out"
   if [[ "${CLEAN_FLAG}" = "true" ]]; then
@@ -335,6 +372,8 @@ if [[ "${DOCKER_FLAG}" = "true" ]]; then
     "--env=TRIGGER_TYPE=${TRIGGER_TYPE:-}"
     "--env=VERBOSE_FLAG=${VERBOSE_FLAG:-}"
     "--env=USE_BAZEL_VERSION=${USE_BAZEL_VERSION:-}"
+    "--env=LIBRARIES=${LIBRARIES:-}"
+    "--env=SHARD=${SHARD:-}"
     # Mounts an empty volume over "build-out" to isolate builds from each
     # other. Doesn't affect GCB builds, but it helps our local docker builds.
     "--volume=/workspace/build-out"
@@ -349,7 +388,16 @@ if [[ "${DOCKER_FLAG}" = "true" ]]; then
     # Makes the generate-libraries build ONLY touch golden files in the
     # generator dir.
     "--env=GENERATE_GOLDEN_ONLY=${GENERATE_GOLDEN_ONLY-}"
+    # Makes the generate-libraries build expect new files to be created
+    # in protos/google/cloud/${UPDATED_DISCOVERY_DOCUMENT} and
+    # in google/cloud/${UPDATED_DISCOVERY_DOCUMENT} and git add such files.
+    "--env=UPDATED_DISCOVERY_DOCUMENT=${UPDATED_DISCOVERY_DOCUMENT-}"
   )
+  if [[ -r "${HOME}/.cloudcxxrc" ]]; then
+    run_flags+=(
+      "--volume=${HOME}/.cloudcxxrc:/h/.cloudcxxrc:Z"
+    )
+  fi
   # All GOOGLE_CLOUD_* env vars will be passed to the docker container.
   for e in $(env); do
     if [[ "${e}" = GOOGLE_CLOUD_* ]]; then

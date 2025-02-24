@@ -27,6 +27,7 @@ function features::always_build() {
   list=(
     # These have hand-crafted code, therefore we always want to build them.
     bigtable
+    experimental-bigquery_rest
     spanner
     storage
     pubsub
@@ -36,8 +37,11 @@ function features::always_build() {
     bigquery
     iam
     logging
-    # By default, build the library with OpenTelemetry in our CI.
-    experimental-opentelemetry
+    # Build our code with OpenTelemetry. This feature includes both the client
+    # library instrumentation, and the GCP exporters.
+    opentelemetry
+    # Enable storage_grpc in most builds.
+    storage_grpc
   )
   printf "%s\n" "${list[@]}" | sort -u
 }
@@ -51,20 +55,30 @@ function features::always_build_cmake() {
 
 function features::libraries() {
   local feature_list
-  mapfile -t feature_list <ci/etc/full_feature_list
+  mapfile -t feature_list < <(cmake -P cmake/print-all-features.cmake 2>&1)
   printf "%s\n" "${feature_list[@]}" | sort -u
+}
+
+function features::_internal_extra() {
+  local list=(
+    experimental-bigquery_rest
+    opentelemetry
+  )
+  printf "%s\n" "${list[@]}"
 }
 
 function features::list_full() {
   local feature_list
   mapfile -t feature_list < <(features::libraries)
-  feature_list+=(experimental-opentelemetry experimental-storage-grpc grafeas)
-  printf "%s\n" "${feature_list[@]}" | sort -u
+  local extra_list
+  mapfile -t extra_list < <(features::_internal_extra)
+  printf "%s\n" "${feature_list[@]}" "${extra_list[@]}" | sort -u
 }
 
 function features::list_full_cmake() {
-  local features
+  local feature_list
   mapfile -t feature_list < <(features::list_full)
-  features="$(printf ",%s" "${feature_list[@]}")"
-  echo "${features:1}"
+  local concat
+  concat="$(printf ",%s" "${feature_list[@]}" "${extra_list[@]}")"
+  echo "${concat:1}"
 }

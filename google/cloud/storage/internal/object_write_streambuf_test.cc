@@ -13,11 +13,15 @@
 // limitations under the License.
 
 #include "google/cloud/storage/internal/object_write_streambuf.h"
+#include "google/cloud/storage/internal/connection_impl.h"
 #include "google/cloud/storage/object_metadata.h"
 #include "google/cloud/storage/testing/mock_client.h"
+#include "google/cloud/storage/testing/mock_generic_stub.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
 #include <gmock/gmock.h>
+#include <memory>
+#include <string>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -32,7 +36,7 @@ using ::testing::InvokeWithoutArgs;
 
 /// @test Verify that uploading an empty stream creates a single chunk.
 TEST(ObjectWriteStreambufTest, EmptyStream) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   EXPECT_CALL(*mock, UploadChunk).WillOnce([&](UploadChunkRequest const& r) {
     EXPECT_EQ(0, r.payload_size());
@@ -41,7 +45,7 @@ TEST(ObjectWriteStreambufTest, EmptyStream) {
     return QueryResumableUploadResponse{absl::nullopt, ObjectMetadata()};
   });
 
-  ObjectWriteStream stream(absl::make_unique<ObjectWriteStreambuf>(
+  ObjectWriteStream stream(std::make_unique<ObjectWriteStreambuf>(
       std::move(mock), ResumableUploadRequest(), "test-only-upload-id",
       /*committed_size=*/0, absl::nullopt, /*max_buffer_size=*/0,
       CreateNullHashFunction(), HashValues{}, CreateNullHashValidator(),
@@ -52,7 +56,7 @@ TEST(ObjectWriteStreambufTest, EmptyStream) {
 
 /// @test Verify that streams auto-finalize if enabled.
 TEST(ObjectWriteStreambufTest, AutoFinalizeEnabled) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   EXPECT_CALL(*mock, UploadChunk).WillOnce([&](UploadChunkRequest const& r) {
     EXPECT_EQ(0, r.payload_size());
@@ -62,7 +66,7 @@ TEST(ObjectWriteStreambufTest, AutoFinalizeEnabled) {
   });
 
   {
-    ObjectWriteStream stream(absl::make_unique<ObjectWriteStreambuf>(
+    ObjectWriteStream stream(std::make_unique<ObjectWriteStreambuf>(
         std::move(mock), ResumableUploadRequest(), "test-only-upload-id",
         /*committed_size=*/0, absl::nullopt,
         /*max_buffer_size=*/0, CreateNullHashFunction(), HashValues{},
@@ -72,12 +76,12 @@ TEST(ObjectWriteStreambufTest, AutoFinalizeEnabled) {
 
 /// @test Verify that streams do not auto-finalize if so configured.
 TEST(ObjectWriteStreambufTest, AutoFinalizeDisabled) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   EXPECT_CALL(*mock, UploadChunk).Times(0);
 
   {
-    ObjectWriteStream stream(absl::make_unique<ObjectWriteStreambuf>(
+    ObjectWriteStream stream(std::make_unique<ObjectWriteStreambuf>(
         std::move(mock), ResumableUploadRequest(), "test-only-upload-id",
         /*committed_size=*/0, absl::nullopt,
         /*max_buffer_size=*/0, CreateNullHashFunction(), HashValues{},
@@ -87,7 +91,7 @@ TEST(ObjectWriteStreambufTest, AutoFinalizeDisabled) {
 
 /// @test Verify that uploading a small stream creates a single chunk.
 TEST(ObjectWriteStreambufTest, SmallStream) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   auto const quantum = UploadChunkRequest::kChunkSizeQuantum;
   std::string const payload = "small test payload";
@@ -112,7 +116,7 @@ TEST(ObjectWriteStreambufTest, SmallStream) {
 /// @test Verify that uploading a stream which ends on an upload chunk quantum
 /// works as expected.
 TEST(ObjectWriteStreambufTest, EmptyTrailer) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   auto quantum = UploadChunkRequest::kChunkSizeQuantum;
   std::string const payload(quantum, '*');
@@ -146,7 +150,7 @@ TEST(ObjectWriteStreambufTest, EmptyTrailer) {
 
 /// @test Verify that a stream sends a single message for large payloads.
 TEST(ObjectWriteStreambufTest, FlushAfterLargePayload) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   auto const quantum = UploadChunkRequest::kChunkSizeQuantum;
   std::string const p0(3 * quantum, '*');
@@ -180,7 +184,7 @@ TEST(ObjectWriteStreambufTest, FlushAfterLargePayload) {
 
 /// @test Verify that a stream flushes when a full quantum is available.
 TEST(ObjectWriteStreambufTest, FlushAfterFullQuantum) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   auto const quantum = UploadChunkRequest::kChunkSizeQuantum;
   std::string const p0("header");
@@ -219,7 +223,7 @@ TEST(ObjectWriteStreambufTest, FlushAfterFullQuantum) {
 
 /// @test Verify that a stream flushes when adding one character at a time.
 TEST(ObjectWriteStreambufTest, OverflowFlushAtFullQuantum) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   auto const quantum = UploadChunkRequest::kChunkSizeQuantum;
   auto const payload = std::string(quantum, '*');
@@ -254,7 +258,7 @@ TEST(ObjectWriteStreambufTest, OverflowFlushAtFullQuantum) {
 
 /// @test verify that bytes not accepted by GCS will be re-uploaded next Flush.
 TEST(ObjectWriteStreambufTest, SomeBytesNotAccepted) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   auto const quantum = UploadChunkRequest::kChunkSizeQuantum;
   std::string const payload = std::string(quantum - 2, '*') + "abcde";
@@ -287,7 +291,7 @@ TEST(ObjectWriteStreambufTest, SomeBytesNotAccepted) {
 /// @test verify that the upload stream transitions to a bad state if the
 /// committed size jumps ahead.
 TEST(ObjectWriteStreambufTest, CommittedSizeJumpsAhead) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   auto const quantum = UploadChunkRequest::kChunkSizeQuantum;
   std::string const payload = std::string(quantum * 2, '*');
@@ -314,7 +318,7 @@ TEST(ObjectWriteStreambufTest, CommittedSizeJumpsAhead) {
 /// @test verify that the upload stream transitions to a bad state if the next
 /// expected byte decreases.
 TEST(ObjectWriteStreambufTest, CommittedSizeDecreases) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   auto const quantum = UploadChunkRequest::kChunkSizeQuantum;
   std::string const payload = std::string(quantum * 2, '*');
@@ -338,7 +342,7 @@ TEST(ObjectWriteStreambufTest, CommittedSizeDecreases) {
 /// @test verify that the upload stream transitions to a bad state on a partial
 /// write.
 TEST(ObjectWriteStreambufTest, PartialUploadChunk) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   auto const quantum = UploadChunkRequest::kChunkSizeQuantum;
   std::string const payload = std::string(quantum * 4, '*');
@@ -361,7 +365,7 @@ TEST(ObjectWriteStreambufTest, PartialUploadChunk) {
 /// @test Verify that a stream flushes when mixing operations that add one
 /// character at a time and operations that add buffers.
 TEST(ObjectWriteStreambufTest, MixPutcPutn) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   auto const quantum = UploadChunkRequest::kChunkSizeQuantum;
   std::string const payload_1("header");
@@ -402,7 +406,7 @@ TEST(ObjectWriteStreambufTest, MixPutcPutn) {
 /// @test Verify that a stream created for a finished upload starts out as
 /// closed.
 TEST(ObjectWriteStreambufTest, CreatedForFinalizedUpload) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   ObjectWriteStreambuf streambuf(
       std::move(mock), ResumableUploadRequest(), "test-only-upload-id", 0,
@@ -417,14 +421,14 @@ TEST(ObjectWriteStreambufTest, CreatedForFinalizedUpload) {
 /// @test A regression test for #8868.
 ///    https://github.com/googleapis/google-cloud-cpp/issues/8868
 TEST(ObjectWriteStreambufTest, Regression8868) {
-  auto mock = absl::make_unique<testing::MockClient>();
-
   auto const quantum = UploadChunkRequest::kChunkSizeQuantum;
   auto const payload = std::string(quantum, '0');
   using ::testing::Return;
 
+  auto mock = std::make_unique<testing::MockGenericStub>();
   ::testing::InSequence sequence;
   // Simulate an upload chunk that has some kind of transient error.
+  EXPECT_CALL(*mock, options);  // Called from StorageConnectionImpl::Create()
   EXPECT_CALL(*mock, UploadChunk)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")));
   // This should trigger a `QueryResumableUpload()`, simulate the case where
@@ -437,7 +441,7 @@ TEST(ObjectWriteStreambufTest, Regression8868) {
           Return(QueryResumableUploadResponse{quantum, ObjectMetadata()}));
 
   using us = std::chrono::microseconds;
-  auto retry = RetryClient::Create(std::move(mock));
+  auto retry = StorageConnectionImpl::Create(std::move(mock));
   google::cloud::internal::OptionsSpan const span(
       Options{}
           .set<Oauth2CredentialsOption>(oauth2::CreateAnonymousCredentials())
@@ -463,7 +467,7 @@ TEST(ObjectWriteStreambufTest, Regression8868) {
   // Before the fixes for #8868 this second call (which is legal, though maybe
   // a bit silly) would crash.  Basically the class assumed that the final
   // UploadChunk() would always return an error or a full payload.  That is now
-  // guaranteed by the RetryClient.
+  // guaranteed by the StorageConnectionImpl.
   close = streambuf.Close();
   ASSERT_STATUS_OK(close);
   EXPECT_FALSE(streambuf.IsOpen());
@@ -473,7 +477,7 @@ TEST(ObjectWriteStreambufTest, Regression8868) {
 
 /// @test Verify that last error status is accessible for small payload.
 TEST(ObjectWriteStreambufTest, ErrorInSmallPayload) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   auto const quantum = UploadChunkRequest::kChunkSizeQuantum;
   std::string const payload = "small test payload";
@@ -497,7 +501,7 @@ TEST(ObjectWriteStreambufTest, ErrorInSmallPayload) {
 
 /// @test Verify that last error status is accessible for large payloads.
 TEST(ObjectWriteStreambufTest, ErrorInLargePayload) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   auto const quantum = UploadChunkRequest::kChunkSizeQuantum;
   std::string const payload_1(3 * quantum, '*');
@@ -525,7 +529,7 @@ TEST(ObjectWriteStreambufTest, ErrorInLargePayload) {
 
 /// @test Verify that uploads of known size work.
 TEST(ObjectWriteStreambufTest, KnownSizeUpload) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   auto const quantum = UploadChunkRequest::kChunkSizeQuantum;
   std::string const payload(2 * quantum, '*');
@@ -567,7 +571,7 @@ TEST(ObjectWriteStreambufTest, KnownSizeUpload) {
 
 /// @test Verify flushing partially full buffers works.
 TEST(ObjectWriteStreambufTest, Pubsync) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   auto const quantum = UploadChunkRequest::kChunkSizeQuantum;
   auto const payload = std::string(quantum, '*');
@@ -599,7 +603,7 @@ TEST(ObjectWriteStreambufTest, Pubsync) {
 
 /// @test Verify flushing too small a buffer does nothing.
 TEST(ObjectWriteStreambufTest, PubsyncTooSmall) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
 
   auto const quantum = UploadChunkRequest::kChunkSizeQuantum;
   auto const half = quantum / 2;
@@ -622,7 +626,7 @@ TEST(ObjectWriteStreambufTest, PubsyncTooSmall) {
 
 /// @test Verify custom headers are passed to UploadChunk()
 TEST(ObjectWriteStreambufTest, WriteObjectWithCustomHeader) {
-  auto mock = absl::make_unique<testing::MockClient>();
+  auto mock = std::make_unique<testing::MockClient>();
   auto const quantum = internal::UploadChunkRequest::kChunkSizeQuantum;
   auto const p0 = std::string(quantum, '0');
   auto const p1 = std::string(quantum, '1');

@@ -20,15 +20,19 @@ message ServiceConfiguration {
   string service_proto_path = 1;
   string product_path = 2;
   string initial_copyright_year = 3;
+
+  // Omit the generation of the (sync) APIs for these RPCs. Include any
+  // deprecated RPCs here that we don't need for backwards compatibility.
   repeated string omitted_rpcs = 4;
+
   string service_endpoint_env_var = 5;
   string emulator_endpoint_env_var = 6;
 
-  // Generating Async APIs is typically unnecessary for RPCs that are
+  // Generating async APIs is typically unnecessary for RPCs that are
   // non-streaming, non-paginated, and not longrunning operations. If we need
-  // to generate an Async API for such an RPC, we can list it here.
+  // to generate an async API for such an RPC, we can list it here.
   //
-  // Only the Async API will be generated for RPCs listed both here and in
+  // Only the async API will be generated for RPCs listed both here and in
   // `omitted_rpcs`.
   repeated string gen_async_rpcs = 7;
 
@@ -120,8 +124,82 @@ message ServiceConfiguration {
   // For details on why we would relocate a service, see #10170, or
   // https://github.com/googleapis/google-cloud-cpp/blob/main/doc/adr/2022-11-11-multiple-versions-of-GCP-service-in-one-library.md
   string forwarding_product_path = 19;
+
+  // Override idempotency policy values for specific rpcs.
+  message IdempotencyOverride {
+    // rpc_name should be qualified with the service name e.g.: Service.Method.
+    string rpc_name = 1;
+    enum Idempotency {
+      IDEMPOTENT = 0;
+      NON_IDEMPOTENT = 1;
+    }
+    Idempotency idempotency = 2;
+  }
+  repeated IdempotencyOverride idempotency_overrides = 21;
+
+  // This need not be explicitly set to true as the generator will check if the
+  // field has been set, and assign a value of true if not set.
+  optional bool generate_grpc_transport = 22;
+
+  // If set to `true` the generator will *NOT* create a .repo-metadata.json
+  // file. This is useful when multiple services target the same directory.
+  bool omit_repo_metadata = 23;
+
+  enum ProtoFileSource {
+    GOOGLEAPIS = 0;
+    DISCOVERY_DOCUMENT = 1;
+  }
+  ProtoFileSource proto_file_source = 24;
+
+  // Some REST services expect JSON fields names in snake_case, while most other
+  // REST services expect JSON in camelCase. When true this flag instructs the
+  // generator to emit field names as they are defined in the proto files,
+  // which by style convention is typically snake_case. When false, the field
+  // names will be converted to camelCase.
+  bool preserve_proto_field_names_in_json = 25;
+
+  // A mapping from the service name as defined in the googleapis repo to the
+  // name that will be used for the library generation.
+  map<string, string> service_name_mapping = 26;
+
+  // A mapping from the service name as defined in the googleapis repo or
+  // overridden by an entry in service_name_mapping to a comment for the
+  // service. This will replace the service comment from the upstream repo.
+  map<string, string> service_name_to_comment = 27;
+
+  // If not empty, it overrides the name (relative to the googleapis root) of
+  // the service config YAML file.
+  //
+  // Normally the directory and name for the service config YAML are fetched
+  // from the service index JSON file in the googleapis repository. When
+  // processing golden files we need to provide our own YAML files.
+  string override_service_config_yaml_name = 28;
+
+  // Set to true in order to provide a custom resume loop for client-streaming
+  // RPCs. If set to false (the default), a no-op resumption function will be
+  // generated.
+  bool omit_streaming_updater = 29;
+}
+
+message DiscoveryDocumentDefinedProduct {
+  // Location of Discovery Document for services that only support REST.
+  string discovery_document_url = 1;
+
+  // Products that do not use google::longrunning::Operation to handle long
+  // running operations typically define their own operation type and services
+  // to handle them. We need to take care to generate these as simple,
+  // synchronous services.
+  repeated string operation_services = 3;
+
+  // Services that are generated from the protos created from the
+  // discovery document.
+  repeated ServiceConfiguration rest_services = 2;
 }
 
 message GeneratorConfiguration {
+  // Services that have proto definitions in googleapis/googleapis.
   repeated ServiceConfiguration service = 1;
+
+  // Services that are only defined via Discovery Document.
+  repeated DiscoveryDocumentDefinedProduct discovery_products = 2;
 }

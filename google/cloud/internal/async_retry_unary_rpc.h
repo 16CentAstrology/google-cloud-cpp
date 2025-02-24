@@ -16,11 +16,11 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_INTERNAL_ASYNC_RETRY_UNARY_RPC_H
 
 #include "google/cloud/completion_queue.h"
+#include "google/cloud/idempotency.h"
 #include "google/cloud/internal/completion_queue_impl.h"
-#include "google/cloud/internal/retry_policy.h"
 #include "google/cloud/internal/setup_context.h"
+#include "google/cloud/retry_policy.h"
 #include "google/cloud/version.h"
-#include "absl/memory/memory.h"
 #include <google/protobuf/empty.pb.h>
 #include <chrono>
 #include <string>
@@ -55,12 +55,12 @@ template <typename RPCBackoffPolicy, typename RPCRetryPolicy,
           typename AsyncCallType, typename RequestType>
 class RetryAsyncUnaryRpc {
  public:
-  //@{
+  ///@{
   /// @name Convenience aliases for the RPC request and response types.
   using Request = RequestType;
   using Response =
       typename AsyncCallResponseType<AsyncCallType, RequestType>::type;
-  //@}
+  ///@}
 
   /**
    * Start the asynchronous retry loop.
@@ -147,7 +147,7 @@ class RetryAsyncUnaryRpc {
   /// The callback to start another iteration of the retry loop.
   static void StartIteration(std::shared_ptr<RetryAsyncUnaryRpc> self,
                              CompletionQueue cq) {
-    auto context = absl::make_unique<grpc::ClientContext>();
+    auto context = std::make_unique<grpc::ClientContext>();
     SetupContext<RPCRetryPolicy>::Setup(*self->rpc_retry_policy_, *context);
     cq.MakeUnaryRpc(self->async_call_, self->request_, std::move(context))
         .then([self, cq](future<StatusOr<Response>> fut) {
@@ -198,15 +198,14 @@ class RetryAsyncUnaryRpc {
  *     retryable error, but the request is non-idempotent, or (d) the
  *     retry policy is expired.
  */
-template <
-    typename RPCBackoffPolicy, typename RPCRetryPolicy, typename AsyncCallType,
-    typename RequestType,
-    typename AsyncCallT = typename std::decay<AsyncCallType>::type,
-    typename RequestT = typename std::decay<RequestType>::type,
-    typename std::enable_if<google::cloud::internal::is_invocable<
-                                AsyncCallT, grpc::ClientContext*,
-                                RequestT const&, grpc::CompletionQueue*>::value,
-                            int>::type = 0>
+template <typename RPCBackoffPolicy, typename RPCRetryPolicy,
+          typename AsyncCallType, typename RequestType,
+          typename AsyncCallT = std::decay_t<AsyncCallType>,
+          typename RequestT = std::decay_t<RequestType>,
+          std::enable_if_t<google::cloud::internal::is_invocable<
+                               AsyncCallT, grpc::ClientContext*,
+                               RequestT const&, grpc::CompletionQueue*>::value,
+                           int> = 0>
 future<StatusOr<typename AsyncCallResponseType<AsyncCallT, RequestT>::type>>
 StartRetryAsyncUnaryRpc(CompletionQueue cq, char const* location,
                         std::unique_ptr<RPCRetryPolicy> rpc_retry_policy,

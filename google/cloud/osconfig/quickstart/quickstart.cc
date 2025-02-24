@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/osconfig/os_config_client.h"
+//! [all]
+#include "google/cloud/osconfig/v1/os_config_client.h"
 #include "google/cloud/project.h"
 #include <iostream>
 
@@ -22,7 +23,7 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace osconfig = ::google::cloud::osconfig;
+  namespace osconfig = ::google::cloud::osconfig_v1;
   auto client = osconfig::OsConfigServiceClient(
       osconfig::MakeOsConfigServiceConnection());
 
@@ -37,3 +38,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

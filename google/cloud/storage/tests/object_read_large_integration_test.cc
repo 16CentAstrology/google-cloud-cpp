@@ -18,8 +18,11 @@
 #include "absl/strings/str_split.h"
 #include <gmock/gmock.h>
 #include <fstream>
+#include <iostream>
 #include <iterator>
+#include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace google {
@@ -40,7 +43,7 @@ std::size_t CurrentRss() {
   std::vector<std::string> fields = absl::StrSplit(
       std::string{std::istreambuf_iterator<char>{is.rdbuf()}, {}}, ' ');
   // The fields are documented in proc(5).
-  return std::stoull(fields[1]) * 4096;
+  return static_cast<std::size_t>(std::stoull(fields[1])) * 4096;
 }
 
 std::string DebugRss() {
@@ -54,9 +57,7 @@ std::string DebugRss() {
 }
 
 TEST_F(ObjectReadLargeIntegrationTest, LimitedMemoryGrowth) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto bucket_name = GetEnv("GOOGLE_CLOUD_CPP_STORAGE_TEST_BUCKET_NAME");
   ASSERT_TRUE(bucket_name.has_value());
 
@@ -67,7 +68,7 @@ TEST_F(ObjectReadLargeIntegrationTest, LimitedMemoryGrowth) {
     object_name = MakeRandomObjectName();
     auto data = MakeRandomData(10 * 1024 * 1024);
     auto meta =
-        client->InsertObject(*bucket_name, *object_name, std::move(data));
+        client.InsertObject(*bucket_name, *object_name, std::move(data));
     ASSERT_STATUS_OK(meta);
     ScheduleForDelete(*meta);
   }
@@ -75,7 +76,7 @@ TEST_F(ObjectReadLargeIntegrationTest, LimitedMemoryGrowth) {
   auto constexpr kBufferSize = 128 * 1024;
   auto constexpr kRssTolerance = 32 * 1024 * 1024;
   std::vector<char> buffer(kBufferSize);
-  auto reader = client->ReadObject(*bucket_name, *object_name);
+  auto reader = client.ReadObject(*bucket_name, *object_name);
   auto const initial_rss = CurrentRss();
   std::cout << "Initial RSS = " << initial_rss << DebugRss() << std::endl;
   auto tolerance = initial_rss + kRssTolerance;

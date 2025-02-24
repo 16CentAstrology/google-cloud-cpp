@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/serviceusage/service_usage_client.h"
+//! [all]
+#include "google/cloud/serviceusage/v1/service_usage_client.h"
 #include "google/cloud/project.h"
 #include <iostream>
 
@@ -22,7 +23,7 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace serviceusage = ::google::cloud::serviceusage;
+  namespace serviceusage = ::google::cloud::serviceusage_v1;
   auto client = serviceusage::ServiceUsageClient(
       serviceusage::MakeServiceUsageConnection());
 
@@ -40,3 +41,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

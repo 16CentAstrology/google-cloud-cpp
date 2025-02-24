@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ TEST(ClientOptionsTest, OptionsConstructor) {
           .set<GrpcCredentialOption>(credentials)
           .set<GrpcTracingOptionsOption>(
               TracingOptions{}.SetOptions("single_line_mode=F"))
-          .set<TracingComponentsOption>({"test-component"})
+          .set<LoggingComponentsOption>({"test-component"})
           .set<GrpcNumChannelsOption>(3)
           .set<MinConnectionRefreshOption>(ms(100))
           .set<MaxConnectionRefreshOption>(min(4))
@@ -127,7 +127,7 @@ TEST(ClientOptionsTest, CustomBackgroundThreadsOption) {
   bool invoked = false;
   auto factory = [&invoked] {
     invoked = true;
-    return absl::make_unique<Fake>();
+    return std::make_unique<Fake>();
   };
 
   auto options =
@@ -441,7 +441,7 @@ TEST(ClientOptionsTest, SetSslTargetNameOverride) {
 
 TEST(ClientOptionsTest, UserAgentPrefix) {
   std::string const actual = ClientOptions::UserAgentPrefix();
-  EXPECT_THAT(actual, HasSubstr("gcloud-cpp/"));
+  EXPECT_THAT(actual, HasSubstr("gl-cpp/"));
 }
 
 TEST(ClientOptionsTest, RefreshPeriod) {
@@ -494,7 +494,7 @@ TEST(ClientOptionsTest, TracingComponents) {
 
   // Check `MakeOptions()`
   auto opts = internal::MakeOptions(std::move(options));
-  EXPECT_THAT(opts.get<TracingComponentsOption>(),
+  EXPECT_THAT(opts.get<LoggingComponentsOption>(),
               testing::UnorderedElementsAre("bar", "baz"));
 }
 

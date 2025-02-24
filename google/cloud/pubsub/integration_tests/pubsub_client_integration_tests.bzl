@@ -18,7 +18,7 @@
 
 pubsub_client_integration_tests = [
     "blocking_publisher_integration_test.cc",
-    "schema_admin_integration_test.cc",
+    "publisher_integration_test.cc",
     "subscriber_integration_test.cc",
     "subscription_admin_integration_test.cc",
     "topic_admin_integration_test.cc",

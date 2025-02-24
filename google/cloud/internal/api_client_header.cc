@@ -13,29 +13,33 @@
 // limitations under the License.
 
 #include "google/cloud/internal/api_client_header.h"
+#include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/compiler_info.h"
 
 namespace google {
 namespace cloud {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace internal {
+namespace {
 
-std::string ApiClientVersion(std::string const& build_identifier) {
-  auto client_library_version = version_string();
-  if (!build_identifier.empty()) {
-    auto pos = client_library_version.find('+');
-    client_library_version.append(1, pos == std::string::npos ? '+' : '.');
-    client_library_version.append(build_identifier);
-  }
-  return client_library_version;
+std::string CppIdentifier() {
+  return absl::StrCat("gl-cpp/", google::cloud::internal::CompilerId(), "-",
+                      google::cloud::internal::CompilerVersion(), "-",
+                      google::cloud::internal::CompilerFeatures(), "-",
+                      google::cloud::internal::LanguageVersion());
 }
 
-std::string ApiClientHeader(std::string const& build_identifier) {
-  return "gl-cpp/" + google::cloud::internal::CompilerId() + "-" +
-         google::cloud::internal::CompilerVersion() + "-" +
-         google::cloud::internal::CompilerFeatures() + "-" +
-         google::cloud::internal::LanguageVersion() + " gccl/" +
-         ApiClientVersion(build_identifier);
+}  // namespace
+
+std::string HandCraftedLibClientHeader() {
+  return absl::StrCat(CppIdentifier(), " gccl/", version_string());
+}
+
+std::string GeneratedLibClientHeader() {
+  auto const version = version_string();
+  auto pos = version.find('+');
+  char const* sep = pos == std::string::npos ? "+" : ".";
+  return absl::StrCat(CppIdentifier(), " gapic/", version, sep, "generated");
 }
 
 }  // namespace internal

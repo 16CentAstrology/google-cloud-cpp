@@ -15,7 +15,6 @@
 #include "google/cloud/spanner/connection.h"
 #include "google/cloud/spanner/query_partition.h"
 #include "google/cloud/spanner/read_partition.h"
-#include "absl/memory/memory.h"
 
 namespace google {
 namespace cloud {
@@ -24,8 +23,7 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 namespace {
 
-class StatusOnlyResultSetSource
-    : public spanner_internal::ResultSourceInterface {
+class StatusOnlyResultSetSource : public ResultSourceInterface {
  public:
   explicit StatusOnlyResultSetSource(Status status)
       : status_(std::move(status)) {}
@@ -46,7 +44,7 @@ class StatusOnlyResultSetSource
 
 // NOLINTNEXTLINE(performance-unnecessary-value-param)
 RowStream Connection::Read(ReadParams) {
-  return RowStream(absl::make_unique<StatusOnlyResultSetSource>(
+  return RowStream(std::make_unique<StatusOnlyResultSetSource>(
       Status(StatusCode::kUnimplemented, "not implemented")));
 }
 
@@ -57,7 +55,7 @@ StatusOr<std::vector<ReadPartition>> Connection::PartitionRead(
 
 // NOLINTNEXTLINE(performance-unnecessary-value-param)
 RowStream Connection::ExecuteQuery(SqlParams) {
-  return RowStream(absl::make_unique<StatusOnlyResultSetSource>(
+  return RowStream(std::make_unique<StatusOnlyResultSetSource>(
       Status(StatusCode::kUnimplemented, "not implemented")));
 }
 
@@ -68,7 +66,7 @@ StatusOr<DmlResult> Connection::ExecuteDml(SqlParams) {
 
 // NOLINTNEXTLINE(performance-unnecessary-value-param)
 ProfileQueryResult Connection::ProfileQuery(SqlParams) {
-  return ProfileQueryResult(absl::make_unique<StatusOnlyResultSetSource>(
+  return ProfileQueryResult(std::make_unique<StatusOnlyResultSetSource>(
       Status(StatusCode::kUnimplemented, "not implemented")));
 }
 
@@ -105,6 +103,12 @@ StatusOr<CommitResult> Connection::Commit(CommitParams) {
 // NOLINTNEXTLINE(performance-unnecessary-value-param)
 Status Connection::Rollback(RollbackParams) {
   return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
+BatchedCommitResultStream Connection::BatchWrite(BatchWriteParams) {
+  return internal::MakeStreamRange<BatchedCommitResult>(
+      [] { return Status(StatusCode::kUnimplemented, "not implemented"); });
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

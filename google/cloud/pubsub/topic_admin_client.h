@@ -30,6 +30,9 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 /**
  * Performs topic admin operations in Cloud Pub/Sub.
  *
+ * @deprecated Please use \ref google::cloud::pubsub_admin::TopicAdminClient
+ *     and \ref google::cloud::pubsub_admin::TopicAdminClient instead.
+ *
  * Applications use this class to perform operations on
  * [Cloud Pub/Sub][pubsub-doc-link].
  *
@@ -56,7 +59,8 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  *
  * [pubsub-doc-link]: https://cloud.google.com/pubsub/docs
  */
-class TopicAdminClient {
+class GOOGLE_CLOUD_CPP_PUBSUB_ADMIN_API_DEPRECATED("TopicAdminClient")
+    TopicAdminClient {
  public:
   explicit TopicAdminClient(std::shared_ptr<TopicAdminConnection> connection,
                             Options opts = {});
@@ -76,9 +80,6 @@ class TopicAdminClient {
    * library retries the call. It might return a status code of
    * `kAlreadyExists` as a consequence of retrying a successful (but reported as
    * failed) request.
-   *
-   * @par Example
-   * @snippet samples.cc create-topic
    *
    * @param builder the configuration for the new topic, includes the name.
    * @param opts Override the class-level options, such as retry and backoff
@@ -103,9 +104,6 @@ class TopicAdminClient {
    *
    * @par Idempotency
    * This is a read-only operation and therefore always idempotent and retried.
-   *
-   * @par Example
-   * @snippet samples.cc get-topic
    */
   StatusOr<google::pubsub::v1::Topic> GetTopic(Topic topic, Options opts = {}) {
     internal::OptionsSpan span(
@@ -119,9 +117,6 @@ class TopicAdminClient {
    * @par Idempotency
    * This operation is idempotent, the state of the system is the same after one
    * or several calls, and therefore it is always retried.
-   *
-   * @par Example
-   * @snippet samples.cc update-topic
    *
    * @param builder the configuration for the new topic, includes the name.
    * @param opts Override the class-level options, such as retry and backoff
@@ -139,9 +134,6 @@ class TopicAdminClient {
    *
    * @par Idempotency
    * This is a read-only operation and therefore always idempotent and retried.
-   *
-   * @par Example
-   * @snippet samples.cc list-topics
    */
   ListTopicsRange ListTopics(std::string const& project_id, Options opts = {}) {
     internal::OptionsSpan span(
@@ -157,9 +149,6 @@ class TopicAdminClient {
    * or several calls, and therefore it is always retried. It might return a
    * status code of `kNotFound` as a consequence of retrying a successful
    * (but reported as failed) request.
-   *
-   * @par Example
-   * @snippet samples.cc delete-topic
    *
    * @param topic the name of the topic to be deleted.
    * @param opts Override the class-level options, such as retry and backoff
@@ -182,9 +171,6 @@ class TopicAdminClient {
    * This operation is idempotent, the state of the system is the same after one
    * or several calls, and therefore it is always retried.
    *
-   * @par Example
-   * @snippet samples.cc detach-subscription
-   *
    * @param subscription the name of the subscription to detach.
    * @param opts Override the class-level options, such as retry and backoff
    *     policies.
@@ -206,9 +192,6 @@ class TopicAdminClient {
    *
    * @par Idempotency
    * This is a read-only operation and therefore always idempotent and retried.
-   *
-   * @par Example
-   * @snippet samples.cc list-topic-subscriptions
    */
   ListTopicSubscriptionsRange ListTopicSubscriptions(Topic const& topic,
                                                      Options opts = {}) {
@@ -227,9 +210,6 @@ class TopicAdminClient {
    *
    * @par Idempotency
    * This is a read-only operation and therefore always idempotent and retried.
-   *
-   * @par Example
-   * @snippet samples.cc list-topic-snapshots
    *
    * @see https://cloud.google.com/pubsub/docs/replay-overview for a detailed
    *     description of Cloud Pub/Sub's snapshots.

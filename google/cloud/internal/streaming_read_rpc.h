@@ -16,7 +16,9 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_INTERNAL_STREAMING_READ_RPC_H
 
 #include "google/cloud/grpc_error_delegate.h"
+#include "google/cloud/internal/grpc_metadata_view.h"
 #include "google/cloud/internal/grpc_request_metadata.h"
+#include "google/cloud/rpc_metadata.h"
 #include "google/cloud/status.h"
 #include "google/cloud/version.h"
 #include "absl/types/variant.h"
@@ -60,7 +62,7 @@ class StreamingReadRpc {
    * expensive to extract.  Library developers should avoid this function in
    * the critical path.
    */
-  virtual StreamingRpcMetadata GetRequestMetadata() const = 0;
+  virtual RpcMetadata GetRequestMetadata() const = 0;
 };
 
 /// Report the errors in a standalone function to minimize includes
@@ -77,7 +79,7 @@ template <typename ResponseType>
 class StreamingReadRpcImpl : public StreamingReadRpc<ResponseType> {
  public:
   StreamingReadRpcImpl(
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
       std::unique_ptr<grpc::ClientReaderInterface<ResponseType>> stream)
       : context_(std::move(context)), stream_(std::move(stream)) {}
 
@@ -85,8 +87,6 @@ class StreamingReadRpcImpl : public StreamingReadRpc<ResponseType> {
     if (finished_) return;
     Cancel();
     auto status = Finish();
-    // Getting a kCancelled here is expected, as we just canceled the RPC.
-    if (status.ok() && status.code() != StatusCode::kCancelled) return;
     StreamingReadRpcReportUnhandledError(status, typeid(ResponseType).name());
   }
 
@@ -98,9 +98,10 @@ class StreamingReadRpcImpl : public StreamingReadRpc<ResponseType> {
     return Finish();
   }
 
-  StreamingRpcMetadata GetRequestMetadata() const override {
+  RpcMetadata GetRequestMetadata() const override {
     if (!context_) return {};
-    return GetRequestMetadataFromContext(*context_);
+    return GetRequestMetadataFromContext(*context_,
+                                         GrpcMetadataView::kWithServerMetadata);
   }
 
  private:
@@ -110,7 +111,7 @@ class StreamingReadRpcImpl : public StreamingReadRpc<ResponseType> {
     return status;
   }
 
-  std::unique_ptr<grpc::ClientContext> const context_;
+  std::shared_ptr<grpc::ClientContext> const context_;
   std::unique_ptr<grpc::ClientReaderInterface<ResponseType>> const stream_;
   bool finished_ = false;
 };
@@ -135,7 +136,7 @@ class StreamingReadRpcError : public StreamingReadRpc<ResponseType> {
 
   absl::variant<Status, ResponseType> Read() override { return status_; }
 
-  StreamingRpcMetadata GetRequestMetadata() const override { return {}; }
+  RpcMetadata GetRequestMetadata() const override { return {}; }
 
  private:
   Status status_;

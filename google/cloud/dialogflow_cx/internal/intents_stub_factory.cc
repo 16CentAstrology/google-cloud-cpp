@@ -21,13 +21,18 @@
 #include "google/cloud/dialogflow_cx/internal/intents_logging_decorator.h"
 #include "google/cloud/dialogflow_cx/internal/intents_metadata_decorator.h"
 #include "google/cloud/dialogflow_cx/internal/intents_stub.h"
+#include "google/cloud/dialogflow_cx/internal/intents_tracing_stub.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/algorithm.h"
+#include "google/cloud/internal/opentelemetry.h"
 #include "google/cloud/log.h"
 #include "google/cloud/options.h"
 #include <google/cloud/dialogflow/cx/v3/intent.grpc.pb.h>
+#include <google/cloud/location/locations.grpc.pb.h>
+#include <google/longrunning/operations.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -35,25 +40,31 @@ namespace dialogflow_cx_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 std::shared_ptr<IntentsStub> CreateDefaultIntentsStub(
-    google::cloud::CompletionQueue cq, Options const& options) {
-  auto auth = google::cloud::internal::CreateAuthenticationStrategy(
-      std::move(cq), options);
+    std::shared_ptr<internal::GrpcAuthenticationStrategy> auth,
+    Options const& options) {
   auto channel = auth->CreateChannel(options.get<EndpointOption>(),
                                      internal::MakeChannelArguments(options));
   auto service_grpc_stub =
       google::cloud::dialogflow::cx::v3::Intents::NewStub(channel);
-  std::shared_ptr<IntentsStub> stub =
-      std::make_shared<DefaultIntentsStub>(std::move(service_grpc_stub));
+  auto service_locations_stub =
+      google::cloud::location::Locations::NewStub(channel);
+  std::shared_ptr<IntentsStub> stub = std::make_shared<DefaultIntentsStub>(
+      std::move(service_grpc_stub), std::move(service_locations_stub),
+      google::longrunning::Operations::NewStub(channel));
 
   if (auth->RequiresConfigureContext()) {
     stub = std::make_shared<IntentsAuth>(std::move(auth), std::move(stub));
   }
-  stub = std::make_shared<IntentsMetadata>(std::move(stub));
-  if (internal::Contains(options.get<TracingComponentsOption>(), "rpc")) {
+  stub = std::make_shared<IntentsMetadata>(
+      std::move(stub), std::multimap<std::string, std::string>{});
+  if (internal::Contains(options.get<LoggingComponentsOption>(), "rpc")) {
     GCP_LOG(INFO) << "Enabled logging for gRPC calls";
     stub = std::make_shared<IntentsLogging>(
         std::move(stub), options.get<GrpcTracingOptionsOption>(),
-        options.get<TracingComponentsOption>());
+        options.get<LoggingComponentsOption>());
+  }
+  if (internal::TracingEnabled(options)) {
+    stub = MakeIntentsTracingStub(std::move(stub));
   }
   return stub;
 }

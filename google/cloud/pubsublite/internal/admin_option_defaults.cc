@@ -22,6 +22,7 @@
 #include "google/cloud/internal/populate_common_options.h"
 #include "google/cloud/internal/populate_grpc_options.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -33,11 +34,10 @@ auto constexpr kBackoffScaling = 2.0;
 }  // namespace
 
 Options AdminServiceDefaultOptions(Options options) {
-  options = google::cloud::internal::PopulateCommonOptions(
+  options = internal::PopulateCommonOptions(
       std::move(options), "GOOGLE_CLOUD_CPP_ADMIN_SERVICE_ENDPOINT", "",
       "GOOGLE_CLOUD_CPP_ADMIN_SERVICE_AUTHORITY", "pubsublite.googleapis.com");
-  options =
-      google::cloud::internal::PopulateGrpcOptions(std::move(options), "");
+  options = internal::PopulateGrpcOptions(std::move(options));
   if (!options.has<pubsublite::AdminServiceRetryPolicyOption>()) {
     options.set<pubsublite::AdminServiceRetryPolicyOption>(
         pubsublite::AdminServiceLimitedTimeRetryPolicy(std::chrono::minutes(30))
@@ -45,8 +45,9 @@ Options AdminServiceDefaultOptions(Options options) {
   }
   if (!options.has<pubsublite::AdminServiceBackoffPolicyOption>()) {
     options.set<pubsublite::AdminServiceBackoffPolicyOption>(
-        ExponentialBackoffPolicy(std::chrono::seconds(1),
-                                 std::chrono::minutes(5), kBackoffScaling)
+        ExponentialBackoffPolicy(
+            std::chrono::seconds(0), std::chrono::seconds(1),
+            std::chrono::minutes(5), kBackoffScaling, kBackoffScaling)
             .clone());
   }
   if (!options.has<pubsublite::AdminServicePollingPolicyOption>()) {
@@ -54,7 +55,9 @@ Options AdminServiceDefaultOptions(Options options) {
         GenericPollingPolicy<pubsublite::AdminServiceRetryPolicyOption::Type,
                              pubsublite::AdminServiceBackoffPolicyOption::Type>(
             options.get<pubsublite::AdminServiceRetryPolicyOption>()->clone(),
-            options.get<pubsublite::AdminServiceBackoffPolicyOption>()->clone())
+            ExponentialBackoffPolicy(std::chrono::seconds(1),
+                                     std::chrono::minutes(5), kBackoffScaling)
+                .clone())
             .clone());
   }
   if (!options

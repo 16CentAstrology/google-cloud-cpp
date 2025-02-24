@@ -53,13 +53,14 @@ TEST(SubscriptionAdminConnectionTest, Create) {
 
   EXPECT_CALL(*mock, CreateSubscription)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
-      .WillOnce([&](grpc::ClientContext&,
+      .WillOnce([&](grpc::ClientContext&, Options const&,
                     google::pubsub::v1::Subscription const& request) {
         EXPECT_EQ(subscription.FullName(), request.name());
         return make_status_or(request);
       });
 
   auto subscription_admin = MakeTestSubscriptionAdminConnection(mock);
+  internal::OptionsSpan span(subscription_admin->options());
   google::pubsub::v1::Subscription expected;
   expected.set_topic("test-topic-name");
   expected.set_name(subscription.FullName());
@@ -75,17 +76,18 @@ TEST(SubscriptionAdminConnectionTest, CreateWithMetadata) {
 
   EXPECT_CALL(*mock, CreateSubscription)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
-      .WillOnce([&](grpc::ClientContext& context,
+      .WillOnce([&](grpc::ClientContext& context, Options const&,
                     google::pubsub::v1::Subscription const& request) {
         testing_util::ValidateMetadataFixture fixture;
         fixture.IsContextMDValid(
             context, "google.pubsub.v1.Subscriber.CreateSubscription", request,
-            google::cloud::internal::ApiClientHeader("generator"));
+            google::cloud::internal::HandCraftedLibClientHeader());
         EXPECT_EQ(subscription.FullName(), request.name());
         return make_status_or(request);
       });
 
   auto subscription_admin = MakeTestSubscriptionAdminConnection(mock);
+  internal::OptionsSpan span(subscription_admin->options());
   google::pubsub::v1::Subscription expected;
   expected.set_topic("test-topic-name");
   expected.set_name(subscription.FullName());
@@ -100,7 +102,7 @@ TEST(SubscriptionAdminConnectionTest, List) {
   EXPECT_CALL(*mock, ListSubscriptions)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
       .WillOnce(
-          [&](grpc::ClientContext&,
+          [&](grpc::ClientContext&, Options const&,
               google::pubsub::v1::ListSubscriptionsRequest const& request) {
             EXPECT_EQ("projects/test-project-id", request.project());
             EXPECT_TRUE(request.page_token().empty());
@@ -111,6 +113,7 @@ TEST(SubscriptionAdminConnectionTest, List) {
           });
 
   auto subscription_admin = MakeTestSubscriptionAdminConnection(mock);
+  internal::OptionsSpan span(subscription_admin->options());
   std::vector<std::string> topic_names;
   for (auto& t :
        subscription_admin->ListSubscriptions({"projects/test-project-id"})) {
@@ -130,13 +133,14 @@ TEST(SubscriptionAdminConnectionTest, Get) {
 
   EXPECT_CALL(*mock, GetSubscription)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
-      .WillOnce([&](grpc::ClientContext&,
+      .WillOnce([&](grpc::ClientContext&, Options const&,
                     google::pubsub::v1::GetSubscriptionRequest const& request) {
         EXPECT_EQ(subscription.FullName(), request.subscription());
         return make_status_or(expected);
       });
 
   auto subscription_admin = MakeTestSubscriptionAdminConnection(mock);
+  internal::OptionsSpan span(subscription_admin->options());
   auto response = subscription_admin->GetSubscription({subscription});
   ASSERT_STATUS_OK(response);
   EXPECT_THAT(*response, IsProtoEqual(expected));
@@ -149,7 +153,7 @@ TEST(SubscriptionAdminConnectionTest, Update) {
   EXPECT_CALL(*mock, UpdateSubscription)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
       .WillOnce(
-          [&](grpc::ClientContext&,
+          [&](grpc::ClientContext&, Options const&,
               google::pubsub::v1::UpdateSubscriptionRequest const& request) {
             EXPECT_EQ(subscription.FullName(), request.subscription().name());
             EXPECT_THAT(request.update_mask().paths(),
@@ -158,6 +162,7 @@ TEST(SubscriptionAdminConnectionTest, Update) {
           });
 
   auto subscription_admin = MakeTestSubscriptionAdminConnection(mock);
+  internal::OptionsSpan span(subscription_admin->options());
   google::pubsub::v1::Subscription expected;
   expected.set_name(subscription.FullName());
   expected.set_ack_deadline_seconds(1);
@@ -184,14 +189,15 @@ TEST(SubscriptionAdminConnectionTest, DeleteWithLogging) {
   EXPECT_CALL(*mock, DeleteSubscription)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
       .WillOnce(
-          [&](grpc::ClientContext&,
+          [&](grpc::ClientContext&, Options const&,
               google::pubsub::v1::DeleteSubscriptionRequest const& request) {
             EXPECT_EQ(subscription.FullName(), request.subscription());
             return Status{};
           });
 
   auto subscription_admin = MakeTestSubscriptionAdminConnection(
-      mock, Options{}.set<TracingComponentsOption>({"rpc"}));
+      mock, Options{}.set<LoggingComponentsOption>({"rpc"}));
+  internal::OptionsSpan span(subscription_admin->options());
   auto response = subscription_admin->DeleteSubscription({subscription});
   ASSERT_STATUS_OK(response);
 
@@ -206,14 +212,15 @@ TEST(SubscriptionAdminConnectionTest, ModifyPushConfig) {
   EXPECT_CALL(*mock, ModifyPushConfig)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
       .WillOnce(
-          [&](grpc::ClientContext&,
+          [&](grpc::ClientContext&, Options const&,
               google::pubsub::v1::ModifyPushConfigRequest const& request) {
             EXPECT_EQ(subscription.FullName(), request.subscription());
             return Status{};
           });
 
   auto subscription_admin = MakeTestSubscriptionAdminConnection(
-      mock, Options{}.set<TracingComponentsOption>({"rpc"}));
+      mock, Options{}.set<LoggingComponentsOption>({"rpc"}));
+  internal::OptionsSpan span(subscription_admin->options());
   google::pubsub::v1::ModifyPushConfigRequest request;
   request.set_subscription(subscription.FullName());
   auto response = subscription_admin->ModifyPushConfig({request});
@@ -233,7 +240,7 @@ TEST(SubscriptionAdminConnectionTest, CreateSnapshot) {
 
   EXPECT_CALL(*mock, CreateSnapshot)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
-      .WillOnce([&](grpc::ClientContext&,
+      .WillOnce([&](grpc::ClientContext&, Options const&,
                     google::pubsub::v1::CreateSnapshotRequest const& request) {
         EXPECT_EQ(subscription.FullName(), request.subscription());
         EXPECT_FALSE(request.name().empty());
@@ -241,6 +248,7 @@ TEST(SubscriptionAdminConnectionTest, CreateSnapshot) {
       });
 
   auto subscription_admin = MakeTestSubscriptionAdminConnection(mock);
+  internal::OptionsSpan span(subscription_admin->options());
   auto response = subscription_admin->CreateSnapshot(
       {SnapshotBuilder{}.BuildCreateRequest(subscription, snapshot)});
   ASSERT_STATUS_OK(response);
@@ -260,6 +268,7 @@ TEST(SubscriptionAdminConnectionTest, CreateSnapshotNotIdempotent) {
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")));
 
   auto subscription_admin = MakeTestSubscriptionAdminConnection(mock);
+  internal::OptionsSpan span(subscription_admin->options());
   auto response = subscription_admin->CreateSnapshot(
       {SnapshotBuilder{}.BuildCreateRequest(subscription)});
   EXPECT_THAT(response,
@@ -276,7 +285,7 @@ TEST(SubscriptionAdminConnectionTest, GetSnapshot) {
 
   EXPECT_CALL(*mock, GetSnapshot)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
-      .WillOnce([&](grpc::ClientContext&,
+      .WillOnce([&](grpc::ClientContext&, Options const&,
                     google::pubsub::v1::GetSnapshotRequest const& request) {
         EXPECT_EQ(snapshot.FullName(), request.snapshot());
 
@@ -284,6 +293,7 @@ TEST(SubscriptionAdminConnectionTest, GetSnapshot) {
       });
 
   auto subscription_admin = MakeTestSubscriptionAdminConnection(mock);
+  internal::OptionsSpan span(subscription_admin->options());
   auto response = subscription_admin->GetSnapshot({snapshot});
   ASSERT_STATUS_OK(response);
   EXPECT_THAT(*response, IsProtoEqual(expected));
@@ -294,7 +304,7 @@ TEST(SubscriptionAdminConnectionTest, ListSnapshots) {
 
   EXPECT_CALL(*mock, ListSnapshots)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
-      .WillOnce([&](grpc::ClientContext&,
+      .WillOnce([&](grpc::ClientContext&, Options const&,
                     google::pubsub::v1::ListSnapshotsRequest const& request) {
         EXPECT_EQ("projects/test-project-id", request.project());
         EXPECT_TRUE(request.page_token().empty());
@@ -305,6 +315,7 @@ TEST(SubscriptionAdminConnectionTest, ListSnapshots) {
       });
 
   auto snapshot_admin = MakeTestSubscriptionAdminConnection(mock);
+  internal::OptionsSpan span(snapshot_admin->options());
   std::vector<std::string> names;
   for (auto& t : snapshot_admin->ListSnapshots({"projects/test-project-id"})) {
     ASSERT_STATUS_OK(t);
@@ -324,13 +335,14 @@ TEST(SubscriptionAdminConnectionTest, UpdateSnapshot) {
 
   EXPECT_CALL(*mock, UpdateSnapshot)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
-      .WillOnce([&](grpc::ClientContext&,
+      .WillOnce([&](grpc::ClientContext&, Options const&,
                     google::pubsub::v1::UpdateSnapshotRequest const& request) {
         EXPECT_EQ(snapshot.FullName(), request.snapshot().name());
         return make_status_or(expected);
       });
 
   auto subscription_admin = MakeTestSubscriptionAdminConnection(mock);
+  internal::OptionsSpan span(subscription_admin->options());
   auto response = subscription_admin->UpdateSnapshot(
       {SnapshotBuilder{}.BuildUpdateRequest(snapshot)});
   ASSERT_STATUS_OK(response);
@@ -343,14 +355,15 @@ TEST(SubscriptionAdminConnectionTest, DeleteSnapshot) {
 
   EXPECT_CALL(*mock, DeleteSnapshot)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
-      .WillOnce([&](grpc::ClientContext&,
+      .WillOnce([&](grpc::ClientContext&, Options const&,
                     google::pubsub::v1::DeleteSnapshotRequest const& request) {
         EXPECT_EQ(snapshot.FullName(), request.snapshot());
         return Status{};
       });
 
   auto snapshot_admin = MakeTestSubscriptionAdminConnection(
-      mock, Options{}.set<TracingComponentsOption>({"rpc"}));
+      mock, Options{}.set<LoggingComponentsOption>({"rpc"}));
+  internal::OptionsSpan span(snapshot_admin->options());
   auto response = snapshot_admin->DeleteSnapshot({snapshot});
   ASSERT_STATUS_OK(response);
 }
@@ -362,7 +375,7 @@ TEST(SubscriptionAdminConnectionTest, Seek) {
 
   EXPECT_CALL(*mock, Seek)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
-      .WillOnce([&](grpc::ClientContext&,
+      .WillOnce([&](grpc::ClientContext&, Options const&,
                     google::pubsub::v1::SeekRequest const& request) {
         EXPECT_EQ(subscription.FullName(), request.subscription());
         EXPECT_EQ(snapshot.FullName(), request.snapshot());
@@ -370,7 +383,8 @@ TEST(SubscriptionAdminConnectionTest, Seek) {
       });
 
   auto snapshot_admin = MakeTestSubscriptionAdminConnection(
-      mock, Options{}.set<TracingComponentsOption>({"rpc"}));
+      mock, Options{}.set<LoggingComponentsOption>({"rpc"}));
+  internal::OptionsSpan span(snapshot_admin->options());
   google::pubsub::v1::SeekRequest request;
   request.set_subscription(subscription.FullName());
   request.set_snapshot(snapshot.FullName());

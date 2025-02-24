@@ -13,13 +13,15 @@
 // limitations under the License.
 
 #include "google/cloud/storage/client.h"
-#include "google/cloud/storage/internal/curl_request_builder.h"
+#include "google/cloud/storage/testing/retry_http_request.h"
 #include "google/cloud/storage/testing/storage_integration_test.h"
 #include "google/cloud/internal/getenv.h"
+#include "google/cloud/internal/rest_request.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
 #include <chrono>
 #include <functional>
+#include <string>
 #include <thread>
 
 namespace google {
@@ -27,6 +29,10 @@ namespace cloud {
 namespace storage {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
+
+using ::google::cloud::storage::testing::RetryHttpGet;
+using ::google::cloud::storage::testing::RetryHttpPut;
+using ::google::cloud::testing_util::IsOkAndHolds;
 
 class SignedUrlIntegrationTest
     : public google::cloud::storage::testing::StorageIntegrationTest {
@@ -47,153 +53,108 @@ class SignedUrlIntegrationTest
   std::string service_account_;
 };
 
-StatusOr<internal::HttpResponse> RetryHttpRequest(
-    std::function<internal::CurlRequest()> const& factory,
-    std::string const& payload = {}) {
-  StatusOr<internal::HttpResponse> response;
-  for (int i = 0; i != 3; ++i) {
-    response = factory().MakeRequest(payload);
-    if (response) return response;
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-  }
-  return response;
-};
-
 TEST_F(SignedUrlIntegrationTest, CreateV2SignedUrlGet) {
   // The emulator does not implement signed URLs.
   if (UsingEmulator()) GTEST_SKIP();
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
 
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
-
   std::string expected = LoremIpsum();
 
   // Create the object, but only if it does not exist already.
-  auto meta = client->InsertObject(bucket_name_, object_name, expected,
-                                   IfGenerationMatch(0));
+  auto meta = client.InsertObject(bucket_name_, object_name, expected,
+                                  IfGenerationMatch(0));
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
 
-  StatusOr<std::string> signed_url = client->CreateV2SignedUrl(
+  StatusOr<std::string> signed_url = client.CreateV2SignedUrl(
       "GET", bucket_name_, object_name, SigningAccount(service_account_));
   ASSERT_STATUS_OK(signed_url);
 
   // Verify the signed URL can be used to download the object.
-  auto factory = [&] {
-    internal::CurlRequestBuilder builder(
-        *signed_url, storage::internal::GetDefaultCurlHandleFactory());
-    return std::move(builder).BuildRequest();
-  };
-
-  auto response = RetryHttpRequest(factory);
-  ASSERT_STATUS_OK(response);
-  EXPECT_EQ(200, response->status_code);
-
-  EXPECT_EQ(expected, response->payload);
+  auto response =
+      RetryHttpGet(*signed_url, [] { return rest_internal::RestRequest(); });
+  EXPECT_THAT(response, IsOkAndHolds(expected));
 }
 
 TEST_F(SignedUrlIntegrationTest, CreateV2SignedUrlPut) {
   // The emulator does not implement signed URLs.
   if (UsingEmulator()) GTEST_SKIP();
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
 
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
-
   std::string expected = LoremIpsum();
 
-  StatusOr<std::string> signed_url = client->CreateV2SignedUrl(
+  StatusOr<std::string> signed_url = client.CreateV2SignedUrl(
       "PUT", bucket_name_, object_name, SigningAccount(service_account_),
       ContentType("application/octet-stream"));
   ASSERT_STATUS_OK(signed_url);
 
   // Verify the signed URL can be used to download the object.
-  auto factory = [&] {
-    internal::CurlRequestBuilder builder(
-        *signed_url, storage::internal::GetDefaultCurlHandleFactory());
-    builder.SetMethod("PUT");
-    builder.AddHeader("content-type: application/octet-stream");
-    return std::move(builder).BuildRequest();
+  auto factory = [] {
+    return rest_internal::RestRequest().AddHeader("content-type",
+                                                  "application/octet-stream");
   };
-
-  auto response = RetryHttpRequest(factory, expected);
+  auto response = RetryHttpPut(*signed_url, factory, expected);
   ASSERT_STATUS_OK(response);
-  EXPECT_EQ(200, response->status_code);
 
-  auto stream = client->ReadObject(bucket_name_, object_name);
+  auto stream = client.ReadObject(bucket_name_, object_name);
   std::string actual(std::istreambuf_iterator<char>{stream}, {});
   EXPECT_EQ(expected, actual);
 
-  auto deleted = client->DeleteObject(bucket_name_, object_name);
+  auto deleted = client.DeleteObject(bucket_name_, object_name);
   ASSERT_STATUS_OK(deleted);
 }
 
 TEST_F(SignedUrlIntegrationTest, CreateV4SignedUrlGet) {
   // The emulator does not implement signed URLs.
   if (UsingEmulator()) GTEST_SKIP();
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
 
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
-
   std::string expected = LoremIpsum();
 
   // Create the object, but only if it does not exist already.
-  auto meta = client->InsertObject(bucket_name_, object_name, expected,
-                                   IfGenerationMatch(0));
+  auto meta = client.InsertObject(bucket_name_, object_name, expected,
+                                  IfGenerationMatch(0));
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
 
-  StatusOr<std::string> signed_url = client->CreateV4SignedUrl(
+  StatusOr<std::string> signed_url = client.CreateV4SignedUrl(
       "GET", bucket_name_, object_name, SigningAccount(service_account_));
   ASSERT_STATUS_OK(signed_url);
 
   // Verify the signed URL can be used to download the object.
-  auto factory = [&] {
-    internal::CurlRequestBuilder builder(
-        *signed_url, storage::internal::GetDefaultCurlHandleFactory());
-    return std::move(builder).BuildRequest();
-  };
-
-  auto response = RetryHttpRequest(factory);
-  ASSERT_STATUS_OK(response);
-  EXPECT_EQ(200, response->status_code);
-
-  EXPECT_EQ(expected, response->payload);
+  auto response =
+      RetryHttpGet(*signed_url, [] { return rest_internal::RestRequest(); });
+  EXPECT_THAT(response, IsOkAndHolds(expected));
 }
 
 TEST_F(SignedUrlIntegrationTest, CreateV4SignedUrlPut) {
   // The emulator does not implement signed URLs.
   if (UsingEmulator()) GTEST_SKIP();
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
 
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
-
   std::string expected = LoremIpsum();
 
-  StatusOr<std::string> signed_url = client->CreateV4SignedUrl(
+  StatusOr<std::string> signed_url = client.CreateV4SignedUrl(
       "PUT", bucket_name_, object_name, SigningAccount(service_account_));
   ASSERT_STATUS_OK(signed_url);
 
-  // Verify the signed URL can be used to download the object.
-  auto factory = [&] {
-    internal::CurlRequestBuilder builder(
-        *signed_url, storage::internal::GetDefaultCurlHandleFactory());
-    builder.SetMethod("PUT");
-    return std::move(builder).BuildRequest();
+  // Verify the signed URL can be used to upload the object.
+  auto factory = [] {
+    return rest_internal::RestRequest().AddHeader("content-type",
+                                                  "application/octet-stream");
   };
-
-  auto response = RetryHttpRequest(factory, expected);
+  auto response = RetryHttpPut(*signed_url, factory, expected);
   ASSERT_STATUS_OK(response);
-  EXPECT_EQ(200, response->status_code);
 
-  auto stream = client->ReadObject(bucket_name_, object_name);
+  auto stream = client.ReadObject(bucket_name_, object_name);
   std::string actual(std::istreambuf_iterator<char>{stream}, {});
   EXPECT_EQ(expected, actual);
 
-  auto deleted = client->DeleteObject(bucket_name_, object_name);
+  auto deleted = client.DeleteObject(bucket_name_, object_name);
   ASSERT_STATUS_OK(deleted);
 }
 

@@ -15,6 +15,7 @@
 #ifndef GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_STREAM_RANGE_H
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_STREAM_RANGE_H
 
+#include "google/cloud/internal/call_context.h"
 #include "google/cloud/options.h"
 #include "google/cloud/status.h"
 #include "google/cloud/status_or.h"
@@ -42,11 +43,11 @@ namespace internal {
  * `Status` indicating either success or an error. This function will not be
  * invoked any more after it returns any `Status`.
  *
- * @par Example `StreamReader` that returns the integers from 1-10.
+ * @par Example: returning the integers from 1-10.
  *
  * @code
  * int counter = 0;
- * auto reader = [&counter]() -> StreamReader<int>::result_type {
+ * auto reader = [&counter](Options const&) -> StreamReader<int>::result_type {
  *   if (++counter <= 10) return counter;
  *   return Status{};  // OK
  * };
@@ -55,9 +56,13 @@ namespace internal {
 template <typename T>
 using StreamReader = std::function<absl::variant<Status, T>()>;
 
+template <typename T>
+using StreamReaderExplicit =
+    std::function<absl::variant<Status, T>(Options const&)>;
+
 // Defined below.
 template <typename T>
-StreamRange<T> MakeStreamRange(StreamReader<T>);
+StreamRange<T> MakeStreamRange(ImmutableOptions, StreamReaderExplicit<T>);
 
 }  // namespace internal
 
@@ -161,19 +166,19 @@ class StreamRange {
   StreamRange() = default;
 
   ~StreamRange() {
-    internal::OptionsSpan span(options_);
+    internal::ScopedCallContext scope(call_context_);
     reader_ = nullptr;
   }
 
-  //@{
-  // @name Move-only
+  ///@{
+  /// @name Move-only
   StreamRange(StreamRange const&) = delete;
   StreamRange& operator=(StreamRange const&) = delete;
   // NOLINTNEXTLINE(performance-noexcept-move-constructor)
   StreamRange(StreamRange&&) = default;
   // NOLINTNEXTLINE(performance-noexcept-move-constructor)
   StreamRange& operator=(StreamRange&&) = default;
-  //@}
+  ///@}
 
   iterator begin() { return iterator(this); }
   iterator end() { return iterator(); }
@@ -198,13 +203,14 @@ class StreamRange {
         sr.current_ = std::move(t);
       }
     };
-    internal::OptionsSpan span(options_);
-    auto v = reader_();
+    internal::ScopedCallContext scope(call_context_);
+    auto v = reader_(*call_context_.options);
     absl::visit(UnpackVariant{*this}, std::move(v));
   }
 
   template <typename U>
-  friend StreamRange<U> internal::MakeStreamRange(internal::StreamReader<U>);
+  friend StreamRange<U> internal::MakeStreamRange(
+      internal::ImmutableOptions, internal::StreamReaderExplicit<U>);
 
   /**
    * Constructs a `StreamRange<T>` that will use the given @p reader.
@@ -230,15 +236,17 @@ class StreamRange {
    * }
    * @endcode
    *
+   * @param options the options in effect during this pagination.
    * @param reader must not be nullptr.
    */
-  explicit StreamRange(internal::StreamReader<T> reader)
-      : reader_(std::move(reader)) {
+  explicit StreamRange(internal::ImmutableOptions options,
+                       internal::StreamReaderExplicit<T> reader)
+      : call_context_(std::move(options)), reader_(std::move(reader)) {
     Next();
   }
 
-  Options options_ = internal::CurrentOptions();
-  internal::StreamReader<T> reader_;
+  internal::CallContext call_context_;
+  internal::StreamReaderExplicit<T> reader_;
   StatusOr<T> current_;
   bool current_ok_ = false;
   bool is_end_ = true;
@@ -258,8 +266,16 @@ namespace internal {
  * @endcode
  */
 template <typename T>
+StreamRange<T> MakeStreamRange(ImmutableOptions options,
+                               StreamReaderExplicit<T> reader) {
+  return StreamRange<T>{std::move(options), std::move(reader)};
+}
+
+// TODO(#12359) - remove overload when `*Stub` consumes Options.
+template <typename T>
 StreamRange<T> MakeStreamRange(StreamReader<T> reader) {
-  return StreamRange<T>{std::move(reader)};
+  auto wrapper = [r = std::move(reader)](Options const&) { return r(); };
+  return MakeStreamRange<T>(SaveCurrentOptions(), std::move(wrapper));
 }
 
 }  // namespace internal

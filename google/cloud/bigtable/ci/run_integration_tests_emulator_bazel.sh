@@ -17,6 +17,8 @@
 set -euo pipefail
 
 source "$(dirname "$0")/../../../../ci/lib/init.sh"
+source module /ci/cloudbuild/builds/lib/cloudcxxrc.sh
+source module ci/lib/io.sh
 
 if [[ $# -lt 1 ]]; then
   echo "Usage: $(basename "$0") <bazel-program> [bazel-test-args]"
@@ -29,24 +31,44 @@ BAZEL_VERB="$1"
 shift
 bazel_test_args=("$@")
 
+if bazel::has_no_tests "//google/cloud/bigtable/..." "${BAZEL_TARGETS[@]}"; then
+  exit 0
+fi
+
 # Configure run_emulators_utils.sh to find the instance admin emulator.
 BAZEL_BIN_DIR="$("${BAZEL_BIN}" info bazel-bin)"
 readonly BAZEL_BIN_DIR
-export CBT_INSTANCE_ADMIN_EMULATOR_CMD="${BAZEL_BIN_DIR}/google/cloud/bigtable/tests/instance_admin_emulator"
+
+CBT_INSTANCE_ADMIN_EMULATOR_START=(
+  "${BAZEL_BIN}"
+  run
+  "${bazel_test_args[@]}"
+  --
+  //google/cloud/bigtable/tests:instance_admin_emulator
+)
+# We need to build `instance_admin_emulator` without coverage, so it can start
+# up quickly.
+if [[ "${BAZEL_VERB}" == "coverage" ]]; then
+  io::run "${BAZEL_BIN}" build "${bazel_test_args[@]}" \
+    //google/cloud/bigtable/tests:instance_admin_emulator
+fi
+
 source module /google/cloud/bigtable/tools/run_emulator_utils.sh
 
 # These can only run against production
 production_only_targets=(
-  "//google/cloud/bigtable/admin/integration_tests:admin_backup_integration_test"
-  "//google/cloud/bigtable/admin/integration_tests:admin_iam_policy_integration_test"
   "//google/cloud/bigtable/examples:bigtable_table_admin_backup_snippets"
   "//google/cloud/bigtable/examples:table_admin_iam_policy_snippets"
   "//google/cloud/bigtable/tests:admin_backup_integration_test"
   "//google/cloud/bigtable/tests:admin_iam_policy_integration_test"
 )
-"${BAZEL_BIN}" "${BAZEL_VERB}" "${bazel_test_args[@]}" \
-  --test_tag_filters="integration-test" -- \
-  "${production_only_targets[@]}"
+
+# Coverage builds are more subject to flakiness, as we must explicitly disable
+# retries.  Disable the production-only tests, which also fail more often.
+if [[ "${BAZEL_VERB}" != "coverage" ]]; then
+  io::run "${BAZEL_BIN}" "${BAZEL_VERB}" "${bazel_test_args[@]}" \
+    -- "${production_only_targets[@]}"
+fi
 
 # `start_emulators` creates unsightly *.log files in the current directory
 # (which is ${PROJECT_ROOT}) and we cannot use a subshell because we want the
@@ -67,9 +89,7 @@ done
 "${BAZEL_BIN}" "${BAZEL_VERB}" "${bazel_test_args[@]}" \
   --test_env="BIGTABLE_EMULATOR_HOST=${BIGTABLE_EMULATOR_HOST}" \
   --test_env="BIGTABLE_INSTANCE_ADMIN_EMULATOR_HOST=${BIGTABLE_INSTANCE_ADMIN_EMULATOR_HOST}" \
-  --test_tag_filters="integration-test" -- \
-  "//google/cloud/bigtable/..." \
-  "${excluded_targets[@]}"
+  -- "//google/cloud/bigtable/..." "${excluded_targets[@]}"
 exit_status=$?
 
 kill_emulators

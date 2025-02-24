@@ -13,8 +13,13 @@
 // limitations under the License.
 
 #include "google/cloud/pubsub/samples/pubsub_samples_common.h"
+#include "google/cloud/pubsub/schema.h"
 #include "google/cloud/pubsub/testing/random_names.h"
 #include "google/cloud/internal/getenv.h"
+#include "google/cloud/internal/time_utils.h"
+#include "google/cloud/project.h"
+#include "absl/strings/match.h"
+#include <fstream>
 #include <sstream>
 
 namespace google {
@@ -70,9 +75,9 @@ google::cloud::testing_util::Commands::value_type CreateSubscriberCommand(
                                                            std::move(adapter)};
 }
 
-google::cloud::testing_util::Commands::value_type CreateTopicAdminCommand(
+google::cloud::testing_util::Commands::value_type CreateSchemaServiceCommand(
     std::string const& name, std::vector<std::string> const& arg_names,
-    TopicAdminCommand const& command) {
+    SchemaServiceCommand const& command) {
   auto adapter = [=](std::vector<std::string> const& argv) {
     if ((argv.size() == 1 && argv[0] == "--help") ||
         argv.size() != arg_names.size()) {
@@ -83,51 +88,8 @@ google::cloud::testing_util::Commands::value_type CreateTopicAdminCommand(
       }
       throw google::cloud::testing_util::Usage{std::move(os).str()};
     }
-    google::cloud::pubsub::TopicAdminClient client(
-        google::cloud::pubsub::MakeTopicAdminConnection());
-    command(std::move(client), std::move(argv));
-  };
-  return google::cloud::testing_util::Commands::value_type{name,
-                                                           std::move(adapter)};
-}
-
-google::cloud::testing_util::Commands::value_type
-CreateSubscriptionAdminCommand(std::string const& name,
-                               std::vector<std::string> const& arg_names,
-                               SubscriptionAdminCommand const& command) {
-  auto adapter = [=](std::vector<std::string> const& argv) {
-    if ((argv.size() == 1 && argv[0] == "--help") ||
-        argv.size() != arg_names.size()) {
-      std::ostringstream os;
-      os << name;
-      for (auto const& a : arg_names) {
-        os << " <" << a << ">";
-      }
-      throw google::cloud::testing_util::Usage{std::move(os).str()};
-    }
-    google::cloud::pubsub::SubscriptionAdminClient client(
-        google::cloud::pubsub::MakeSubscriptionAdminConnection());
-    command(std::move(client), std::move(argv));
-  };
-  return google::cloud::testing_util::Commands::value_type{name,
-                                                           std::move(adapter)};
-}
-
-google::cloud::testing_util::Commands::value_type CreateSchemaAdminCommand(
-    std::string const& name, std::vector<std::string> const& arg_names,
-    SchemaAdminCommand const& command) {
-  auto adapter = [=](std::vector<std::string> const& argv) {
-    if ((argv.size() == 1 && argv[0] == "--help") ||
-        argv.size() != arg_names.size()) {
-      std::ostringstream os;
-      os << name;
-      for (auto const& a : arg_names) {
-        os << " <" << a << ">";
-      }
-      throw google::cloud::testing_util::Usage{std::move(os).str()};
-    }
-    google::cloud::pubsub::SchemaAdminClient client(
-        google::cloud::pubsub::MakeSchemaAdminConnection());
+    google::cloud::pubsub::SchemaServiceClient client(
+        google::cloud::pubsub::MakeSchemaServiceConnection());
     command(std::move(client), std::move(argv));
   };
   return google::cloud::testing_util::Commands::value_type{name,
@@ -157,6 +119,64 @@ std::string RandomSnapshotId(google::cloud::internal::DefaultPRNG& generator) {
 std::string RandomSchemaId(google::cloud::internal::DefaultPRNG& generator) {
   return google::cloud::pubsub_testing::RandomSchemaId(generator,
                                                        "cloud-cpp-samples");
+}
+
+std::string ReadFile(std::string const& path) {
+  std::ifstream ifs(path);
+  if (!ifs.is_open()) throw std::runtime_error("Cannot open file: " + path);
+  ifs.exceptions(std::ios::badbit);
+  return std::string{std::istreambuf_iterator<char>{ifs.rdbuf()}, {}};
+}
+
+std::pair<std::string, std::string> CommitSchemaWithRevisionsForTesting(
+    google::cloud::pubsub::SchemaServiceClient& client,
+    std::string const& project_id, std::string const& schema_id,
+    std::string const& schema_file, std::string const& revised_schema_file,
+    std::string const& type) {
+  std::string const initial_definition = ReadFile(schema_file);
+  std::string const revised_definition = ReadFile(revised_schema_file);
+  auto const schema_type = type == "AVRO"
+                               ? google::pubsub::v1::Schema::AVRO
+                               : google::pubsub::v1::Schema::PROTOCOL_BUFFER;
+
+  google::pubsub::v1::CreateSchemaRequest create_request;
+  create_request.set_parent(google::cloud::Project(project_id).FullName());
+  create_request.set_schema_id(schema_id);
+  create_request.mutable_schema()->set_type(schema_type);
+  create_request.mutable_schema()->set_definition(initial_definition);
+  auto schema = client.CreateSchema(create_request);
+  if (!schema) throw std::move(schema).status();
+  auto first_revision_id = schema->revision_id();
+
+  google::pubsub::v1::CommitSchemaRequest commit_request;
+  std::string const name =
+      google::cloud::pubsub::Schema(project_id, schema_id).FullName();
+  commit_request.set_name(name);
+  commit_request.mutable_schema()->set_name(name);
+  commit_request.mutable_schema()->set_type(schema_type);
+  commit_request.mutable_schema()->set_definition(revised_definition);
+  schema = client.CommitSchema(commit_request);
+  if (!schema) throw std::move(schema).status();
+  auto last_revision_id = schema->revision_id();
+
+  return {std::move(first_revision_id), std::move(last_revision_id)};
+}
+
+void CleanupSchemas(google::cloud::pubsub::SchemaServiceClient& schema_admin,
+                    std::string const& project_id, absl::Time const& time_now) {
+  auto const parent = google::cloud::Project(project_id).FullName();
+  for (auto& schema : schema_admin.ListSchemas(parent)) {
+    if (!schema) continue;
+    if (!absl::StartsWith(schema->name(), "cloud-cpp-samples")) continue;
+
+    auto const schema_create_time =
+        google::cloud::internal::ToAbslTime(schema->revision_create_time());
+    if (schema_create_time < time_now - absl::Hours(48)) {
+      google::pubsub::v1::DeleteSchemaRequest request;
+      request.set_name(schema->name());
+      (void)schema_admin.DeleteSchema(request);
+    }
+  }
 }
 
 }  // namespace examples

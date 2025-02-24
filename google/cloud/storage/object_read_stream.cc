@@ -13,8 +13,10 @@
 // limitations under the License.
 
 #include "google/cloud/storage/object_read_stream.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/log.h"
-#include "absl/memory/memory.h"
+#include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -22,9 +24,10 @@ namespace storage {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 std::unique_ptr<internal::ObjectReadStreambuf> MakeErrorStreambuf() {
-  return absl::make_unique<internal::ObjectReadStreambuf>(
+  return std::make_unique<internal::ObjectReadStreambuf>(
       internal::ReadObjectRangeRequest("", ""),
-      Status(StatusCode::kUnimplemented, "null stream"));
+      google::cloud::internal::UnimplementedError("null stream",
+                                                  GCP_ERROR_INFO()));
 }
 }  // namespace
 
@@ -46,7 +49,7 @@ ObjectReadStream::ObjectReadStream(ObjectReadStream&& rhs) noexcept
       // In fact, as that page indicates, the base classes are designed such
       // that derived classes can define their own move constructor and move
       // assignment.
-      buf_(std::move(rhs.buf_)) {
+      buf_(std::move(rhs.buf_)) {  // NOLINT(bugprone-use-after-move)
   auto buf = MakeErrorStreambuf();
   rhs.set_rdbuf(buf.get());  // NOLINT(bugprone-use-after-move)
   rhs.buf_ = std::move(buf);

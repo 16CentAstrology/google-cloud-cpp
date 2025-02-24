@@ -56,41 +56,22 @@ class AnswerRecordsConnectionImpl
       google::cloud::dialogflow::v2::UpdateAnswerRecordRequest const& request)
       override;
 
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_es::AnswerRecordsRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::AnswerRecordsRetryPolicyOption>()) {
-      return options.get<dialogflow_es::AnswerRecordsRetryPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_es::AnswerRecordsRetryPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::AnswerRecordsBackoffPolicyOption>()) {
-      return options.get<dialogflow_es::AnswerRecordsBackoffPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_es::AnswerRecordsBackoffPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<dialogflow_es::AnswerRecordsConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<
-            dialogflow_es::AnswerRecordsConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_es::AnswerRecordsConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_es::AnswerRecordsConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_es_internal::AnswerRecordsStub> stub_;
   Options options_;

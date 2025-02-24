@@ -15,7 +15,6 @@
 #ifndef GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_BIGTABLE_INTERNAL_GOOGLE_BYTES_TRAITS_H
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_BIGTABLE_INTERNAL_GOOGLE_BYTES_TRAITS_H
 
-#include "google/cloud/bigtable/internal/google_bytes_traits.h"
 #include "google/cloud/bigtable/version.h"
 #include "google/cloud/internal/big_endian.h"
 #include "google/cloud/internal/port_platform.h"
@@ -26,7 +25,7 @@ namespace cloud {
 namespace bigtable {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace internal {
-//@{
+///@{
 /**
  * @name Define functions to manipulate `std::string`.
  *
@@ -81,7 +80,7 @@ inline void AppendCellValue(std::string& value, std::string const& fragment) {
 inline void ReserveCellValue(std::string& value, std::size_t reserve) {
   value.reserve(reserve);
 }
-//@}
+///@}
 
 }  // namespace internal
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

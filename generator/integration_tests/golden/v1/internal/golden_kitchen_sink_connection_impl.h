@@ -72,6 +72,9 @@ class GoldenKitchenSinkConnectionImpl
   Status
   DoNothing(google::protobuf::Empty const& request) override;
 
+  Status
+  Deprecated2(google::test::admin::database::v1::GenerateAccessTokenRequest const& request) override;
+
   StreamRange<google::test::admin::database::v1::Response>
   StreamingRead(google::test::admin::database::v1::Request const& request) override;
 
@@ -86,32 +89,16 @@ class GoldenKitchenSinkConnectionImpl
   Status
   ExplicitRouting2(google::test::admin::database::v1::ExplicitRoutingRequest const& request) override;
 
+  StatusOr<google::cloud::location::Location>
+  GetLocation(google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::iam::v1::Policy>
+  GetIamPolicy(google::iam::v1::GetIamPolicyRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation>
+  ListOperations(google::longrunning::ListOperationsRequest request) override;
+
  private:
-  std::unique_ptr<golden_v1::GoldenKitchenSinkRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<golden_v1::GoldenKitchenSinkRetryPolicyOption>()) {
-      return options.get<golden_v1::GoldenKitchenSinkRetryPolicyOption>()->clone();
-    }
-    return options_.get<golden_v1::GoldenKitchenSinkRetryPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<golden_v1::GoldenKitchenSinkBackoffPolicyOption>()) {
-      return options.get<golden_v1::GoldenKitchenSinkBackoffPolicyOption>()->clone();
-    }
-    return options_.get<golden_v1::GoldenKitchenSinkBackoffPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<golden_v1::GoldenKitchenSinkConnectionIdempotencyPolicy> idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<golden_v1::GoldenKitchenSinkConnectionIdempotencyPolicyOption>()) {
-      return options.get<golden_v1::GoldenKitchenSinkConnectionIdempotencyPolicyOption>()->clone();
-    }
-    return options_.get<golden_v1::GoldenKitchenSinkConnectionIdempotencyPolicyOption>()->
-clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<golden_v1_internal::GoldenKitchenSinkStub> stub_;
   Options options_;

@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ namespace cloud {
 // Forward declare some classes so we can be friends.
 namespace bigtable_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
+class BulkMutator;
 class LegacyAsyncRowReader;
 class LegacyRowReader;
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
@@ -37,7 +38,6 @@ class Table;
 namespace internal {
 class AsyncRetryBulkApply;
 class LegacyAsyncRowSampler;
-class BulkMutator;
 class LoggingDataClient;
 }  // namespace internal
 
@@ -58,6 +58,10 @@ class LoggingDataClient;
  * workflows with Google Cloud Platform. These operations can take many
  * milliseconds, therefore applications should try to reuse the same
  * `DataClient` instances when possible.
+ *
+ * @deprecated #google::cloud::bigtable::DataConnection is the preferred way to
+ *     communicate with the Bigtable Data API. To migrate existing code, see
+ *     @ref migrating-from-dataclient "Migrating from DataClient".
  */
 class DataClient {
  public:
@@ -74,7 +78,7 @@ class DataClient {
    *
    * @deprecated This member function is scheduled for deletion and `DataClient`
    *     will be marked as `final`. Do not extend this class. Application
-   *     developers that need to configure the gRPC Channel can pass any of the
+   *     developers who need to configure the gRPC Channel can pass any of the
    *     following options into `MakeDataClient(...)`:
    *       * `google::cloud::GrpcChannelArgumentsOption`
    *       * `google::cloud::GrpcChannelArgumentsNativeOption`
@@ -97,7 +101,7 @@ class DataClient {
    *
    * @deprecated This member function is scheduled for deletion and `DataClient`
    *     will be marked as `final`. Do not extend this class. Application
-   *     developers that need to configure the background threads can pass any
+   *     developers who need to configure the background threads can pass any
    *     of the following options into `MakeDataClient(...)`:
    *       * `google::cloud::GrpcBackgroundThreadPoolSizeOption`
    *       * `google::cloud::GrpcCompletionQueueOption`
@@ -114,12 +118,12 @@ class DataClient {
   friend class Table;
   friend class internal::AsyncRetryBulkApply;
   friend class internal::LegacyAsyncRowSampler;
-  friend class internal::BulkMutator;
+  friend class bigtable_internal::BulkMutator;
   friend class bigtable_internal::LegacyRowReader;
   friend class bigtable_internal::LegacyAsyncRowReader;
   friend class internal::LoggingDataClient;
 
-  //@{
+  ///@{
   /// @name the `google.bigtable.v2.Bigtable` wrappers.
   virtual grpc::Status MutateRow(
       grpc::ClientContext* context,
@@ -193,7 +197,7 @@ class DataClient {
   PrepareAsyncMutateRows(grpc::ClientContext* context,
                          google::bigtable::v2::MutateRowsRequest const& request,
                          grpc::CompletionQueue* cq) = 0;
-  //@}
+  ///@}
 };
 
 /// Create a new data client configured via @p options.

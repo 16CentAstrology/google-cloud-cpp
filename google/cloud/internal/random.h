@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_INTERNAL_RANDOM_H
 
 #include "google/cloud/version.h"
+#include <algorithm>
 #include <random>
 #include <string>
 #include <vector>
@@ -36,27 +37,19 @@ std::vector<unsigned int> FetchEntropy(std::size_t desired_bits);
 // in particular.
 using DefaultPRNG = std::mt19937_64;
 
-/**
- * Initialize any of the C++11 PRNGs in `<random>` using std::random_device.
- */
-template <typename Generator>
-Generator MakePRNG() {
-  // We need to get enough entropy to fully initialize the PRNG, that depends
-  // on the size of its state.  The size in bits is `Generator::state_size`.
-  // We convert that to the number of `unsigned int` values; as this is what
-  // std::random_device returns.
-  auto const desired_bits = Generator::state_size * Generator::word_size;
-
+/// Create a new PRNG.
+inline DefaultPRNG MakeDefaultPRNG() {
+  // Fetch a few bits of entropy, which is sufficient for our purposes.
+  auto const desired_bits = DefaultPRNG::word_size;
   // Extract the necessary number of entropy bits.
   auto const entropy = FetchEntropy(desired_bits);
-
   // Finally, put the entropy into the form that the C++11 PRNG classes want.
+  // We need a named object because the constructor consumes a reference (and
+  // does not consume rvalue references). And `std::seed_seq` is not friendly
+  // to "Almost Always Auto" grrr..
   std::seed_seq seq(entropy.begin(), entropy.end());
-  return Generator(seq);
+  return DefaultPRNG(seq);
 }
-
-/// Create a new PRNG.
-inline DefaultPRNG MakeDefaultPRNG() { return MakePRNG<DefaultPRNG>(); }
 
 /**
  * Take @p n samples out of @p population, using the @p gen PRNG.
@@ -65,6 +58,35 @@ inline DefaultPRNG MakeDefaultPRNG() { return MakePRNG<DefaultPRNG>(); }
  * population may appear multiple times.
  */
 std::string Sample(DefaultPRNG& gen, int n, std::string const& population);
+
+template <
+    typename Collection,
+    std::enable_if_t<std::is_same<Collection, std::string>::value, int> = 0>
+std::string RandomDataToCollection(std::string v) {
+  // This is not motivated by a desire to optimize this function (though that is
+  // nice). The issue is that I (coryan@) could not figure out how to write a
+  // generic version of this function that works with `std::vector<std::byte>`
+  // and `std::string`.
+  return v;
+}
+
+template <
+    typename Collection,
+    std::enable_if_t<!std::is_same<Collection, std::string>::value, int> = 0>
+Collection RandomDataToCollection(std::string v) {
+  Collection result(v.size());
+  std::transform(v.begin(), v.end(), result.begin(), [](auto c) {
+    return static_cast<typename Collection::value_type>(c);
+  });
+  return result;
+}
+
+template <typename Collection>
+Collection RandomData(DefaultPRNG& generator, std::size_t size) {
+  auto data = Sample(generator, static_cast<int>(size),
+                     "abcdefghijklmnopqrstuvwxyz0123456789");
+  return RandomDataToCollection<Collection>(std::move(data));
+}
 
 }  // namespace internal
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

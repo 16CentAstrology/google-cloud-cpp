@@ -1,3 +1,18 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+createTime: '2021-08-17T14:43:32.603712645Z'
 filename: ci/cloudbuild/cloudbuild.yaml
 github:
   name: google-cloud-cpp
@@ -5,7 +20,10 @@ github:
   pullRequest:
     branch: ^main$
     commentControl: COMMENTS_ENABLED_FOR_EXTERNAL_CONTRIBUTORS_ONLY
+id: 3cc016a1-2a35-467a-94af-4eab3822cbfd
+includeBuildLogs: INCLUDE_BUILD_LOGS_WITH_STATUS
 name: demo-debian-bullseye-pr
+resourceName: projects/cloud-cpp-testing-resources/locations/global/triggers/3cc016a1-2a35-467a-94af-4eab3822cbfd
 substitutions:
   _BUILD_NAME: demo-install
   _DISTRO: demo-debian-bullseye

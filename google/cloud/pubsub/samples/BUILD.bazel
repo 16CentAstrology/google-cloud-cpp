@@ -14,17 +14,21 @@
 
 """Examples for the Cloud Pub/Sub C++ client library."""
 
+load(":pubsub_client_integration_samples.bzl", "pubsub_client_integration_samples")
+load(":pubsub_client_unit_samples.bzl", "pubsub_client_unit_samples")
+load(":pubsub_samples_common.bzl", "pubsub_samples_common_hdrs", "pubsub_samples_common_srcs")
+load(":pubsub_samples_unit_tests.bzl", "pubsub_samples_unit_tests")
+
 package(default_visibility = ["//visibility:private"])
 
 licenses(["notice"])  # Apache 2.0
-
-load(":pubsub_samples_common.bzl", "pubsub_samples_common_hdrs", "pubsub_samples_common_srcs")
 
 cc_library(
     name = "pubsub_samples_common",
     testonly = True,
     srcs = pubsub_samples_common_srcs,
     hdrs = pubsub_samples_common_hdrs,
+    data = glob(["testdata/*"]),
     deps = [
         "//:common",
         "//:pubsub",
@@ -32,8 +36,6 @@ cc_library(
         "//google/cloud/testing_util:google_cloud_cpp_testing_private",
     ],
 )
-
-load(":pubsub_samples_unit_tests.bzl", "pubsub_samples_unit_tests")
 
 [cc_test(
     name = test.replace("/", "_").replace(".cc", ""),
@@ -47,12 +49,10 @@ load(":pubsub_samples_unit_tests.bzl", "pubsub_samples_unit_tests")
     ],
 ) for test in pubsub_samples_unit_tests]
 
-load(":pubsub_client_integration_samples.bzl", "pubsub_client_integration_samples")
-
 proto_library(
     name = "samples_proto",
     srcs = [
-        "samples.proto",
+        "testdata/schema.proto",
     ],
     visibility = ["//:__pkg__"],
 )
@@ -78,8 +78,6 @@ cc_proto_library(
         "//:pubsub",
     ] + (["//:iam"] if test == "iam_samples.cc" else []),
 ) for test in pubsub_client_integration_samples]
-
-load(":pubsub_client_unit_samples.bzl", "pubsub_client_unit_samples")
 
 [cc_test(
     name = test.replace("/", "_").replace(".cc", ""),

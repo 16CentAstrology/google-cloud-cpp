@@ -1,8 +1,10 @@
+@com_google_googleapis//google/cloud/datacatalog/lineage/v1:lineage.proto
 @com_google_googleapis//google/cloud/datacatalog/v1:bigquery.proto
 @com_google_googleapis//google/cloud/datacatalog/v1:common.proto
 @com_google_googleapis//google/cloud/datacatalog/v1:data_source.proto
 @com_google_googleapis//google/cloud/datacatalog/v1:datacatalog.proto
 @com_google_googleapis//google/cloud/datacatalog/v1:dataplex_spec.proto
+@com_google_googleapis//google/cloud/datacatalog/v1:dump_content.proto
 @com_google_googleapis//google/cloud/datacatalog/v1:gcs_fileset_spec.proto
 @com_google_googleapis//google/cloud/datacatalog/v1:physical_schema.proto
 @com_google_googleapis//google/cloud/datacatalog/v1:policytagmanager.proto

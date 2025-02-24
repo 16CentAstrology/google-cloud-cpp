@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/functions/cloud_functions_client.h"
+//! [all]
+#include "google/cloud/functions/v2/function_client.h"
+#include "google/cloud/location.h"
 #include <iostream>
 
 int main(int argc, char* argv[]) try {
@@ -21,17 +23,15 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace functions = ::google::cloud::functions;
-  auto client = functions::CloudFunctionsServiceClient(
-      functions::MakeCloudFunctionsServiceConnection());
+  auto const location = google::cloud::Location(argv[1], "-");
 
-  auto project_id = std::string(argv[1]);
-  auto request = google::cloud::functions::v1::ListFunctionsRequest{};
-  request.set_parent("projects/" + project_id + "/locations/-");
+  namespace functions = ::google::cloud::functions_v2;
+  auto client = functions::FunctionServiceClient(
+      functions::MakeFunctionServiceConnection());
 
-  for (auto r : client.ListFunctions(std::move(request))) {
-    if (!r) throw std::move(r).status();
-    std::cout << r->DebugString() << "\n";
+  for (auto f : client.ListFunctions(location.FullName())) {
+    if (!f) throw std::move(f).status();
+    std::cout << f->DebugString() << "\n";
   }
 
   return 0;
@@ -39,3 +39,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

@@ -16,8 +16,9 @@
 #include "google/cloud/common_options.h"
 #include "google/cloud/internal/background_threads_impl.h"
 #include "google/cloud/testing_util/scoped_log.h"
-#include "absl/memory/memory.h"
+#include "google/cloud/testing_util/validate_metadata.h"
 #include <gmock/gmock.h>
+#include <grpcpp/grpcpp.h>
 #include <string>
 #include <utility>
 
@@ -27,11 +28,14 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 namespace {
 
+using ::google::cloud::testing_util::ValidateMetadataFixture;
 using ::testing::Contains;
 using ::testing::ContainsRegex;
 using ::testing::IsEmpty;
 using ::testing::IsNull;
 using ::testing::NotNull;
+using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
 using ms = std::chrono::milliseconds;
 using ThreadPool = internal::AutomaticallyCreatedBackgroundThreads;
 
@@ -93,6 +97,42 @@ TEST(GrpcOptionList, RegularOptions) {
   TestGrpcOption<GrpcTracingOptionsOption>(TracingOptions{});
 }
 
+TEST(GrpcChannelArguments, MakeGrpcHttpProxy) {
+  EXPECT_EQ(internal::MakeGrpcHttpProxy(ProxyConfig()), "");
+  EXPECT_EQ(internal::MakeGrpcHttpProxy(ProxyConfig().set_port("port")), "");
+  EXPECT_EQ(internal::MakeGrpcHttpProxy(ProxyConfig().set_hostname("hostname")),
+            "https://hostname");
+  EXPECT_EQ(internal::MakeGrpcHttpProxy(
+                ProxyConfig().set_hostname("hostname").set_port("port")),
+            "https://hostname:port");
+  EXPECT_EQ(internal::MakeGrpcHttpProxy(ProxyConfig()
+                                            .set_hostname("hostname")
+                                            .set_port("port")
+                                            .set_username("username")),
+            "https://username@hostname:port");
+  EXPECT_EQ(internal::MakeGrpcHttpProxy(ProxyConfig()
+                                            .set_hostname("hostname")
+                                            .set_port("port")
+                                            .set_password("password")),
+            "https://:password@hostname:port");
+  EXPECT_EQ(internal::MakeGrpcHttpProxy(ProxyConfig()
+                                            .set_hostname("hostname")
+                                            .set_port("port")
+                                            .set_username("username")
+                                            .set_password("password")),
+            "https://username:password@hostname:port");
+  EXPECT_EQ(internal::MakeGrpcHttpProxy(ProxyConfig()
+                                            .set_hostname("hostname")
+                                            .set_port("port")
+                                            .set_username("username")
+                                            .set_password("password")
+                                            .set_scheme("http")),
+            // Split http to avoid tidy
+            "ht"
+            "tp"
+            "://username:password@hostname:port");
+}
+
 TEST(GrpcChannelArguments, MakeChannelArguments) {
   // This test will just set all 3 options related to channel arguments and
   // ensure that `MakeChannelArguments` combines them in the correct order.
@@ -102,7 +142,8 @@ TEST(GrpcChannelArguments, MakeChannelArguments) {
   auto opts = Options{}
                   .set<GrpcChannelArgumentsOption>({{"baz", "quux"}})
                   .set<UserAgentProductsOption>({"user_agent"})
-                  .set<GrpcChannelArgumentsNativeOption>(native);
+                  .set<GrpcChannelArgumentsNativeOption>(native)
+                  .set<ProxyOption>(ProxyConfig().set_hostname("hostname"));
 
   grpc::ChannelArguments expected;
   expected.SetString("foo", "bar");
@@ -112,6 +153,7 @@ TEST(GrpcChannelArguments, MakeChannelArguments) {
                   static_cast<int>(ms(std::chrono::hours(24)).count()));
   expected.SetInt(GRPC_ARG_KEEPALIVE_TIMEOUT_MS,
                   static_cast<int>(ms(std::chrono::seconds(60)).count()));
+  expected.SetString(GRPC_ARG_HTTP_PROXY, "https://hostname");
 
   CheckGrpcChannelArguments(expected, internal::MakeChannelArguments(opts));
 }
@@ -162,7 +204,7 @@ TEST(GrpcOptionList, GrpcBackgroundThreadsFactoryOption) {
   bool invoked = false;
   auto factory = [&invoked] {
     invoked = true;
-    return absl::make_unique<Fake>();
+    return std::make_unique<Fake>();
   };
   auto opts = Options{}.set<GrpcBackgroundThreadsFactoryOption>(factory);
   EXPECT_FALSE(invoked);
@@ -209,7 +251,7 @@ TEST(GrpcOptionList, GrpcCompletionQueueOption) {
 // Verify that the `GrpcCompletionQueueOption` takes precedence over the
 // `GrpcBackgroundThreadsFactoryOption` when both are set.
 TEST(GrpcOptionList, GrpcBackgroundThreadsFactoryIgnored) {
-  auto f = [] { return absl::make_unique<ThreadPool>(); };
+  auto f = [] { return std::make_unique<ThreadPool>(); };
   auto threads = internal::MakeBackgroundThreadsFactory(
       Options{}
           .set<GrpcCompletionQueueOption>(CompletionQueue{})
@@ -231,7 +273,7 @@ TEST(GrpcOptionList, GrpcBackgroundThreadsFactoryIgnored) {
 TEST(GrpcOptionList, GrpcBackgroundThreadPoolSizeIgnored) {
   auto constexpr kThreadPoolSize = 4;
   auto f = [kThreadPoolSize] {
-    return absl::make_unique<ThreadPool>(kThreadPoolSize);
+    return std::make_unique<ThreadPool>(kThreadPoolSize);
   };
   auto threads = internal::MakeBackgroundThreadsFactory(
       Options{}
@@ -269,6 +311,100 @@ TEST(GrpcOptionList, Unexpected) {
   EXPECT_THAT(
       log.ExtractLines(),
       Contains(ContainsRegex("caller: Unexpected option.+UnexpectedOption")));
+}
+
+TEST(GrpcSetMetadata, Base) {
+  grpc::ClientContext context;
+  internal::SetMetadata(context, Options{}, {}, "api-client-header");
+  ValidateMetadataFixture fixture;
+  auto const metadata = fixture.GetMetadata(context);
+  EXPECT_THAT(metadata, UnorderedElementsAre(
+                            Pair("x-goog-api-client", "api-client-header")));
+}
+
+TEST(GrpcSetMetadata, Full) {
+  grpc::ClientContext context;
+  internal::SetMetadata(
+      context,
+      Options{}
+          .set<UserProjectOption>("user-project")
+          .set<QuotaUserOption>("quota-user")
+          .set<AuthorityOption>("authority.googleapis.com")
+          .set<CustomHeadersOption>(
+              {{"custom-header-1", "v1"}, {"custom-header-2", "v2"}}),
+      {{"fixed-header-1", "v1"}, {"fixed-header-2", "v2"}},
+      "api-client-header");
+  ValidateMetadataFixture fixture;
+  auto const metadata = fixture.GetMetadata(context);
+  EXPECT_THAT(metadata,
+              UnorderedElementsAre(
+                  Pair("x-goog-user-project", "user-project"),
+                  Pair("x-goog-quota-user", "quota-user"),
+                  Pair("fixed-header-1", "v1"), Pair("fixed-header-2", "v2"),
+                  Pair("custom-header-1", "v1"), Pair("custom-header-2", "v2"),
+                  Pair("x-goog-api-client", "api-client-header")));
+}
+
+TEST(GrpcSetMetadata, Authority) {
+  grpc::ClientContext context;
+  internal::SetMetadata(
+      context, Options{}.set<AuthorityOption>("authority.googleapis.com"), {},
+      "api-client-header");
+  ValidateMetadataFixture fixture;
+  auto const authority = fixture.GetAuthority(context);
+  if (!authority.has_value()) GTEST_SKIP() << "cannot retrieve authority";
+  EXPECT_EQ(authority, "authority.googleapis.com");
+}
+
+TEST(GrpcSetMetadata, ConfigureUserIp) {
+  grpc::ClientContext context;
+  internal::SetMetadata(context, Options{}.set<UserIpOption>("1234"), {},
+                        "api-client-header");
+
+  ValidateMetadataFixture fixture;
+  auto const metadata = fixture.GetMetadata(context);
+  EXPECT_THAT(metadata, UnorderedElementsAre(
+                            Pair("x-goog-user-ip", "1234"),
+                            Pair("x-goog-api-client", "api-client-header")));
+}
+
+TEST(GrpcSetMetadata, ConfigureQuotaUser) {
+  grpc::ClientContext context;
+  internal::SetMetadata(context, Options{}.set<QuotaUserOption>("my-user"), {},
+                        "api-client-header");
+
+  ValidateMetadataFixture fixture;
+  auto const metadata = fixture.GetMetadata(context);
+  EXPECT_THAT(metadata, UnorderedElementsAre(
+                            Pair("x-goog-quota-user", "my-user"),
+                            Pair("x-goog-api-client", "api-client-header")));
+}
+
+TEST(GrpcSetMetadata, QuotaUserOverridesUserIp) {
+  grpc::ClientContext context;
+  internal::SetMetadata(
+      context,
+      Options{}.set<QuotaUserOption>("my-user").set<UserIpOption>("1234"), {},
+      "api-client-header");
+
+  ValidateMetadataFixture fixture;
+  auto const metadata = fixture.GetMetadata(context);
+  EXPECT_THAT(metadata, UnorderedElementsAre(
+                            Pair("x-goog-quota-user", "my-user"),
+                            Pair("x-goog-api-client", "api-client-header")));
+}
+
+TEST(GrpcClientContext, FieldMask) {
+  grpc::ClientContext context;
+  internal::SetMetadata(context,
+                        Options{}.set<FieldMaskOption>("items.name,token"), {},
+                        "api-client-header");
+
+  ValidateMetadataFixture fixture;
+  auto const metadata = fixture.GetMetadata(context);
+  EXPECT_THAT(metadata, UnorderedElementsAre(
+                            Pair("x-goog-fieldmask", "items.name,token"),
+                            Pair("x-goog-api-client", "api-client-header")));
 }
 
 TEST(GrpcClientContext, Configure) {

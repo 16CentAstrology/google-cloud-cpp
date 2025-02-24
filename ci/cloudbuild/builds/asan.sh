@@ -18,14 +18,16 @@ set -euo pipefail
 
 source "$(dirname "$0")/../../lib/init.sh"
 source module ci/cloudbuild/builds/lib/bazel.sh
+source module ci/cloudbuild/builds/lib/cloudcxxrc.sh
 source module ci/cloudbuild/builds/lib/integration.sh
-
-export CC=clang
-export CXX=clang++
+source module ci/lib/io.sh
 
 mapfile -t args < <(bazel::common_args)
-args+=("--config=asan")
-bazel test "${args[@]}" --test_tag_filters=-integration-test ...
+args+=(--config=asan
+  # TODO(#14874): re-enable bzlmod once BCR grpc module is fixed.
+  --noenable_bzlmod
+)
+io::run bazel test "${args[@]}" --test_tag_filters=-integration-test "${BAZEL_TARGETS[@]}"
 
 mapfile -t integration_args < <(integration::bazel_args)
 integration::bazel_with_emulators test "${args[@]}" "${integration_args[@]}"

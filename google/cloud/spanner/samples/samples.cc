@@ -41,6 +41,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/optional.h"
+#include <google/cloud/spanner/testing/singer.pb.h>
 #include <chrono>
 #include <iomanip>
 #include <iterator>
@@ -344,18 +345,59 @@ void CreateInstanceWithProcessingUnits(
 }
 // [END spanner_create_instance_with_processing_units]
 
+// [START spanner_create_instance_with_autoscaling_config]
+void CreateInstanceWithAutoscalingConfig(
+    google::cloud::spanner_admin::InstanceAdminClient client,
+    std::string const& project_id, std::string const& instance_id,
+    std::string const& display_name, std::string const& config_id) {
+  auto pr = google::cloud::Project(project_id);
+  auto in = google::cloud::spanner::Instance(pr, instance_id);
+  auto config = pr.FullName() + "/instanceConfigs/" + config_id;
+
+  google::spanner::admin::instance::v1::CreateInstanceRequest request;
+  request.set_parent(pr.FullName());
+  request.set_instance_id(instance_id);
+  request.mutable_instance()->set_name(in.FullName());
+  request.mutable_instance()->set_config(config);
+  request.mutable_instance()->set_display_name(display_name);
+  request.mutable_instance()->set_edition(
+      google::spanner::admin::instance::v1::Instance_Edition_ENTERPRISE);
+
+  auto* autoscaling = request.mutable_instance()->mutable_autoscaling_config();
+  auto* limits = autoscaling->mutable_autoscaling_limits();
+  limits->set_min_nodes(1);
+  limits->set_max_nodes(2);
+  auto* targets = autoscaling->mutable_autoscaling_targets();
+  targets->set_high_priority_cpu_utilization_percent(65);
+  targets->set_storage_utilization_percent(95);
+
+  auto instance = client.CreateInstance(request).get();
+  if (!instance) throw std::move(instance).status();
+  std::cout << "Created instance " << in << " with autoscaling config\n";
+
+  instance = client.GetInstance(in.FullName());
+  if (!instance) throw std::move(instance).status();
+  std::cout << "Instance " << in << ":\n"
+            << instance->autoscaling_config().DebugString();
+}
+// [END spanner_create_instance_with_autoscaling_config]
+
 void CreateInstanceCommand(std::vector<std::string> argv) {
+  bool auto_scaler = !argv.empty() && argv.front() == "--auto-scaler";
   bool low_cost = !argv.empty() && argv.front() == "--low-cost";
-  if (low_cost) argv.erase(argv.begin());
+  if (auto_scaler || low_cost) argv.erase(argv.begin());
   if (argv.size() != 3 && argv.size() != 4) {
     throw std::runtime_error(
-        "create-instance [--low-cost] <project-id> <instance-id>"
-        " <display-name> [config-id]");
+        "create-instance [--auto-scaler|--low-cost] <project-id>"
+        " <instance-id> <display-name> [config-id]");
   }
   google::cloud::spanner_admin::InstanceAdminClient client(
       google::cloud::spanner_admin::MakeInstanceAdminConnection());
   std::string config_id = argv.size() == 4 ? argv[3] : "regional-us-central1";
-  if (low_cost) {
+  if (auto_scaler) {
+    CreateInstanceWithAutoscalingConfig(std::move(client), argv[0], argv[1],
+                                        argv[2], config_id);
+  } else if (low_cost) {
     CreateInstanceWithProcessingUnits(std::move(client), argv[0], argv[1],
                                       argv[2], config_id);
   } else {
@@ -565,6 +607,41 @@ void InstanceTestIamPermissionsCommand(std::vector<std::string> argv) {
   google::cloud::spanner_admin::InstanceAdminClient client(
       google::cloud::spanner_admin::MakeInstanceAdminConnection());
   InstanceTestIamPermissions(std::move(client), argv[0], argv[1]);
+}
+
+// [START spanner_create_instance_partition]
+void CreateInstancePartition(
+    google::cloud::spanner_admin::InstanceAdminClient client,
+    std::string const& project_id, std::string const& instance_id,
+    std::string const& instance_partition_id) {
+  auto project = google::cloud::Project(project_id);
+  auto in = google::cloud::spanner::Instance(project_id, instance_id);
+  auto config = project.FullName() + "/instanceConfigs/nam3";
+
+  google::spanner::admin::instance::v1::CreateInstancePartitionRequest request;
+  request.set_parent(in.FullName());
+  request.set_instance_partition_id(instance_partition_id);
+  request.mutable_instance_partition()->set_display_name(
+      "Test instance partition");
+  request.mutable_instance_partition()->set_node_count(1);
+  request.mutable_instance_partition()->set_config(config);
+
+  auto instance_partition = client.CreateInstancePartition(request).get();
+  if (!instance_partition) throw std::move(instance_partition).status();
+  std::cout << "Created instance partition [" << instance_partition_id << "]:\n"
+            << instance_partition->DebugString();
+}
+// [END spanner_create_instance_partition]
+
+void CreateInstancePartitionCommand(std::vector<std::string> argv) {
+  if (argv.size() != 3) {
+    throw std::runtime_error(
+        "create-instance-partition <project-id> <instance-id>"
+        " <instance-partition-id>");
+  }
+  google::cloud::spanner_admin::InstanceAdminClient client(
+      google::cloud::spanner_admin::MakeInstanceAdminConnection());
+  CreateInstancePartition(std::move(client), argv[0], argv[1], argv[2]);
 }
 
 google::cloud::spanner::Timestamp DatabaseNow(
@@ -910,7 +987,7 @@ void EnableFineGrainedAccess(
 }
 //! [END spanner_enable_fine_grained_access]
 
-//! [update-database] [START spanner_add_column]
+//! [add-column] [START spanner_add_column]
 void AddColumn(google::cloud::spanner_admin::DatabaseAdminClient client,
                std::string const& project_id, std::string const& instance_id,
                std::string const& database_id) {
@@ -927,7 +1004,7 @@ void AddColumn(google::cloud::spanner_admin::DatabaseAdminClient client,
   if (!metadata) throw std::move(metadata).status();
   std::cout << "Added MarketingBudget column\n";
 }
-//! [update-database] [END spanner_add_column]
+//! [add-column] [END spanner_add_column]
 
 // [START spanner_add_timestamp_column]
 void AddTimestampColumn(
@@ -949,6 +1026,22 @@ void AddTimestampColumn(
   std::cout << "Added LastUpdateTime column\n";
 }
 // [END spanner_add_timestamp_column]
+
+//! [drop-column]
+void DropColumn(google::cloud::spanner_admin::DatabaseAdminClient client,
+                std::string const& project_id, std::string const& instance_id,
+                std::string const& database_id) {
+  google::cloud::spanner::Database database(project_id, instance_id,
+                                            database_id);
+  auto metadata =
+      client
+          .UpdateDatabaseDdl(database.FullName(),
+                             {"ALTER TABLE Singers DROP COLUMN SingerInfo"})
+          .get();
+  if (!metadata) throw std::move(metadata).status();
+  std::cout << "Dropped SingerInfo column\n";
+}
+//! [drop-column]
 
 // [START spanner_create_storing_index]
 void AddStoringIndex(google::cloud::spanner_admin::DatabaseAdminClient client,
@@ -1205,6 +1298,100 @@ void CopyBackupCommand(std::vector<std::string> argv) {
              argv[4], expire_time);
 }
 
+//! [copy_backup_with_MR_CMEK]
+// [START spanner_copy_backup_with_MR_CMEK]
+struct BackupIdentifier {
+  std::string project_id;
+  std::string instance_id;
+  std::string backup_id;
+};
+
+void PrintKmsKeys(
+    std::vector<google::cloud::KmsKeyName> const& encryption_keys) {
+  std::cout << " using encryption keys ";
+  for (std::size_t i = 0; i < encryption_keys.size(); ++i) {
+    std::cout << encryption_keys[i].FullName();
+    if (i != encryption_keys.size() - 1) {
+      std::cout << ", ";
+    }
+  }
+  std::cout << ".\n";
+}
+
+void CopyBackupWithMRCMEK(
+    google::cloud::spanner_admin::DatabaseAdminClient client,
+    BackupIdentifier const& src, BackupIdentifier const& dst,
+    google::cloud::spanner::Timestamp expire_time,
+    std::vector<google::cloud::KmsKeyName> const& encryption_keys) {
+  google::cloud::spanner::Backup source(
+      google::cloud::spanner::Instance(src.project_id, src.instance_id),
+      src.backup_id);
+  google::cloud::spanner::Instance dst_in(dst.project_id, dst.instance_id);
+  google::spanner::admin::database::v1::CopyBackupRequest request;
+  request.set_backup_id(dst.backup_id);
+  request.set_parent(dst_in.FullName());
+  request.set_source_backup(source.FullName());
+  *request.mutable_expire_time() =
+      expire_time.get<google::protobuf::Timestamp>().value();
+  request.mutable_encryption_config()->set_encryption_type(
+      google::spanner::admin::database::v1::CopyBackupEncryptionConfig::
+          CUSTOMER_MANAGED_ENCRYPTION);
+  for (google::cloud::KmsKeyName const& encryption_key : encryption_keys) {
+    request.mutable_encryption_config()->add_kms_key_names(
+        encryption_key.FullName());
+  }
+  auto copy_backup = client.CopyBackup(request).get();
+  if (!copy_backup) throw std::move(copy_backup).status();
+  std::cout << "Copy Backup " << copy_backup->name()  //
+            << " of " << source.FullName()            //
+            << " of size " << copy_backup->size_bytes() << " bytes as of "
+            << google::cloud::spanner::MakeTimestamp(
+                   copy_backup->version_time())
+                   .value()
+            << " was created at "
+            << google::cloud::spanner::MakeTimestamp(copy_backup->create_time())
+                   .value();
+  PrintKmsKeys(encryption_keys);
+}
+// [END spanner_copy_backup_with_MR_CMEK]
+//! [copy_backup_with_MR_CMEK]
+
+void CopyBackupWithMRCMEKCommand(std::vector<std::string> argv) {
+  if (argv.size() < 8) {
+    throw std::runtime_error(
+        "copy-backup <project-id> <instance-id> <backup-id>"
+        " <copy-instance-id> <copy-backup-id> <<location> <key-ring> "
+        "<key-name>>+");
+  }
+  google::cloud::spanner_admin::DatabaseAdminClient client(
+      google::cloud::spanner_admin::MakeDatabaseAdminConnection());
+  google::cloud::spanner::Backup source(
+      google::cloud::spanner::Instance(argv[0], argv[1]), argv[2]);
+  auto backup = client.GetBackup(source.FullName());
+  if (!backup) throw std::move(backup).status();
+  auto expire_time = TimestampAdd(
+      google::cloud::spanner::MakeTimestamp(backup->expire_time()).value(),
+      absl::Hours(7));
+  std::vector<google::cloud::KmsKeyName> encryption_keys;
+  for (std::size_t i = 3; i < argv.size(); i += 3) {
+    google::cloud::KmsKeyName encryption_key(/*project_id=*/argv[0],
+                                             /*location=*/argv[i],
+                                             /*key_ring=*/argv[i + 1],
+                                             /*kms_key_name=*/argv[i + 2]);
+    encryption_keys.push_back(encryption_key);
+  }
+  BackupIdentifier src;
+  src.project_id = argv[0];
+  src.instance_id = argv[1];
+  src.backup_id = argv[2];
+  BackupIdentifier dst;
+  src.project_id = argv[0];
+  src.instance_id = argv[3];
+  src.backup_id = argv[4];
+  CopyBackupWithMRCMEK(std::move(client), src, dst, expire_time,
+                       encryption_keys);
+}
+
 //! [delete-backup] [START spanner_delete_backup]
 void DeleteBackup(google::cloud::spanner_admin::DatabaseAdminClient client,
                   std::string const& project_id, std::string const& instance_id,
@@ -1324,7 +1511,68 @@ void CreateDatabaseWithEncryptionKeyCommand(std::vector<std::string> argv) {
                                   encryption_key);
 }
 
-// [create-backup-with-encryption-key]
+//! [create_database_with_MR_CMEK]
+// [START spanner_create_database_with_MR_CMEK]
+void CreateDatabaseWithMRCMEK(
+    google::cloud::spanner_admin::DatabaseAdminClient client,
+    std::string const& project_id, std::string const& instance_id,
+    std::string const& database_id,
+    std::vector<google::cloud::KmsKeyName> const& encryption_keys) {
+  google::cloud::spanner::Database database(project_id, instance_id,
+                                            database_id);
+  google::spanner::admin::database::v1::CreateDatabaseRequest request;
+  request.set_parent(database.instance().FullName());
+  request.set_create_statement("CREATE DATABASE `" + database.database_id() +
+                               "`");
+  request.add_extra_statements(R"""(
+      CREATE TABLE Singers (
+          SingerId   INT64 NOT NULL,
+          FirstName  STRING(1024),
+          LastName   STRING(1024),
+          SingerInfo BYTES(MAX),
+          FullName   STRING(2049)
+              AS (ARRAY_TO_STRING([FirstName, LastName], " ")) STORED
+      ) PRIMARY KEY (SingerId))""");
+  request.add_extra_statements(R"""(
+      CREATE TABLE Albums (
+          SingerId     INT64 NOT NULL,
+          AlbumId      INT64 NOT NULL,
+          AlbumTitle   STRING(MAX)
+      ) PRIMARY KEY (SingerId, AlbumId),
+          INTERLEAVE IN PARENT Singers ON DELETE CASCADE)""");
+  for (google::cloud::KmsKeyName const& encryption_key : encryption_keys) {
+    request.mutable_encryption_config()->add_kms_key_names(
+        encryption_key.FullName());
+  }
+  auto db = client.CreateDatabase(request).get();
+  if (!db) throw std::move(db).status();
+  std::cout << "Database " << db->name() << " created";
+  PrintKmsKeys(encryption_keys);
+}
+// [END spanner_create_database_with_MR_CMEK]
+//! [create_database_with_MR_CMEK]
+
+void CreateDatabaseWithMRCMEKCommand(std::vector<std::string> argv) {
+  if (argv.size() < 6) {
+    throw std::runtime_error(
+        "create-database-with-MR-CMEK <project-id> <instance-id>"
+        " <database-id> <<location> <key-ring> <key-name>>+");
+  }
+  google::cloud::spanner_admin::DatabaseAdminClient client(
+      google::cloud::spanner_admin::MakeDatabaseAdminConnection());
+  std::vector<google::cloud::KmsKeyName> encryption_keys;
+  for (std::size_t i = 3; i < argv.size(); i += 3) {
+    google::cloud::KmsKeyName encryption_key(/*project_id=*/argv[0],
+                                             /*location=*/argv[i],
+                                             /*key_ring=*/argv[i + 1],
+                                             /*kms_key_name=*/argv[i + 2]);
+    encryption_keys.push_back(encryption_key);
+  }
+  CreateDatabaseWithMRCMEK(std::move(client), argv[0], argv[1], argv[2],
+                           encryption_keys);
+}
+
+//! [create-backup-with-encryption-key]
 // [START spanner_create_backup_with_encryption_key]
 void CreateBackupWithEncryptionKey(
     google::cloud::spanner_admin::DatabaseAdminClient client,
@@ -1379,7 +1627,71 @@ void CreateBackupWithEncryptionKeyCommand(std::vector<std::string> argv) {
                                 encryption_key);
 }
 
-// [restore-database-with-encryption-key]
+//! [create_backup_with_MR_CMEK]
+// [START spanner_create_backup_with_MR_CMEK]
+void CreateBackupWithMRCMEK(
+    google::cloud::spanner_admin::DatabaseAdminClient client,
+    BackupIdentifier dst, std::string const& database_id,
+    google::cloud::spanner::Timestamp expire_time,
+    google::cloud::spanner::Timestamp version_time,
+    std::vector<google::cloud::KmsKeyName> const& encryption_keys) {
+  google::cloud::spanner::Database database(dst.project_id, dst.instance_id,
+                                            database_id);
+  google::spanner::admin::database::v1::CreateBackupRequest request;
+  request.set_parent(database.instance().FullName());
+  request.set_backup_id(dst.backup_id);
+  request.mutable_backup()->set_database(database.FullName());
+  *request.mutable_backup()->mutable_expire_time() =
+      expire_time.get<google::protobuf::Timestamp>().value();
+  *request.mutable_backup()->mutable_version_time() =
+      version_time.get<google::protobuf::Timestamp>().value();
+  request.mutable_encryption_config()->set_encryption_type(
+      google::spanner::admin::database::v1::CreateBackupEncryptionConfig::
+          CUSTOMER_MANAGED_ENCRYPTION);
+  for (google::cloud::KmsKeyName const& encryption_key : encryption_keys) {
+    request.mutable_encryption_config()->add_kms_key_names(
+        encryption_key.FullName());
+  }
+  auto backup = client.CreateBackup(request).get();
+  if (!backup) throw std::move(backup).status();
+  std::cout
+      << "Backup " << backup->name() << " of " << backup->database()
+      << " of size " << backup->size_bytes() << " bytes as of "
+      << google::cloud::spanner::MakeTimestamp(backup->version_time()).value()
+      << " was created at "
+      << google::cloud::spanner::MakeTimestamp(backup->create_time()).value();
+  PrintKmsKeys(encryption_keys);
+}
+// [END spanner_create_backup_with_MR_CMEK]
+//! [create_backup_with_MR_CMEK]
+
+void CreateBackupWithMRCMEKCommand(std::vector<std::string> argv) {
+  if (argv.size() < 7) {
+    throw std::runtime_error(
+        "create-backup-with-MR-CMEK <project-id> <instance-id>"
+        " <database-id> <backup-id> <<location> <key-ring> <key-name>>+");
+  }
+  google::cloud::spanner_admin::DatabaseAdminClient client(
+      google::cloud::spanner_admin::MakeDatabaseAdminConnection());
+  auto now = DatabaseNow(MakeSampleClient(argv[0], argv[1], argv[2]));
+  std::vector<google::cloud::KmsKeyName> encryption_keys;
+  for (std::size_t i = 4; i < argv.size(); i += 3) {
+    google::cloud::KmsKeyName encryption_key(/*project_id=*/argv[0],
+                                             /*location=*/argv[i],
+                                             /*key_ring=*/argv[i + 1],
+                                             /*kms_key_name=*/argv[i + 2]);
+    encryption_keys.push_back(encryption_key);
+  }
+  BackupIdentifier dst;
+  dst.project_id = argv[0];
+  dst.instance_id = argv[1];
+  dst.backup_id = argv[3];
+  CreateBackupWithMRCMEK(std::move(client), dst, argv[2],
+                         TimestampAdd(now, absl::Hours(7)), now,
+                         encryption_keys);
+}
+
+//! [restore-database-with-encryption-key]
 // [START spanner_restore_backup_with_encryption_key]
 void RestoreDatabaseWithEncryptionKey(
     google::cloud::spanner_admin::DatabaseAdminClient client,
@@ -1433,6 +1745,66 @@ void RestoreDatabaseWithEncryptionKeyCommand(std::vector<std::string> argv) {
                                    argv[3], encryption_key);
 }
 
+//! [restore_backup_with_MR_CMEK]
+// [START spanner_restore_backup_with_MR_CMEK]
+void RestoreDatabaseWithMRCMEK(
+    google::cloud::spanner_admin::DatabaseAdminClient client,
+    BackupIdentifier const& src, std::string const& database_id,
+    std::vector<google::cloud::KmsKeyName> const& encryption_keys) {
+  google::cloud::spanner::Database database(src.project_id, src.instance_id,
+                                            database_id);
+  google::cloud::spanner::Backup backup(database.instance(), src.backup_id);
+  google::spanner::admin::database::v1::RestoreDatabaseRequest request;
+  request.set_parent(database.instance().FullName());
+  request.set_database_id(database.database_id());
+  request.set_backup(backup.FullName());
+  request.mutable_encryption_config()->set_encryption_type(
+      google::spanner::admin::database::v1::RestoreDatabaseEncryptionConfig::
+          CUSTOMER_MANAGED_ENCRYPTION);
+  for (google::cloud::KmsKeyName const& encryption_key : encryption_keys) {
+    request.mutable_encryption_config()->add_kms_key_names(
+        encryption_key.FullName());
+  }
+  auto restored_db = client.RestoreDatabase(request).get();
+  if (!restored_db) throw std::move(restored_db).status();
+  std::cout << "Database";
+  if (restored_db->restore_info().source_type() ==
+      google::spanner::admin::database::v1::BACKUP) {
+    auto const& backup_info = restored_db->restore_info().backup_info();
+    std::cout << " " << backup_info.source_database() << " as of "
+              << google::cloud::spanner::MakeTimestamp(
+                     backup_info.version_time())
+                     .value();
+  }
+  std::cout << " restored to " << restored_db->name();
+  std::cout << " from backup " << backup.FullName();
+  PrintKmsKeys(encryption_keys);
+}
+// [END spanner_restore_backup_with_MR_CMEK]
+//! [restore_backup_with_MR_CMEK]
+
+void RestoreDatabaseWithMRCMEKCommand(std::vector<std::string> argv) {
+  if (argv.size() < 7) {
+    throw std::runtime_error(
+        "restore-database-with-MR-CMEK <project-id> <instance-id>"
+        " <database-id> <backup-id> <<location> <key-ring> <key-name>>+");
+  }
+  google::cloud::spanner_admin::DatabaseAdminClient client(
+      google::cloud::spanner_admin::MakeDatabaseAdminConnection());
+  std::vector<google::cloud::KmsKeyName> encryption_keys;
+  for (std::size_t i = 4; i < argv.size(); i += 3) {
+    google::cloud::KmsKeyName encryption_key(/*project_id=*/argv[0],
+                                             /*location=*/argv[i],
+                                             /*key_ring=*/argv[i + 1],
+                                             /*kms_key_name=*/argv[i + 2]);
+    encryption_keys.push_back(encryption_key);
+  }
+  BackupIdentifier src;
+  src.project_id = argv[0];
+  src.instance_id = argv[1];
+  src.backup_id = argv[3];
+  RestoreDatabaseWithMRCMEK(std::move(client), src, argv[2], encryption_keys);
+}
 //! [list-backups] [START spanner_list_backups]
 void ListBackups(google::cloud::spanner_admin::DatabaseAdminClient client,
                  std::string const& project_id,
@@ -1535,6 +1907,270 @@ void ListDatabaseOperationsCommand(std::vector<std::string> argv) {
   google::cloud::spanner_admin::DatabaseAdminClient client(
       google::cloud::spanner_admin::MakeDatabaseAdminConnection());
   ListDatabaseOperations(std::move(client), argv[0], argv[1]);
+}
+
+//! [START spanner_create_full_backup_schedule]
+void CreateFullBackupSchedule(
+    google::cloud::spanner_admin::DatabaseAdminClient client,
+    std::string const& project_id, std::string const& instance_id,
+    std::string const& database_id, std::string const& backup_schedule_id) {
+  google::spanner::admin::database::v1::BackupSchedule backup_schedule;
+  *backup_schedule.mutable_full_backup_spec() = {};
+  backup_schedule.mutable_spec()->mutable_cron_spec()->set_text("30 12 * * *");
+  backup_schedule.mutable_retention_duration()->set_seconds(3600 * 24);
+
+  google::spanner::admin::database::v1::CreateBackupEncryptionConfig
+      encryption_config;
+  encryption_config.set_encryption_type(
+      google::spanner::admin::database::v1::CreateBackupEncryptionConfig::
+          USE_DATABASE_ENCRYPTION);
+  *backup_schedule.mutable_encryption_config() = std::move(encryption_config);
+
+  google::cloud::spanner::Database db(project_id, instance_id, database_id);
+  google::spanner::admin::database::v1::CreateBackupScheduleRequest request;
+  request.set_parent(db.FullName());
+  request.set_backup_schedule_id(backup_schedule_id);
+  *request.mutable_backup_schedule() = std::move(backup_schedule);
+
+  auto created_backup_schedule = client.CreateBackupSchedule(request);
+  if (!created_backup_schedule) {
+    throw std::move(created_backup_schedule).status();
+  }
+  std::cout << "Backup schedule " << created_backup_schedule->name()
+            << " created at "
+            << *google::cloud::spanner::MakeTimestamp(
+                   created_backup_schedule->update_time());
+}
+//! [END spanner_create_full_backup_schedule]
+
+void CreateFullBackupScheduleCommand(std::vector<std::string> argv) {
+  if (argv.size() != 4) {
+    throw std::runtime_error(
+        "create-backup-schedule <project-id> "
+        "<instance-id> <database-id> <backup-schedule-id>");
+  }
+  google::cloud::spanner_admin::DatabaseAdminClient client(
+      google::cloud::spanner_admin::MakeDatabaseAdminConnection());
+  CreateFullBackupSchedule(std::move(client), argv[0], argv[1], argv[2],
+                           argv[3]);
+}
+
+//! [START spanner_create_incremental_backup_schedule]
+void CreateIncrementalBackupSchedule(
+    google::cloud::spanner_admin::DatabaseAdminClient client,
+    std::string const& project_id, std::string const& instance_id,
+    std::string const& database_id, std::string const& backup_schedule_id) {
+  google::spanner::admin::database::v1::BackupSchedule backup_schedule;
+  *backup_schedule.mutable_incremental_backup_spec() = {};
+  backup_schedule.mutable_spec()->mutable_cron_spec()->set_text("30 12 * * *");
+  backup_schedule.mutable_retention_duration()->set_seconds(3600 * 24);
+
+  google::spanner::admin::database::v1::CreateBackupEncryptionConfig
+      encryption_config;
+  encryption_config.set_encryption_type(
+      google::spanner::admin::database::v1::CreateBackupEncryptionConfig::
+          GOOGLE_DEFAULT_ENCRYPTION);
+  *backup_schedule.mutable_encryption_config() = std::move(encryption_config);
+
+  google::cloud::spanner::Database db(project_id, instance_id, database_id);
+  google::spanner::admin::database::v1::CreateBackupScheduleRequest request;
+  request.set_parent(db.FullName());
+  request.set_backup_schedule_id(backup_schedule_id);
+  *request.mutable_backup_schedule() = std::move(backup_schedule);
+
+  auto created_backup_schedule = client.CreateBackupSchedule(request);
+  if (!created_backup_schedule) {
+    throw std::move(created_backup_schedule).status();
+  }
+  std::cout << "Incremental backup schedule " << created_backup_schedule->name()
+            << " created at "
+            << *google::cloud::spanner::MakeTimestamp(
+                   created_backup_schedule->update_time());
+}
+//! [END spanner_create_incremental_backup_schedule]
+
+void CreateIncrementalBackupScheduleCommand(std::vector<std::string> argv) {
+  if (argv.size() != 4) {
+    throw std::runtime_error(
+        "create-incremental-backup-schedule <project-id> "
+        "<instance-id> <database-id> <backup-schedule-id>");
+  }
+  google::cloud::spanner_admin::DatabaseAdminClient client(
+      google::cloud::spanner_admin::MakeDatabaseAdminConnection());
+  CreateIncrementalBackupSchedule(std::move(client), argv[0], argv[1], argv[2],
+                                  argv[3]);
+}
+
+//! [START spanner_delete_backup_schedule]
+void DeleteBackupSchedule(
+    google::cloud::spanner_admin::DatabaseAdminClient client,
+    std::string const& project_id, std::string const& instance_id,
+    std::string const& database_id, std::string const& backup_schedule_id) {
+  google::cloud::spanner::Database db(project_id, instance_id, database_id);
+  std::string backup_schedule_name =
+      db.FullName() + "/backupSchedules/" + backup_schedule_id;
+
+  google::spanner::admin::database::v1::DeleteBackupScheduleRequest request;
+  request.set_name(backup_schedule_name);
+
+  auto status = client.DeleteBackupSchedule(request);
+  if (!status.ok()) throw std::move(status);
+  std::cout << "Backup schedule " << backup_schedule_name << " deleted";
+}
+//! [END spanner_delete_backup_schedule]
+
+void DeleteBackupScheduleCommand(std::vector<std::string> argv) {
+  if (argv.size() != 4) {
+    throw std::runtime_error(
+        "delete-backup-schedule <project-id> "
+        "<instance-id> <database-id> <backup-schedule-id>");
+  }
+  google::cloud::spanner_admin::DatabaseAdminClient client(
+      google::cloud::spanner_admin::MakeDatabaseAdminConnection());
+  DeleteBackupSchedule(std::move(client), argv[0], argv[1], argv[2], argv[3]);
+}
+
+//! [START spanner_update_backup_schedule]
+void UpdateBackupSchedule(
+    google::cloud::spanner_admin::DatabaseAdminClient client,
+    std::string const& project_id, std::string const& instance_id,
+    std::string const& database_id, std::string const& backup_schedule_id) {
+  google::cloud::spanner::Database db(project_id, instance_id, database_id);
+  std::string backup_schedule_name =
+      db.FullName() + "/backupSchedules/" + backup_schedule_id;
+
+  google::spanner::admin::database::v1::BackupSchedule backup_schedule;
+  backup_schedule.set_name(backup_schedule_name);
+  backup_schedule.mutable_spec()->mutable_cron_spec()->set_text("45 15 * * *");
+  backup_schedule.mutable_retention_duration()->set_seconds(3600 * 48);
+
+  google::spanner::admin::database::v1::CreateBackupEncryptionConfig
+      encryption_config;
+  encryption_config.set_encryption_type(
+      google::spanner::admin::database::v1::CreateBackupEncryptionConfig::
+          USE_DATABASE_ENCRYPTION);
+  *backup_schedule.mutable_encryption_config() = std::move(encryption_config);
+
+  google::protobuf::FieldMask update_mask;
+  update_mask.add_paths("spec.cron_spec.text");
+  update_mask.add_paths("retention_duration");
+  update_mask.add_paths("encryption_config");
+
+  google::spanner::admin::database::v1::UpdateBackupScheduleRequest request;
+  *request.mutable_backup_schedule() = std::move(backup_schedule);
+  *request.mutable_update_mask() = std::move(update_mask);
+
+  auto updated_backup_schedule = client.UpdateBackupSchedule(request);
+  if (!updated_backup_schedule) {
+    throw std::move(updated_backup_schedule).status();
+  }
+  std::cout << "Backup schedule " << updated_backup_schedule->name()
+            << " updated at "
+            << *google::cloud::spanner::MakeTimestamp(
+                   updated_backup_schedule->update_time());
+}
+//! [END spanner_update_backup_schedule]
+
+void UpdateBackupScheduleCommand(std::vector<std::string> argv) {
+  if (argv.size() != 4) {
+    throw std::runtime_error(
+        "update-backup-schedule <project-id> "
+        "<instance-id> <database-id> <backup-schedule-id>");
+  }
+  google::cloud::spanner_admin::DatabaseAdminClient client(
+      google::cloud::spanner_admin::MakeDatabaseAdminConnection());
+  UpdateBackupSchedule(std::move(client), argv[0], argv[1], argv[2], argv[3]);
+}
+
+//! [START spanner_get_backup_schedule]
+void GetBackupSchedule(google::cloud::spanner_admin::DatabaseAdminClient client,
+                       std::string const& project_id,
+                       std::string const& instance_id,
+                       std::string const& database_id,
+                       std::string const& backup_schedule_id) {
+  google::cloud::spanner::Database db(project_id, instance_id, database_id);
+  std::string backup_schedule_name =
+      db.FullName() + "/backupSchedules/" + backup_schedule_id;
+
+  google::spanner::admin::database::v1::GetBackupScheduleRequest request;
+  request.set_name(backup_schedule_name);
+
+  auto backup_schedule = client.GetBackupSchedule(request);
+  if (!backup_schedule) throw std::move(backup_schedule).status();
+  std::cout << "Retrieved backup schedule:\n" << backup_schedule->DebugString();
+}
+//! [END spanner_get_backup_schedule]
+
+void GetBackupScheduleCommand(std::vector<std::string> argv) {
+  if (argv.size() != 4) {
+    throw std::runtime_error(
+        "get-backup-schedule <project-id> "
+        "<instance-id> <database-id> <backup-schedule-id>");
+  }
+  google::cloud::spanner_admin::DatabaseAdminClient client(
+      google::cloud::spanner_admin::MakeDatabaseAdminConnection());
+  GetBackupSchedule(std::move(client), argv[0], argv[1], argv[2], argv[3]);
+}
+
+//! [START spanner_list_backup_schedules]
+void ListBackupSchedules(
+    google::cloud::spanner_admin::DatabaseAdminClient client,
+    std::string const& project_id, std::string const& instance_id,
+    std::string const& database_id) {
+  google::cloud::spanner::Database db(project_id, instance_id, database_id);
+  google::spanner::admin::database::v1::ListBackupSchedulesRequest request;
+  request.set_parent(db.FullName());
+
+  int count = 0;
+  for (auto& backup_schedule : client.ListBackupSchedules(request)) {
+    if (!backup_schedule) throw std::move(backup_schedule).status();
+
+    std::cout << "Backup Schedule [" << ++count << "]:\n"
+              << backup_schedule->DebugString();
+  }
+  if (count == 0) {
+    std::cout << "No backup schedules found for database " << db.FullName();
+  }
+}
+//! [END spanner_list_backup_schedules]
+
+void ListBackupSchedulesCommand(std::vector<std::string> argv) {
+  if (argv.size() != 3) {
+    throw std::runtime_error(
+        "list-backup-schedules <project-id> <instance-id> <database-id>");
+  }
+  google::cloud::spanner_admin::DatabaseAdminClient client(
+      google::cloud::spanner_admin::MakeDatabaseAdminConnection());
+  ListBackupSchedules(std::move(client), argv[0], argv[1], argv[2]);
+}
+
+//! [update-database] [START spanner_update_database]
+void UpdateDatabase(google::cloud::spanner_admin::DatabaseAdminClient client,
+                    std::string const& project_id,
+                    std::string const& instance_id,
+                    std::string const& database_id, bool drop_protection) {
+  google::cloud::spanner::Database db(project_id, instance_id, database_id);
+  google::spanner::admin::database::v1::Database database;
+  database.set_name(db.FullName());
+  database.set_enable_drop_protection(drop_protection);
+  google::protobuf::FieldMask update_mask;
+  update_mask.add_paths("enable_drop_protection");
+  auto updated = client.UpdateDatabase(database, update_mask).get();
+  if (!updated) throw std::move(updated).status();
+  std::cout << "Database " << updated->name() << " successfully updated.\n";
+}
+//! [update-database] [END spanner_update_database]
+
+void UpdateDatabaseCommand(std::vector<std::string> argv) {
+  if (argv.size() != 4) {
+    throw std::runtime_error(
+        "update-database <project-id> <instance-id> <database-id>"
+        " <drop-protection>");
+  }
+  google::cloud::spanner_admin::DatabaseAdminClient client(
+      google::cloud::spanner_admin::MakeDatabaseAdminConnection());
+  bool drop_protection = (argv[3][0] == 'T');
+  UpdateDatabase(std::move(client), argv[0], argv[1], argv[2], drop_protection);
 }
 
 //! [drop-database] [START spanner_drop_database]
@@ -1722,6 +2358,75 @@ void UpdateData(google::cloud::spanner::Client client) {
   std::cout << "Update was successful [spanner_update_data]\n";
 }
 //! [END spanner_update_data]
+
+void InsertDataAtLeastOnce(google::cloud::spanner::Client client) {
+  //! [commit-at-least-once-batched] [START spanner_batch_write_at_least_once]
+  namespace spanner = ::google::cloud::spanner;
+  // Use upserts as mutation groups are not replay protected.
+  auto commit_results = client.CommitAtLeastOnce({
+      // group #0
+      spanner::Mutations{
+          spanner::InsertOrUpdateMutationBuilder(
+              "Singers", {"SingerId", "FirstName", "LastName"})
+              .EmplaceRow(16, "Scarlet", "Terry")
+              .Build(),
+      },
+      // group #1
+      spanner::Mutations{
+          spanner::InsertOrUpdateMutationBuilder(
+              "Singers", {"SingerId", "FirstName", "LastName"})
+              .EmplaceRow(17, "Marc", "")
+              .EmplaceRow(18, "Catalina", "Smith")
+              .Build(),
+          spanner::InsertOrUpdateMutationBuilder(
+              "Albums", {"SingerId", "AlbumId", "AlbumTitle"})
+              .EmplaceRow(17, 1, "Total Junk")
+              .EmplaceRow(18, 2, "Go, Go, Go")
+              .Build(),
+      },
+  });
+  for (auto& commit_result : commit_results) {
+    if (!commit_result) throw std::move(commit_result).status();
+    std::cout << "Mutation group indexes [";
+    for (auto index : commit_result->indexes) std::cout << " " << index;
+    std::cout << " ]: ";
+    if (commit_result->commit_timestamp) {
+      auto const& ts = *commit_result->commit_timestamp;
+      std::cout << "Committed at " << ts.get<absl::Time>().value();
+    } else {
+      std::cout << commit_result->commit_timestamp.status();
+    }
+    std::cout << "\n";
+  }
+  //! [commit-at-least-once-batched] [END spanner_batch_write_at_least_once]
+}
+
+void DeleteDataAtLeastOnce(google::cloud::spanner::Client client) {
+  //! [commit-at-least-once]
+  namespace spanner = ::google::cloud::spanner;
+
+  // Delete the album with key (2,2) without automatic re-run (e.g., if the
+  // transaction was aborted) or replay protection, but using a single RPC.
+  auto commit_result = client.CommitAtLeastOnce(
+      spanner::Transaction::ReadWriteOptions(),
+      spanner::Mutations{
+          spanner::DeleteMutationBuilder(
+              "Albums", spanner::KeySet().AddKey(spanner::MakeKey(2, 2)))
+              .Build()});
+
+  if (commit_result) {
+    std::cout << "Delete was successful\n";
+  } else if (commit_result.status().code() ==
+             google::cloud::StatusCode::kNotFound) {
+    std::cout << "Delete was successful but seemingly replayed\n";
+  } else if (commit_result.status().code() ==
+             google::cloud::StatusCode::kAborted) {
+    std::cout << "Delete was aborted\n";
+  } else {
+    throw std::move(commit_result).status();
+  }
+  //! [commit-at-least-once]
+}
 
 //! [START spanner_delete_data]
 void DeleteData(google::cloud::spanner::Client client) {
@@ -2480,6 +3185,48 @@ void SetRequestTag(google::cloud::spanner::Client client) {
 }
 //! [END spanner_set_request_tag]
 
+//! [START spanner_directed_read]
+void DirectedRead(std::string const& project_id, std::string const& instance_id,
+                  std::string const& database_id) {
+  namespace spanner = ::google::cloud::spanner;
+
+  // Create a client with a DirectedReadOption.
+  auto client = spanner::Client(
+      spanner::MakeConnection(
+          spanner::Database(project_id, instance_id, database_id)),
+      google::cloud::Options{}.set<spanner::DirectedReadOption>(
+          spanner::ExcludeReplicas({spanner::ReplicaSelection("us-east4")})));
+
+  spanner::SqlStatement select(
+      "SELECT SingerId, AlbumId, AlbumTitle FROM Albums");
+  using RowType = std::tuple<std::int64_t, std::int64_t, std::string>;
+
+  // A DirectedReadOption on the operation will override the option set
+  // at the client level.
+  auto rows = client.ExecuteQuery(
+      std::move(select),
+      google::cloud::Options{}.set<spanner::DirectedReadOption>(
+          spanner::IncludeReplicas(
+              {spanner::ReplicaSelection(spanner::ReplicaType::kReadWrite)},
+              /*auto_failover_disabled=*/true)));
+  for (auto& row : spanner::StreamOf<RowType>(rows)) {
+    if (!row) throw std::move(row).status();
+    std::cout << "SingerId: " << std::get<0>(*row)
+              << " AlbumId: " << std::get<1>(*row)
+              << " AlbumTitle: " << std::get<2>(*row) << "\n";
+  }
+  std::cout << "Read completed for [spanner_directed_read]\n";
+}
+//! [END spanner_directed_read]
+
+void DirectedReadCommand(std::vector<std::string> argv) {
+  if (argv.size() != 3) {
+    throw std::runtime_error(
+        "directed-read <project-id> <instance-id>  <database-id>");
+  }
+  DirectedRead(argv[0], argv[1], argv[2]);
+}
+
 //! [START spanner_batch_client]
 void UsePartitionQuery(google::cloud::spanner::Client client) {
   namespace spanner = ::google::cloud::spanner;
@@ -2489,9 +3236,13 @@ void UsePartitionQuery(google::cloud::spanner::Client client) {
       "SELECT SingerId, FirstName, LastName FROM Singers");
   using RowType = std::tuple<std::int64_t, std::string, std::string>;
 
-  auto partitions =
-      client.PartitionQuery(std::move(txn), std::move(select), {});
+  auto partitions = client.PartitionQuery(
+      std::move(txn), std::move(select),
+      google::cloud::Options{}.set<spanner::PartitionDataBoostOption>(true));
   if (!partitions) throw std::move(partitions).status();
+
+  // You would probably choose to execute these partitioned queries in
+  // separate threads/processes, or on a different machine.
   int number_of_rows = 0;
   for (auto const& partition : *partitions) {
     auto rows = client.ExecuteQuery(partition);
@@ -2603,8 +3354,9 @@ void QueryUsingIndex(google::cloud::spanner::Client client) {
 
 void CreateClientWithQueryOptions(std::string const& project_id,
                                   std::string const& instance_id,
-                                  std::string const& db_id) {
-  auto db = ::google::cloud::spanner::Database(project_id, instance_id, db_id);
+                                  std::string const& database_id) {
+  auto db =
+      ::google::cloud::spanner::Database(project_id, instance_id, database_id);
   //! [START spanner_create_client_with_query_options]
   namespace spanner = ::google::cloud::spanner;
   spanner::Client client(
@@ -2876,6 +3628,9 @@ void DmlWriteThenRead(google::cloud::spanner::Client client) {
             "SELECT FirstName, LastName FROM Singers where SingerId = 11");
         using RowType = std::tuple<std::string, std::string>;
         auto rows = client.ExecuteQuery(std::move(txn), std::move(select));
+        // Note: This mutator might be re-run, or its effects discarded, so
+        // changing non-transactional state (e.g., by producing output) is,
+        // in general, not something to be imitated.
         for (auto const& row : spanner::StreamOf<RowType>(rows)) {
           if (!row) return std::move(row).status();
           std::cout << "FirstName: " << std::get<0>(*row) << "\t";
@@ -2911,7 +3666,8 @@ void DmlPartitionedDelete(google::cloud::spanner::Client client) {
   auto result = client.ExecutePartitionedDml(
       spanner::SqlStatement("DELETE FROM Singers WHERE SingerId > 10"));
   if (!result) throw std::move(result).status();
-  std::cout << "Delete was successful [spanner_dml_partitioned_delete]\n";
+  std::cout << "Deleted at least " << result->row_count_lower_bound
+            << " row(s) [spanner_dml_partitioned_delete]\n";
 }
 //! [execute-sql-partitioned] [END spanner_dml_partitioned_delete]
 
@@ -2922,7 +3678,8 @@ void DmlPartitionedUpdate(google::cloud::spanner::Client client) {
       spanner::SqlStatement("UPDATE Albums SET MarketingBudget = 100000"
                             "  WHERE SingerId > 1"));
   if (!result) throw std::move(result).status();
-  std::cout << "Update was successful [spanner_dml_partitioned_update]\n";
+  std::cout << "Updated at least " << result->row_count_lower_bound
+            << " row(s) [spanner_dml_partitioned_update]\n";
 }
 //! [END spanner_dml_partitioned_update]
 
@@ -2943,6 +3700,9 @@ void DmlBatchUpdate(google::cloud::spanner::Client client) {
                                   "  WHERE SingerId = 1 and AlbumId = 3")};
         auto result = client.ExecuteBatchDml(txn, statements);
         if (!result) return std::move(result).status();
+        // Note: This mutator might be re-run, or its effects discarded, so
+        // changing non-transactional state (e.g., by producing output) is,
+        // in general, not something to be imitated.
         for (std::size_t i = 0; i < result->stats.size(); ++i) {
           std::cout << result->stats[i].row_count << " rows affected"
                     << " for the statement " << (i + 1) << ".\n";
@@ -3292,6 +4052,9 @@ void UpdateUsingDmlReturning(google::cloud::spanner::Client client) {
         )""");
         using RowType = std::tuple<absl::optional<std::int64_t>>;
         auto rows = client.ExecuteQuery(std::move(txn), std::move(sql));
+        // Note: This mutator might be re-run, or its effects discarded, so
+        // changing non-transactional state (e.g., by producing output) is,
+        // in general, not something to be imitated.
         for (auto& row : google::cloud::spanner::StreamOf<RowType>(rows)) {
           if (!row) return std::move(row).status();
           std::cout << "MarketingBudget: ";
@@ -3326,6 +4089,9 @@ void InsertUsingDmlReturning(google::cloud::spanner::Client client) {
         )""");
         using RowType = std::tuple<std::string>;
         auto rows = client.ExecuteQuery(std::move(txn), std::move(sql));
+        // Note: This mutator might be re-run, or its effects discarded, so
+        // changing non-transactional state (e.g., by producing output) is,
+        // in general, not something to be imitated.
         for (auto& row : google::cloud::spanner::StreamOf<RowType>(rows)) {
           if (!row) return std::move(row).status();
           std::cout << "FullName: " << std::get<0>(*row) << "\n";
@@ -3352,6 +4118,9 @@ void DeleteUsingDmlReturning(google::cloud::spanner::Client client) {
         )""");
         using RowType = std::tuple<std::int64_t, std::string>;
         auto rows = client.ExecuteQuery(std::move(txn), std::move(sql));
+        // Note: This mutator might be re-run, or its effects discarded, so
+        // changing non-transactional state (e.g., by producing output) is,
+        // in general, not something to be imitated.
         for (auto& row : google::cloud::spanner::StreamOf<RowType>(rows)) {
           if (!row) return std::move(row).status();
           std::cout << "SingerId: " << std::get<0>(*row) << " ";
@@ -3363,6 +4132,334 @@ void DeleteUsingDmlReturning(google::cloud::spanner::Client client) {
   if (!commit) throw std::move(commit).status();
 }
 // [END spanner_delete_dml_returning]
+
+// [START spanner_create_table_with_foreign_key_delete_cascade]
+void CreateTableWithForeignKeyDeleteCascade(
+    google::cloud::spanner_admin::DatabaseAdminClient client,
+    std::string const& project_id, std::string const& instance_id,
+    std::string const& database_id) {
+  google::cloud::spanner::Database database(project_id, instance_id,
+                                            database_id);
+  std::vector<std::string> statements;
+  statements.emplace_back(R"""(
+      CREATE TABLE Customers (
+          CustomerId   INT64 NOT NULL,
+          CustomerName STRING(62) NOT NULL
+      ) PRIMARY KEY (CustomerId))""");
+  statements.emplace_back(R"""(
+      CREATE TABLE ShoppingCarts (
+          CartId       INT64 NOT NULL,
+          CustomerId   INT64 NOT NULL,
+          CustomerName STRING(62) NOT NULL,
+          CONSTRAINT FKShoppingCartsCustomerId
+              FOREIGN KEY (CustomerId)
+              REFERENCES Customers (CustomerId)
+              ON DELETE CASCADE
+      ) PRIMARY KEY (CartId))""");
+  auto metadata =
+      client.UpdateDatabaseDdl(database.FullName(), std::move(statements))
+          .get();
+  google::cloud::spanner_testing::LogUpdateDatabaseDdl(  //! TODO(#4758)
+      client, database, metadata.status());              //! TODO(#4758)
+  if (!metadata) throw std::move(metadata).status();
+  std::cout << "Created Customers and ShoppingCarts tables"
+            << " with FKShoppingCartsCustomerId foreign key constraint"
+            << " on " << database.FullName() << "\n";
+}
+// [END spanner_create_table_with_foreign_key_delete_cascade]
+
+// [START spanner_alter_table_with_foreign_key_delete_cascade]
+void AlterTableWithForeignKeyDeleteCascade(
+    google::cloud::spanner_admin::DatabaseAdminClient client,
+    std::string const& project_id, std::string const& instance_id,
+    std::string const& database_id) {
+  google::cloud::spanner::Database database(project_id, instance_id,
+                                            database_id);
+  std::vector<std::string> statements;
+  statements.emplace_back(R"""(
+      ALTER TABLE ShoppingCarts
+      ADD CONSTRAINT FKShoppingCartsCustomerName
+          FOREIGN KEY (CustomerName)
+          REFERENCES Customers(CustomerName)
+          ON DELETE CASCADE)""");
+  auto metadata =
+      client.UpdateDatabaseDdl(database.FullName(), std::move(statements))
+          .get();
+  google::cloud::spanner_testing::LogUpdateDatabaseDdl(  //! TODO(#4758)
+      client, database, metadata.status());              //! TODO(#4758)
+  if (!metadata) throw std::move(metadata).status();
+  std::cout << "Altered ShoppingCarts table"
+            << " with FKShoppingCartsCustomerName foreign key constraint"
+            << " on " << database.FullName() << "\n";
+}
+// [END spanner_alter_table_with_foreign_key_delete_cascade]
+
+// [START spanner_drop_foreign_key_constraint_delete_cascade]
+void DropForeignKeyConstraintDeleteCascade(
+    google::cloud::spanner_admin::DatabaseAdminClient client,
+    std::string const& project_id, std::string const& instance_id,
+    std::string const& database_id) {
+  google::cloud::spanner::Database database(project_id, instance_id,
+                                            database_id);
+  std::vector<std::string> statements;
+  statements.emplace_back(R"""(
+      ALTER TABLE ShoppingCarts
+      DROP CONSTRAINT FKShoppingCartsCustomerName)""");
+  auto metadata =
+      client.UpdateDatabaseDdl(database.FullName(), std::move(statements))
+          .get();
+  google::cloud::spanner_testing::LogUpdateDatabaseDdl(  //! TODO(#4758)
+      client, database, metadata.status());              //! TODO(#4758)
+  if (!metadata) throw std::move(metadata).status();
+  std::cout << "Altered ShoppingCarts table"
+            << " to drop FKShoppingCartsCustomerName foreign key constraint"
+            << " on " << database.FullName() << "\n";
+}
+// [END spanner_drop_foreign_key_constraint_delete_cascade]
+
+// [START spanner_add_proto_type_columns]
+void AddProtoTypeColumns(
+    google::cloud::spanner_admin::DatabaseAdminClient client,
+    std::string const& project_id, std::string const& instance_id,
+    std::string const& database_id) {
+  google::cloud::spanner::Database database(project_id, instance_id,
+                                            database_id);
+  google::spanner::admin::database::v1::UpdateDatabaseDdlRequest request;
+  request.set_database(database.FullName());
+  google::protobuf::FileDescriptorSet fds;
+  google::cloud::spanner::testing::SingerInfo::default_instance()
+      .GetMetadata()
+      .descriptor->file()
+      ->CopyTo(fds.add_file());
+  fds.SerializeToString(request.mutable_proto_descriptors());
+  request.add_statements(R"""(
+      CREATE PROTO BUNDLE (
+          google.cloud.spanner.testing.SingerInfo,
+          google.cloud.spanner.testing.Genre,
+      )
+  )""");
+  request.add_statements(R"""(
+      ALTER TABLE Singers ADD COLUMN
+          SingerInfo google.cloud.spanner.testing.SingerInfo
+  )""");
+  request.add_statements(R"""(
+      ALTER TABLE Singers ADD COLUMN
+          SingerInfoArray ARRAY<google.cloud.spanner.testing.SingerInfo>
+  )""");
+  request.add_statements(R"""(
+      ALTER TABLE Singers ADD COLUMN
+          SingerGenre google.cloud.spanner.testing.Genre
+  )""");
+  request.add_statements(R"""(
+      ALTER TABLE Singers ADD COLUMN
+          SingerGenreArray ARRAY<google.cloud.spanner.testing.Genre>
+  )""");
+  auto metadata = client.UpdateDatabaseDdl(request).get();
+  if (!metadata) throw std::move(metadata).status();
+  std::cout << "`Singers` table altered, new DDL:\n" << metadata->DebugString();
+}
+// [END spanner_add_proto_type_columns]
+
+// [START spanner_update_data_with_proto_message_column]
+void UpdateDataWithProtoMessageColumn(google::cloud::spanner::Client client) {
+  google::cloud::spanner::testing::SingerInfo singer_proto;
+  singer_proto.set_singer_id(2);
+  singer_proto.set_birth_date("1942-06-18");
+  singer_proto.set_nationality("British");
+  singer_proto.set_genre(google::cloud::spanner::testing::Genre::POP);
+
+  using SingerInfoMessage = google::cloud::spanner::ProtoMessage<
+      google::cloud::spanner::testing::SingerInfo>;
+  auto singer_info = SingerInfoMessage(singer_proto);
+  auto commit_results =
+      client.CommitAtLeastOnce({google::cloud::spanner::Mutations{
+          google::cloud::spanner::InsertOrUpdateMutationBuilder(
+              "Singers", {"SingerId", "SingerInfo", "SingerInfoArray"})
+              .EmplaceRow(2, singer_info,
+                          std::vector<SingerInfoMessage>{singer_info})
+              .EmplaceRow(3, absl::optional<SingerInfoMessage>(),
+                          absl::optional<std::vector<SingerInfoMessage>>())
+              .Build()}});
+  for (auto& commit_result : commit_results) {
+    if (!commit_result) throw std::move(commit_result).status();
+  }
+  std::cout << "Update was successful "
+            << "[spanner_update_data_with_proto_message_column]\n";
+}
+// [END spanner_update_data_with_proto_message_column]
+
+// [START spanner_update_data_with_proto_message_column_with_dml]
+void UpdateDataWithProtoMessageColumnWithDml(
+    google::cloud::spanner::Client client) {
+  std::int64_t rows_modified = 0;
+  auto commit_result = client.Commit(
+      [&client, &rows_modified](google::cloud::spanner::Transaction txn)
+          -> google::cloud::StatusOr<google::cloud::spanner::Mutations> {
+        google::cloud::spanner::testing::SingerInfo singer_proto;
+        singer_proto.set_singer_id(1);
+        singer_proto.set_birth_date("1943-06-15");
+        singer_proto.set_nationality("French");
+        singer_proto.set_genre(google::cloud::spanner::testing::Genre::ROCK);
+
+        using SingerInfoMessage = google::cloud::spanner::ProtoMessage<
+            google::cloud::spanner::testing::SingerInfo>;
+        auto singer_info = SingerInfoMessage(singer_proto);
+        auto update = client.ExecuteDml(
+            std::move(txn),
+            google::cloud::spanner::SqlStatement(
+                "UPDATE Singers"
+                " SET SingerInfo = @singer_info,"
+                "     SingerInfoArray = @singer_info_array"
+                " WHERE SingerId = 1",
+                {{"singer_info", google::cloud::spanner::Value(singer_info)},
+                 {"singer_info_array",
+                  google::cloud::spanner::Value(
+                      std::vector<SingerInfoMessage>{singer_info})}}));
+        if (!update) return std::move(update).status();
+        rows_modified = update->RowsModified();
+        return google::cloud::spanner::Mutations{};
+      });
+  if (!commit_result) throw std::move(commit_result).status();
+  std::cout << "Updated " << rows_modified << " row(s) "
+            << "[spanner_update_data_with_proto_message_column_with_dml]\n";
+}
+// [END spanner_update_data_with_proto_message_column_with_dml]
+
+// [START spanner_query_with_proto_message_parameter]
+void QueryWithProtoMessageParameter(google::cloud::spanner::Client client) {
+  google::cloud::spanner::SqlStatement select(
+      "SELECT SingerId, SingerInfo, SingerInfoArray FROM Singers"
+      " WHERE SingerInfo.Nationality = @nationality",
+      {{"nationality", google::cloud::spanner::Value("British")}});
+  using SingerInfoMessage = google::cloud::spanner::ProtoMessage<
+      google::cloud::spanner::testing::SingerInfo>;
+  using RowType = std::tuple<std::int64_t, absl::optional<SingerInfoMessage>,
+                             absl::optional<std::vector<SingerInfoMessage>>>;
+  auto rows = client.ExecuteQuery(std::move(select));
+  for (auto& row : google::cloud::spanner::StreamOf<RowType>(rows)) {
+    if (!row) throw std::move(row).status();
+    std::cout << "SingerId: " << std::get<0>(*row);
+    std::cout << ", SingerInfo: ";
+    auto singer_info = std::get<1>(*row);
+    if (!singer_info) {
+      std::cout << "NULL";
+    } else {
+      std::cout << *singer_info;
+    }
+    std::cout << ", SingerInfoArray: ";
+    auto singer_info_array = std::get<2>(*row);
+    if (!singer_info_array) {
+      std::cout << "NULL";
+    } else {
+      std::cout << "{";
+      char const* sep = " ";
+      for (auto const& singer_info : *singer_info_array) {
+        std::cout << sep << singer_info;
+        sep = ", ";
+      }
+      std::cout << " }";
+    }
+    std::cout << "\n";
+  }
+  std::cout << "Query completed for "
+            << "[spanner_query_with_proto_message_parameter]\n";
+}
+// [END spanner_query_with_proto_message_parameter]
+
+// [START spanner_update_data_with_proto_enum_column]
+void UpdateDataWithProtoEnumColumn(google::cloud::spanner::Client client) {
+  using GenreEnum =
+      google::cloud::spanner::ProtoEnum<google::cloud::spanner::testing::Genre>;
+  auto singer_genre = GenreEnum(google::cloud::spanner::testing::Genre::FOLK);
+  auto commit_results =
+      client.CommitAtLeastOnce({google::cloud::spanner::Mutations{
+          google::cloud::spanner::InsertOrUpdateMutationBuilder(
+              "Singers", {"SingerId", "SingerGenre", "SingerGenreArray"})
+              .EmplaceRow(2, singer_genre, std::vector<GenreEnum>{singer_genre})
+              .EmplaceRow(3, absl::optional<GenreEnum>(),
+                          absl::optional<std::vector<GenreEnum>>())
+              .Build()}});
+  for (auto& commit_result : commit_results) {
+    if (!commit_result) throw std::move(commit_result).status();
+  }
+  std::cout << "Update was successful "
+            << "[spanner_update_data_with_proto_enum_column]\n";
+}
+// [END spanner_update_data_with_proto_enum_column]
+
+// [START spanner_update_data_with_proto_enum_column_with_dml]
+void UpdateDataWithProtoEnumColumnWithDml(
+    google::cloud::spanner::Client client) {
+  std::int64_t rows_modified = 0;
+  auto commit_result = client.Commit(
+      [&client, &rows_modified](google::cloud::spanner::Transaction txn)
+          -> google::cloud::StatusOr<google::cloud::spanner::Mutations> {
+        using GenreEnum = google::cloud::spanner::ProtoEnum<
+            google::cloud::spanner::testing::Genre>;
+        auto singer_genre =
+            GenreEnum(google::cloud::spanner::testing::Genre::ROCK);
+        auto update = client.ExecuteDml(
+            std::move(txn),
+            google::cloud::spanner::SqlStatement(
+                "UPDATE Singers"
+                " SET SingerGenre = @singer_genre,"
+                "     SingerGenreArray = @singer_genre_array"
+                " WHERE SingerId = 1",
+                {{"singer_genre", google::cloud::spanner::Value(singer_genre)},
+                 {"singer_genre_array",
+                  google::cloud::spanner::Value(
+                      std::vector<GenreEnum>{singer_genre})}}));
+        if (!update) return std::move(update).status();
+        rows_modified = update->RowsModified();
+        return google::cloud::spanner::Mutations{};
+      });
+  if (!commit_result) throw std::move(commit_result).status();
+  std::cout << "Updated " << rows_modified << " row(s) "
+            << "[spanner_update_data_with_proto_enum_column_with_dml]\n";
+}
+// [END spanner_update_data_with_proto_enum_column_with_dml]
+
+// [START spanner_query_with_proto_enum_parameter]
+void QueryWithProtoEnumParameter(google::cloud::spanner::Client client) {
+  using GenreEnum =
+      google::cloud::spanner::ProtoEnum<google::cloud::spanner::testing::Genre>;
+  auto singer_genre = GenreEnum(google::cloud::spanner::testing::Genre::ROCK);
+  google::cloud::spanner::SqlStatement select(
+      "SELECT SingerId, SingerGenre, SingerGenreArray FROM Singers"
+      " WHERE SingerGenre = @singer_genre",
+      {{"singer_genre", google::cloud::spanner::Value(singer_genre)}});
+  using RowType = std::tuple<std::int64_t, absl::optional<GenreEnum>,
+                             absl::optional<std::vector<GenreEnum>>>;
+  auto rows = client.ExecuteQuery(std::move(select));
+  for (auto& row : google::cloud::spanner::StreamOf<RowType>(rows)) {
+    if (!row) throw std::move(row).status();
+    std::cout << "SingerId: " << std::get<0>(*row);
+    std::cout << ", SingerGenre: ";
+    auto singer_genre = std::get<1>(*row);
+    if (!singer_genre) {
+      std::cout << "NULL";
+    } else {
+      std::cout << *singer_genre;
+    }
+    std::cout << ", SingerGenreArray: ";
+    auto singer_genre_array = std::get<2>(*row);
+    if (!singer_genre_array) {
+      std::cout << "NULL";
+    } else {
+      std::cout << "{";
+      char const* sep = " ";
+      for (auto const& singer_genre : *singer_genre_array) {
+        std::cout << sep << singer_genre;
+        sep = ", ";
+      }
+      std::cout << " }";
+    }
+    std::cout << "\n";
+  }
+  std::cout << "Query completed for "
+            << "[spanner_query_with_proto_enum_parameter]\n";
+}
+// [END spanner_query_with_proto_enum_parameter]
 
 void ExampleStatusOr(google::cloud::spanner::Client client) {
   //! [example-status-or]
@@ -3399,8 +4496,9 @@ void CustomRetryPolicy(std::vector<std::string> argv) {
     throw std::runtime_error(
         "custom-retry-policy <project-id> <instance-id> <database-id>");
   }
-  //! [custom-retry-policy]
+  //! [custom-retry-policy] [START spanner_set_custom_timeout_and_retry]
   namespace spanner = ::google::cloud::spanner;
+  using ::google::cloud::StatusOr;
   [](std::string const& project_id, std::string const& instance_id,
      std::string const& database_id) {
     // Use a truncated exponential backoff with jitter to wait between
@@ -3412,22 +4510,30 @@ void CustomRetryPolicy(std::vector<std::string> argv) {
         google::cloud::Options{}
             .set<spanner::SpannerRetryPolicyOption>(
                 std::make_shared<spanner::LimitedTimeRetryPolicy>(
-                    /*maximum_duration=*/std::chrono::minutes(25)))
+                    /*maximum_duration=*/std::chrono::seconds(60)))
             .set<spanner::SpannerBackoffPolicyOption>(
                 std::make_shared<spanner::ExponentialBackoffPolicy>(
-                    /*initial_delay=*/std::chrono::seconds(2),
-                    /*maximum_delay=*/std::chrono::minutes(10),
+                    /*initial_delay=*/std::chrono::milliseconds(500),
+                    /*maximum_delay=*/std::chrono::seconds(16),
                     /*scaling=*/1.5))));
 
-    auto rows =
-        client.ExecuteQuery(spanner::SqlStatement("SELECT 'Hello World'"));
-
-    for (auto& row : spanner::StreamOf<std::tuple<std::string>>(rows)) {
-      if (!row) throw std::move(row).status();
-      std::cout << std::get<0>(*row) << "\n";
-    }
+    std::int64_t rows_inserted;
+    auto commit_result = client.Commit(
+        [&client, &rows_inserted](
+            spanner::Transaction txn) -> StatusOr<spanner::Mutations> {
+          auto insert = client.ExecuteDml(
+              std::move(txn),
+              spanner::SqlStatement(
+                  "INSERT INTO Singers (SingerId, FirstName, LastName)"
+                  "  VALUES (20, 'George', 'Washington')"));
+          if (!insert) return std::move(insert).status();
+          rows_inserted = insert->RowsModified();
+          return spanner::Mutations{};
+        });
+    if (!commit_result) throw std::move(commit_result).status();
+    std::cout << "Rows inserted: " << rows_inserted;
   }
-  //! [custom-retry-policy]
+  //! [custom-retry-policy] [END spanner_set_custom_timeout_and_retry]
   (argv[0], argv[1], argv[2]);
 }
 
@@ -3600,6 +4706,7 @@ class RemoteConnectionFake {
     serialized_partition_in_transit_ = serialized_partition;
   }
   std::string Receive() { return serialized_partition_in_transit_; }
+
   void SendPartitionToRemoteMachine(
       google::cloud::spanner::ReadPartition const& partition) {
     //! [serialize-read-partition]
@@ -3627,6 +4734,7 @@ class RemoteConnectionFake {
     SendBinaryStringData(bytes);
     //! [serialize-query-partition]
   }
+
   //! [deserialize-read-partition]
   google::cloud::StatusOr<google::cloud::spanner::ReadPartition>
   ReceiveReadPartitionFromRemoteMachine() {
@@ -3662,8 +4770,11 @@ void PartitionRead(google::cloud::spanner::Client client) {
   //! [partition-read]
   spanner::Transaction ro_transaction = spanner::MakeReadOnlyTransaction();
   google::cloud::StatusOr<std::vector<spanner::ReadPartition>> partitions =
-      client.PartitionRead(ro_transaction, "Singers", key_set,
-                           {"SingerId", "FirstName", "LastName"});
+      client.PartitionRead(
+          ro_transaction, "Singers", key_set,
+          {"SingerId", "FirstName", "LastName"},
+          google::cloud::Options{}.set<spanner::PartitionDataBoostOption>(
+              true));
   if (!partitions) throw std::move(partitions).status();
   for (auto& partition : *partitions) {
     remote_connection.SendPartitionToRemoteMachine(partition);
@@ -3686,8 +4797,11 @@ void PartitionQuery(google::cloud::spanner::Client client) {
   RemoteConnectionFake remote_connection;
 
   //! [analyze-query]
-  // Only SQL queries with a Distributed Union as the first operator in the
-  // `ExecutionPlan` can be partitioned.
+  // For a SQL query to be partitionable, it has to satisfy some conditions.
+  // For example, if it has a Distributed Union operator, the Distributed
+  // Union operator must be the first operator in the `ExecutionPlan`.
+  // For detailed definition, please refer to
+  // https://cloud.google.com/spanner/docs/reads#read_data_in_parallel
   auto is_partitionable = [](spanner::ExecutionPlan const& plan) {
     return (!plan.plan_nodes().empty() &&
             plan.plan_nodes(0).kind() ==
@@ -3710,7 +4824,9 @@ void PartitionQuery(google::cloud::spanner::Client client) {
       client.PartitionQuery(
           spanner::MakeReadOnlyTransaction(),
           spanner::SqlStatement(
-              "SELECT SingerId, FirstName, LastName FROM Singers"));
+              "SELECT SingerId, FirstName, LastName FROM Singers"),
+          google::cloud::Options{}.set<spanner::PartitionDataBoostOption>(
+              true));
   if (!partitions) throw std::move(partitions).status();
   for (auto& partition : *partitions) {
     remote_connection.SendPartitionToRemoteMachine(partition);
@@ -3722,12 +4838,146 @@ void PartitionQuery(google::cloud::spanner::Client client) {
       remote_connection.ReceiveQueryPartitionFromRemoteMachine();
   if (!partition) throw std::move(partition).status();
   for (auto& row : client.ExecuteQuery(*partition)) {
-    ;
     if (!row) throw std::move(row).status();
     ProcessRow(*row);
   }
   //! [execute-sql-query-partition]
 }
+
+// [START spanner_create_sequence]
+void CreateSequence(
+    google::cloud::spanner_admin::DatabaseAdminClient admin_client,
+    google::cloud::spanner::Client client, std::string const& project_id,
+    std::string const& instance_id, std::string const& database_id) {
+  google::cloud::spanner::Database database(project_id, instance_id,
+                                            database_id);
+  std::vector<std::string> statements;
+  statements.emplace_back(R"""(
+      CREATE SEQUENCE Seq
+          OPTIONS (sequence_kind = 'bit_reversed_positive')
+  )""");
+  statements.emplace_back(R"""(
+      CREATE TABLE Customers (
+          CustomerId INT64 DEFAULT (GET_NEXT_SEQUENCE_VALUE(SEQUENCE Seq)),
+          CustomerName STRING(1024)
+      ) PRIMARY KEY (CustomerId)
+  )""");
+  auto metadata =
+      admin_client.UpdateDatabaseDdl(database.FullName(), std::move(statements))
+          .get();
+  google::cloud::spanner_testing::LogUpdateDatabaseDdl(  //! TODO(#4758)
+      admin_client, database, metadata.status());        //! TODO(#4758)
+  if (!metadata) throw std::move(metadata).status();
+  std::cout << "Created `Seq` sequence and `Customers` table,"
+            << " where the key column `CustomerId`"
+            << " uses the sequence as a default value,"
+            << " new DDL:\n"
+            << metadata->DebugString();
+  auto commit = client.Commit(
+      [&client](google::cloud::spanner::Transaction txn)
+          -> google::cloud::StatusOr<google::cloud::spanner::Mutations> {
+        auto sql = google::cloud::spanner::SqlStatement(R"""(
+            INSERT INTO Customers (CustomerName)
+              VALUES ('Alice'),
+                     ('David'),
+                     ('Marc')
+              THEN RETURN CustomerId
+        )""");
+        using RowType = std::tuple<std::int64_t>;
+        auto rows = client.ExecuteQuery(std::move(txn), std::move(sql));
+        // Note: This mutator might be re-run, or its effects discarded, so
+        // changing non-transactional state (e.g., by producing output) is,
+        // in general, not something to be imitated.
+        for (auto& row : google::cloud::spanner::StreamOf<RowType>(rows)) {
+          if (!row) return std::move(row).status();
+          std::cout << "Inserted customer record with CustomerId: "
+                    << std::get<0>(*row) << "\n";
+        }
+        std::cout << "Number of customer records inserted is: "
+                  << rows.RowsModified() << "\n";
+        return google::cloud::spanner::Mutations{};
+      });
+  if (!commit) throw std::move(commit).status();
+}
+// [END spanner_create_sequence]
+
+// [START spanner_alter_sequence]
+void AlterSequence(
+    google::cloud::spanner_admin::DatabaseAdminClient admin_client,
+    google::cloud::spanner::Client client, std::string const& project_id,
+    std::string const& instance_id, std::string const& database_id) {
+  google::cloud::spanner::Database database(project_id, instance_id,
+                                            database_id);
+  std::vector<std::string> statements;
+  statements.emplace_back(R"""(
+      ALTER SEQUENCE Seq
+          SET OPTIONS (skip_range_min = 1000, skip_range_max = 5000000)
+  )""");
+  auto metadata =
+      admin_client.UpdateDatabaseDdl(database.FullName(), std::move(statements))
+          .get();
+  google::cloud::spanner_testing::LogUpdateDatabaseDdl(  //! TODO(#4758)
+      admin_client, database, metadata.status());        //! TODO(#4758)
+  if (!metadata) throw std::move(metadata).status();
+  std::cout << "Altered `Seq` sequence"
+            << "  to skip an inclusive range between 1000 and 5000000,"
+            << " new DDL:\n"
+            << metadata->DebugString();
+  auto commit = client.Commit(
+      [&client](google::cloud::spanner::Transaction txn)
+          -> google::cloud::StatusOr<google::cloud::spanner::Mutations> {
+        auto sql = google::cloud::spanner::SqlStatement(R"""(
+            INSERT INTO Customers (CustomerName)
+              VALUES ('Lea'),
+                     ('Catalina'),
+                     ('Smith')
+              THEN RETURN CustomerId
+        )""");
+        using RowType = std::tuple<std::int64_t>;
+        auto rows = client.ExecuteQuery(std::move(txn), std::move(sql));
+        // Note: This mutator might be re-run, or its effects discarded, so
+        // changing non-transactional state (e.g., by producing output) is,
+        // in general, not something to be imitated.
+        for (auto& row : google::cloud::spanner::StreamOf<RowType>(rows)) {
+          if (!row) return std::move(row).status();
+          std::cout << "Inserted customer record with CustomerId: "
+                    << std::get<0>(*row) << "\n";
+        }
+        std::cout << "Number of customer records inserted is: "
+                  << rows.RowsModified() << "\n";
+        return google::cloud::spanner::Mutations{};
+      });
+  if (!commit) throw std::move(commit).status();
+}
+// [END spanner_alter_sequence]
+
+// [START spanner_drop_sequence]
+void DropSequence(
+    google::cloud::spanner_admin::DatabaseAdminClient admin_client,
+    std::string const& project_id, std::string const& instance_id,
+    std::string const& database_id) {
+  google::cloud::spanner::Database database(project_id, instance_id,
+                                            database_id);
+  std::vector<std::string> statements;
+  statements.emplace_back(R"""(
+      ALTER TABLE Customers ALTER COLUMN CustomerId DROP DEFAULT
+  )""");
+  statements.emplace_back(R"""(
+      DROP SEQUENCE Seq
+  )""");
+  auto metadata =
+      admin_client.UpdateDatabaseDdl(database.FullName(), std::move(statements))
+          .get();
+  google::cloud::spanner_testing::LogUpdateDatabaseDdl(  //! TODO(#4758)
+      admin_client, database, metadata.status());        //! TODO(#4758)
+  if (!metadata) throw std::move(metadata).status();
+  std::cout << "Altered `Customers` table to"
+            << " drop DEFAULT from `CustomerId` column,"
+            << " and dropped the `Seq` sequence,"
+            << " new DDL:\n"
+            << metadata->DebugString();
+}
+// [END spanner_drop_sequence]
 
 // [START spanner_query_information_schema_database_options]
 void QueryInformationSchemaDatabaseOptions(
@@ -3763,6 +5013,22 @@ void QueryInformationSchemaDatabaseOptions(
 }
 // [END spanner_query_information_schema_database_options]
 
+//! [drop-table]
+void DropTable(google::cloud::spanner_admin::DatabaseAdminClient client,
+               std::string const& project_id, std::string const& instance_id,
+               std::string const& database_id, std::string const& table) {
+  google::cloud::spanner::Database database(project_id, instance_id,
+                                            database_id);
+  auto metadata =
+      client.UpdateDatabaseDdl(database.FullName(), {"DROP TABLE " + table})
+          .get();
+  google::cloud::spanner_testing::LogUpdateDatabaseDdl(  //! TODO(#4758)
+      client, database, metadata.status());              //! TODO(#4758)
+  if (!metadata) throw std::move(metadata).status();
+  std::cout << "Table dropped.\nNew DDL:\n" << metadata->DebugString();
+}
+//! [drop-table]
+
 std::string Basename(absl::string_view name) {
   auto last_sep = name.find_last_of("/\\");
   if (last_sep != absl::string_view::npos) name.remove_prefix(last_sep + 1);
@@ -3771,10 +5037,9 @@ std::string Basename(absl::string_view name) {
 
 int RunOneCommand(std::vector<std::string> argv) {
   using CommandType = std::function<void(std::vector<std::string> const&)>;
+  using CommandMap = std::map<std::string, CommandType>;
 
   using SampleFunction = void (*)(google::cloud::spanner::Client);
-
-  using CommandMap = std::map<std::string, CommandType>;
   auto make_command_entry = [](std::string const& sample_name,
                                SampleFunction sample) {
     auto make_command = [](std::string const& sample_name,
@@ -3811,7 +5076,6 @@ int RunOneCommand(std::vector<std::string> argv) {
     return CommandMap::value_type(sample_name,
                                   make_command(sample_name, sample));
   };
-
   CommandMap commands = {
       {"get-instance-config", GetInstanceConfigCommand},
       {"list-instance-configs", ListInstanceConfigsCommand},
@@ -3828,6 +5092,7 @@ int RunOneCommand(std::vector<std::string> argv) {
       {"add-database-reader", AddDatabaseReaderCommand},
       {"remove-database-reader", RemoveDatabaseReaderCommand},
       {"instance-test-iam-permissions", InstanceTestIamPermissionsCommand},
+      {"create-instance-partition", CreateInstancePartitionCommand},
       make_database_command_entry("create-database", CreateDatabase),
       make_database_command_entry("create-database-with-retention-period",
                                   CreateDatabaseWithVersionRetentionPeriod),
@@ -3842,12 +5107,14 @@ int RunOneCommand(std::vector<std::string> argv) {
       make_database_command_entry("list-database-roles", ListDatabaseRoles),
       make_database_command_entry("add-column", AddColumn),
       make_database_command_entry("add-timestamp-column", AddTimestampColumn),
+      make_database_command_entry("drop-column", DropColumn),
       {"list-databases", ListDatabasesCommand},
       {"create-backup", CreateBackupCommand},
       {"restore-database", RestoreDatabaseCommand},
       {"get-backup", GetBackupCommand},
       {"update-backup", UpdateBackupCommand},
       {"copy-backup", CopyBackupCommand},
+      {"copy-backup-with-mr-cmek", CopyBackupWithMRCMEKCommand},
       {"delete-backup", DeleteBackupCommand},
       {"create-backup-and-cancel", CreateBackupAndCancelCommand},
       {"create-database-with-encryption-key",
@@ -3856,9 +5123,20 @@ int RunOneCommand(std::vector<std::string> argv) {
        CreateBackupWithEncryptionKeyCommand},
       {"restore-database-with-encryption-key",
        RestoreDatabaseWithEncryptionKeyCommand},
+      {"create-database-with-mr-cmek", CreateDatabaseWithMRCMEKCommand},
+      {"create-backup-with-mr-cmek", CreateBackupWithMRCMEKCommand},
+      {"restore-database-with-mr-cmek", RestoreDatabaseWithMRCMEKCommand},
       {"list-backups", ListBackupsCommand},
       {"list-backup-operations", ListBackupOperationsCommand},
       {"list-database-operations", ListDatabaseOperationsCommand},
+      {"update-database", UpdateDatabaseCommand},
+      {"create-full-backup-schedule", CreateFullBackupScheduleCommand},
+      {"create-incremental-backup-schedule",
+       CreateIncrementalBackupScheduleCommand},
+      {"delete-backup-schedule", DeleteBackupScheduleCommand},
+      {"update-backup-schedule", UpdateBackupScheduleCommand},
+      {"get-backup-schedule", GetBackupScheduleCommand},
+      {"list-backup-schedules", ListBackupSchedulesCommand},
       make_database_command_entry("drop-database", DropDatabase),
       make_database_command_entry("database-get-iam-policy",
                                   DatabaseGetIamPolicy),
@@ -3868,6 +5146,8 @@ int RunOneCommand(std::vector<std::string> argv) {
       {"create-client-with-query-options", CreateClientWithQueryOptionsCommand},
       make_command_entry("insert-data", InsertData),
       make_command_entry("update-data", UpdateData),
+      make_command_entry("insert-data-at-least-once", InsertDataAtLeastOnce),
+      make_command_entry("delete-data-at-least-once", DeleteDataAtLeastOnce),
       make_command_entry("delete-data", DeleteData),
       make_command_entry("insert-datatypes-data", InsertDatatypesData),
       make_command_entry("query-with-array-parameter", QueryWithArrayParameter),
@@ -3893,6 +5173,7 @@ int RunOneCommand(std::vector<std::string> argv) {
       make_command_entry("set-transaction-tag", SetTransactionTag),
       make_command_entry("read-stale-data", ReadStaleData),
       make_command_entry("set-request-tag", SetRequestTag),
+      {"directed-read", DirectedReadCommand},
       make_command_entry("use-partition-query", UsePartitionQuery),
       make_command_entry("read-data-with-index", ReadDataWithIndex),
       make_command_entry("query-new-column", QueryNewColumn),
@@ -3957,6 +5238,21 @@ int RunOneCommand(std::vector<std::string> argv) {
       make_command_entry("make-delete-mutation", MakeDeleteMutation),
       make_command_entry("query-information-schema-database-options",
                          QueryInformationSchemaDatabaseOptions),
+      make_database_command_entry("spanner_add_proto_type_columns",
+                                  AddProtoTypeColumns),
+      make_command_entry("spanner_update_data_with_proto_message_column",
+                         UpdateDataWithProtoMessageColumn),
+      make_command_entry(
+          "spanner_update_data_with_proto_message_column_with_dml",
+          UpdateDataWithProtoMessageColumnWithDml),
+      make_command_entry("spanner_query_with_proto_message_parameter",
+                         QueryWithProtoMessageParameter),
+      make_command_entry("spanner_update_data_with_proto_enum_column",
+                         UpdateDataWithProtoEnumColumn),
+      make_command_entry("spanner_update_data_with_proto_enum_column_with_dml",
+                         UpdateDataWithProtoEnumColumnWithDml),
+      make_command_entry("spanner_query_with_proto_enum_parameter",
+                         QueryWithProtoEnumParameter),
   };
 
   static std::string usage_msg = [&argv, &commands] {
@@ -4154,6 +5450,7 @@ void RunAllSlowInstanceTests(
       }
       google::cloud::KmsKeyName encryption_key(
           project_id, *location, "spanner-cmek", "spanner-cmek-test-key");
+      std::vector<google::cloud::KmsKeyName> encryption_keys = {encryption_key};
 
       SampleBanner("spanner_drop_database");
       DropDatabase(database_admin_client, project_id, crud_instance_id,
@@ -4185,11 +5482,72 @@ void RunAllSlowInstanceTests(
       SampleBanner("spanner_delete_backup");
       DeleteBackup(database_admin_client, project_id, crud_instance_id,
                    backup_id);
+
+      SampleBanner("spanner_drop_database");
+      DropDatabase(database_admin_client, project_id, crud_instance_id,
+                   database_id);
+
+      // mr-cmek
+      SampleBanner("spanner_create_database_with_MR_CMEK");
+      CreateDatabaseWithMRCMEK(database_admin_client, project_id,
+                               crud_instance_id, database_id, encryption_keys);
+
+      SampleBanner("spanner_create_backup_with_MR_CMEK");
+      BackupIdentifier backup_dst;
+      backup_dst.project_id = project_id;
+      backup_dst.instance_id = crud_instance_id;
+      backup_dst.backup_id = backup_id;
+      version_time = DatabaseNow(
+          MakeSampleClient(project_id, crud_instance_id, database_id));
+      CreateBackupWithMRCMEK(database_admin_client, backup_dst, database_id,
+                             expire_time, version_time, encryption_keys);
+
+      SampleBanner("spanner_copy_backup_with_MR_CMEK");
+      BackupIdentifier copy_src;
+      copy_src.project_id = project_id;
+      copy_src.instance_id = crud_instance_id;
+      copy_src.backup_id = backup_id;
+      BackupIdentifier copy_dst;
+      copy_dst.project_id = project_id;
+      copy_dst.instance_id = crud_instance_id;
+      copy_dst.backup_id = copy_backup_id;
+      CopyBackupWithMRCMEK(database_admin_client, copy_src, copy_dst,
+                           expire_time, encryption_keys);
+
+      SampleBanner("spanner_delete_backup");
+      DeleteBackup(database_admin_client, project_id, crud_instance_id,
+                   copy_backup_id);
+
+      SampleBanner("spanner_restore_backup_with_MR_CMEK");
+      BackupIdentifier restore_src;
+      restore_src.project_id = project_id;
+      restore_src.instance_id = crud_instance_id;
+      restore_src.backup_id = backup_id;
+      RestoreDatabaseWithMRCMEK(database_admin_client, restore_src,
+                                restore_database_id, encryption_keys);
+
+      SampleBanner("spanner_drop_database");
+      DropDatabase(database_admin_client, project_id, crud_instance_id,
+                   restore_database_id);
+
+      SampleBanner("spanner_delete_backup");
+      DeleteBackup(database_admin_client, project_id, crud_instance_id,
+                   backup_id);
     }
   }
 
   SampleBanner("delete-instance");
   DeleteInstance(instance_admin_client, project_id, crud_instance_id);
+
+  if (!emulator) {
+    SampleBanner("spanner_create_instance_with_autoscaling_config");
+    CreateInstanceWithAutoscalingConfig(instance_admin_client, project_id,
+                                        crud_instance_id,
+                                        "Test Autoscaling Instance", config_id);
+
+    SampleBanner("delete-instance");
+    DeleteInstance(instance_admin_client, project_id, crud_instance_id);
+  }
 
   SampleBanner("spanner_create_instance_with_processing_units");
   CreateInstanceWithProcessingUnits(instance_admin_client, project_id,
@@ -4211,21 +5569,35 @@ void RunAllSlowInstanceTests(
     auto const user_config_id =
         google::cloud::spanner_testing::RandomInstanceConfigName(generator);
 
+    bool instance_config_created = true;
     SampleBanner("spanner_create_instance_config");
-    CreateInstanceConfig(instance_admin_client, project_id, user_config_id,
-                         base_config_id);
+    try {
+      CreateInstanceConfig(instance_admin_client, project_id, user_config_id,
+                           base_config_id);
+    } catch (google::cloud::Status const& status) {
+      // If the CreateInstanceConfig() failed with a constraint violation,
+      // presumably because of an optional replica we added, skip the remaining
+      // instance-config samples. It isn't worth trying to encode constraint
+      // knowledge here.
+      if (status.code() != google::cloud::StatusCode::kFailedPrecondition ||
+          !absl::StrContains(status.message(), "violates constraint")) {
+        throw;
+      }
+      instance_config_created = false;
+    }
+    if (instance_config_created) {
+      SampleBanner("spanner_update_instance_config");
+      UpdateInstanceConfig(instance_admin_client, project_id, user_config_id);
 
-    SampleBanner("spanner_update_instance_config");
-    UpdateInstanceConfig(instance_admin_client, project_id, user_config_id);
+      SampleBanner("spanner_list_instance_config_operations");
+      ListInstanceConfigOperations(instance_admin_client, project_id);
 
-    SampleBanner("spanner_list_instance_config_operations");
-    ListInstanceConfigOperations(instance_admin_client, project_id);
+      SampleBanner("spanner_list_instance_configs");
+      ListInstanceConfigs(instance_admin_client, project_id);
 
-    SampleBanner("spanner_list_instance_configs");
-    ListInstanceConfigs(instance_admin_client, project_id);
-
-    SampleBanner("spanner_delete_instance_config");
-    DeleteInstanceConfig(instance_admin_client, project_id, user_config_id);
+      SampleBanner("spanner_delete_instance_config");
+      DeleteInstanceConfig(instance_admin_client, project_id, user_config_id);
+    }
   }
 }
 
@@ -4341,6 +5713,7 @@ void RunAll(bool emulator) {
     }
     google::cloud::KmsKeyName encryption_key(
         project_id, *location, "spanner-cmek", "spanner-cmek-test-key");
+    std::vector<google::cloud::KmsKeyName> encryption_keys = {encryption_key};
 
     SampleBanner("spanner_drop_database");
     DropDatabase(database_admin_client, project_id, instance_id, database_id);
@@ -4348,6 +5721,13 @@ void RunAll(bool emulator) {
     SampleBanner("spanner_create_database_with_encryption_key");
     CreateDatabaseWithEncryptionKey(database_admin_client, project_id,
                                     instance_id, database_id, encryption_key);
+
+    SampleBanner("spanner_drop_database");
+    DropDatabase(database_admin_client, project_id, instance_id, database_id);
+
+    SampleBanner("spanner_create_database_with_MR_CMEK");
+    CreateDatabaseWithMRCMEK(database_admin_client, project_id, instance_id,
+                             database_id, encryption_keys);
   }
 
   SampleBanner("spanner_create_table_with_datatypes");
@@ -4497,6 +5877,9 @@ void RunAll(bool emulator) {
   SampleBanner("spanner_set_request_tag");
   SetRequestTag(client);
 
+  SampleBanner("spanner_directed_read");
+  DirectedRead(project_id, instance_id, database_id);
+
   SampleBanner("spanner_batch_client");
   UsePartitionQuery(client);
 
@@ -4618,6 +6001,14 @@ void RunAll(bool emulator) {
   SampleBanner("spanner_dml_standard_delete");
   DmlStandardDelete(client);
 
+  if (!emulator) {
+    SampleBanner("spanner_batch_write_at_least_once");
+    InsertDataAtLeastOnce(client);
+  }
+
+  SampleBanner("delete-data-at-least-once");
+  DeleteDataAtLeastOnce(client);
+
   SampleBanner("spanner_delete_data");
   DeleteData(client);
 
@@ -4648,16 +6039,14 @@ void RunAll(bool emulator) {
   SampleBanner("make-replace-mutation");
   MakeReplaceMutation(client);
 
-  if (!emulator) {
-    SampleBanner("spanner_update_dml_returning");
-    UpdateUsingDmlReturning(client);
+  SampleBanner("spanner_update_dml_returning");
+  UpdateUsingDmlReturning(client);
 
-    SampleBanner("spanner_insert_dml_returning");
-    InsertUsingDmlReturning(client);
+  SampleBanner("spanner_insert_dml_returning");
+  InsertUsingDmlReturning(client);
 
-    SampleBanner("spanner_delete_dml_returning");
-    DeleteUsingDmlReturning(client);
-  }
+  SampleBanner("spanner_delete_dml_returning");
+  DeleteUsingDmlReturning(client);
 
   SampleBanner("delete-mutation-builder");
   DeleteMutationBuilder(client);
@@ -4666,12 +6055,45 @@ void RunAll(bool emulator) {
   MakeDeleteMutation(client);
 
   if (!emulator) {
-    SampleBanner("spanner_query_information_schema_database_options");
-    QueryInformationSchemaDatabaseOptions(client);
+    SampleBanner("spanner_create_sequence");
+    CreateSequence(database_admin_client, client, project_id, instance_id,
+                   database_id);
+
+    SampleBanner("spanner_alter_sequence");
+    AlterSequence(database_admin_client, client, project_id, instance_id,
+                  database_id);
+
+    SampleBanner("spanner_drop_sequence");
+    DropSequence(database_admin_client, project_id, instance_id, database_id);
+
+    DropTable(database_admin_client, project_id, instance_id, database_id,
+              "Customers");
+  }
+
+  SampleBanner("spanner_query_information_schema_database_options");
+  QueryInformationSchemaDatabaseOptions(client);
+
+  if (!emulator) {
+    SampleBanner("spanner_create_table_with_foreign_key_delete_cascade");
+    CreateTableWithForeignKeyDeleteCascade(database_admin_client, project_id,
+                                           instance_id, database_id);
+
+    SampleBanner("spanner_alter_table_with_foreign_key_delete_cascade");
+    AlterTableWithForeignKeyDeleteCascade(database_admin_client, project_id,
+                                          instance_id, database_id);
+
+    SampleBanner("spanner_drop_foreign_key_constraint_delete_cascade");
+    DropForeignKeyConstraintDeleteCascade(database_admin_client, project_id,
+                                          instance_id, database_id);
   }
 
   SampleBanner("spanner_drop_database");
   DeleteAll(client);
+  if (!emulator) {
+    SampleBanner("spanner_update_database");
+    UpdateDatabase(database_admin_client, project_id, instance_id, database_id,
+                   /*drop_protection=*/false);
+  }
   DropDatabase(database_admin_client, project_id, instance_id, database_id);
 
   if (!emulator) {  // default_leader
@@ -4703,6 +6125,44 @@ void RunAll(bool emulator) {
     UpdateDatabaseWithDefaultLeader(database_admin_client, project_id,
                                     instance_id, database_id,
                                     leader_options[0]);
+
+    SampleBanner("spanner_drop_database");
+    DropDatabase(database_admin_client, project_id, instance_id, database_id);
+  }
+
+  if (!emulator) {  // proto columns and enums
+    SampleBanner("spanner_create_database");
+    CreateDatabase(database_admin_client, project_id, instance_id, database_id);
+
+    SampleBanner("drop-column");
+    DropColumn(database_admin_client, project_id, instance_id, database_id);
+
+    SampleBanner("spanner_add_proto_type_columns");
+    AddProtoTypeColumns(database_admin_client, project_id, instance_id,
+                        database_id);
+
+    client = MakeSampleClient(project_id, instance_id, database_id);
+
+    SampleBanner("insert-mutation-builder");
+    InsertMutationBuilder(client);
+
+    SampleBanner("spanner_update_data_with_proto_message_column");
+    UpdateDataWithProtoMessageColumn(client);
+
+    SampleBanner("spanner_update_data_with_proto_message_column_with_dml");
+    UpdateDataWithProtoMessageColumnWithDml(client);
+
+    SampleBanner("spanner_query_with_proto_message_parameter");
+    QueryWithProtoMessageParameter(client);
+
+    SampleBanner("spanner_update_data_with_proto_enum_column");
+    UpdateDataWithProtoEnumColumn(client);
+
+    SampleBanner("spanner_update_data_with_proto_enum_column_with_dml");
+    UpdateDataWithProtoEnumColumnWithDml(client);
+
+    SampleBanner("spanner_query_with_proto_enum_parameter");
+    QueryWithProtoEnumParameter(client);
 
     SampleBanner("spanner_drop_database");
     DropDatabase(database_admin_client, project_id, instance_id, database_id);

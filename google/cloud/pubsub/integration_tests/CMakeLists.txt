@@ -24,7 +24,7 @@ function (google_cloud_cpp_pubsub_define_integration_tests)
     set(pubsub_client_integration_tests
         # cmake-format: sort
         blocking_publisher_integration_test.cc
-        schema_admin_integration_test.cc
+        publisher_integration_test.cc
         subscriber_integration_test.cc
         subscription_admin_integration_test.cc
         topic_admin_integration_test.cc)
@@ -50,13 +50,6 @@ function (google_cloud_cpp_pubsub_define_integration_tests)
                     GTest::gmock
                     GTest::gtest)
         google_cloud_cpp_add_common_options(${target})
-
-        # With googletest it is relatively easy to exceed the default number of
-        # sections (~65,000) in a single .obj file. Add the /bigobj option to
-        # all the tests, even if it is not needed.
-        if (MSVC)
-            target_compile_options(${target} PRIVATE "/bigobj")
-        endif ()
         add_test(NAME ${target} COMMAND ${target})
         set_tests_properties(
             ${target} PROPERTIES LABELS

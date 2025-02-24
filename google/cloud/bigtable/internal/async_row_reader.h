@@ -19,6 +19,7 @@
 #include "google/cloud/bigtable/internal/async_streaming_read.h"
 #include "google/cloud/bigtable/internal/bigtable_stub.h"
 #include "google/cloud/bigtable/internal/readrowsparser.h"
+#include "google/cloud/bigtable/internal/retry_context.h"
 #include "google/cloud/bigtable/options.h"
 #include "google/cloud/bigtable/row.h"
 #include "google/cloud/bigtable/row_set.h"
@@ -26,11 +27,15 @@
 #include "google/cloud/completion_queue.h"
 #include "google/cloud/future.h"
 #include "google/cloud/grpc_options.h"
+#include "google/cloud/internal/call_context.h"
+#include "google/cloud/options.h"
 #include "google/cloud/status_or.h"
 #include "absl/types/optional.h"
 #include <chrono>
+#include <memory>
 #include <queue>
 #include <string>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -56,14 +61,16 @@ class AsyncRowReader : public std::enable_shared_from_this<AsyncRowReader> {
                      std::string app_profile_id, std::string table_name,
                      RowFunctor on_row, FinishFunctor on_finish,
                      bigtable::RowSet row_set, std::int64_t rows_limit,
-                     bigtable::Filter filter,
+                     bigtable::Filter filter, bool reverse,
                      std::unique_ptr<bigtable::DataRetryPolicy> retry_policy,
-                     std::unique_ptr<BackoffPolicy> backoff_policy) {
+                     std::unique_ptr<BackoffPolicy> backoff_policy,
+                     bool enable_server_retries) {
     auto reader = std::shared_ptr<AsyncRowReader>(new AsyncRowReader(
         std::move(cq), std::move(stub), std::move(app_profile_id),
         std::move(table_name), std::move(on_row), std::move(on_finish),
-        std::move(row_set), rows_limit, std::move(filter),
-        std::move(retry_policy), std::move(backoff_policy)));
+        std::move(row_set), rows_limit, std::move(filter), reverse,
+        std::move(retry_policy), std::move(backoff_policy),
+        enable_server_retries));
     reader->MakeRequest();
   }
 
@@ -72,9 +79,10 @@ class AsyncRowReader : public std::enable_shared_from_this<AsyncRowReader> {
                  std::string app_profile_id, std::string table_name,
                  RowFunctor on_row, FinishFunctor on_finish,
                  bigtable::RowSet row_set, std::int64_t rows_limit,
-                 bigtable::Filter filter,
+                 bigtable::Filter filter, bool reverse,
                  std::unique_ptr<bigtable::DataRetryPolicy> retry_policy,
-                 std::unique_ptr<BackoffPolicy> backoff_policy)
+                 std::unique_ptr<BackoffPolicy> backoff_policy,
+                 bool enable_server_retries)
       : cq_(std::move(cq)),
         stub_(std::move(stub)),
         app_profile_id_(std::move(app_profile_id)),
@@ -84,8 +92,12 @@ class AsyncRowReader : public std::enable_shared_from_this<AsyncRowReader> {
         row_set_(std::move(row_set)),
         rows_limit_(rows_limit),
         filter_(std::move(filter)),
+        reverse_(std::move(reverse)),
         retry_policy_(std::move(retry_policy)),
-        backoff_policy_(std::move(backoff_policy)) {}
+        backoff_policy_(std::move(backoff_policy)),
+        enable_server_retries_(enable_server_retries),
+        options_(internal::SaveCurrentOptions()),
+        call_context_(options_) {}
 
   void MakeRequest();
 
@@ -128,8 +140,10 @@ class AsyncRowReader : public std::enable_shared_from_this<AsyncRowReader> {
   bigtable::RowSet row_set_;
   std::int64_t rows_limit_;
   bigtable::Filter filter_;
+  bool reverse_;
   std::unique_ptr<bigtable::DataRetryPolicy> retry_policy_;
   std::unique_ptr<BackoffPolicy> backoff_policy_;
+  bool enable_server_retries_;
   std::unique_ptr<bigtable::internal::ReadRowsParser> parser_;
   /// Number of rows read so far, used to set row_limit in retries.
   std::int64_t rows_count_ = 0;
@@ -159,7 +173,11 @@ class AsyncRowReader : public std::enable_shared_from_this<AsyncRowReader> {
   Status status_;
   /// Tracks the level of recursion of TryGiveRowToUser
   int recursion_level_ = 0;
-  Options options_ = internal::CurrentOptions();
+  internal::ImmutableOptions options_;
+  internal::CallContext call_context_;
+  std::shared_ptr<grpc::ClientContext> context_;
+  std::shared_ptr<RetryContext> retry_context_ =
+      std::make_shared<RetryContext>();
 };
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

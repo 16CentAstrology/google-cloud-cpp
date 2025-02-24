@@ -17,16 +17,18 @@
 // source: generator/integration_tests/test.proto
 
 #include "generator/integration_tests/golden/v1/internal/golden_thing_admin_rest_stub_factory.h"
+#include "absl/strings/match.h"
 #include "generator/integration_tests/golden/v1/internal/golden_thing_admin_rest_logging_decorator.h"
 #include "generator/integration_tests/golden/v1/internal/golden_thing_admin_rest_metadata_decorator.h"
 #include "generator/integration_tests/golden/v1/internal/golden_thing_admin_rest_stub.h"
 #include "google/cloud/common_options.h"
-#include "google/cloud/credentials.h"
 #include "google/cloud/internal/algorithm.h"
+#include "google/cloud/internal/populate_rest_options.h"
 #include "google/cloud/log.h"
 #include "google/cloud/options.h"
 #include "google/cloud/rest_options.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -35,20 +37,17 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 std::shared_ptr<GoldenThingAdminRestStub>
 CreateDefaultGoldenThingAdminRestStub(Options const& options) {
-  Options opts = options;
-  if (!opts.has<UnifiedCredentialsOption>()) {
-    opts.set<UnifiedCredentialsOption>(MakeGoogleDefaultCredentials());
-  }
+  auto opts = internal::PopulateRestOptions(options);
   std::shared_ptr<GoldenThingAdminRestStub> stub =
       std::make_shared<DefaultGoldenThingAdminRestStub>(std::move(opts));
   stub = std::make_shared<GoldenThingAdminRestMetadata>(std::move(stub));
   if (internal::Contains(
-      options.get<TracingComponentsOption>(), "rpc")) {
+      options.get<LoggingComponentsOption>(), "rpc")) {
     GCP_LOG(INFO) << "Enabled logging for REST rpc calls";
     stub = std::make_shared<GoldenThingAdminRestLogging>(
         std::move(stub),
         options.get<RestTracingOptionsOption>(),
-        options.get<TracingComponentsOption>());
+        options.get<LoggingComponentsOption>());
   }
   return stub;
 }

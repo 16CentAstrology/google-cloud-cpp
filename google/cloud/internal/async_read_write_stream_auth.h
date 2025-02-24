@@ -16,6 +16,7 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_INTERNAL_ASYNC_READ_WRITE_STREAM_AUTH_H
 
 #include "google/cloud/internal/async_read_write_stream_impl.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/internal/unified_grpc_credentials.h"
 #include "google/cloud/version.h"
 #include <functional>
@@ -33,10 +34,10 @@ class AsyncStreamingReadWriteRpcAuth
  public:
   using StreamFactory = std::function<
       std::unique_ptr<AsyncStreamingReadWriteRpc<Request, Response>>(
-          std::unique_ptr<grpc::ClientContext>)>;
+          std::shared_ptr<grpc::ClientContext>)>;
 
   AsyncStreamingReadWriteRpcAuth(
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
       std::shared_ptr<GrpcAuthenticationStrategy> auth, StreamFactory factory)
       : auth_(std::move(auth)),
         state_(std::make_shared<SharedState>(std::move(factory),
@@ -45,7 +46,7 @@ class AsyncStreamingReadWriteRpcAuth
   void Cancel() override { state_->Cancel(); }
 
   future<bool> Start() override {
-    using Result = StatusOr<std::unique_ptr<grpc::ClientContext>>;
+    using Result = StatusOr<std::shared_ptr<grpc::ClientContext>>;
     auto weak = std::weak_ptr<SharedState>(state_);
     return auth_->AsyncConfigureContext(state_->ReleaseInitialContext())
         .then([weak](future<Result> f) mutable {
@@ -72,29 +73,34 @@ class AsyncStreamingReadWriteRpcAuth
 
   future<Status> Finish() override { return state_->Finish(); }
 
+  RpcMetadata GetRequestMetadata() const override {
+    return state_->GetRequestMetadata();
+  }
+
  private:
   struct SharedState {
     SharedState(StreamFactory factory,
-                std::unique_ptr<grpc::ClientContext> initial_context)
+                std::shared_ptr<grpc::ClientContext> initial_context)
         : factory(std::move(factory)),
           initial_context(std::move(initial_context)),
-          stream(absl::make_unique<
+          stream(std::make_unique<
                  AsyncStreamingReadWriteRpcError<Request, Response>>(
-              Status(StatusCode::kInternal, "Stream is not yet started."))) {}
+              internal::InternalError("Stream is not yet started.",
+                                      GCP_ERROR_INFO()))) {}
 
-    std::unique_ptr<grpc::ClientContext> ReleaseInitialContext() {
+    std::shared_ptr<grpc::ClientContext> ReleaseInitialContext() {
       std::lock_guard<std::mutex> g{mu};
       return std::move(initial_context);
     }
 
     future<bool> OnStart(
-        StatusOr<std::unique_ptr<grpc::ClientContext>> context) {
+        StatusOr<std::shared_ptr<grpc::ClientContext>> context) {
       std::lock_guard<std::mutex> g{mu};
       if (cancelled) return make_ready_future(false);
       if (context) {
         stream = factory(*std::move(context));
       } else {
-        stream = absl::make_unique<
+        stream = std::make_unique<
             AsyncStreamingReadWriteRpcError<Request, Response>>(
             std::move(context).status());
       }
@@ -107,6 +113,11 @@ class AsyncStreamingReadWriteRpcAuth
       return stream->Finish();
     }
 
+    RpcMetadata GetRequestMetadata() {
+      std::lock_guard<std::mutex> g{mu};
+      return stream->GetRequestMetadata();
+    }
+
     void Cancel() {
       std::lock_guard<std::mutex> g{mu};
       if (cancelled) return;
@@ -117,7 +128,7 @@ class AsyncStreamingReadWriteRpcAuth
 
     StreamFactory const factory;
     std::mutex mu;
-    std::unique_ptr<grpc::ClientContext>
+    std::shared_ptr<grpc::ClientContext>
         initial_context;  // ABSL_GUARDED_BY(mu)
     std::unique_ptr<AsyncStreamingReadWriteRpc<Request, Response>>
         stream;              // ABSL_GUARDED_BY(mu)

@@ -12,33 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("//bazel:gapic.bzl", "cc_gapic_library")
+
 package(default_visibility = ["//visibility:private"])
 
 licenses(["notice"])  # Apache 2.0
 
-load(":google_cloud_cpp_logging.bzl", "google_cloud_cpp_logging_hdrs", "google_cloud_cpp_logging_srcs")
+service_dirs = [
+    "",
+    "v2/",
+]
 
-cc_library(
-    name = "google_cloud_cpp_logging",
-    srcs = google_cloud_cpp_logging_srcs,
-    hdrs = google_cloud_cpp_logging_hdrs,
-    visibility = ["//:__pkg__"],
-    deps = [
-        "//:common",
-        "//:grpc_utils",
-        "@com_google_googleapis//google/logging/v2:logging_cc_grpc",
-    ],
-)
+googleapis_deps = [
+    "@com_google_googleapis//google/logging/v2:logging_cc_grpc",
+]
 
-load(":google_cloud_cpp_logging_mocks.bzl", "google_cloud_cpp_logging_mocks_hdrs", "google_cloud_cpp_logging_mocks_srcs")
-
-cc_library(
-    name = "google_cloud_cpp_logging_mocks",
-    srcs = google_cloud_cpp_logging_mocks_srcs,
-    hdrs = google_cloud_cpp_logging_mocks_hdrs,
-    visibility = ["//:__pkg__"],
-    deps = [
-        ":google_cloud_cpp_logging",
-        "@com_google_googletest//:gtest",
-    ],
+cc_gapic_library(
+    name = "logging",
+    googleapis_deps = googleapis_deps,
+    service_dirs = service_dirs,
 )

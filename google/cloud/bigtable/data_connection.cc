@@ -15,13 +15,17 @@
 #include "google/cloud/bigtable/data_connection.h"
 #include "google/cloud/bigtable/internal/bigtable_stub_factory.h"
 #include "google/cloud/bigtable/internal/data_connection_impl.h"
+#include "google/cloud/bigtable/internal/data_tracing_connection.h"
 #include "google/cloud/bigtable/internal/defaults.h"
+#include "google/cloud/bigtable/internal/mutate_rows_limiter.h"
 #include "google/cloud/bigtable/internal/row_reader_impl.h"
 #include "google/cloud/bigtable/options.h"
 #include "google/cloud/background_threads.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/credentials.h"
 #include "google/cloud/grpc_options.h"
+#include "google/cloud/internal/opentelemetry.h"
+#include "google/cloud/internal/unified_grpc_credentials.h"
 #include <memory>
 
 namespace google {
@@ -34,7 +38,7 @@ std::vector<bigtable::FailedMutation> MakeFailedMutations(Status const& status,
   std::vector<bigtable::FailedMutation> mutations;
   mutations.reserve(n);
   for (int i = 0; i != static_cast<int>(n); ++i) {
-    mutations.emplace_back(bigtable::FailedMutation(status, i));
+    mutations.emplace_back(status, i);
   }
   return mutations;
 }
@@ -72,9 +76,22 @@ future<std::vector<FailedMutation>> DataConnection::AsyncBulkApply(
       Status(StatusCode::kUnimplemented, "not-implemented"), mut.size()));
 }
 
-RowReader DataConnection::ReadRows(
-    // NOLINTNEXTLINE(performance-unnecessary-value-param)
-    std::string const&, RowSet, std::int64_t, Filter) {
+RowReader DataConnection::ReadRows(std::string const& table_name,
+                                   RowSet row_set, std::int64_t rows_limit,
+                                   Filter filter) {
+  auto const& options = google::cloud::internal::CurrentOptions();
+  return ReadRowsFull(ReadRowsParams{
+      std::move(table_name),
+      options.get<AppProfileIdOption>(),
+      std::move(row_set),
+      rows_limit,
+      std::move(filter),
+      options.get<ReverseScanOption>(),
+  });
+}
+
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
+RowReader DataConnection::ReadRowsFull(ReadRowsParams) {
   return MakeRowReader(std::make_shared<bigtable_internal::StatusOnlyRowReader>(
       Status(StatusCode::kUnimplemented, "not implemented")));
 }
@@ -147,9 +164,20 @@ std::shared_ptr<DataConnection> MakeDataConnection(Options options) {
   options = bigtable::internal::DefaultDataOptions(std::move(options));
   auto background =
       google::cloud::internal::MakeBackgroundThreadsFactory(options)();
-  auto stub = bigtable_internal::CreateBigtableStub(background->cq(), options);
-  return std::make_shared<bigtable_internal::DataConnectionImpl>(
-      std::move(background), std::move(stub), std::move(options));
+  auto auth = google::cloud::internal::CreateAuthenticationStrategy(
+      background->cq(), options);
+  auto stub = bigtable_internal::CreateBigtableStub(std::move(auth),
+                                                    background->cq(), options);
+  auto limiter =
+      bigtable_internal::MakeMutateRowsLimiter(background->cq(), options);
+  std::shared_ptr<DataConnection> conn =
+      std::make_shared<bigtable_internal::DataConnectionImpl>(
+          std::move(background), std::move(stub), std::move(limiter),
+          std::move(options));
+  if (google::cloud::internal::TracingEnabled(conn->options())) {
+    conn = bigtable_internal::MakeDataTracingConnection(std::move(conn));
+  }
+  return conn;
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

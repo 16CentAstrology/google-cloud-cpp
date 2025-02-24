@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/channel/cloud_channel_client.h"
+//! [all]
+#include "google/cloud/channel/v1/cloud_channel_client.h"
 #include <iostream>
 #include <string>
 
@@ -22,7 +23,7 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace channel = ::google::cloud::channel;
+  namespace channel = ::google::cloud::channel_v1;
   auto client = channel::CloudChannelServiceClient(
       channel::MakeCloudChannelServiceConnection());
 
@@ -39,3 +40,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

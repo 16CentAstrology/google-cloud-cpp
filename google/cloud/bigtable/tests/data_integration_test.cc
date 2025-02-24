@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,11 +28,13 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
 using ::google::cloud::bigtable::testing::TableIntegrationTest;
-using ::google::cloud::testing_util::chrono_literals::operator"" _ms;  // NOLINT
+using ::google::cloud::bigtable::testing::TableTestEnvironment;
+using ::google::cloud::testing_util::chrono_literals::operator""_ms;
 using ::std::chrono::duration_cast;
 using ::std::chrono::microseconds;
 using ::std::chrono::milliseconds;
 using ::testing::Contains;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 
 class DataIntegrationTest : public TableIntegrationTest,
@@ -119,6 +121,35 @@ TEST_P(DataIntegrationTest, TableBulkApply) {
 
   auto actual = ReadRows(table, Filter::PassAllFilter());
   CheckEqualUnordered(expected, actual);
+}
+
+TEST_P(DataIntegrationTest, TableBulkApplyThrottling) {
+  if (GetParam() == "with-data-client") GTEST_SKIP();
+
+  // Make a custom table with throttling enabled.
+  auto table =
+      Table(MakeDataConnection(
+                Options{}.set<experimental::BulkApplyThrottlingOption>(true)),
+            TableResource(TableTestEnvironment::project_id(),
+                          TableTestEnvironment::instance_id(),
+                          TableTestEnvironment::table_id()));
+
+  // This test should take around 10 queries / (20 QPS) = 500ms.
+  //
+  // While this behavior is observable, we don't want to put strict expectations
+  // on it. The server might tell us to go faster. We might change the initial
+  // period.
+  //
+  // The purpose of the integration test is more to verify that our rate
+  // limiting implementation does not crash and burn in production.
+  for (auto i = 0; i != 10; ++i) {
+    Cell cell{"row-key-5", kFamily1, "c0", 0, "v" + std::to_string(i)};
+    BulkApply(table, {cell});
+  }
+
+  Cell expected{"row-key-5", kFamily1, "c0", 0, "v9"};
+  auto actual = ReadRows(table, Filter::PassAllFilter());
+  CheckEqualUnordered({expected}, actual);
 }
 
 TEST_P(DataIntegrationTest, TableSingleRow) {
@@ -240,6 +271,30 @@ TEST_P(DataIntegrationTest, TableReadRowsPartialRows) {
     auto reader = table.ReadRows(std::move(rows), Filter::PassAllFilter());
     CheckEqualUnordered(expected, MoveCellsFromReader(reader));
   }
+}
+
+TEST_P(DataIntegrationTest, TableReadRowsReverseScan) {
+  if (GetParam() == "with-data-client") GTEST_SKIP();
+  // The emulator does not yet support reverse scans.
+  if (UsingCloudBigtableEmulator()) GTEST_SKIP();
+  auto table = GetTable(GetParam());
+
+  std::vector<Cell> created{{"row-key-1", kFamily4, "c1", 1000, "a"},
+                            {"row-key-1", kFamily4, "c2", 2000, "b"},
+                            {"row-key-2", kFamily4, "c1", 3000, "c"},
+                            {"row-key-3", kFamily4, "c1", 4000, "d"}};
+
+  CreateCells(table, created);
+
+  auto reader = table.ReadRows(RowSet(), Filter::PassAllFilter(),
+                               Options{}.set<ReverseScanOption>(true));
+  auto cells = MoveCellsFromReader(reader);
+  CheckEqualUnordered(created, cells);
+  std::vector<RowKeyType> rows(cells.size());
+  std::transform(cells.begin(), cells.end(), rows.begin(),
+                 [](Cell const& cell) { return cell.row_key(); });
+  EXPECT_THAT(rows,
+              ElementsAre("row-key-3", "row-key-2", "row-key-1", "row-key-1"));
 }
 
 TEST_P(DataIntegrationTest, TableReadRowsNoRows) {
@@ -539,7 +594,7 @@ TEST_P(DataIntegrationTest, TableApplyWithLogging) {
 
   // Verify that a logging client logs.
   auto logging_table =
-      make_table(Options{}.set<TracingComponentsOption>({"rpc"}));
+      make_table(Options{}.set<LoggingComponentsOption>({"rpc"}));
   Apply(logging_table, row_key, created);
   EXPECT_THAT(log.ExtractLines(), Contains(HasSubstr("MutateRow")));
 

@@ -76,40 +76,22 @@ class ExperimentsConnectionImpl : public dialogflow_cx::ExperimentsConnection {
       google::cloud::dialogflow::cx::v3::StopExperimentRequest const& request)
       override;
 
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_cx::ExperimentsRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::ExperimentsRetryPolicyOption>()) {
-      return options.get<dialogflow_cx::ExperimentsRetryPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_cx::ExperimentsRetryPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::ExperimentsBackoffPolicyOption>()) {
-      return options.get<dialogflow_cx::ExperimentsBackoffPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_cx::ExperimentsBackoffPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<dialogflow_cx::ExperimentsConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<
-            dialogflow_cx::ExperimentsConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_cx::ExperimentsConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_cx::ExperimentsConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_cx_internal::ExperimentsStub> stub_;
   Options options_;

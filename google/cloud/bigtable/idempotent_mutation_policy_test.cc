@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,8 +22,8 @@ namespace bigtable {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
-using ::google::cloud::testing_util::chrono_literals::operator"" _ms;  // NOLINT
-using ::google::cloud::testing_util::chrono_literals::operator"" _us;  // NOLINT
+using ::google::cloud::testing_util::chrono_literals::operator""_ms;
+using ::google::cloud::testing_util::chrono_literals::operator""_us;
 
 /// @test Verify that the default policy works as expected.
 TEST(IdempotentMutationPolicyTest, Simple) {

@@ -18,6 +18,7 @@ set -euo pipefail
 
 source "$(dirname "$0")/../../../../ci/lib/init.sh"
 source module /ci/lib/io.sh
+source module /ci/cloudbuild/builds/lib/cloudcxxrc.sh
 source module /google/cloud/spanner/ci/lib/spanner_emulator.sh
 
 if [[ $# -lt 2 ]]; then
@@ -31,15 +32,31 @@ BAZEL_VERB="$1"
 shift
 bazel_test_args=("$@")
 
-# Start the emulator and arranges to kill it, run in $HOME because
-# spanner_emulator::start creates unsightly *.log files in the workspace
-# otherwise. Use a fixed port so Bazel can cache the test results.
-pushd "${HOME}" >/dev/null
-spanner_emulator::start 8787
-popd >/dev/null
-trap spanner_emulator::kill EXIT
+if bazel::has_no_tests "//google/cloud/spanner/..."; then
+  exit 0
+fi
+
+# Run in $HOME because spanner_emulator::start creates unsightly *.log
+# files in the workspace otherwise.
+
+function spanner_emulator_bazel::start() {
+  pushd "${HOME}" >/dev/null
+  spanner_emulator::start "$@"
+  popd >/dev/null
+}
+
+function spanner_emulator_bazel::kill() {
+  pushd "${HOME}" >/dev/null
+  spanner_emulator::kill "$@"
+  popd >/dev/null
+}
+
+# Start the emulator and arrange to kill it. Use a fixed port so
+# Bazel can cache the test results.
+spanner_emulator_bazel::start 8787
+trap spanner_emulator_bazel::kill EXIT
 
 "${BAZEL_BIN}" "${BAZEL_VERB}" "${bazel_test_args[@]}" \
   --test_env="SPANNER_EMULATOR_HOST=${SPANNER_EMULATOR_HOST}" \
-  --test_tag_filters="integration-test" -- \
+  --test_env="SPANNER_EMULATOR_REST_HOST=${SPANNER_EMULATOR_REST_HOST}" \
   "//google/cloud/spanner/...:all"

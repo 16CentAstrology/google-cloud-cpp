@@ -21,12 +21,15 @@
 #include "google/cloud/spanner/admin/internal/instance_admin_connection_impl.h"
 #include "google/cloud/spanner/admin/internal/instance_admin_option_defaults.h"
 #include "google/cloud/spanner/admin/internal/instance_admin_stub_factory.h"
+#include "google/cloud/spanner/admin/internal/instance_admin_tracing_connection.h"
 #include "google/cloud/background_threads.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/credentials.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/pagination_range.h"
+#include "google/cloud/internal/unified_grpc_credentials.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -57,9 +60,41 @@ InstanceAdminConnection::CreateInstanceConfig(
       Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
+StatusOr<google::longrunning::Operation>
+InstanceAdminConnection::CreateInstanceConfig(
+    NoAwaitTag,
+    google::spanner::admin::instance::v1::CreateInstanceConfigRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::spanner::admin::instance::v1::InstanceConfig>>
+InstanceAdminConnection::CreateInstanceConfig(
+    google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::spanner::admin::instance::v1::InstanceConfig>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
 future<StatusOr<google::spanner::admin::instance::v1::InstanceConfig>>
 InstanceAdminConnection::UpdateInstanceConfig(
     google::spanner::admin::instance::v1::UpdateInstanceConfigRequest const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::spanner::admin::instance::v1::InstanceConfig>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation>
+InstanceAdminConnection::UpdateInstanceConfig(
+    NoAwaitTag,
+    google::spanner::admin::instance::v1::UpdateInstanceConfigRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::spanner::admin::instance::v1::InstanceConfig>>
+InstanceAdminConnection::UpdateInstanceConfig(
+    google::longrunning::Operation const&) {
   return google::cloud::make_ready_future<
       StatusOr<google::spanner::admin::instance::v1::InstanceConfig>>(
       Status(StatusCode::kUnimplemented, "not implemented"));
@@ -86,6 +121,14 @@ InstanceAdminConnection::ListInstances(
       StreamRange<google::spanner::admin::instance::v1::Instance>>();
 }
 
+StreamRange<google::spanner::admin::instance::v1::InstancePartition>
+InstanceAdminConnection::ListInstancePartitions(
+    google::spanner::admin::instance::v1::
+        ListInstancePartitionsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::spanner::admin::instance::v1::InstancePartition>>();
+}
+
 StatusOr<google::spanner::admin::instance::v1::Instance>
 InstanceAdminConnection::GetInstance(
     google::spanner::admin::instance::v1::GetInstanceRequest const&) {
@@ -100,9 +143,39 @@ InstanceAdminConnection::CreateInstance(
       Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
+StatusOr<google::longrunning::Operation>
+InstanceAdminConnection::CreateInstance(
+    NoAwaitTag,
+    google::spanner::admin::instance::v1::CreateInstanceRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::spanner::admin::instance::v1::Instance>>
+InstanceAdminConnection::CreateInstance(google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::spanner::admin::instance::v1::Instance>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
 future<StatusOr<google::spanner::admin::instance::v1::Instance>>
 InstanceAdminConnection::UpdateInstance(
     google::spanner::admin::instance::v1::UpdateInstanceRequest const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::spanner::admin::instance::v1::Instance>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation>
+InstanceAdminConnection::UpdateInstance(
+    NoAwaitTag,
+    google::spanner::admin::instance::v1::UpdateInstanceRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::spanner::admin::instance::v1::Instance>>
+InstanceAdminConnection::UpdateInstance(google::longrunning::Operation const&) {
   return google::cloud::make_ready_future<
       StatusOr<google::spanner::admin::instance::v1::Instance>>(
       Status(StatusCode::kUnimplemented, "not implemented"));
@@ -129,6 +202,121 @@ InstanceAdminConnection::TestIamPermissions(
   return Status(StatusCode::kUnimplemented, "not implemented");
 }
 
+StatusOr<google::spanner::admin::instance::v1::InstancePartition>
+InstanceAdminConnection::GetInstancePartition(
+    google::spanner::admin::instance::v1::GetInstancePartitionRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+future<StatusOr<google::spanner::admin::instance::v1::InstancePartition>>
+InstanceAdminConnection::CreateInstancePartition(
+    google::spanner::admin::instance::v1::
+        CreateInstancePartitionRequest const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::spanner::admin::instance::v1::InstancePartition>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation>
+InstanceAdminConnection::CreateInstancePartition(
+    NoAwaitTag, google::spanner::admin::instance::v1::
+                    CreateInstancePartitionRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::spanner::admin::instance::v1::InstancePartition>>
+InstanceAdminConnection::CreateInstancePartition(
+    google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::spanner::admin::instance::v1::InstancePartition>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+Status InstanceAdminConnection::DeleteInstancePartition(
+    google::spanner::admin::instance::v1::
+        DeleteInstancePartitionRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+future<StatusOr<google::spanner::admin::instance::v1::InstancePartition>>
+InstanceAdminConnection::UpdateInstancePartition(
+    google::spanner::admin::instance::v1::
+        UpdateInstancePartitionRequest const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::spanner::admin::instance::v1::InstancePartition>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation>
+InstanceAdminConnection::UpdateInstancePartition(
+    NoAwaitTag, google::spanner::admin::instance::v1::
+                    UpdateInstancePartitionRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::spanner::admin::instance::v1::InstancePartition>>
+InstanceAdminConnection::UpdateInstancePartition(
+    google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::spanner::admin::instance::v1::InstancePartition>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StreamRange<google::longrunning::Operation>
+InstanceAdminConnection::ListInstancePartitionOperations(
+    google::spanner::admin::instance::v1::
+        ListInstancePartitionOperationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::longrunning::Operation>>();
+}
+
+future<StatusOr<google::spanner::admin::instance::v1::MoveInstanceResponse>>
+InstanceAdminConnection::MoveInstance(
+    google::spanner::admin::instance::v1::MoveInstanceRequest const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::spanner::admin::instance::v1::MoveInstanceResponse>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation> InstanceAdminConnection::MoveInstance(
+    NoAwaitTag,
+    google::spanner::admin::instance::v1::MoveInstanceRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::spanner::admin::instance::v1::MoveInstanceResponse>>
+InstanceAdminConnection::MoveInstance(google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::spanner::admin::instance::v1::MoveInstanceResponse>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StreamRange<google::longrunning::Operation>
+InstanceAdminConnection::ListOperations(
+    google::longrunning::
+        ListOperationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::longrunning::Operation>>();
+}
+
+StatusOr<google::longrunning::Operation> InstanceAdminConnection::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+Status InstanceAdminConnection::DeleteOperation(
+    google::longrunning::DeleteOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+Status InstanceAdminConnection::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
 std::shared_ptr<InstanceAdminConnection> MakeInstanceAdminConnection(
     Options options) {
   internal::CheckExpectedOptions<CommonOptionList, GrpcOptionList,
@@ -138,14 +326,15 @@ std::shared_ptr<InstanceAdminConnection> MakeInstanceAdminConnection(
   options =
       spanner_admin_internal::InstanceAdminDefaultOptions(std::move(options));
   auto background = internal::MakeBackgroundThreadsFactory(options)();
+  auto auth = internal::CreateAuthenticationStrategy(background->cq(), options);
   auto stub = spanner_admin_internal::CreateDefaultInstanceAdminStub(
-      background->cq(), options);
-  return std::make_shared<spanner_admin_internal::InstanceAdminConnectionImpl>(
-      std::move(background), std::move(stub), std::move(options));
+      std::move(auth), options);
+  return spanner_admin_internal::MakeInstanceAdminTracingConnection(
+      std::make_shared<spanner_admin_internal::InstanceAdminConnectionImpl>(
+          std::move(background), std::move(stub), std::move(options)));
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
-namespace gcpcxxV1 = GOOGLE_CLOUD_CPP_NS;  // NOLINT(misc-unused-alias-decls)
 }  // namespace spanner_admin
 }  // namespace cloud
 }  // namespace google

@@ -24,9 +24,13 @@
 
 namespace google {
 namespace cloud {
+/// @deprecated This namespace exists for backwards compatibility. Use the
+///     types defined in golden_v1 instead of the aliases defined in
+///     this namespace.
 namespace golden {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+/// @deprecated Use golden_v1::GoldenThingAdminClient directly.
 using ::google::cloud::golden_v1::GoldenThingAdminClient;
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

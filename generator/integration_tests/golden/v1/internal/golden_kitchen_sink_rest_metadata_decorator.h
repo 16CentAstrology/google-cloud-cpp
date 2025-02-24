@@ -20,6 +20,7 @@
 #define GOOGLE_CLOUD_CPP_GENERATOR_INTEGRATION_TESTS_GOLDEN_V1_INTERNAL_GOLDEN_KITCHEN_SINK_REST_METADATA_DECORATOR_H
 
 #include "generator/integration_tests/golden/v1/internal/golden_kitchen_sink_rest_stub.h"
+#include "google/cloud/future.h"
 #include "google/cloud/rest_options.h"
 #include "google/cloud/version.h"
 #include <generator/integration_tests/test.pb.h>
@@ -34,42 +35,57 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 class GoldenKitchenSinkRestMetadata : public GoldenKitchenSinkRestStub {
  public:
   ~GoldenKitchenSinkRestMetadata() override = default;
-  explicit GoldenKitchenSinkRestMetadata(std::shared_ptr<GoldenKitchenSinkRestStub> child);
+  explicit GoldenKitchenSinkRestMetadata(
+      std::shared_ptr<GoldenKitchenSinkRestStub> child,
+      std::string api_client_header = "");
 
   StatusOr<google::test::admin::database::v1::GenerateAccessTokenResponse> GenerateAccessToken(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::GenerateAccessTokenRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::GenerateAccessTokenRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::GenerateIdTokenResponse> GenerateIdToken(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::GenerateIdTokenRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::GenerateIdTokenRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::WriteLogEntriesResponse> WriteLogEntries(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::WriteLogEntriesRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::WriteLogEntriesRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::ListLogsResponse> ListLogs(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ListLogsRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::ListLogsRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::ListServiceAccountKeysResponse> ListServiceAccountKeys(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ListServiceAccountKeysRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::ListServiceAccountKeysRequest const& request) override;
 
   Status DoNothing(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::protobuf::Empty const& request) override;
+      Options const& options, google::protobuf::Empty const& request) override;
 
   Status ExplicitRouting1(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ExplicitRoutingRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::ExplicitRoutingRequest const& request) override;
 
   Status ExplicitRouting2(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ExplicitRoutingRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::ExplicitRoutingRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::rest_internal::RestContext& rest_context,
+      Options const& options, google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::iam::v1::Policy> GetIamPolicy(
+      google::cloud::rest_internal::RestContext& rest_context,
+      Options const& options, google::iam::v1::GetIamPolicyRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      google::cloud::rest_internal::RestContext& rest_context,
+      Options const& options, google::longrunning::ListOperationsRequest const& request) override;
 
  private:
   void SetMetadata(rest_internal::RestContext& rest_context,
+                   Options const& options,
                    std::vector<std::string> const& params = {});
 
   std::shared_ptr<GoldenKitchenSinkRestStub> child_;

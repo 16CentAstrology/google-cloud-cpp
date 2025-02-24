@@ -29,17 +29,21 @@
 #include <atomic>
 #include <future>
 #include <iomanip>
+#include <iostream>
+#include <iterator>
+#include <map>
+#include <mutex>
 #include <random>
 #include <sstream>
+#include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
-using ::google::cloud::storage_experimental::DefaultGrpcClient;
 using ::google::cloud::testing_util::FormatSize;
 using ::google::cloud::testing_util::Timer;
 namespace gcs = ::google::cloud::storage;
-namespace gcs_ex = ::google::cloud::storage_experimental;
 namespace gcs_bm = ::google::cloud::storage_benchmarks;
 using gcs_bm::AggregateDownloadThroughputOptions;
 using gcs_bm::FormatBandwidthGbPerSecond;
@@ -123,10 +127,7 @@ class Iteration {
 gcs::Client MakeClient(AggregateDownloadThroughputOptions const& options) {
   auto opts = options.client_options;
 #if GOOGLE_CLOUD_CPP_STORAGE_HAVE_GRPC
-  if (options.api == "GRPC") {
-    return DefaultGrpcClient(
-        std::move(opts).set<gcs_ex::GrpcPluginOption>("media"));
-  }
+  if (options.api == "GRPC") return gcs::MakeGrpcClient();
 #endif  // GOOGLE_CLOUD_CPP_STORAGE_HAVE_GRPC
   return gcs::Client(std::move(opts));
 }
@@ -266,11 +267,6 @@ DownloadDetail DownloadOneObject(
 
   std::vector<char> buffer(options.read_buffer_size);
   auto const buffer_size = static_cast<std::streamsize>(buffer.size());
-  // Using IfGenerationNotMatch(0) triggers JSON, as this feature is not
-  // supported by XML.  Using IfGenerationNotMatch() -- without a value -- has
-  // no effect.
-  auto xml_hack = options.api == "JSON" ? gcs::IfGenerationNotMatch(0)
-                                        : gcs::IfGenerationNotMatch();
   auto const object_start = clock::now();
   auto const start = std::chrono::system_clock::now();
   auto object_bytes = std::uint64_t{0};
@@ -281,15 +277,14 @@ DownloadDetail DownloadOneObject(
         0, object_size - options.read_size);
     range = gcs::ReadRange(read_start(generator), options.read_size);
   }
-  auto stream =
-      client.ReadObject(object.bucket(), object.name(),
-                        gcs::Generation(object.generation()), range, xml_hack);
+  auto stream = client.ReadObject(object.bucket(), object.name(),
+                                  gcs::Generation(object.generation()), range);
   while (stream.read(buffer.data(), buffer_size)) {
     object_bytes += stream.gcount();
   }
   stream.Close();
   // Flush the logs, if any.
-  if (!stream.status().ok()) google::cloud::LogSink::Instance().Flush();
+  if (stream.bad()) google::cloud::LogSink::Instance().Flush();
   auto const object_elapsed =
       duration_cast<microseconds>(clock::now() - object_start);
   auto p = stream.headers().find(":grpc-context-peer");
@@ -331,8 +326,8 @@ google::cloud::StatusOr<AggregateDownloadThroughputOptions> SelfTest(
     if (!value.empty()) continue;
     std::ostringstream os;
     os << "The environment variable " << var << " is not set or empty";
-    return google::cloud::Status(google::cloud::StatusCode::kUnknown,
-                                 std::move(os).str());
+    return google::cloud::internal::UnknownError(std::move(os).str(),
+                                                 GCP_ERROR_INFO());
   }
   auto bucket_name =
       GetEnv("GOOGLE_CLOUD_CPP_STORAGE_TEST_BUCKET_NAME").value();
@@ -387,8 +382,6 @@ void PrintResults(AggregateDownloadThroughputOptions const& options,
     return v;
   };
   auto const labels = clean_csv_field(options.labels);
-  auto const grpc_plugin_config =
-      clean_csv_field(options.client_options.get<gcs_ex::GrpcPluginOption>());
   auto const* client_per_thread = options.client_per_thread ? "true" : "false";
   // Print the results after each iteration. Makes it possible to interrupt
   // the benchmark in the middle and still get some data.

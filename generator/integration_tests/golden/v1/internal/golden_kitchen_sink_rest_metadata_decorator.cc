@@ -16,15 +16,15 @@
 // If you make any local changes, they will be lost.
 // source: generator/integration_tests/test.proto
 
-
 #include "generator/integration_tests/golden/v1/internal/golden_kitchen_sink_rest_metadata_decorator.h"
 #include "absl/strings/str_format.h"
-#include "google/cloud/common_options.h"
-#include "google/cloud/internal/absl_str_join_quiet.h"
+#include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/api_client_header.h"
+#include "google/cloud/internal/rest_set_metadata.h"
 #include "google/cloud/internal/routing_matcher.h"
 #include "google/cloud/status_or.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -32,62 +32,66 @@ namespace golden_v1_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 GoldenKitchenSinkRestMetadata::GoldenKitchenSinkRestMetadata(
-    std::shared_ptr<GoldenKitchenSinkRestStub> child)
+    std::shared_ptr<GoldenKitchenSinkRestStub> child,
+    std::string api_client_header)
     : child_(std::move(child)),
-      api_client_header_(google::cloud::internal::ApiClientHeader("generator")) {}
+      api_client_header_(
+          api_client_header.empty()
+              ? google::cloud::internal::GeneratedLibClientHeader()
+              : std::move(api_client_header)) {}
 
 StatusOr<google::test::admin::database::v1::GenerateAccessTokenResponse>
 GoldenKitchenSinkRestMetadata::GenerateAccessToken(
     rest_internal::RestContext& rest_context,
-    google::test::admin::database::v1::GenerateAccessTokenRequest const& request) {
-  SetMetadata(rest_context);
-  return child_->GenerateAccessToken(rest_context, request);
+    Options const& options, google::test::admin::database::v1::GenerateAccessTokenRequest const& request) {
+  SetMetadata(rest_context, options);
+  return child_->GenerateAccessToken(rest_context, options, request);
 }
 
 StatusOr<google::test::admin::database::v1::GenerateIdTokenResponse>
 GoldenKitchenSinkRestMetadata::GenerateIdToken(
     rest_internal::RestContext& rest_context,
-    google::test::admin::database::v1::GenerateIdTokenRequest const& request) {
-  SetMetadata(rest_context);
-  return child_->GenerateIdToken(rest_context, request);
+    Options const& options, google::test::admin::database::v1::GenerateIdTokenRequest const& request) {
+  SetMetadata(rest_context, options);
+  return child_->GenerateIdToken(rest_context, options, request);
 }
 
 StatusOr<google::test::admin::database::v1::WriteLogEntriesResponse>
 GoldenKitchenSinkRestMetadata::WriteLogEntries(
     rest_internal::RestContext& rest_context,
-    google::test::admin::database::v1::WriteLogEntriesRequest const& request) {
-  SetMetadata(rest_context);
-  return child_->WriteLogEntries(rest_context, request);
+    Options const& options, google::test::admin::database::v1::WriteLogEntriesRequest const& request) {
+  SetMetadata(rest_context, options);
+  return child_->WriteLogEntries(rest_context, options, request);
 }
 
 StatusOr<google::test::admin::database::v1::ListLogsResponse>
 GoldenKitchenSinkRestMetadata::ListLogs(
     rest_internal::RestContext& rest_context,
-    google::test::admin::database::v1::ListLogsRequest const& request) {
-  SetMetadata(rest_context);
-  return child_->ListLogs(rest_context, request);
+    Options const& options, google::test::admin::database::v1::ListLogsRequest const& request) {
+  SetMetadata(rest_context, options);
+  return child_->ListLogs(rest_context, options, request);
 }
 
 StatusOr<google::test::admin::database::v1::ListServiceAccountKeysResponse>
 GoldenKitchenSinkRestMetadata::ListServiceAccountKeys(
     rest_internal::RestContext& rest_context,
-    google::test::admin::database::v1::ListServiceAccountKeysRequest const& request) {
-  SetMetadata(rest_context);
-  return child_->ListServiceAccountKeys(rest_context, request);
+    Options const& options, google::test::admin::database::v1::ListServiceAccountKeysRequest const& request) {
+  SetMetadata(rest_context, options);
+  return child_->ListServiceAccountKeys(rest_context, options, request);
 }
 
 Status
 GoldenKitchenSinkRestMetadata::DoNothing(
     rest_internal::RestContext& rest_context,
-    google::protobuf::Empty const& request) {
-  SetMetadata(rest_context);
-  return child_->DoNothing(rest_context, request);
+    Options const& options, google::protobuf::Empty const& request) {
+  SetMetadata(rest_context, options);
+  return child_->DoNothing(rest_context, options, request);
 }
 
 Status
 GoldenKitchenSinkRestMetadata::ExplicitRouting1(
     rest_internal::RestContext& rest_context,
-    google::test::admin::database::v1::ExplicitRoutingRequest const& request) {
+    Options const& options, google::test::admin::database::v1::ExplicitRoutingRequest const& request) {
   std::vector<std::string> params;
   params.reserve(2);
 
@@ -125,58 +129,65 @@ GoldenKitchenSinkRestMetadata::ExplicitRouting1(
   }();
   routing_id_matcher->AppendParam(request, params);
 
-  SetMetadata(rest_context, params);
+  SetMetadata(rest_context, options, params);
 
-  return child_->ExplicitRouting1(rest_context, request);
+  return child_->ExplicitRouting1(rest_context, options, request);
 }
 
 Status
 GoldenKitchenSinkRestMetadata::ExplicitRouting2(
     rest_internal::RestContext& rest_context,
-    google::test::admin::database::v1::ExplicitRoutingRequest const& request) {
+    Options const& options, google::test::admin::database::v1::ExplicitRoutingRequest const& request) {
   std::vector<std::string> params;
   params.reserve(2);
 
   if (!request.app_profile_id().empty()) {
-    params.push_back("no_regex_needed=" + request.app_profile_id());
+    params.push_back(absl::StrCat("no_regex_needed=", internal::UrlEncode(request.app_profile_id())));
   } else if (!request.table_name().empty()) {
-    params.push_back("no_regex_needed=" + request.table_name());
+    params.push_back(absl::StrCat("no_regex_needed=", internal::UrlEncode(request.table_name())));
   } else if (!request.no_regex_needed().empty()) {
-    params.push_back("no_regex_needed=" + request.no_regex_needed());
+    params.push_back(absl::StrCat("no_regex_needed=", internal::UrlEncode(request.no_regex_needed())));
   }
 
   if (!request.nested1().nested2().value().empty()) {
-    params.push_back("routing_id=" + request.nested1().nested2().value());
+    params.push_back(absl::StrCat("routing_id=", internal::UrlEncode(request.nested1().nested2().value())));
   }
 
-  SetMetadata(rest_context, params);
+  SetMetadata(rest_context, options, params);
 
-  return child_->ExplicitRouting2(rest_context, request);
+  return child_->ExplicitRouting2(rest_context, options, request);
+}
+
+StatusOr<google::cloud::location::Location>
+GoldenKitchenSinkRestMetadata::GetLocation(
+    rest_internal::RestContext& rest_context,
+    Options const& options, google::cloud::location::GetLocationRequest const& request) {
+  SetMetadata(rest_context, options);
+  return child_->GetLocation(rest_context, options, request);
+}
+
+StatusOr<google::iam::v1::Policy>
+GoldenKitchenSinkRestMetadata::GetIamPolicy(
+    rest_internal::RestContext& rest_context,
+    Options const& options, google::iam::v1::GetIamPolicyRequest const& request) {
+  SetMetadata(rest_context, options);
+  return child_->GetIamPolicy(rest_context, options, request);
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+GoldenKitchenSinkRestMetadata::ListOperations(
+    rest_internal::RestContext& rest_context,
+    Options const& options, google::longrunning::ListOperationsRequest const& request) {
+  SetMetadata(rest_context, options);
+  return child_->ListOperations(rest_context, options, request);
 }
 
 void GoldenKitchenSinkRestMetadata::SetMetadata(
       rest_internal::RestContext& rest_context,
-      std::vector<std::string> const& params) {
-  rest_context.AddHeader("x-goog-api-client", api_client_header_);
-  if (!params.empty()) {
-    rest_context.AddHeader("x-goog-request-params", absl::StrJoin(params, "&"));
-  }
-  auto const& options = internal::CurrentOptions();
-  if (options.has<UserProjectOption>()) {
-    rest_context.AddHeader(
-        "x-goog-user-project", options.get<UserProjectOption>());
-  }
-  if (options.has<google::cloud::QuotaUserOption>()) {
-    rest_context.AddHeader(
-        "x-goog-quota-user", options.get<google::cloud::QuotaUserOption>());
-  }
-  if (options.has<google::cloud::ServerTimeoutOption>()) {
-    auto ms_rep = absl::StrCat(
-        absl::Dec(options.get<google::cloud::ServerTimeoutOption>().count(),
-        absl::kZeroPad4));
-    rest_context.AddHeader("x-server-timeout",
-        ms_rep.insert(ms_rep.size() - 3, "."));
-  }
+      Options const& options, std::vector<std::string> const& params) {
+  rest_context.AddHeader("x-goog-api-version", "test-api-version");
+  google::cloud::rest_internal::SetMetadata(
+      rest_context, options, params, api_client_header_);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

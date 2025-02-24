@@ -36,21 +36,54 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * instance of this class. Then use the Google Test framework functions to
  * program the behavior of this mock.
  *
- * @see [This example][bq-mock] for how to test your application with
- * GoogleTest. While the example showcases types from the BigQuery library, the
- * underlying principles apply for any pair of `*Client` and `*Connection`.
+ * @see [This example][bq-mock] for how to test your application with GoogleTest.
+ * While the example showcases types from the BigQuery library, the underlying
+ * principles apply for any pair of `*Client` and `*Connection`.
  *
- * [bq-mock]: @googleapis_dev_link{bigquery,bigquery-read-mock.html}
+ * [bq-mock]: @cloud_cpp_docs_link{bigquery,bigquery-read-mock}
  */
 class MockBigtableInstanceAdminConnection
     : public bigtable_admin::BigtableInstanceAdminConnection {
  public:
   MOCK_METHOD(Options, options, (), (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// CreateInstance(Matcher<google::bigtable::admin::v2::CreateInstanceRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<StatusOr<google::bigtable::admin::v2::Instance>>, CreateInstance,
       (google::bigtable::admin::v2::CreateInstanceRequest const& request),
       (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, CreateInstance(_, _))
+  /// @endcode
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, CreateInstance,
+      (NoAwaitTag,
+       google::bigtable::admin::v2::CreateInstanceRequest const& request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock, CreateInstance(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(future<StatusOr<google::bigtable::admin::v2::Instance>>,
+              CreateInstance, (google::longrunning::Operation const& operation),
+              (override));
 
   MOCK_METHOD(StatusOr<google::bigtable::admin::v2::Instance>, GetInstance,
               (google::bigtable::admin::v2::GetInstanceRequest const& request),
@@ -66,21 +99,87 @@ class MockBigtableInstanceAdminConnection
               (google::bigtable::admin::v2::Instance const& request),
               (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// PartialUpdateInstance(Matcher<google::bigtable::admin::v2::PartialUpdateInstanceRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(future<StatusOr<google::bigtable::admin::v2::Instance>>,
               PartialUpdateInstance,
               (google::bigtable::admin::v2::PartialUpdateInstanceRequest const&
                    request),
               (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, PartialUpdateInstance(_, _))
+  /// @endcode
+  MOCK_METHOD(StatusOr<google::longrunning::Operation>, PartialUpdateInstance,
+              (NoAwaitTag,
+               google::bigtable::admin::v2::PartialUpdateInstanceRequest const&
+                   request),
+              (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// PartialUpdateInstance(Matcher<google::longrunning::Operation const&>(_)))
+  /// @endcode
+  MOCK_METHOD(future<StatusOr<google::bigtable::admin::v2::Instance>>,
+              PartialUpdateInstance,
+              (google::longrunning::Operation const& operation), (override));
+
   MOCK_METHOD(
       Status, DeleteInstance,
       (google::bigtable::admin::v2::DeleteInstanceRequest const& request),
       (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// CreateCluster(Matcher<google::bigtable::admin::v2::CreateClusterRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<StatusOr<google::bigtable::admin::v2::Cluster>>, CreateCluster,
       (google::bigtable::admin::v2::CreateClusterRequest const& request),
       (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, CreateCluster(_, _))
+  /// @endcode
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, CreateCluster,
+      (NoAwaitTag,
+       google::bigtable::admin::v2::CreateClusterRequest const& request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock, CreateCluster(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(future<StatusOr<google::bigtable::admin::v2::Cluster>>,
+              CreateCluster, (google::longrunning::Operation const& operation),
+              (override));
 
   MOCK_METHOD(StatusOr<google::bigtable::admin::v2::Cluster>, GetCluster,
               (google::bigtable::admin::v2::GetClusterRequest const& request),
@@ -91,16 +190,79 @@ class MockBigtableInstanceAdminConnection
               (google::bigtable::admin::v2::ListClustersRequest const& request),
               (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// UpdateCluster(Matcher<google::bigtable::admin::v2::Cluster const&>(_)))
+  /// @endcode
   MOCK_METHOD(future<StatusOr<google::bigtable::admin::v2::Cluster>>,
               UpdateCluster,
               (google::bigtable::admin::v2::Cluster const& request),
               (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, UpdateCluster(_, _))
+  /// @endcode
+  MOCK_METHOD(StatusOr<google::longrunning::Operation>, UpdateCluster,
+              (NoAwaitTag, google::bigtable::admin::v2::Cluster const& request),
+              (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock, UpdateCluster(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(future<StatusOr<google::bigtable::admin::v2::Cluster>>,
+              UpdateCluster, (google::longrunning::Operation const& operation),
+              (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// PartialUpdateCluster(Matcher<google::bigtable::admin::v2::PartialUpdateClusterRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<StatusOr<google::bigtable::admin::v2::Cluster>>,
       PartialUpdateCluster,
       (google::bigtable::admin::v2::PartialUpdateClusterRequest const& request),
       (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, PartialUpdateCluster(_, _))
+  /// @endcode
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, PartialUpdateCluster,
+      (NoAwaitTag,
+       google::bigtable::admin::v2::PartialUpdateClusterRequest const& request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// PartialUpdateCluster(Matcher<google::longrunning::Operation const&>(_)))
+  /// @endcode
+  MOCK_METHOD(future<StatusOr<google::bigtable::admin::v2::Cluster>>,
+              PartialUpdateCluster,
+              (google::longrunning::Operation const& operation), (override));
 
   MOCK_METHOD(
       Status, DeleteCluster,
@@ -117,16 +279,49 @@ class MockBigtableInstanceAdminConnection
       (google::bigtable::admin::v2::GetAppProfileRequest const& request),
       (override));
 
-  MOCK_METHOD(StreamRange<google::bigtable::admin::v2::AppProfile>,
+  MOCK_METHOD((StreamRange<google::bigtable::admin::v2::AppProfile>),
               ListAppProfiles,
               (google::bigtable::admin::v2::ListAppProfilesRequest request),
               (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// UpdateAppProfile(Matcher<google::bigtable::admin::v2::UpdateAppProfileRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<StatusOr<google::bigtable::admin::v2::AppProfile>>,
       UpdateAppProfile,
       (google::bigtable::admin::v2::UpdateAppProfileRequest const& request),
       (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, UpdateAppProfile(_, _))
+  /// @endcode
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, UpdateAppProfile,
+      (NoAwaitTag,
+       google::bigtable::admin::v2::UpdateAppProfileRequest const& request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock, UpdateAppProfile(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(future<StatusOr<google::bigtable::admin::v2::AppProfile>>,
+              UpdateAppProfile,
+              (google::longrunning::Operation const& operation), (override));
 
   MOCK_METHOD(
       Status, DeleteAppProfile,
@@ -146,7 +341,7 @@ class MockBigtableInstanceAdminConnection
               (google::iam::v1::TestIamPermissionsRequest const& request),
               (override));
 
-  MOCK_METHOD(StreamRange<google::bigtable::admin::v2::HotTablet>,
+  MOCK_METHOD((StreamRange<google::bigtable::admin::v2::HotTablet>),
               ListHotTablets,
               (google::bigtable::admin::v2::ListHotTabletsRequest request),
               (override));

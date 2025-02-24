@@ -17,7 +17,9 @@
 
 #include "google/cloud/storage/benchmarks/benchmark_utils.h"
 #include "google/cloud/options.h"
+#include "absl/types/optional.h"
 #include <chrono>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -26,10 +28,8 @@ namespace cloud {
 namespace storage_benchmarks {
 
 struct ThroughputOptions {
-  std::string project_id;
+  std::string bucket;
   std::string labels;
-  std::string region;
-  std::string bucket_prefix = "gcs-grpc-team-cloud-cpp-testing-bm";
   std::chrono::seconds duration =
       std::chrono::seconds(std::chrono::minutes(15));
   int thread_count = 1;
@@ -49,9 +49,8 @@ struct ThroughputOptions {
       ExperimentLibrary::kCppClient,
   };
   std::vector<ExperimentTransport> transports = {
-      ExperimentTransport::kGrpc,  ExperimentTransport::kJson,
-      ExperimentTransport::kXml,   ExperimentTransport::kJsonV2,
-      ExperimentTransport::kXmlV2,
+      ExperimentTransport::kGrpc,
+      ExperimentTransport::kJson,
   };
   std::vector<std::string> upload_functions = {"InsertObject", "WriteObject"};
   std::vector<bool> enabled_crc32c = {false, true};

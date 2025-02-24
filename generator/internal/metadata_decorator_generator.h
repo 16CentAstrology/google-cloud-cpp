@@ -15,9 +15,9 @@
 #ifndef GOOGLE_CLOUD_CPP_GENERATOR_INTERNAL_METADATA_DECORATOR_GENERATOR_H
 #define GOOGLE_CLOUD_CPP_GENERATOR_INTERNAL_METADATA_DECORATOR_GENERATOR_H
 
-#include "google/cloud/status.h"
 #include "generator/internal/printer.h"
-#include "generator/internal/service_code_generator.h"
+#include "generator/internal/stub_generator_base.h"
+#include "google/cloud/status.h"
 #include <google/protobuf/compiler/code_generator.h>
 #include <google/protobuf/descriptor.h>
 #include <map>
@@ -32,13 +32,14 @@ namespace generator_internal {
  * Generates the header file and cc file for the Metadata decorator for a
  * particular service.
  */
-class MetadataDecoratorGenerator : public ServiceCodeGenerator {
+class MetadataDecoratorGenerator : public StubGeneratorBase {
  public:
   MetadataDecoratorGenerator(
       google::protobuf::ServiceDescriptor const* service_descriptor,
       VarsDictionary service_vars,
       std::map<std::string, VarsDictionary> service_method_vars,
-      google::protobuf::compiler::GeneratorContext* context);
+      google::protobuf::compiler::GeneratorContext* context,
+      std::vector<MixinMethod> const& mixin_methods);
 
   ~MetadataDecoratorGenerator() override = default;
 

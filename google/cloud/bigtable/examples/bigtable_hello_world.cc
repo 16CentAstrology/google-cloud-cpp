@@ -45,10 +45,16 @@ void BigtableHelloWorld(std::vector<std::string> const& argv) {
   using ::google::cloud::StatusOr;
   //! [aliases]
 
-  // Connect to the Cloud Bigtable Admin API.
   //! [connect admin] [START bigtable_hw_connect]
+  // Connect to the Cloud Bigtable Admin API.
   cbta::BigtableTableAdminClient table_admin(
       cbta::MakeBigtableTableAdminConnection());
+
+  //! [connect data]
+  // Create an object to access the Cloud Bigtable Data API.
+  cbt::Table table(cbt::MakeDataConnection(),
+                   cbt::TableResource(project_id, instance_id, table_id));
+  //! [connect data]
   //! [connect admin] [END bigtable_hw_connect]
 
   //! [create table] [START bigtable_hw_create_table]
@@ -61,13 +67,7 @@ void BigtableHelloWorld(std::vector<std::string> const& argv) {
   std::string instance_name = cbt::InstanceName(project_id, instance_id);
   StatusOr<google::bigtable::admin::v2::Table> schema =
       table_admin.CreateTable(instance_name, table_id, std::move(t));
-  //! [create table]
-
-  // Create an object to access the Cloud Bigtable Data API.
-  //! [connect data]
-  cbt::Table table(cbt::MakeDataConnection(),
-                   cbt::TableResource(project_id, instance_id, table_id));
-  //! [connect data] [END bigtable_hw_create_table]
+  //! [create table] [END bigtable_hw_create_table]
 
   // Modify (and create if necessary) a row.
   //! [write rows] [START bigtable_hw_write_rows]
@@ -102,7 +102,7 @@ void BigtableHelloWorld(std::vector<std::string> const& argv) {
   // Read a single row.
   //! [read row] [START bigtable_hw_get_with_filter]
   StatusOr<std::pair<bool, cbt::Row>> result = table.ReadRow("key-0", filter);
-  if (!result) throw std::runtime_error(result.status().message());
+  if (!result) throw std::move(result).status();
   if (!result->first) {
     std::cout << "Cannot find row 'key-0' in the table: " << table.table_name()
               << "\n";
@@ -116,9 +116,9 @@ void BigtableHelloWorld(std::vector<std::string> const& argv) {
 
   // Read all rows.
   //! [scan all] [START bigtable_hw_scan_with_filter]
-  for (StatusOr<cbt::Row> const& row : table.ReadRows(
-           cbt::RowRange::InfiniteRange(), cbt::Filter::PassAllFilter())) {
-    if (!row) throw std::runtime_error(row.status().message());
+  for (auto& row : table.ReadRows(cbt::RowRange::InfiniteRange(),
+                                  cbt::Filter::PassAllFilter())) {
+    if (!row) throw std::move(row).status();
     std::cout << row->row_key() << ":\n";
     for (cbt::Cell const& c : row->cells()) {
       std::cout << "\t" << c.family_name() << ":" << c.column_qualifier()

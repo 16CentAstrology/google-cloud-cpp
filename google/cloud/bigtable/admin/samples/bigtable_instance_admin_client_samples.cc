@@ -17,16 +17,22 @@
 // source: google/bigtable/admin/v2/bigtable_instance_admin.proto
 
 #include "google/cloud/bigtable/admin/bigtable_instance_admin_client.h"
+#include "google/cloud/bigtable/admin/bigtable_instance_admin_connection_idempotency_policy.h"
+#include "google/cloud/bigtable/admin/bigtable_instance_admin_options.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/credentials.h"
 #include "google/cloud/internal/getenv.h"
+#include "google/cloud/polling_policy.h"
 #include "google/cloud/testing_util/example_driver.h"
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
 
+// clang-format off
 // main-dox-marker: bigtable_admin::BigtableInstanceAdminClient
+// lro-marker: true
+// clang-format on
 namespace {
 
 void SetClientEndpoint(std::vector<std::string> const& argv) {
@@ -42,6 +48,115 @@ void SetClientEndpoint(std::vector<std::string> const& argv) {
       google::cloud::bigtable_admin::MakeBigtableInstanceAdminConnection(
           options));
   //! [set-client-endpoint]
+}
+
+//! [custom-idempotency-policy]
+class CustomIdempotencyPolicy
+    : public google::cloud::bigtable_admin::
+          BigtableInstanceAdminConnectionIdempotencyPolicy {
+ public:
+  ~CustomIdempotencyPolicy() override = default;
+  std::unique_ptr<google::cloud::bigtable_admin::
+                      BigtableInstanceAdminConnectionIdempotencyPolicy>
+  clone() const override {
+    return std::make_unique<CustomIdempotencyPolicy>(*this);
+  }
+  // Override inherited functions to define as needed.
+};
+//! [custom-idempotency-policy]
+
+void SetRetryPolicy(std::vector<std::string> const& argv) {
+  if (!argv.empty()) {
+    throw google::cloud::testing_util::Usage{"set-client-retry-policy"};
+  }
+  //! [set-retry-policy]
+  auto options =
+      google::cloud::Options{}
+          .set<google::cloud::bigtable_admin::
+                   BigtableInstanceAdminConnectionIdempotencyPolicyOption>(
+              CustomIdempotencyPolicy().clone())
+          .set<google::cloud::bigtable_admin::
+                   BigtableInstanceAdminRetryPolicyOption>(
+              google::cloud::bigtable_admin::
+                  BigtableInstanceAdminLimitedErrorCountRetryPolicy(3)
+                      .clone())
+          .set<google::cloud::bigtable_admin::
+                   BigtableInstanceAdminBackoffPolicyOption>(
+              google::cloud::ExponentialBackoffPolicy(
+                  /*initial_delay=*/std::chrono::milliseconds(200),
+                  /*maximum_delay=*/std::chrono::seconds(45),
+                  /*scaling=*/2.0)
+                  .clone());
+  auto connection =
+      google::cloud::bigtable_admin::MakeBigtableInstanceAdminConnection(
+          options);
+
+  // c1 and c2 share the same retry policies
+  auto c1 =
+      google::cloud::bigtable_admin::BigtableInstanceAdminClient(connection);
+  auto c2 =
+      google::cloud::bigtable_admin::BigtableInstanceAdminClient(connection);
+
+  // You can override any of the policies in a new client. This new client
+  // will share the policies from c1 (or c2) *except* for the retry policy.
+  auto c3 = google::cloud::bigtable_admin::BigtableInstanceAdminClient(
+      connection, google::cloud::Options{}
+                      .set<google::cloud::bigtable_admin::
+                               BigtableInstanceAdminRetryPolicyOption>(
+                          google::cloud::bigtable_admin::
+                              BigtableInstanceAdminLimitedTimeRetryPolicy(
+                                  std::chrono::minutes(5))
+                                  .clone()));
+
+  // You can also override the policies in a single call:
+  // c3.SomeRpc(..., google::cloud::Options{}
+  //     .set<google::cloud::bigtable_admin::BigtableInstanceAdminRetryPolicyOption>(
+  //       google::cloud::bigtable_admin::BigtableInstanceAdminLimitedErrorCountRetryPolicy(10).clone()));
+  //! [set-retry-policy]
+}
+
+void SetPollingPolicy(std::vector<std::string> const& argv) {
+  if (!argv.empty()) {
+    throw google::cloud::testing_util::Usage{"set-client-policy-policy"};
+  }
+  //! [set-polling-policy]
+
+  // The polling policy controls how the client waits for long-running
+  // operations. `GenericPollingPolicy<>` combines existing policies.
+  // In this case, keep polling until the operation completes (with success
+  // or error) or 45 minutes, whichever happens first. Initially pause for
+  // 10 seconds between polling requests, increasing the pause by a factor
+  // of 4 until it becomes 2 minutes.
+  auto options =
+      google::cloud::Options{}
+          .set<google::cloud::bigtable_admin::
+                   BigtableInstanceAdminPollingPolicyOption>(
+              google::cloud::GenericPollingPolicy<
+                  google::cloud::bigtable_admin::
+                      BigtableInstanceAdminRetryPolicyOption::Type,
+                  google::cloud::bigtable_admin::
+                      BigtableInstanceAdminBackoffPolicyOption::Type>(
+                  google::cloud::bigtable_admin::
+                      BigtableInstanceAdminLimitedTimeRetryPolicy(
+                          /*maximum_duration=*/std::chrono::minutes(45))
+                          .clone(),
+                  google::cloud::ExponentialBackoffPolicy(
+                      /*initial_delay=*/std::chrono::seconds(10),
+                      /*maximum_delay=*/std::chrono::minutes(2),
+                      /*scaling=*/4.0)
+                      .clone())
+                  .clone());
+
+  auto connection =
+      google::cloud::bigtable_admin::MakeBigtableInstanceAdminConnection(
+          options);
+
+  // c1 and c2 share the same polling policies.
+  auto c1 =
+      google::cloud::bigtable_admin::BigtableInstanceAdminClient(connection);
+  auto c2 =
+      google::cloud::bigtable_admin::BigtableInstanceAdminClient(connection);
+  //! [set-polling-policy]
 }
 
 void WithServiceAccount(std::vector<std::string> const& argv) {
@@ -76,6 +191,12 @@ void AutoRun(std::vector<std::string> const& argv) {
   std::cout << "\nRunning SetClientEndpoint() example" << std::endl;
   SetClientEndpoint({});
 
+  std::cout << "\nRunning SetRetryPolicy() example" << std::endl;
+  SetRetryPolicy({});
+
+  std::cout << "\nRunning SetPollingPolicy() example" << std::endl;
+  SetPollingPolicy({});
+
   std::cout << "\nRunning WithServiceAccount() example" << std::endl;
   WithServiceAccount({keyfile});
 }
@@ -85,6 +206,8 @@ void AutoRun(std::vector<std::string> const& argv) {
 int main(int argc, char* argv[]) {  // NOLINT(bugprone-exception-escape)
   google::cloud::testing_util::Example example({
       {"set-client-endpoint", SetClientEndpoint},
+      {"set-retry-policy", SetRetryPolicy},
+      {"set-polling-policy", SetPollingPolicy},
       {"with-service-account", WithServiceAccount},
       {"auto", AutoRun},
   });

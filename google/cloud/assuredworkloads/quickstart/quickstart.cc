@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/assuredworkloads/assured_workloads_client.h"
+//! [all]
+#include "google/cloud/assuredworkloads/v1/assured_workloads_client.h"
+#include "google/cloud/location.h"
 #include <iostream>
+#include <string>
 
 int main(int argc, char* argv[]) try {
   if (argc != 3) {
@@ -21,7 +24,7 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace assuredworkloads = ::google::cloud::assuredworkloads;
+  namespace assuredworkloads = ::google::cloud::assuredworkloads_v1;
   auto client = assuredworkloads::AssuredWorkloadsServiceClient(
       assuredworkloads::MakeAssuredWorkloadsServiceConnection());
   auto const parent =
@@ -37,3 +40,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

@@ -38,14 +38,17 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
 using ::google::cloud::MakeAccessTokenCredentials;
+using ::google::cloud::MakeApiKeyCredentials;
 using ::google::cloud::MakeGoogleDefaultCredentials;
 using ::google::cloud::MakeInsecureCredentials;
 using ::google::cloud::testing_util::IsOk;
+using ::google::cloud::testing_util::IsOkAndHolds;
 using ::google::cloud::testing_util::MakeMockHttpPayloadSuccess;
 using ::google::cloud::testing_util::MockRestClient;
 using ::google::cloud::testing_util::MockRestResponse;
 using ::google::cloud::testing_util::ScopedEnvironment;
 using ::google::cloud::testing_util::StatusIs;
+using ::testing::_;
 using ::testing::A;
 using ::testing::AtMost;
 using ::testing::ByMove;
@@ -55,6 +58,7 @@ using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::IsSupersetOf;
 using ::testing::MatcherCast;
+using ::testing::NotNull;
 using ::testing::Pair;
 using ::testing::Property;
 using ::testing::Return;
@@ -110,7 +114,7 @@ std::string TempKeyFileName() {
 }
 
 std::unique_ptr<RestResponse> MakeMockResponse(std::string contents) {
-  auto response = absl::make_unique<MockRestResponse>();
+  auto response = std::make_unique<MockRestResponse>();
   EXPECT_CALL(*response, StatusCode)
       .WillRepeatedly(Return(HttpStatusCode::kOk));
   EXPECT_CALL(std::move(*response), ExtractPayload)
@@ -151,10 +155,19 @@ ScopedEnvironment SetUpAdcFile(std::string const& filename,
 // an error. There are tests for each class that verify the success case.
 
 TEST(UnifiedRestCredentialsTest, Insecure) {
-  auto credentials = MapCredentials(MakeInsecureCredentials());
+  auto credentials = MapCredentials(*MakeInsecureCredentials());
   auto token = credentials->GetToken(std::chrono::system_clock::now());
   ASSERT_THAT(token, IsOk());
   EXPECT_THAT(token->token, IsEmpty());
+}
+
+TEST(UnifiedRestCredentialsTest, Error) {
+  Status const error_status{StatusCode::kFailedPrecondition,
+                            "Precondition failed."};
+  auto credentials =
+      MapCredentials(*internal::MakeErrorCredentials(error_status));
+  auto token = credentials->GetToken(std::chrono::system_clock::now());
+  EXPECT_THAT(token, StatusIs(error_status.code()));
 }
 
 TEST(UnifiedRestCredentialsTest, AdcIsServiceAccount) {
@@ -173,8 +186,7 @@ TEST(UnifiedRestCredentialsTest, AdcIsServiceAccount) {
 
   auto const filename = TempKeyFileName();
   auto const env = SetUpAdcFile(filename, contents.dump());
-  auto config =
-      std::make_shared<internal::GoogleDefaultCredentialsConfig>(Options{});
+  auto const config = internal::GoogleDefaultCredentialsConfig(Options{});
   auto credentials = MapCredentials(config, client_factory.AsStdFunction());
   (void)std::remove(filename.c_str());
 
@@ -198,7 +210,7 @@ TEST(UnifiedRestCredentialsTest, AdcIsAuthorizedUser) {
 
   MockClientFactory client_factory;
   EXPECT_CALL(client_factory, Call).WillOnce([token_uri]() {
-    auto client = absl::make_unique<MockRestClient>();
+    auto client = std::make_unique<MockRestClient>();
     using FormDataType = std::vector<std::pair<std::string, std::string>>;
     auto expected_request = Property(&RestRequest::path, token_uri);
     auto expected_form_data = MatcherCast<FormDataType const&>(IsSupersetOf({
@@ -207,7 +219,7 @@ TEST(UnifiedRestCredentialsTest, AdcIsAuthorizedUser) {
         Pair("client_secret", "a-123456ABCDEF"),
         Pair("refresh_token", "1/THETOKEN"),
     }));
-    EXPECT_CALL(*client, Post(expected_request, expected_form_data))
+    EXPECT_CALL(*client, Post(_, expected_request, expected_form_data))
         .WillOnce(Return(
             Status{StatusCode::kPermissionDenied, "uh-oh - user refresh"}));
     return client;
@@ -215,8 +227,7 @@ TEST(UnifiedRestCredentialsTest, AdcIsAuthorizedUser) {
 
   auto const filename = TempKeyFileName();
   auto const env = SetUpAdcFile(filename, contents.dump());
-  auto config =
-      std::make_shared<internal::GoogleDefaultCredentialsConfig>(Options{});
+  auto const config = internal::GoogleDefaultCredentialsConfig(Options{});
   auto credentials = MapCredentials(config, client_factory.AsStdFunction());
   (void)std::remove(filename.c_str());
 
@@ -234,7 +245,7 @@ TEST(UnifiedRestCredentialsTest, AdcIsComputeEngine) {
   auto const now = std::chrono::system_clock::now();
 
   auto metadata_client = []() {
-    auto client = absl::make_unique<MockRestClient>();
+    auto client = std::make_unique<MockRestClient>();
     auto expected_request = AllOf(
         Property(&RestRequest::path,
                  absl::StrCat("http://metadata.google.internal/",
@@ -242,13 +253,13 @@ TEST(UnifiedRestCredentialsTest, AdcIsComputeEngine) {
                               "default/")),
         Property(&RestRequest::headers,
                  Contains(Pair("metadata-flavor", Contains("Google")))));
-    EXPECT_CALL(*client, Get(expected_request))
+    EXPECT_CALL(*client, Get(_, expected_request))
         .WillOnce(Return(
             Status{StatusCode::kPermissionDenied, "uh-oh - GCE metadata"}));
     return client;
   }();
   auto token_client = []() {
-    auto client = absl::make_unique<MockRestClient>();
+    auto client = std::make_unique<MockRestClient>();
     auto expected_request = AllOf(
         Property(&RestRequest::path,
                  absl::StrCat("http://metadata.google.internal/",
@@ -256,7 +267,7 @@ TEST(UnifiedRestCredentialsTest, AdcIsComputeEngine) {
                               "default/", "token")),
         Property(&RestRequest::headers,
                  Contains(Pair("metadata-flavor", Contains("Google")))));
-    EXPECT_CALL(*client, Get(expected_request))
+    EXPECT_CALL(*client, Get(_, expected_request))
         .WillOnce(
             Return(Status{StatusCode::kPermissionDenied, "uh-oh - GCE token"}));
     return client;
@@ -267,8 +278,7 @@ TEST(UnifiedRestCredentialsTest, AdcIsComputeEngine) {
       .WillOnce(Return(ByMove(std::move(metadata_client))))
       .WillOnce(Return(ByMove(std::move(token_client))));
 
-  auto config =
-      std::make_shared<internal::GoogleDefaultCredentialsConfig>(Options{});
+  auto const config = internal::GoogleDefaultCredentialsConfig(Options{});
   auto credentials = MapCredentials(config, client_factory.AsStdFunction());
 
   auto access_token = credentials->GetToken(now);
@@ -282,8 +292,8 @@ TEST(UnifiedRestCredentialsTest, AdcIsExternalAccount) {
   auto const subject_token = std::string{"test-subject-token"};
   auto subject_token_client = [subject_url, subject_token] {
     auto expected_sts_request = Property(&RestRequest::path, subject_url);
-    auto mock = absl::make_unique<MockRestClient>();
-    EXPECT_CALL(*mock, Get(expected_sts_request))
+    auto mock = std::make_unique<MockRestClient>();
+    EXPECT_CALL(*mock, Get(_, expected_sts_request))
         .WillOnce(Return(ByMove(MakeMockResponse(subject_token))));
     return mock;
   }();
@@ -296,8 +306,8 @@ TEST(UnifiedRestCredentialsTest, AdcIsExternalAccount) {
     // Check only one value. There are other tests for the full contents.
     auto expected_form_data = MatcherCast<FormDataType const&>(
         Contains(Pair("subject_token", subject_token)));
-    auto mock = absl::make_unique<MockRestClient>();
-    EXPECT_CALL(*mock, Post(expected_sts_request, expected_form_data))
+    auto mock = std::make_unique<MockRestClient>();
+    EXPECT_CALL(*mock, Post(_, expected_sts_request, expected_form_data))
         .WillOnce(Return(
             Status{StatusCode::kPermissionDenied, "uh-oh - STS exchange"}));
     return mock;
@@ -326,7 +336,7 @@ TEST(UnifiedRestCredentialsTest, AdcIsExternalAccount) {
   };
   auto const filename = TempKeyFileName();
   auto const env = SetUpAdcFile(filename, json_external_account.dump());
-  auto config = std::make_shared<internal::GoogleDefaultCredentialsConfig>(
+  auto const config = internal::GoogleDefaultCredentialsConfig(
       Options{}.set<UserProjectOption>("test-user-project"));
   auto credentials = MapCredentials(config, client_factory.AsStdFunction());
   (void)std::remove(filename.c_str());
@@ -341,7 +351,7 @@ TEST(UnifiedRestCredentialsTest, AccessToken) {
   auto const now = std::chrono::system_clock::now();
   auto const expiration = now + std::chrono::seconds(1800);
   auto credentials =
-      MapCredentials(MakeAccessTokenCredentials("token1", expiration));
+      MapCredentials(*MakeAccessTokenCredentials("token1", expiration));
   auto token = credentials->GetToken(now);
   ASSERT_THAT(token, IsOk());
   EXPECT_THAT(token->token, Eq("token1"));
@@ -354,7 +364,7 @@ TEST(UnifiedRestCredentialsTest, ImpersonateServiceAccount) {
   // We will simply simulate a failure.
   MockClientFactory client_factory;
   EXPECT_CALL(client_factory, Call).WillOnce([] {
-    auto client = absl::make_unique<MockRestClient>();
+    auto client = std::make_unique<MockRestClient>();
     auto expected_request = AllOf(
         Property(&RestRequest::path,
                  absl::StrCat("https://iamcredentials.googleapis.com/v1/",
@@ -364,7 +374,7 @@ TEST(UnifiedRestCredentialsTest, ImpersonateServiceAccount) {
                  Contains(Pair("authorization",
                                Contains("Bearer base-access-token")))));
     using PayloadType = std::vector<absl::Span<char const>>;
-    EXPECT_CALL(*client, Post(expected_request, A<PayloadType const&>()))
+    EXPECT_CALL(*client, Post(_, expected_request, A<PayloadType const&>()))
         .WillOnce(Return(Status{StatusCode::kPermissionDenied,
                                 "uh-oh - cannot impersonate"}));
     return client;
@@ -373,7 +383,7 @@ TEST(UnifiedRestCredentialsTest, ImpersonateServiceAccount) {
   auto const now = std::chrono::system_clock::now();
   auto base = std::make_shared<internal::AccessTokenConfig>(
       "base-access-token", now + std::chrono::seconds(1800), Options{});
-  auto config = std::make_shared<internal::ImpersonateServiceAccountConfig>(
+  auto const config = internal::ImpersonateServiceAccountConfig(
       base, kServiceAccountEmail, Options{});
   auto credentials = MapCredentials(config, client_factory.AsStdFunction());
   auto access_token = credentials->GetToken(now);
@@ -394,8 +404,8 @@ TEST(UnifiedRestCredentialsTest, ServiceAccount) {
   MockClientFactory client_factory;
   EXPECT_CALL(client_factory, Call).Times(0);
 
-  auto config = std::make_shared<internal::ServiceAccountConfig>(
-      contents.dump(), Options{});
+  auto const config =
+      internal::ServiceAccountConfig(contents.dump(), Options{});
   auto credentials = MapCredentials(config, client_factory.AsStdFunction());
   auto access_token = credentials->GetToken(now);
   ASSERT_STATUS_OK(access_token);
@@ -409,8 +419,8 @@ TEST(UnifiedRestCredentialsTest, ExternalAccount) {
   auto const subject_token = std::string{"test-subject-token"};
   auto subject_token_client = [subject_url, subject_token] {
     auto expected_sts_request = Property(&RestRequest::path, subject_url);
-    auto mock = absl::make_unique<MockRestClient>();
-    EXPECT_CALL(*mock, Get(expected_sts_request))
+    auto mock = std::make_unique<MockRestClient>();
+    EXPECT_CALL(*mock, Get(_, expected_sts_request))
         .WillOnce(Return(ByMove(MakeMockResponse(subject_token))));
     return mock;
   }();
@@ -423,8 +433,8 @@ TEST(UnifiedRestCredentialsTest, ExternalAccount) {
     // Check only one value, there are other test for the full contents.
     auto expected_form_data = MatcherCast<FormDataType const&>(
         Contains(Pair("subject_token", subject_token)));
-    auto mock = absl::make_unique<MockRestClient>();
-    EXPECT_CALL(*mock, Post(expected_sts_request, expected_form_data))
+    auto mock = std::make_unique<MockRestClient>();
+    EXPECT_CALL(*mock, Post(_, expected_sts_request, expected_form_data))
         .WillOnce(Return(
             Status{StatusCode::kPermissionDenied, "uh-oh - STS exchange"}));
     return mock;
@@ -443,13 +453,25 @@ TEST(UnifiedRestCredentialsTest, ExternalAccount) {
       .WillOnce(Return(ByMove(std::move(subject_token_client))))
       .WillOnce(Return(ByMove(std::move(sts_client))));
 
-  auto config = std::make_shared<internal::ExternalAccountConfig>(
-      json_external_account.dump(), Options{});
+  auto const config =
+      internal::ExternalAccountConfig(json_external_account.dump(), Options{});
   auto credentials = MapCredentials(config, client_factory.AsStdFunction());
   auto const now = std::chrono::system_clock::now();
   auto access_token = credentials->GetToken(now);
   EXPECT_THAT(access_token,
               StatusIs(StatusCode::kPermissionDenied, "uh-oh - STS exchange"));
+}
+
+TEST(UnifiedRestCredentialsTest, ApiKey) {
+  auto creds = MakeApiKeyCredentials("api-key");
+  ASSERT_THAT(creds, NotNull());
+
+  auto oauth2_creds = MapCredentials(*creds);
+  ASSERT_THAT(oauth2_creds, NotNull());
+
+  auto header =
+      oauth2_creds->AuthenticationHeader(std::chrono::system_clock::now());
+  EXPECT_THAT(header, IsOkAndHolds(Pair("x-goog-api-key", "api-key")));
 }
 
 TEST(UnifiedRestCredentialsTest, LoadError) {
@@ -458,7 +480,7 @@ TEST(UnifiedRestCredentialsTest, LoadError) {
   auto const filename = TempKeyFileName();
   ScopedEnvironment env("GOOGLE_APPLICATION_CREDENTIALS", filename);
 
-  auto credentials = MapCredentials(MakeGoogleDefaultCredentials());
+  auto credentials = MapCredentials(*MakeGoogleDefaultCredentials());
   EXPECT_THAT(credentials->GetToken(std::chrono::system_clock::now()),
               Not(IsOk()));
 }
@@ -470,8 +492,8 @@ TEST(UnifiedRestCredentialsTest, LoadSuccess) {
 
   ScopedEnvironment env("GOOGLE_APPLICATION_CREDENTIALS", filename);
 
-  auto credentials = MapCredentials(MakeGoogleDefaultCredentials());
-  // Calling AuthorizationHeader() makes RPCs which would turn this into an
+  auto credentials = MapCredentials(*MakeGoogleDefaultCredentials());
+  // Calling AuthenticationHeader() makes RPCs which would turn this into an
   // integration test, fortunately there are easier ways to verify the file was
   // loaded correctly:
   EXPECT_EQ(kServiceAccountEmail, credentials->AccountEmail());

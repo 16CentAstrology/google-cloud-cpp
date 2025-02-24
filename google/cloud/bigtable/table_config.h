@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ class TableConfig {
   constexpr static TimestampGranularity TIMESTAMP_GRANULARITY_UNSPECIFIED =
       ::google::bigtable::admin::v2::Table::TIMESTAMP_GRANULARITY_UNSPECIFIED;
 
-  //@{
+  ///@{
   /// @name Accessors and modifiers for all attributes
   std::map<std::string, GcRule> const& column_families() const {
     return column_families_;
@@ -88,7 +88,7 @@ class TableConfig {
   void set_timestamp_granularity(TimestampGranularity new_value) {
     granularity_ = new_value;
   }
-  //@}
+  ///@}
 
  private:
   std::map<std::string, GcRule> column_families_;

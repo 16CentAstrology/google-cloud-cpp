@@ -21,13 +21,16 @@
 #include "google/cloud/bigtable/admin/internal/bigtable_table_admin_logging_decorator.h"
 #include "google/cloud/bigtable/admin/internal/bigtable_table_admin_metadata_decorator.h"
 #include "google/cloud/bigtable/admin/internal/bigtable_table_admin_stub.h"
+#include "google/cloud/bigtable/admin/internal/bigtable_table_admin_tracing_stub.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/algorithm.h"
+#include "google/cloud/internal/opentelemetry.h"
 #include "google/cloud/log.h"
 #include "google/cloud/options.h"
 #include <google/bigtable/admin/v2/bigtable_table_admin.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -35,9 +38,8 @@ namespace bigtable_admin_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 std::shared_ptr<BigtableTableAdminStub> CreateDefaultBigtableTableAdminStub(
-    google::cloud::CompletionQueue cq, Options const& options) {
-  auto auth = google::cloud::internal::CreateAuthenticationStrategy(
-      std::move(cq), options);
+    std::shared_ptr<internal::GrpcAuthenticationStrategy> auth,
+    Options const& options) {
   auto channel = auth->CreateChannel(options.get<EndpointOption>(),
                                      internal::MakeChannelArguments(options));
   auto service_grpc_stub =
@@ -51,12 +53,16 @@ std::shared_ptr<BigtableTableAdminStub> CreateDefaultBigtableTableAdminStub(
     stub = std::make_shared<BigtableTableAdminAuth>(std::move(auth),
                                                     std::move(stub));
   }
-  stub = std::make_shared<BigtableTableAdminMetadata>(std::move(stub));
-  if (internal::Contains(options.get<TracingComponentsOption>(), "rpc")) {
+  stub = std::make_shared<BigtableTableAdminMetadata>(
+      std::move(stub), std::multimap<std::string, std::string>{});
+  if (internal::Contains(options.get<LoggingComponentsOption>(), "rpc")) {
     GCP_LOG(INFO) << "Enabled logging for gRPC calls";
     stub = std::make_shared<BigtableTableAdminLogging>(
         std::move(stub), options.get<GrpcTracingOptionsOption>(),
-        options.get<TracingComponentsOption>());
+        options.get<LoggingComponentsOption>());
+  }
+  if (internal::TracingEnabled(options)) {
+    stub = MakeBigtableTableAdminTracingStub(std::move(stub));
   }
   return stub;
 }

@@ -18,10 +18,20 @@ set -euo pipefail
 
 source "$(dirname "$0")/../../lib/init.sh"
 source module ci/cloudbuild/builds/lib/bazel.sh
+source module ci/cloudbuild/builds/lib/cloudcxxrc.sh
 
 export CC=clang
 export CXX=clang++
 
 mapfile -t args < <(bazel::common_args)
-args+=("--//:experimental-opentelemetry=false")
-bazel test "${args[@]}" --test_tag_filters=-integration-test ...
+args+=("--//:enable_opentelemetry=false")
+# Note that we do not ignore `//:opentelemetry`, as the exporters should be
+# usable whether google-cloud-cpp is built with OpenTelemetry or not.
+ignore=(
+  # These integration tests use opentelemetry matchers out of convenience.
+  "-//google/cloud/opentelemetry/integration_tests/..."
+  # The quickstart demonstrates client tracing instrumentation, and thus it
+  # depends on google-cloud-cpp being built with OpenTelemetry.
+  "-//google/cloud/opentelemetry/quickstart/..."
+)
+bazel test "${args[@]}" --test_tag_filters=-integration-test -- "${BAZEL_TARGETS[@]}" "${ignore[@]}"

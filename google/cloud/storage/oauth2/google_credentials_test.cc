@@ -27,6 +27,7 @@
 #include "absl/strings/match.h"
 #include <gmock/gmock.h>
 #include <fstream>
+#include <string>
 
 namespace google {
 namespace cloud {
@@ -109,7 +110,7 @@ TEST_F(GoogleCredentialsTest, LoadValidAuthorizedUserCredentialsViaGcloudFile) {
       ::testing::TempDir(), kAuthorizedUserCredFilename);
   SetupAuthorizedUserCredentialsFileForTest(filename);
   // Test that the authorized user credentials are loaded as the default when
-  // stored in the the well known gcloud ADC file path.
+  // stored in the well known gcloud ADC file path.
   ScopedEnvironment gcloud_path_override_env_var(GoogleGcloudAdcFileEnvVar(),
                                                  filename.c_str());
   auto creds = GoogleDefaultCredentials();
@@ -223,7 +224,7 @@ TEST_F(GoogleCredentialsTest, LoadValidServiceAccountCredentialsViaGcloudFile) {
   SetupServiceAccountCredentialsFileForTest(filename);
 
   // Test that the service account credentials are loaded as the default when
-  // stored in the the well known gcloud ADC file path.
+  // stored in the well known gcloud ADC file path.
   ScopedEnvironment gcloud_path_override_env_var(GoogleGcloudAdcFileEnvVar(),
                                                  filename.c_str());
   auto creds = GoogleDefaultCredentials();
@@ -311,7 +312,7 @@ TEST_F(GoogleCredentialsTest,
   SetupServiceAccountCredentialsFileForTest(filename);
 
   // Test that the service account credentials are loaded as the default when
-  // stored in the the well known gcloud ADC file path.
+  // stored in the well known gcloud ADC file path.
   ScopedEnvironment gcloud_path_override_env_var(GoogleGcloudAdcFileEnvVar(),
                                                  filename.c_str());
   auto creds = CreateServiceAccountCredentialsFromDefaultPaths();
@@ -460,8 +461,8 @@ TEST_F(GoogleCredentialsTest, LoadInvalidCredentials) {
     ScopedEnvironment adc_env_var(GoogleAdcEnvVar(), filename.c_str());
 
     auto creds = GoogleDefaultCredentials();
-    EXPECT_THAT(creds, StatusIs(StatusCode::kInvalidArgument,
-                                HasSubstr("credentials file " + filename)));
+    EXPECT_THAT(creds,
+                StatusIs(StatusCode::kInvalidArgument, HasSubstr(filename)));
   }
 }
 
@@ -528,18 +529,29 @@ TEST_F(GoogleCredentialsTest, LoadP12Credentials) {
   ScopedEnvironment adc_env_var(GoogleAdcEnvVar(), filename.c_str());
 
   auto creds = GoogleDefaultCredentials();
-  if (creds.status().code() == StatusCode::kInvalidArgument &&
-      absl::StrContains(creds.status().message(), "error:0308010C")) {
-    // With OpenSSL 3.0 the PKCS#12 files may not be supported by default.
-    (void)std::remove(filename.c_str());
-    GTEST_SKIP();
+  EXPECT_EQ(0, std::remove(filename.c_str()));
+
+  if (creds.status().code() == StatusCode::kInvalidArgument) {
+    if (absl::StrContains(creds.status().message(), "error:0308010C")) {
+      // With OpenSSL 3.0 the PKCS#12 files may not be supported by default.
+      GTEST_SKIP() << "PKCS#12 support unavailable, skipping test";
+    }
+#if _WIN32
+    // On Windows, the OS may not have the necessary providers to support
+    // PKCS#12. Unfortunately the error message is not as unambiguous, so we use
+    // the function that fails instead.
+    auto const& metadata = creds.status().error_info().metadata();
+    auto const l = metadata.find("gcloud-cpp.source.function");
+    if (l != metadata.end() && l->second == "GetCertificatePrivateKey") {
+      GTEST_SKIP() << "PKCS#12 support unavailable, skipping test";
+    }
+#endif  // _WIN32
   }
   ASSERT_STATUS_OK(creds);
   auto* ptr = creds->get();
   EXPECT_EQ(typeid(*ptr), typeid(ServiceAccountCredentials<>));
   EXPECT_EQ(kP12ServiceAccountId, ptr->AccountEmail());
   EXPECT_FALSE(ptr->KeyId().empty());
-  EXPECT_EQ(0, std::remove(filename.c_str()));
 }
 
 }  // namespace

@@ -13,15 +13,17 @@
 // limitations under the License.
 
 #include "google/cloud/storage/client.h"
-#include "google/cloud/storage/internal/openssl_util.h"
+#include "google/cloud/storage/internal/base64.h"
 #include "google/cloud/storage/oauth2/google_application_default_credentials_file.h"
 #include "google/cloud/storage/oauth2/google_credentials.h"
+#include "google/cloud/storage/testing/canonical_errors.h"
 #include "google/cloud/storage/testing/client_unit_test.h"
 #include "google/cloud/storage/testing/mock_client.h"
-#include "google/cloud/storage/testing/retry_tests.h"
 #include "google/cloud/internal/format_time_point.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
+#include <string>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -33,6 +35,7 @@ using ::google::cloud::internal::CurrentOptions;
 using ::google::cloud::storage::testing::canonical_errors::TransientError;
 using ::testing::HasSubstr;
 using ::testing::Return;
+using ::testing::StartsWith;
 
 constexpr char kJsonKeyfileContents[] = R"""({
       "type": "service_account",
@@ -58,9 +61,12 @@ std::string Dec64(std::string const& s) {
   return std::string(res.begin(), res.end());
 };
 
-Client CreateClientForTest() {
-  return Client(Options{}.set<UnifiedCredentialsOption>(
-      MakeServiceAccountCredentials(kJsonKeyfileContents)));
+Client CreateClientForTest(
+    std::string endpoint = "https://storage.googleapis.com") {
+  return Client(Options{}
+                    .set<UnifiedCredentialsOption>(
+                        MakeServiceAccountCredentials(kJsonKeyfileContents))
+                    .set<RestEndpointOption>(std::move(endpoint)));
 }
 
 /**
@@ -137,34 +143,10 @@ TEST_F(CreateSignedPolicyDocRPCTest, SignRemote) {
   auto client = ClientForMock();
   auto actual = client.CreateSignedPolicyDocument(
       CreatePolicyDocumentForTest(),
+      SigningAccount("test-only-invalid@example.com"),
       Options{}.set<UserProjectOption>("u-p-test"));
   ASSERT_STATUS_OK(actual);
   EXPECT_THAT(actual->signature, expected_signed_blob);
-}
-
-/// @test Verify that CreateSignedPolicyDocument() + SignBlob() respects retry
-/// policies.
-TEST_F(CreateSignedPolicyDocRPCTest, SignPolicyTooManyFailures) {
-  testing::TooManyFailuresStatusTest<internal::SignBlobResponse>(
-      mock_, EXPECT_CALL(*mock_, SignBlob),
-      [](Client& client) {
-        return client.CreateSignedPolicyDocument(CreatePolicyDocumentForTest())
-            .status();
-      },
-      "SignBlob");
-}
-
-/// @test Verify that CreateSignedPolicyDocument() + SignBlob() respects retry
-/// policies.
-TEST_F(CreateSignedPolicyDocRPCTest, SignPolicyPermanentFailure) {
-  auto client = ClientForMock();
-  testing::PermanentFailureStatusTest<internal::SignBlobResponse>(
-      client, EXPECT_CALL(*mock_, SignBlob),
-      [](Client& client) {
-        return client.CreateSignedPolicyDocument(CreatePolicyDocumentForTest())
-            .status();
-      },
-      "SignBlob");
 }
 
 PolicyDocumentV4 CreatePolicyDocumentV4ForTest() {
@@ -277,6 +259,16 @@ TEST(CreateSignedPolicyDocTest, SignV4VirtualHostname) {
   ASSERT_STATUS_OK(actual);
 
   EXPECT_EQ("https://test-bucket.storage.googleapis.com/", actual->url);
+}
+
+TEST(CreateSignedPolicyDocTest, SignV4CustomEndpoint) {
+  auto const custom_endpoint = std::string{"https://storage.mydomain.com"};
+  auto client = CreateClientForTest(custom_endpoint);
+  auto actual =
+      client.GenerateSignedPostPolicyV4(CreatePolicyDocumentV4ForTest());
+
+  ASSERT_STATUS_OK(actual);
+  EXPECT_THAT(actual->url, StartsWith(custom_endpoint));
 }
 
 }  // namespace

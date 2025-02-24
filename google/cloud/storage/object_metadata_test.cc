@@ -17,12 +17,33 @@
 #include "google/cloud/storage/internal/object_metadata_parser.h"
 #include "google/cloud/internal/parse_rfc3339.h"
 #include <gmock/gmock.h>
+#include <sstream>
+#include <string>
+#include <utility>
 
 namespace google {
 namespace cloud {
 namespace storage {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
+
+TEST(ComposeSourceObject, IOStream) {
+  auto to_string = [](ComposeSourceObject const& r) {
+    std::ostringstream os;
+    os << r;
+    return std::move(os).str();
+  };
+  EXPECT_THAT(
+      to_string(ComposeSourceObject{"name", absl::nullopt, absl::nullopt}),
+      "ComposeSourceObject={object_name=name}");
+  EXPECT_THAT(to_string(ComposeSourceObject{"name", 42, absl::nullopt}),
+              "ComposeSourceObject={object_name=name, generation=42}");
+  EXPECT_THAT(to_string(ComposeSourceObject{"name", absl::nullopt, 42}),
+              "ComposeSourceObject={object_name=name, if_generation_match=42}");
+  EXPECT_THAT(to_string(ComposeSourceObject{"name", 7, 42}),
+              "ComposeSourceObject={object_name=name, generation=7, "
+              "if_generation_match=42}");
+}
 
 ObjectMetadata CreateObjectMetadataForTest() {
   // This metadata object has some impossible combination of fields in it. The
@@ -95,6 +116,10 @@ ObjectMetadata CreateObjectMetadataForTest() {
         "entityId": "user-qux-id-123"
       },
       "retentionExpirationTime": "2019-01-01T00:00:00Z",
+      "retention": {
+        "mode": "Unlocked",
+        "retainUntilTime": "2024-07-18T00:00:00Z"
+      },
       "selfLink": "https://storage.googleapis.com/storage/v1/b/foo-bar/o/baz",
       "size": 102400,
       "storageClass": "STANDARD",
@@ -103,7 +128,9 @@ ObjectMetadata CreateObjectMetadataForTest() {
       "timeDeleted": "2018-05-19T19:32:24Z",
       "timeStorageClassUpdated": "2018-05-19T19:31:34Z",
       "updated": "2018-05-19T19:31:24Z",
-      "customTime": "2020-08-10T12:34:56Z"
+      "customTime": "2020-08-10T12:34:56Z",
+      "softDeleteTime": "2024-03-04T12:34:56.789Z",
+      "hardDeleteTime": "2024-03-11T12:34:56.789Z"
 })""";
   return internal::ObjectMetadataParser::FromString(text).value();
 }
@@ -142,6 +169,13 @@ TEST(ObjectMetadataTest, Parse) {
   EXPECT_EQ(
       google::cloud::internal::ParseRfc3339("2019-01-01T00:00:00Z").value(),
       actual.retention_expiration_time());
+  ASSERT_TRUE(actual.has_retention());
+  EXPECT_EQ(actual.retention(),
+            (ObjectRetention{
+                ObjectRetentionUnlocked(),
+                google::cloud::internal::ParseRfc3339("2024-07-18T00:00:00Z")
+                    .value()}));
+
   EXPECT_EQ("https://storage.googleapis.com/storage/v1/b/foo-bar/o/baz",
             actual.self_link());
   EXPECT_EQ(102400, actual.size());
@@ -165,6 +199,14 @@ TEST(ObjectMetadataTest, Parse) {
   EXPECT_EQ(magic_timestamp + 10, duration_cast<std::chrono::seconds>(
                                       actual.updated().time_since_epoch())
                                       .count());
+  // Use `date -u +%s --date=2024-03-04T12:34:56Z` to get the magic number:
+  EXPECT_EQ(actual.soft_delete_time(),
+            std::chrono::system_clock::from_time_t(1709555696L) +
+                std::chrono::milliseconds(789));
+  // Use `date -u +%s --date=2024-03-11T12:34:56Z` to get the magic number:
+  EXPECT_EQ(actual.hard_delete_time(),
+            std::chrono::system_clock::from_time_t(1710160496L) +
+                std::chrono::milliseconds(789));
 }
 
 /// @test Verify that the IOStream operator works as expected.
@@ -181,9 +223,13 @@ TEST(ObjectMetadataTest, IOStream) {
   EXPECT_THAT(actual, HasSubstr("event_based_hold=true"));
   EXPECT_THAT(actual,
               HasSubstr("retention_expiration_time=2019-01-01T00:00:00Z"));
+  EXPECT_THAT(actual, HasSubstr("ObjectRetention={mode="));
   EXPECT_THAT(actual, HasSubstr("size=102400"));
   EXPECT_THAT(actual, HasSubstr("temporary_hold=true"));
   EXPECT_THAT(actual, HasSubstr("custom_time=2020-08-10T12:34:56Z"));
+
+  EXPECT_THAT(actual, HasSubstr("soft_delete_time=2024-03-04T12:34:56.789Z"));
+  EXPECT_THAT(actual, HasSubstr("hard_delete_time=2024-03-11T12:34:56.789Z"));
 }
 
 /// @test Verify that ObjectMetadataJsonForCompose works as expected.
@@ -219,6 +265,8 @@ TEST(ObjectMetadataTest, JsonForCompose) {
       {"name", "baz"},
       {"storageClass", "STANDARD"},
       {"customTime", "2020-08-10T12:34:56Z"},
+      {"retention",
+       {{"mode", "Unlocked"}, {"retainUntilTime", "2024-07-18T00:00:00Z"}}},
   };
   EXPECT_EQ(expected, actual)
       << "diff=" << nlohmann::json::diff(expected, actual);
@@ -256,6 +304,8 @@ TEST(ObjectMetadataTest, JsonForCopy) {
       {"name", "baz"},
       {"storageClass", "STANDARD"},
       {"customTime", "2020-08-10T12:34:56Z"},
+      {"retention",
+       {{"mode", "Unlocked"}, {"retainUntilTime", "2024-07-18T00:00:00Z"}}},
   };
   EXPECT_EQ(expected, actual)
       << "diff=" << nlohmann::json::diff(expected, actual);
@@ -296,6 +346,8 @@ TEST(ObjectMetadataTest, JsonForInsert) {
       {"name", "baz"},
       {"storageClass", "STANDARD"},
       {"customTime", "2020-08-10T12:34:56Z"},
+      {"retention",
+       {{"mode", "Unlocked"}, {"retainUntilTime", "2024-07-18T00:00:00Z"}}},
   };
   EXPECT_EQ(expected, actual)
       << "diff=" << nlohmann::json::diff(expected, actual);
@@ -334,6 +386,8 @@ TEST(ObjectMetadataTest, JsonForRewrite) {
       {"name", "baz"},
       {"storageClass", "STANDARD"},
       {"customTime", "2020-08-10T12:34:56Z"},
+      {"retention",
+       {{"mode", "Unlocked"}, {"retainUntilTime", "2024-07-18T00:00:00Z"}}},
   };
   EXPECT_EQ(expected, actual)
       << "diff=" << nlohmann::json::diff(expected, actual);
@@ -373,6 +427,8 @@ TEST(ObjectMetadataTest, JsonForUpdate) {
            {"baz", "qux"},
        }},
       {"customTime", "2020-08-10T12:34:56Z"},
+      {"retention",
+       {{"mode", "Unlocked"}, {"retainUntilTime", "2024-07-18T00:00:00Z"}}},
   };
   EXPECT_EQ(expected, actual)
       << "diff=" << nlohmann::json::diff(expected, actual);
@@ -519,6 +575,73 @@ TEST(ObjectMetadataTest, InsertMetadata) {
   EXPECT_FALSE(copy.has_metadata("not-there"));
   copy.upsert_metadata("not-there", "now-it-is");
   EXPECT_EQ("now-it-is", copy.metadata("not-there"));
+  EXPECT_NE(expected, copy);
+}
+
+/// @test Verify we can change the softDeleteTime field.
+TEST(ObjectMetadataTest, SetSoftDeleteTime) {
+  auto const expected = CreateObjectMetadataForTest();
+  auto copy = expected;
+  auto tp =
+      google::cloud::internal::ParseRfc3339("2020-08-11T09:00:00Z").value();
+  copy.set_soft_delete_time(tp);
+  EXPECT_TRUE(expected.has_soft_delete_time());
+  EXPECT_TRUE(copy.has_soft_delete_time());
+  EXPECT_EQ(tp, copy.soft_delete_time());
+  EXPECT_NE(expected, copy);
+}
+
+/// @test Verify we can reset the softDeleteTime field.
+TEST(ObjectMetadataTest, ResetSoftDeleteTime) {
+  auto const expected = CreateObjectMetadataForTest();
+  auto copy = expected;
+  copy.reset_soft_delete_time();
+  EXPECT_FALSE(copy.has_soft_delete_time());
+  EXPECT_NE(expected, copy);
+}
+
+/// @test Verify we can change the hardDeleteTime field.
+TEST(ObjectMetadataTest, SetHardDeleteTime) {
+  auto const expected = CreateObjectMetadataForTest();
+  auto copy = expected;
+  auto tp =
+      google::cloud::internal::ParseRfc3339("2020-08-11T09:00:00Z").value();
+  copy.set_hard_delete_time(tp);
+  EXPECT_TRUE(expected.has_hard_delete_time());
+  EXPECT_TRUE(copy.has_hard_delete_time());
+  EXPECT_EQ(tp, copy.hard_delete_time());
+  EXPECT_NE(expected, copy);
+}
+
+/// @test Verify we can reset the softDeleteTime field.
+TEST(ObjectMetadataTest, ResetHardDeleteTime) {
+  auto const expected = CreateObjectMetadataForTest();
+  auto copy = expected;
+  copy.reset_hard_delete_time();
+  EXPECT_FALSE(copy.has_hard_delete_time());
+  EXPECT_NE(expected, copy);
+}
+
+/// @test Verify we can change the `retention` field.
+TEST(ObjectMetadataTest, SetRetention) {
+  auto const expected = CreateObjectMetadataForTest();
+  auto copy = expected;
+  auto const retention = ObjectRetention{
+      ObjectRetentionUnlocked(),
+      google::cloud::internal::ParseRfc3339("2025-07-18T00:00:00Z").value()};
+  copy.set_retention(retention);
+  EXPECT_TRUE(expected.has_retention());
+  EXPECT_TRUE(copy.has_retention());
+  EXPECT_EQ(retention, copy.retention());
+  EXPECT_NE(expected, copy);
+}
+
+/// @test Verify we can reset the `retention` field.
+TEST(ObjectMetadataTest, ResetRetention) {
+  auto const expected = CreateObjectMetadataForTest();
+  auto copy = expected;
+  copy.reset_retention();
+  EXPECT_FALSE(copy.has_retention());
   EXPECT_NE(expected, copy);
 }
 
@@ -737,6 +860,30 @@ TEST(ObjectMetadataPatchBuilder, ResetCustomTime) {
   auto actual = builder.BuildPatch();
   auto actual_as_json = nlohmann::json::parse(actual);
   nlohmann::json expected{{"customTime", nullptr}};
+  EXPECT_EQ(expected, actual_as_json) << actual;
+}
+
+TEST(ObjectMetadataPatchBuilder, SetRetention) {
+  ObjectMetadataPatchBuilder builder;
+  builder.SetRetention(ObjectRetention{
+      ObjectRetentionLocked(),
+      google::cloud::internal::ParseRfc3339("2026-01-01T00:00:00Z").value()});
+
+  auto actual = builder.BuildPatch();
+  auto actual_as_json = nlohmann::json::parse(actual);
+  nlohmann::json expected{
+      {"retention",
+       {{"mode", "Locked"}, {"retainUntilTime", "2026-01-01T00:00:00Z"}}}};
+  EXPECT_EQ(expected, actual_as_json) << actual;
+}
+
+TEST(ObjectMetadataPatchBuilder, ResetRetention) {
+  ObjectMetadataPatchBuilder builder;
+  builder.ResetRetention();
+
+  auto actual = builder.BuildPatch();
+  auto actual_as_json = nlohmann::json::parse(actual);
+  nlohmann::json expected{{"retention", nullptr}};
   EXPECT_EQ(expected, actual_as_json) << actual;
 }
 

@@ -16,16 +16,19 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_STORAGE_TESTING_MOCK_CLIENT_H
 
 #include "google/cloud/storage/client.h"
-#include "google/cloud/storage/internal/raw_client.h"
+#include "google/cloud/storage/internal/storage_connection.h"
 #include <gmock/gmock.h>
+#include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
 namespace storage {
 namespace testing {
 
-class MockClient : public google::cloud::storage::internal::RawClient {
+class MockClient : public google::cloud::storage::internal::StorageConnection {
  public:
   MockClient()
       : client_options_(
@@ -77,12 +80,16 @@ class MockClient : public google::cloud::storage::internal::RawClient {
               (internal::DeleteObjectRequest const&), (override));
   MOCK_METHOD(StatusOr<storage::ObjectMetadata>, UpdateObject,
               (internal::UpdateObjectRequest const&), (override));
+  MOCK_METHOD(StatusOr<storage::ObjectMetadata>, MoveObject,
+              (internal::MoveObjectRequest const&), (override));
   MOCK_METHOD(StatusOr<storage::ObjectMetadata>, PatchObject,
               (internal::PatchObjectRequest const&), (override));
   MOCK_METHOD(StatusOr<storage::ObjectMetadata>, ComposeObject,
               (internal::ComposeObjectRequest const&), (override));
   MOCK_METHOD(StatusOr<internal::RewriteObjectResponse>, RewriteObject,
               (internal::RewriteObjectRequest const&), (override));
+  MOCK_METHOD(StatusOr<storage::ObjectMetadata>, RestoreObject,
+              (internal::RestoreObjectRequest const&), (override));
 
   MOCK_METHOD(StatusOr<internal::CreateResumableUploadResponse>,
               CreateResumableUpload, (internal::ResumableUploadRequest const&),
@@ -162,6 +169,9 @@ class MockClient : public google::cloud::storage::internal::RawClient {
       StatusOr<std::string>, AuthorizationHeader,
       (std::shared_ptr<google::cloud::storage::oauth2::Credentials> const&));
 
+  MOCK_METHOD(std::vector<std::string>, InspectStackStructure, (),
+              (const, override));
+
  private:
   ClientOptions client_options_;
 };
@@ -185,12 +195,25 @@ class MockStreambuf : public internal::ObjectWriteStreambuf {
   MOCK_METHOD(std::uint64_t, next_expected_byte, (), (const, override));
 };
 
-/// Create a client configured to use the given mock.
+/**
+ * Create a client configured to use the given mock.
+ *
+ * @deprecated Unless you specifically need to mock the behavior of retries,
+ *    prefer `UndecoratedClientFromMock()`.
+ */
 template <typename... Policies>
-Client ClientFromMock(std::shared_ptr<MockClient> const& mock,
-                      Policies&&... p) {
+Client ClientFromMock(std::shared_ptr<MockClient> mock, Policies&&... p) {
   return internal::ClientImplDetails::CreateClient(
-      mock, std::forward<Policies>(p)...);
+      std::move(mock), std::forward<Policies>(p)...);
+}
+
+/**
+ * Create a client configured to use the given mock.
+ *
+ * This client does not retry on transient errors.
+ */
+inline Client UndecoratedClientFromMock(std::shared_ptr<MockClient> mock) {
+  return internal::ClientImplDetails::CreateWithoutDecorations(std::move(mock));
 }
 
 }  // namespace testing

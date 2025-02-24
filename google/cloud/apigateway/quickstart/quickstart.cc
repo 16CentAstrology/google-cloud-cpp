@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/apigateway/api_gateway_client.h"
+//! [all]
+#include "google/cloud/apigateway/v1/api_gateway_client.h"
+#include "google/cloud/location.h"
 #include <iostream>
 
 int main(int argc, char* argv[]) try {
@@ -21,15 +23,15 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace apigateway = ::google::cloud::apigateway;
+  auto const location = google::cloud::Location(argv[1], argv[2]);
+
+  namespace apigateway = ::google::cloud::apigateway_v1;
   auto client = apigateway::ApiGatewayServiceClient(
       apigateway::MakeApiGatewayServiceConnection());
 
-  auto const parent =
-      std::string("projects/") + argv[1] + "/locations/" + argv[2];
-  for (auto r : client.ListGateways(parent)) {
-    if (!r) throw std::move(r).status();
-    std::cout << r->DebugString() << "\n";
+  for (auto g : client.ListGateways(location.FullName())) {
+    if (!g) throw std::move(g).status();
+    std::cout << g->DebugString() << "\n";
   }
 
   return 0;
@@ -37,3 +39,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

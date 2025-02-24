@@ -20,8 +20,10 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_DIALOGFLOW_CX_INTERNAL_TEST_CASES_METADATA_DECORATOR_H
 
 #include "google/cloud/dialogflow_cx/internal/test_cases_stub.h"
+#include "google/cloud/options.h"
 #include "google/cloud/version.h"
 #include <google/longrunning/operations.grpc.pb.h>
+#include <map>
 #include <memory>
 #include <string>
 
@@ -33,90 +35,139 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 class TestCasesMetadata : public TestCasesStub {
  public:
   ~TestCasesMetadata() override = default;
-  explicit TestCasesMetadata(std::shared_ptr<TestCasesStub> child);
+  TestCasesMetadata(std::shared_ptr<TestCasesStub> child,
+                    std::multimap<std::string, std::string> fixed_metadata,
+                    std::string api_client_header = "");
 
   StatusOr<google::cloud::dialogflow::cx::v3::ListTestCasesResponse>
-  ListTestCases(grpc::ClientContext& context,
+  ListTestCases(grpc::ClientContext& context, Options const& options,
                 google::cloud::dialogflow::cx::v3::ListTestCasesRequest const&
                     request) override;
 
   Status BatchDeleteTestCases(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::BatchDeleteTestCasesRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::TestCase> GetTestCase(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetTestCaseRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::TestCase> CreateTestCase(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::CreateTestCaseRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::TestCase> UpdateTestCase(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::UpdateTestCaseRequest const& request)
       override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncRunTestCase(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::dialogflow::cx::v3::RunTestCaseRequest const& request)
+      override;
+
+  StatusOr<google::longrunning::Operation> RunTestCase(
+      grpc::ClientContext& context, Options options,
       google::cloud::dialogflow::cx::v3::RunTestCaseRequest const& request)
       override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncBatchRunTestCases(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::dialogflow::cx::v3::BatchRunTestCasesRequest const&
+          request) override;
+
+  StatusOr<google::longrunning::Operation> BatchRunTestCases(
+      grpc::ClientContext& context, Options options,
       google::cloud::dialogflow::cx::v3::BatchRunTestCasesRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::CalculateCoverageResponse>
   CalculateCoverage(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::CalculateCoverageRequest const&
           request) override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncImportTestCases(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::dialogflow::cx::v3::ImportTestCasesRequest const& request)
+      override;
+
+  StatusOr<google::longrunning::Operation> ImportTestCases(
+      grpc::ClientContext& context, Options options,
       google::cloud::dialogflow::cx::v3::ImportTestCasesRequest const& request)
       override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncExportTestCases(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::dialogflow::cx::v3::ExportTestCasesRequest const& request)
+      override;
+
+  StatusOr<google::longrunning::Operation> ExportTestCases(
+      grpc::ClientContext& context, Options options,
       google::cloud::dialogflow::cx::v3::ExportTestCasesRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::ListTestCaseResultsResponse>
   ListTestCaseResults(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::ListTestCaseResultsRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::TestCaseResult> GetTestCaseResult(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetTestCaseResultRequest const&
           request) override;
 
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
+
   future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::GetOperationRequest const& request) override;
 
   future<Status> AsyncCancelOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::CancelOperationRequest const& request) override;
 
  private:
-  void SetMetadata(grpc::ClientContext& context,
+  void SetMetadata(grpc::ClientContext& context, Options const& options,
                    std::string const& request_params);
-  void SetMetadata(grpc::ClientContext& context);
+  void SetMetadata(grpc::ClientContext& context, Options const& options);
 
   std::shared_ptr<TestCasesStub> child_;
+  std::multimap<std::string, std::string> fixed_metadata_;
   std::string api_client_header_;
 };
 

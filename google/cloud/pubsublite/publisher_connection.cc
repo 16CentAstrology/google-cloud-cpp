@@ -29,7 +29,8 @@
 #include "google/cloud/common_options.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/base64_transforms.h"
-#include "absl/memory/memory.h"
+#include "google/cloud/internal/make_status.h"
+#include "google/cloud/internal/unified_grpc_credentials.h"
 #include <google/protobuf/struct.pb.h>
 #include <functional>
 
@@ -106,20 +107,22 @@ ClientMetadata MakeClientMetadata(Topic const& topic, std::uint32_t partition) {
 }
 
 StatusOr<std::unique_ptr<PublisherConnection>> MakePublisherConnection(
-    Topic topic, Options opts) {
+    std::shared_ptr<AdminServiceConnection> admin_connection, Topic topic,
+    Options opts) {
   if (!opts.has<GrpcNumChannelsOption>()) {
     // Each channel has a limit of 100 outstanding RPCs, so 20 allows up to 2000
     // partitions without reaching this limit
     opts.set<GrpcNumChannelsOption>(20);
   }
 
-  opts = google::cloud::internal::PopulateGrpcOptions(std::move(opts), "");
+  opts = google::cloud::internal::PopulateGrpcOptions(std::move(opts));
   if (!opts.has<EndpointOption>()) {
     // need to parse the location because if it's a zone we need to extract the
     // region to form the endpoint
     auto endpoint = GetEndpoint(topic.location_id());
     if (!endpoint) {
-      return Status{StatusCode::kInvalidArgument, "`topic` not valid"};
+      return internal::InvalidArgumentError("`topic` not valid",
+                                            GCP_ERROR_INFO());
     }
     opts.set<EndpointOption>(*std::move(endpoint));
   }
@@ -145,7 +148,9 @@ StatusOr<std::unique_ptr<PublisherConnection>> MakePublisherConnection(
         });
   };
 
-  auto publisher_service_stub = CreateDefaultPublisherServiceStub(cq, opts);
+  auto auth = internal::CreateAuthenticationStrategy(cq, opts);
+  auto publisher_service_stub =
+      CreateDefaultPublisherServiceStub(std::move(auth), opts);
   auto batching_options = MakeBatchingOptions(opts);
 
   auto partition_publisher_factory = [=](std::uint32_t partition) {
@@ -157,9 +162,9 @@ StatusOr<std::unique_ptr<PublisherConnection>> MakePublisherConnection(
         publisher_service_stub, cq, MakeClientMetadata(topic, partition));
     return std::make_shared<PartitionPublisher>(
         [=](StreamInitializer<PublishRequest, PublishResponse> initializer) {
-          return absl::make_unique<ResumableAsyncStreamingReadWriteRpcImpl<
+          return std::make_unique<ResumableAsyncStreamingReadWriteRpcImpl<
               PublishRequest, PublishResponse>>(
-              [] { return absl::make_unique<StreamRetryPolicy>(); },
+              [] { return std::make_unique<StreamRetryPolicy>(); },
               backoff_policy, sleeper, stream_factory, std::move(initializer));
         },
         batching_options, std::move(request), alarm_registry);
@@ -172,14 +177,21 @@ StatusOr<std::unique_ptr<PublisherConnection>> MakePublisherConnection(
   }
 
   return std::unique_ptr<PublisherConnection>(
-      absl::make_unique<ContainingPublisherConnection>(
+      std::make_unique<ContainingPublisherConnection>(
           std::move(background_threads),
-          absl::make_unique<PublisherConnectionImpl>(
-              absl::make_unique<MultipartitionPublisher>(
-                  partition_publisher_factory, MakeAdminServiceConnection(opts),
-                  alarm_registry, absl::make_unique<DefaultRoutingPolicy>(),
+          std::make_unique<PublisherConnectionImpl>(
+              std::make_unique<MultipartitionPublisher>(
+                  partition_publisher_factory, std::move(admin_connection),
+                  alarm_registry, std::make_unique<DefaultRoutingPolicy>(),
                   std::move(topic)),
               transformer)));
+}
+
+StatusOr<std::unique_ptr<google::cloud::pubsub::PublisherConnection>>
+MakePublisherConnection(Topic topic, Options opts) {
+  auto admin = MakeAdminServiceConnection(opts);
+  return MakePublisherConnection(std::move(admin), std::move(topic),
+                                 std::move(opts));
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

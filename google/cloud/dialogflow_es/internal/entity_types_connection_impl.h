@@ -76,66 +76,80 @@ class EntityTypesConnectionImpl : public dialogflow_es::EntityTypesConnection {
       google::cloud::dialogflow::v2::BatchUpdateEntityTypesRequest const&
           request) override;
 
+  StatusOr<google::longrunning::Operation> BatchUpdateEntityTypes(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::BatchUpdateEntityTypesRequest const&
+          request) override;
+
+  future<
+      StatusOr<google::cloud::dialogflow::v2::BatchUpdateEntityTypesResponse>>
+  BatchUpdateEntityTypes(
+      google::longrunning::Operation const& operation) override;
+
   future<StatusOr<google::protobuf::Struct>> BatchDeleteEntityTypes(
       google::cloud::dialogflow::v2::BatchDeleteEntityTypesRequest const&
           request) override;
+
+  StatusOr<google::longrunning::Operation> BatchDeleteEntityTypes(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::BatchDeleteEntityTypesRequest const&
+          request) override;
+
+  future<StatusOr<google::protobuf::Struct>> BatchDeleteEntityTypes(
+      google::longrunning::Operation const& operation) override;
 
   future<StatusOr<google::protobuf::Struct>> BatchCreateEntities(
       google::cloud::dialogflow::v2::BatchCreateEntitiesRequest const& request)
       override;
 
+  StatusOr<google::longrunning::Operation> BatchCreateEntities(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::BatchCreateEntitiesRequest const& request)
+      override;
+
+  future<StatusOr<google::protobuf::Struct>> BatchCreateEntities(
+      google::longrunning::Operation const& operation) override;
+
   future<StatusOr<google::protobuf::Struct>> BatchUpdateEntities(
       google::cloud::dialogflow::v2::BatchUpdateEntitiesRequest const& request)
       override;
+
+  StatusOr<google::longrunning::Operation> BatchUpdateEntities(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::BatchUpdateEntitiesRequest const& request)
+      override;
+
+  future<StatusOr<google::protobuf::Struct>> BatchUpdateEntities(
+      google::longrunning::Operation const& operation) override;
 
   future<StatusOr<google::protobuf::Struct>> BatchDeleteEntities(
       google::cloud::dialogflow::v2::BatchDeleteEntitiesRequest const& request)
       override;
 
+  StatusOr<google::longrunning::Operation> BatchDeleteEntities(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::BatchDeleteEntitiesRequest const& request)
+      override;
+
+  future<StatusOr<google::protobuf::Struct>> BatchDeleteEntities(
+      google::longrunning::Operation const& operation) override;
+
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_es::EntityTypesRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::EntityTypesRetryPolicyOption>()) {
-      return options.get<dialogflow_es::EntityTypesRetryPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_es::EntityTypesRetryPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::EntityTypesBackoffPolicyOption>()) {
-      return options.get<dialogflow_es::EntityTypesBackoffPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_es::EntityTypesBackoffPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<dialogflow_es::EntityTypesConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<
-            dialogflow_es::EntityTypesConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_es::EntityTypesConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_es::EntityTypesConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<PollingPolicy> polling_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::EntityTypesPollingPolicyOption>()) {
-      return options.get<dialogflow_es::EntityTypesPollingPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_es::EntityTypesPollingPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_es_internal::EntityTypesStub> stub_;
   Options options_;

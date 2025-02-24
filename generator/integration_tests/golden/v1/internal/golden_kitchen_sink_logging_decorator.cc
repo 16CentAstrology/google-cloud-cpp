@@ -26,6 +26,9 @@
 #include "google/cloud/status_or.h"
 #include <generator/integration_tests/test.grpc.pb.h>
 #include <memory>
+#include <set>
+#include <string>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -35,116 +38,148 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 GoldenKitchenSinkLogging::GoldenKitchenSinkLogging(
     std::shared_ptr<GoldenKitchenSinkStub> child,
     TracingOptions tracing_options,
-    std::set<std::string> components)
-    : child_(std::move(child)), tracing_options_(std::move(tracing_options)),
-      components_(std::move(components)) {}
+    std::set<std::string> const& components)
+    : child_(std::move(child)),
+      tracing_options_(std::move(tracing_options)),
+      stream_logging_(components.find("rpc-streams") != components.end()) {}
 
 StatusOr<google::test::admin::database::v1::GenerateAccessTokenResponse>
 GoldenKitchenSinkLogging::GenerateAccessToken(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::GenerateAccessTokenRequest const& request) {
   return google::cloud::internal::LogWrapper(
       [this](grpc::ClientContext& context,
+             Options const& options,
              google::test::admin::database::v1::GenerateAccessTokenRequest const& request) {
-        return child_->GenerateAccessToken(context, request);
+        return child_->GenerateAccessToken(context, options, request);
       },
-      context, request, __func__, tracing_options_);
+      context, options, request, __func__, tracing_options_);
 }
 
 StatusOr<google::test::admin::database::v1::GenerateIdTokenResponse>
 GoldenKitchenSinkLogging::GenerateIdToken(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::GenerateIdTokenRequest const& request) {
   return google::cloud::internal::LogWrapper(
       [this](grpc::ClientContext& context,
+             Options const& options,
              google::test::admin::database::v1::GenerateIdTokenRequest const& request) {
-        return child_->GenerateIdToken(context, request);
+        return child_->GenerateIdToken(context, options, request);
       },
-      context, request, __func__, tracing_options_);
+      context, options, request, __func__, tracing_options_);
 }
 
 StatusOr<google::test::admin::database::v1::WriteLogEntriesResponse>
 GoldenKitchenSinkLogging::WriteLogEntries(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::WriteLogEntriesRequest const& request) {
   return google::cloud::internal::LogWrapper(
       [this](grpc::ClientContext& context,
+             Options const& options,
              google::test::admin::database::v1::WriteLogEntriesRequest const& request) {
-        return child_->WriteLogEntries(context, request);
+        return child_->WriteLogEntries(context, options, request);
       },
-      context, request, __func__, tracing_options_);
+      context, options, request, __func__, tracing_options_);
 }
 
 StatusOr<google::test::admin::database::v1::ListLogsResponse>
 GoldenKitchenSinkLogging::ListLogs(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::ListLogsRequest const& request) {
   return google::cloud::internal::LogWrapper(
       [this](grpc::ClientContext& context,
+             Options const& options,
              google::test::admin::database::v1::ListLogsRequest const& request) {
-        return child_->ListLogs(context, request);
+        return child_->ListLogs(context, options, request);
       },
-      context, request, __func__, tracing_options_);
+      context, options, request, __func__, tracing_options_);
 }
 
 StatusOr<google::test::admin::database::v1::ListServiceAccountKeysResponse>
 GoldenKitchenSinkLogging::ListServiceAccountKeys(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::ListServiceAccountKeysRequest const& request) {
   return google::cloud::internal::LogWrapper(
       [this](grpc::ClientContext& context,
+             Options const& options,
              google::test::admin::database::v1::ListServiceAccountKeysRequest const& request) {
-        return child_->ListServiceAccountKeys(context, request);
+        return child_->ListServiceAccountKeys(context, options, request);
       },
-      context, request, __func__, tracing_options_);
+      context, options, request, __func__, tracing_options_);
 }
 
 Status
 GoldenKitchenSinkLogging::DoNothing(
     grpc::ClientContext& context,
+    Options const& options,
     google::protobuf::Empty const& request) {
   return google::cloud::internal::LogWrapper(
       [this](grpc::ClientContext& context,
+             Options const& options,
              google::protobuf::Empty const& request) {
-        return child_->DoNothing(context, request);
+        return child_->DoNothing(context, options, request);
       },
-      context, request, __func__, tracing_options_);
+      context, options, request, __func__, tracing_options_);
 }
 
-std::unique_ptr<google::cloud::internal::StreamingReadRpc<google::test::admin::database::v1::Response>>
+Status
+GoldenKitchenSinkLogging::Deprecated2(
+    grpc::ClientContext& context,
+    Options const& options,
+    google::test::admin::database::v1::GenerateAccessTokenRequest const& request) {
+  return google::cloud::internal::LogWrapper(
+      [this](grpc::ClientContext& context,
+             Options const& options,
+             google::test::admin::database::v1::GenerateAccessTokenRequest const& request) {
+        return child_->Deprecated2(context, options, request);
+      },
+      context, options, request, __func__, tracing_options_);
+}
+
+std::unique_ptr<google::cloud::internal::StreamingReadRpc<
+    google::test::admin::database::v1::Response>>
 GoldenKitchenSinkLogging::StreamingRead(
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    Options const& options,
     google::test::admin::database::v1::Request const& request) {
   return google::cloud::internal::LogWrapper(
-      [this](std::unique_ptr<grpc::ClientContext> context,
-             google::test::admin::database::v1::Request const& request) ->
-      std::unique_ptr<google::cloud::internal::StreamingReadRpc<
-          google::test::admin::database::v1::Response>> {
-        auto stream = child_->StreamingRead(std::move(context), request);
-        if (components_.count("rpc-streams") > 0) {
-          stream = absl::make_unique<google::cloud::internal::StreamingReadRpcLogging<
-             google::test::admin::database::v1::Response>>(
-               std::move(stream), tracing_options_,
-               google::cloud::internal::RequestIdForLogging());
+      [this](std::shared_ptr<grpc::ClientContext> context,
+             Options const& options,
+             google::test::admin::database::v1::Request const& request)
+          -> std::unique_ptr<google::cloud::internal::StreamingReadRpc<
+              google::test::admin::database::v1::Response>> {
+        auto stream = child_->StreamingRead(std::move(context), options, request);
+        if (stream_logging_) {
+          stream =
+              std::make_unique<google::cloud::internal::StreamingReadRpcLogging<
+                  google::test::admin::database::v1::Response>>(
+                  std::move(stream), tracing_options_,
+                  google::cloud::internal::RequestIdForLogging());
         }
         return stream;
       },
-      std::move(context), request, __func__, tracing_options_);
+      std::move(context), options, request, __func__, tracing_options_);
 }
 
 std::unique_ptr<::google::cloud::internal::StreamingWriteRpc<
     google::test::admin::database::v1::Request,
     google::test::admin::database::v1::Response>>
 GoldenKitchenSinkLogging::StreamingWrite(
-    std::unique_ptr<grpc::ClientContext> context) {
+    std::shared_ptr<grpc::ClientContext> context,
+    Options const& options) {
   using LoggingStream = ::google::cloud::internal::StreamingWriteRpcLogging<
       google::test::admin::database::v1::Request, google::test::admin::database::v1::Response>;
 
   auto request_id = google::cloud::internal::RequestIdForLogging();
   GCP_LOG(DEBUG) << __func__ << "(" << request_id << ")";
-  auto stream = child_->StreamingWrite(std::move(context));
-  if (components_.count("rpc-streams") > 0) {
-    stream = absl::make_unique<LoggingStream>(
+  auto stream = child_->StreamingWrite(std::move(context), options);
+  if (stream_logging_) {
+    stream = std::make_unique<LoggingStream>(
         std::move(stream), tracing_options_, std::move(request_id));
   }
   return stream;
@@ -155,15 +190,17 @@ std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
     google::test::admin::database::v1::Response>>
 GoldenKitchenSinkLogging::AsyncStreamingReadWrite(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context) {
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options) {
   using LoggingStream =
      ::google::cloud::internal::AsyncStreamingReadWriteRpcLogging<google::test::admin::database::v1::Request, google::test::admin::database::v1::Response>;
 
   auto request_id = google::cloud::internal::RequestIdForLogging();
   GCP_LOG(DEBUG) << __func__ << "(" << request_id << ")";
-  auto stream = child_->AsyncStreamingReadWrite(cq, std::move(context));
-  if (components_.count("rpc-streams") > 0) {
-    stream = absl::make_unique<LoggingStream>(
+  auto stream = child_->AsyncStreamingReadWrite(
+      cq, std::move(context), std::move(options));
+  if (stream_logging_) {
+    stream = std::make_unique<LoggingStream>(
         std::move(stream), tracing_options_, std::move(request_id));
   }
   return stream;
@@ -172,41 +209,91 @@ GoldenKitchenSinkLogging::AsyncStreamingReadWrite(
 Status
 GoldenKitchenSinkLogging::ExplicitRouting1(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::ExplicitRoutingRequest const& request) {
   return google::cloud::internal::LogWrapper(
       [this](grpc::ClientContext& context,
+             Options const& options,
              google::test::admin::database::v1::ExplicitRoutingRequest const& request) {
-        return child_->ExplicitRouting1(context, request);
+        return child_->ExplicitRouting1(context, options, request);
       },
-      context, request, __func__, tracing_options_);
+      context, options, request, __func__, tracing_options_);
 }
 
 Status
 GoldenKitchenSinkLogging::ExplicitRouting2(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::ExplicitRoutingRequest const& request) {
   return google::cloud::internal::LogWrapper(
       [this](grpc::ClientContext& context,
+             Options const& options,
              google::test::admin::database::v1::ExplicitRoutingRequest const& request) {
-        return child_->ExplicitRouting2(context, request);
+        return child_->ExplicitRouting2(context, options, request);
       },
-      context, request, __func__, tracing_options_);
+      context, options, request, __func__, tracing_options_);
+}
+
+StatusOr<google::cloud::location::Location>
+GoldenKitchenSinkLogging::GetLocation(
+    grpc::ClientContext& context,
+    Options const& options,
+    google::cloud::location::GetLocationRequest const& request) {
+  return google::cloud::internal::LogWrapper(
+      [this](grpc::ClientContext& context,
+             Options const& options,
+             google::cloud::location::GetLocationRequest const& request) {
+        return child_->GetLocation(context, options, request);
+      },
+      context, options, request, __func__, tracing_options_);
+}
+
+StatusOr<google::iam::v1::Policy>
+GoldenKitchenSinkLogging::GetIamPolicy(
+    grpc::ClientContext& context,
+    Options const& options,
+    google::iam::v1::GetIamPolicyRequest const& request) {
+  return google::cloud::internal::LogWrapper(
+      [this](grpc::ClientContext& context,
+             Options const& options,
+             google::iam::v1::GetIamPolicyRequest const& request) {
+        return child_->GetIamPolicy(context, options, request);
+      },
+      context, options, request, __func__, tracing_options_);
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+GoldenKitchenSinkLogging::ListOperations(
+    grpc::ClientContext& context,
+    Options const& options,
+    google::longrunning::ListOperationsRequest const& request) {
+  return google::cloud::internal::LogWrapper(
+      [this](grpc::ClientContext& context,
+             Options const& options,
+             google::longrunning::ListOperationsRequest const& request) {
+        return child_->ListOperations(context, options, request);
+      },
+      context, options, request, __func__, tracing_options_);
 }
 
 std::unique_ptr<::google::cloud::internal::AsyncStreamingReadRpc<
     google::test::admin::database::v1::Response>>
 GoldenKitchenSinkLogging::AsyncStreamingRead(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::test::admin::database::v1::Request const& request) {
   using LoggingStream =
      ::google::cloud::internal::AsyncStreamingReadRpcLogging<google::test::admin::database::v1::Response>;
 
   auto request_id = google::cloud::internal::RequestIdForLogging();
-  GCP_LOG(DEBUG) << __func__ << "(" << request_id << ")";
-  auto stream = child_->AsyncStreamingRead(cq, std::move(context), request);
-  if (components_.count("rpc-streams") > 0) {
-    stream = absl::make_unique<LoggingStream>(
+  google::cloud::internal::LogRequest(
+      __func__, request_id,
+      google::cloud::internal::DebugString(request, tracing_options_));
+  auto stream = child_->AsyncStreamingRead(
+      cq, std::move(context), std::move(options), request);
+  if (stream_logging_) {
+    stream = std::make_unique<LoggingStream>(
         std::move(stream), tracing_options_, std::move(request_id));
   }
   return stream;
@@ -216,15 +303,17 @@ std::unique_ptr<::google::cloud::internal::AsyncStreamingWriteRpc<
     google::test::admin::database::v1::Request, google::test::admin::database::v1::Response>>
 GoldenKitchenSinkLogging::AsyncStreamingWrite(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context) {
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options) {
   using LoggingStream = ::google::cloud::internal::AsyncStreamingWriteRpcLogging<
       google::test::admin::database::v1::Request, google::test::admin::database::v1::Response>;
 
   auto request_id = google::cloud::internal::RequestIdForLogging();
   GCP_LOG(DEBUG) << __func__ << "(" << request_id << ")";
-  auto stream = child_->AsyncStreamingWrite(cq, std::move(context));
-  if (components_.count("rpc-streams") > 0) {
-    stream = absl::make_unique<LoggingStream>(
+  auto stream = child_->AsyncStreamingWrite(
+      cq, std::move(context), std::move(options));
+  if (stream_logging_) {
+    stream = std::make_unique<LoggingStream>(
         std::move(stream), tracing_options_, std::move(request_id));
   }
   return stream;

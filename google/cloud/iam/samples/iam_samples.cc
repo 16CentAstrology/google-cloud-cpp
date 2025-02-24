@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/iam/iam_client.h"
+#include "google/cloud/iam/admin/v1/iam_client.h"
 #include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/getenv.h"
 #include "google/cloud/internal/random.h"
@@ -30,10 +30,9 @@ namespace {
 
 void ExampleStatusOr(std::vector<std::string> const& argv) {
   //! [example-status-or]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& project_id) {
     iam::IAMClient client(iam::MakeIAMConnection());
-    int count = 0;
     // The actual type of `service_account` is
     // google::cloud::StatusOr<google::iam::admin::v1::ServiceAccount>, but
     // we expect it'll most often be declared with auto like this.
@@ -49,7 +48,6 @@ void ExampleStatusOr(std::vector<std::string> const& argv) {
       }
       std::cout << "ServiceAccount successfully retrieved: " << sa->name()
                 << "\n";
-      ++count;
     }
   }
   //! [example-status-or]
@@ -62,13 +60,12 @@ void ListServiceAccounts(std::vector<std::string> const& argv) {
         "list-service-accounts <project-id>");
   }
   //! [START iam_list_service_accounts] [iam-list-service-accounts]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& project_id) {
     iam::IAMClient client(iam::MakeIAMConnection());
     int count = 0;
-    for (auto const& sa :
-         client.ListServiceAccounts("projects/" + project_id)) {
-      if (!sa) throw std::runtime_error(sa.status().message());
+    for (auto& sa : client.ListServiceAccounts("projects/" + project_id)) {
+      if (!sa) throw std::move(sa).status();
       std::cout << "ServiceAccount successfully retrieved: " << sa->name()
                 << "\n";
       ++count;
@@ -88,11 +85,11 @@ void GetServiceAccount(std::vector<std::string> const& argv) {
         "get-service-account <service-account-name>");
   }
   //! [START iam_get_service_account] [iam-get-service-account]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& name) {
     iam::IAMClient client(iam::MakeIAMConnection());
     auto response = client.GetServiceAccount(name);
-    if (!response) throw std::runtime_error(response.status().message());
+    if (!response) throw std::move(response).status();
     std::cout << "ServiceAccount successfully retrieved: "
               << response->DebugString() << "\n";
   }
@@ -107,7 +104,7 @@ void CreateServiceAccount(std::vector<std::string> const& argv) {
         "<description>");
   }
   //! [START iam_create_service_account] [iam-create-service-account]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& project_id, std::string const& account_id,
      std::string const& display_name, std::string const& description) {
     iam::IAMClient client(iam::MakeIAMConnection());
@@ -116,7 +113,7 @@ void CreateServiceAccount(std::vector<std::string> const& argv) {
     service_account.set_description(description);
     auto response = client.CreateServiceAccount("projects/" + project_id,
                                                 account_id, service_account);
-    if (!response) throw std::runtime_error(response.status().message());
+    if (!response) throw std::move(response).status();
     std::cout << "ServiceAccount successfully created: "
               << response->DebugString() << "\n";
   }
@@ -130,7 +127,7 @@ void DeleteServiceAccount(std::vector<std::string> const& argv) {
         "delete-service-account <service-account-name>");
   }
   //! [START iam_delete_service_account] [iam-delete-service-account]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& name) {
     iam::IAMClient client(iam::MakeIAMConnection());
     auto response = client.DeleteServiceAccount(name);
@@ -148,7 +145,7 @@ void ListServiceAccountKeys(std::vector<std::string> const& argv) {
         "[<key-type>]*");
   }
   //! [START iam_list_keys] [iam-list-service-account-keys]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& service_account_name,
      std::vector<std::string> const& key_type_labels) {
     iam::IAMClient client(iam::MakeIAMConnection());
@@ -165,7 +162,7 @@ void ListServiceAccountKeys(std::vector<std::string> const& argv) {
     }
     auto response =
         client.ListServiceAccountKeys(service_account_name, key_types);
-    if (!response) throw std::runtime_error(response.status().message());
+    if (!response) throw std::move(response).status();
     std::cout << "ServiceAccountKeys successfully retrieved: "
               << response->DebugString() << "\n";
   }
@@ -179,13 +176,13 @@ void GetServiceAccountKey(std::vector<std::string> const& argv) {
         "get-service-account-key <service-account-key-name>");
   }
   //! [START iam_get_service_account_key] [iam-get-service-account-key]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& key_name) {
     iam::IAMClient client(iam::MakeIAMConnection());
     auto response = client.GetServiceAccountKey(
         key_name, google::iam::admin::v1::ServiceAccountPublicKeyType::
                       TYPE_X509_PEM_FILE);
-    if (!response) throw std::runtime_error(response.status().message());
+    if (!response) throw std::move(response).status();
     std::cout << "ServiceAccountKey successfully retrieved: "
               << response->DebugString() << "\n";
   }
@@ -199,7 +196,7 @@ std::string CreateServiceAccountKey(std::vector<std::string> const& argv) {
         "create-service-account-key <service-account-name>");
   }
   //! [START iam_create_key] [iam-create-service-account-key]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   return [](std::string const& name) {
     iam::IAMClient client(iam::MakeIAMConnection());
     auto response = client.CreateServiceAccountKey(
@@ -207,7 +204,7 @@ std::string CreateServiceAccountKey(std::vector<std::string> const& argv) {
         google::iam::admin::v1::ServiceAccountPrivateKeyType::
             TYPE_GOOGLE_CREDENTIALS_FILE,
         google::iam::admin::v1::ServiceAccountKeyAlgorithm::KEY_ALG_RSA_2048);
-    if (!response) throw std::runtime_error(response.status().message());
+    if (!response) throw std::move(response).status();
     std::cout << "ServiceAccountKey successfully created: "
               << response->DebugString() << "\n"
               << "Please save the key in a secure location, as they cannot "
@@ -224,7 +221,7 @@ void DeleteServiceAccountKey(std::vector<std::string> const& argv) {
         "delete-service-account-key <service-account-key-name>");
   }
   //! [START iam_delete_key] [iam-delete-service-account-key]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& name) {
     iam::IAMClient client(iam::MakeIAMConnection());
     auto response = client.DeleteServiceAccountKey(name);
@@ -240,11 +237,11 @@ void GetIamPolicy(std::vector<std::string> const& argv) {
     throw google::cloud::testing_util::Usage("get-iam-policy <resource-name>");
   }
   //! [START iam_get_policy] [iam-get-iam-policy]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& name) {
     iam::IAMClient client(iam::MakeIAMConnection());
     auto response = client.GetIamPolicy(name);
-    if (!response) throw std::runtime_error(response.status().message());
+    if (!response) throw std::move(response).status();
     std::cout << "Policy successfully retrieved: " << response->DebugString()
               << "\n";
   }
@@ -257,7 +254,7 @@ void SetIamPolicy(std::vector<std::string> const& argv) {
     throw google::cloud::testing_util::Usage("set-iam-policy <resource-name>");
   }
   //! [START iam_set_policy] [iam-set-iam-policy]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& name) {
     iam::IAMClient client(iam::MakeIAMConnection());
     auto response =
@@ -265,7 +262,7 @@ void SetIamPolicy(std::vector<std::string> const& argv) {
           // change the policy, e.g., add/remove/edit a binding
           return policy;
         });
-    if (!response) throw std::runtime_error(response.status().message());
+    if (!response) throw std::move(response).status();
     std::cout << "Policy successfully set: " << response->DebugString() << "\n";
   }
   //! [END iam_set_policy] [iam-set-iam-policy]
@@ -278,11 +275,11 @@ void TestIamPermissions(std::vector<std::string> const& argv) {
         "test-iam-permissions <resource-name> <permission> [<permission>]*");
   }
   //! [START iam_test_permissions] [iam-test-iam-permissions]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& name, std::vector<std::string> const& permissions) {
     iam::IAMClient client(iam::MakeIAMConnection());
     auto response = client.TestIamPermissions(name, permissions);
-    if (!response) throw std::runtime_error(response.status().message());
+    if (!response) throw std::move(response).status();
     std::cout << "Permissions successfully tested: " << response->DebugString()
               << "\n";
   }
@@ -296,12 +293,12 @@ void QueryGrantableRoles(std::vector<std::string> const& argv) {
         "query-grantable-roles <resource-name>");
   }
   //! [START iam_view_grantable_roles] [iam-query-grantable-roles]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& resource) {
     iam::IAMClient client(iam::MakeIAMConnection());
     int count = 0;
-    for (auto const& role : client.QueryGrantableRoles(resource)) {
-      if (!role) throw std::runtime_error(role.status().message());
+    for (auto& role : client.QueryGrantableRoles(resource)) {
+      if (!role) throw std::move(role).status();
       std::cout << "Role successfully retrieved: " << role->name() << "\n";
       ++count;
     }
@@ -319,7 +316,7 @@ void CreateRole(std::vector<std::string> const& argv) {
         "create-role <parent project> <role_id> <permission> [<permission>]*");
   }
   //! [START iam_create_role] [iam-create-role]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& parent, std::string const& role_id,
      std::vector<std::string> const& included_permissions) {
     iam::IAMClient client(iam::MakeIAMConnection());
@@ -333,7 +330,7 @@ void CreateRole(std::vector<std::string> const& argv) {
     }
     *request.mutable_role() = role;
     auto response = client.CreateRole(request);
-    if (!response) throw std::runtime_error(response.status().message());
+    if (!response) throw std::move(response).status();
     std::cout << "Role successfully created: " << response->DebugString()
               << "\n";
   }
@@ -346,13 +343,13 @@ void DeleteRole(std::vector<std::string> const& argv) {
     throw google::cloud::testing_util::Usage("delete-role <role-name>");
   }
   //! [START iam_delete_role] [iam-delete-role]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& name) {
     iam::IAMClient client(iam::MakeIAMConnection());
     google::iam::admin::v1::DeleteRoleRequest request;
     request.set_name(name);
     auto response = client.DeleteRole(request);
-    if (!response) throw std::runtime_error(response.status().message());
+    if (!response) throw std::move(response).status();
     std::cout << "Role successfully deleted: " << response->DebugString()
               << "\n";
   }
@@ -366,7 +363,7 @@ void DisableServiceAccount(std::vector<std::string> const& argv) {
         "disable-service-account <service-account-name>");
   }
   //! [START iam_disable_service_account] [iam-disable-service-account]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& name) {
     iam::IAMClient client(iam::MakeIAMConnection());
     google::iam::admin::v1::DisableServiceAccountRequest request;
@@ -385,7 +382,7 @@ void EnableServiceAccount(std::vector<std::string> const& argv) {
         "enable-service-account <service-account-name>");
   }
   //! [START iam_enable_service_account] [iam-enable-service-account]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& name) {
     iam::IAMClient client(iam::MakeIAMConnection());
     google::iam::admin::v1::EnableServiceAccountRequest request;
@@ -404,7 +401,7 @@ void UpdateRole(std::vector<std::string> const& argv) {
         "update-role <role-name> <new-title>");
   }
   //! [START iam_edit_role] [iam-update-role]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& name, std::string const& title) {
     iam::IAMClient client(iam::MakeIAMConnection());
     google::iam::admin::v1::UpdateRoleRequest request;
@@ -416,7 +413,7 @@ void UpdateRole(std::vector<std::string> const& argv) {
     *request.mutable_role() = role;
     *request.mutable_update_mask() = update_mask;
     auto response = client.UpdateRole(request);
-    if (!response) throw std::runtime_error(response.status().message());
+    if (!response) throw std::move(response).status();
     std::cout << "Role successfully updated: " << response->DebugString()
               << "\n";
   }
@@ -429,13 +426,13 @@ void GetRole(std::vector<std::string> const& argv) {
     throw google::cloud::testing_util::Usage("get-role <role-name>");
   }
   //! [START iam_get_role] [iam-get-role]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& name) {
     iam::IAMClient client(iam::MakeIAMConnection());
     google::iam::admin::v1::GetRoleRequest request;
     request.set_name(name);
     auto response = client.GetRole(request);
-    if (!response) throw std::runtime_error(response.status().message());
+    if (!response) throw std::move(response).status();
     std::cout << "Role successfully retrieved: " << response->DebugString()
               << "\n";
   }
@@ -448,14 +445,14 @@ void ListRoles(std::vector<std::string> const& argv) {
     throw google::cloud::testing_util::Usage("list-roles <parent>");
   }
   //! [START iam_list_roles] [iam-list-roles]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& project) {
     iam::IAMClient client(iam::MakeIAMConnection());
     int count = 0;
     google::iam::admin::v1::ListRolesRequest request;
     request.set_parent(project);
-    for (auto const& role : client.ListRoles(request)) {
-      if (!role) throw std::runtime_error(role.status().message());
+    for (auto& role : client.ListRoles(request)) {
+      if (!role) throw std::move(role).status();
       std::cout << "Roles successfully retrieved: " << role->name() << "\n";
       ++count;
     }
@@ -473,14 +470,14 @@ void QueryTestablePermissions(std::vector<std::string> const& argv) {
         "query-testable-permissions <resource-name>");
   }
   //! [START iam_query_testable_permissions] [iam-query-testable-permissions]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& resource) {
     iam::IAMClient client(iam::MakeIAMConnection());
     google::iam::admin::v1::QueryTestablePermissionsRequest request;
     request.set_full_resource_name(resource);
     int count = 0;
-    for (auto const& permission : client.QueryTestablePermissions(request)) {
-      if (!permission) throw std::runtime_error(permission.status().message());
+    for (auto& permission : client.QueryTestablePermissions(request)) {
+      if (!permission) throw std::move(permission).status();
       std::cout << "Permission successfully retrieved: " << permission->name()
                 << "\n";
       ++count;
@@ -500,7 +497,7 @@ void PatchServiceAccount(std::vector<std::string> const& argv) {
         "patch-service-account <service-account-name> <new-display-name>");
   }
   //! [START iam_rename_service_account] [iam-patch-service-account]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& name, std::string const& display_name) {
     iam::IAMClient client(iam::MakeIAMConnection());
     google::iam::admin::v1::PatchServiceAccountRequest request;
@@ -512,7 +509,7 @@ void PatchServiceAccount(std::vector<std::string> const& argv) {
     *request.mutable_service_account() = service_account;
     *request.mutable_update_mask() = update_mask;
     auto response = client.PatchServiceAccount(request);
-    if (!response) throw std::runtime_error(response.status().message());
+    if (!response) throw std::move(response).status();
     std::cout << "ServiceAccount successfully updated: "
               << response->DebugString() << "\n";
   }
@@ -525,13 +522,13 @@ void UndeleteRole(std::vector<std::string> const& argv) {
     throw google::cloud::testing_util::Usage("undelete-role <role-name>");
   }
   //! [START iam_undelete_role] [iam-undelete-role]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   [](std::string const& name) {
     iam::IAMClient client(iam::MakeIAMConnection());
     google::iam::admin::v1::UndeleteRoleRequest request;
     request.set_name(name);
     auto response = client.UndeleteRole(request);
-    if (!response) throw std::runtime_error(response.status().message());
+    if (!response) throw std::move(response).status();
     std::cout << "Role successfully undeleted: " << response->DebugString()
               << "\n";
   }
@@ -590,7 +587,7 @@ void AutoRun(std::vector<std::string> const& argv) {
                      project_id, ".iam.gserviceaccount.com");
     try {
       PatchServiceAccount({sample_service_account_name, "New Name"});
-    } catch (std::runtime_error const&) {
+    } catch (google::cloud::Status const&) {
       // Service Account may not be usable for up to 60s after creation.
       std::this_thread::sleep_for(std::chrono::seconds(61));
       PatchServiceAccount({sample_service_account_name, "New Name"});
@@ -602,13 +599,13 @@ void AutoRun(std::vector<std::string> const& argv) {
     auto sample_service_account_key_name =
         CreateServiceAccountKey({service_account_name});
 
-    // Service Account Key may not be usable for up to 60s after creation.
-    // Plus some unknown amount of time for propagation.
-    for (auto backoff : {65, 30, 30, 30, 30, 0}) {
+    // Service Account Key may not be usable for up 7 minutes for propagation
+    // through all the systems.
+    for (auto backoff : {65, 60, 60, 60, 60, 60, 60, 0}) {
       try {
         GetServiceAccountKey({sample_service_account_key_name});
         break;
-      } catch (std::runtime_error const&) {
+      } catch (google::cloud::Status const&) {
         if (backoff == 0) throw;  // retries exhausted
         std::this_thread::sleep_for(std::chrono::seconds(backoff));
       }
@@ -622,7 +619,7 @@ void AutoRun(std::vector<std::string> const& argv) {
     CreateRole({project_id, role_id, "iam.serviceAccounts.list"});
     try {
       GetRole({role_name});
-    } catch (std::runtime_error const&) {
+    } catch (google::cloud::Status const&) {
       // Custom Role may not be usable for up to 60s after creation.
       std::this_thread::sleep_for(std::chrono::seconds(61));
       GetRole({role_name});

@@ -20,7 +20,6 @@
 #include "google/cloud/bigtable/rpc_retry_policy.h"
 #include "google/cloud/bigtable/version.h"
 #include "google/cloud/grpc_error_delegate.h"
-#include "google/cloud/internal/retry_policy.h"
 #include <string>
 #include <thread>
 
@@ -32,7 +31,7 @@ namespace internal {
 /**
  * Helper functions to make (unary) gRPC calls under the right policies.
  *
- * Many of the gRPC calls made the the Cloud Bigtable C++ client library are
+ * Many of the gRPC calls made the Cloud Bigtable C++ client library are
  * wrapped in essentially the same loop:
  *
  * @code

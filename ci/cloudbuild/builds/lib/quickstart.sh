@@ -55,7 +55,17 @@ function quickstart::build_one_quickstart() {
 
   io::log "[ CMake ]"
   local cmake_bin_dir="${PROJECT_ROOT}/cmake-out/quickstart/cmake-${bin_dir_suffix}"
-  cmake -H"${src_dir}" -B"${cmake_bin_dir}" "-DCMAKE_PREFIX_PATH=${prefix}"
+  local configure_args=(
+    "-S" "${src_dir}"
+    "-B" "${cmake_bin_dir}"
+    -DCMAKE_PREFIX_PATH="${prefix}"
+  )
+  if command -v /usr/local/bin/sccache >/dev/null 2>&1; then
+    configure_args+=(
+      -DCMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/sccache
+    )
+  fi
+  cmake "${configure_args[@]}"
   cmake --build "${cmake_bin_dir}"
 
   echo
@@ -91,12 +101,12 @@ function quickstart::run_gcs_grpc_quickstart() {
   io::log_h2 "Running quickstart for GCS+gRPC"
 
   io::log "[ CMake ]"
-  local cmake_bin_dir="${PROJECT_ROOT}/cmake-out/quickstart/cmake-storage"
+  local cmake_bin_dir="${PROJECT_ROOT}/cmake-out/quickstart/cmake-storage_grpc"
   "${cmake_bin_dir}/quickstart_grpc" "${run_args[@]}"
 
   echo
   io::log "[ Make ]"
-  local makefile_bin_dir="${PROJECT_ROOT}/cmake-out/quickstart/makefile-storage"
+  local makefile_bin_dir="${PROJECT_ROOT}/cmake-out/quickstart/makefile-storage_grpc"
   LD_LIBRARY_PATH="${prefix}/lib64:${prefix}/lib:${LD_LIBRARY_PATH:-}" \
     "${makefile_bin_dir}/quickstart_grpc" "${run_args[@]}"
 }
@@ -109,11 +119,10 @@ function quickstart::run_one_quickstart() {
 
   io::log "[ CMake ]"
   local cmake_bin_dir="${PROJECT_ROOT}/cmake-out/quickstart/cmake-${bin_dir_suffix}"
-  "${cmake_bin_dir}/quickstart" "${run_args[@]}"
+  io::run "${cmake_bin_dir}/quickstart" "${run_args[@]}"
 
   echo
   io::log "[ Make ]"
   local makefile_bin_dir="${PROJECT_ROOT}/cmake-out/quickstart/makefile-${bin_dir_suffix}"
-  LD_LIBRARY_PATH="${prefix}/lib64:${prefix}/lib:${LD_LIBRARY_PATH:-}" \
-    "${makefile_bin_dir}/quickstart" "${run_args[@]}"
+  io::run env LD_LIBRARY_PATH="${prefix}/lib64:${prefix}/lib:${LD_LIBRARY_PATH:-}" "${makefile_bin_dir}/quickstart" "${run_args[@]}"
 }

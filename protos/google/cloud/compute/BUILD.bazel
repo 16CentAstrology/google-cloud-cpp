@@ -1,0 +1,68 @@
+# Copyright 2023 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load(
+    "@com_google_googleapis_imports//:imports.bzl",
+    "cc_proto_library",
+)
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("//google/cloud/compute:service_dirs.bzl", "operation_service_dirs", "service_dirs")
+
+package(default_visibility = ["//visibility:private"])
+
+licenses(["notice"])  # Apache 2.0
+
+# Internal protos target
+filegroup(
+    name = "internal_protos",
+    srcs = glob(["v1/internal/*.proto"]),
+)
+
+# Service proto files
+[[
+    filegroup(
+        name = service.replace("/v1/", "_proto_srcs"),
+        srcs = glob([service + "*.proto"]),
+    ),
+] for service in service_dirs + operation_service_dirs]
+
+proto_library(
+    name = "proto",
+    srcs = [":internal_protos"] + [":" + service.replace("/v1/", "_proto_srcs") for service in service_dirs + operation_service_dirs],
+    strip_import_prefix = "/protos",
+    visibility = [
+        "//:__pkg__",
+        "//google/cloud/compute:__pkg__",
+    ],
+    deps = [
+        "@com_google_googleapis//google/api:annotations_proto",
+        "@com_google_googleapis//google/api:client_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:http_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/api:routing_proto",
+        "@com_google_googleapis//google/cloud:extended_operations_proto",
+        "@com_google_protobuf//:any_proto",
+        "@com_google_protobuf//:empty_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "cc_proto",
+    visibility = [
+        "//:__pkg__",
+        "//google/cloud/compute:__pkg__",
+    ],
+    deps = [":proto"],
+)

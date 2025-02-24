@@ -13,8 +13,8 @@
 // limitations under the License.
 
 #include "google/cloud/internal/streaming_write_rpc_impl.h"
+#include "google/cloud/testing_util/scoped_log.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
 #include <gmock/gmock.h>
 
 namespace google {
@@ -25,6 +25,10 @@ namespace {
 
 using ::google::cloud::testing_util::IsOk;
 using ::google::cloud::testing_util::StatusIs;
+using ::testing::AllOf;
+using ::testing::Contains;
+using ::testing::HasSubstr;
+using ::testing::IsEmpty;
 using ::testing::Return;
 
 struct FakeRequest {
@@ -44,8 +48,8 @@ class MockWriter : public grpc::ClientWriterInterface<FakeRequest> {
 };
 
 TEST(StreamingWriteRpcImpl, SuccessfulStream) {
-  auto mock = absl::make_unique<MockWriter>();
-  auto response = absl::make_unique<FakeResponse>();
+  auto mock = std::make_unique<MockWriter>();
+  auto response = std::make_unique<FakeResponse>();
   auto* response_ptr = response.get();
   EXPECT_CALL(*mock, Write).Times(3).WillRepeatedly(Return(true));
   EXPECT_CALL(*mock, WritesDone).WillOnce(Return(true));
@@ -55,7 +59,7 @@ TEST(StreamingWriteRpcImpl, SuccessfulStream) {
   });
 
   StreamingWriteRpcImpl<FakeRequest, FakeResponse> impl(
-      absl::make_unique<grpc::ClientContext>(), std::move(response),
+      std::make_shared<grpc::ClientContext>(), std::move(response),
       std::move(mock));
   for (std::string key : {"w0", "w1", "w2"}) {
     EXPECT_TRUE(impl.Write(FakeRequest{key}, grpc::WriteOptions{}));
@@ -66,8 +70,8 @@ TEST(StreamingWriteRpcImpl, SuccessfulStream) {
 }
 
 TEST(StreamingWriteRpcImpl, ErrorInWrite) {
-  auto mock = absl::make_unique<MockWriter>();
-  auto response = absl::make_unique<FakeResponse>();
+  auto mock = std::make_unique<MockWriter>();
+  auto response = std::make_unique<FakeResponse>();
   EXPECT_CALL(*mock, Write)
       .WillOnce(Return(true))
       .WillOnce(Return(true))
@@ -78,7 +82,7 @@ TEST(StreamingWriteRpcImpl, ErrorInWrite) {
   });
 
   StreamingWriteRpcImpl<FakeRequest, FakeResponse> impl(
-      absl::make_unique<grpc::ClientContext>(), std::move(response),
+      std::make_shared<grpc::ClientContext>(), std::move(response),
       std::move(mock));
   for (std::string key : {"w0", "w1"}) {
     EXPECT_TRUE(impl.Write(FakeRequest{key}, grpc::WriteOptions{}));
@@ -88,8 +92,8 @@ TEST(StreamingWriteRpcImpl, ErrorInWrite) {
 }
 
 TEST(StreamingWriteRpcImpl, ErrorInWritesDone) {
-  auto mock = absl::make_unique<MockWriter>();
-  auto response = absl::make_unique<FakeResponse>();
+  auto mock = std::make_unique<MockWriter>();
+  auto response = std::make_unique<FakeResponse>();
   EXPECT_CALL(*mock, Write).WillOnce(Return(true)).WillOnce(Return(true));
   EXPECT_CALL(*mock, WritesDone).WillOnce(Return(false));
   EXPECT_CALL(*mock, Finish).WillOnce([] {
@@ -97,7 +101,7 @@ TEST(StreamingWriteRpcImpl, ErrorInWritesDone) {
   });
 
   StreamingWriteRpcImpl<FakeRequest, FakeResponse> impl(
-      absl::make_unique<grpc::ClientContext>(), std::move(response),
+      std::make_shared<grpc::ClientContext>(), std::move(response),
       std::move(mock));
   for (std::string key : {"w0", "w1"}) {
     EXPECT_TRUE(impl.Write(FakeRequest{key}, grpc::WriteOptions{}));
@@ -106,18 +110,38 @@ TEST(StreamingWriteRpcImpl, ErrorInWritesDone) {
 }
 
 TEST(StreamingWriteRpcImpl, NoWritesDoneWithLastMessage) {
-  auto mock = absl::make_unique<MockWriter>();
-  auto response = absl::make_unique<FakeResponse>();
+  auto mock = std::make_unique<MockWriter>();
+  auto response = std::make_unique<FakeResponse>();
   EXPECT_CALL(*mock, Write).WillOnce(Return(true)).WillOnce(Return(true));
   EXPECT_CALL(*mock, Finish).WillOnce(Return(grpc::Status::OK));
 
   StreamingWriteRpcImpl<FakeRequest, FakeResponse> impl(
-      absl::make_unique<grpc::ClientContext>(), std::move(response),
+      std::make_shared<grpc::ClientContext>(), std::move(response),
       std::move(mock));
   EXPECT_TRUE(impl.Write(FakeRequest{"w0"}, grpc::WriteOptions{}));
   EXPECT_TRUE(
       impl.Write(FakeRequest{"w1"}, grpc::WriteOptions{}.set_last_message()));
   EXPECT_THAT(impl.Close(), IsOk());
+}
+
+TEST(StreamingWriteRpcImpl, UnreportedErrors) {
+  testing_util::ScopedLog log;
+
+  StreamingWriteRpcReportUnhandledError(
+      Status(StatusCode::kPermissionDenied, "uh-oh"),
+      typeid(FakeRequest).name());
+  auto lines = log.ExtractLines();
+  EXPECT_THAT(
+      lines, Contains(AllOf(HasSubstr("unhandled error"), HasSubstr("uh-oh"))));
+
+  StreamingWriteRpcReportUnhandledError(Status(), typeid(FakeRequest).name());
+  lines = log.ExtractLines();
+  EXPECT_THAT(lines, IsEmpty());
+
+  StreamingWriteRpcReportUnhandledError(
+      Status(StatusCode::kCancelled, "CANCELLED"), typeid(FakeRequest).name());
+  lines = log.ExtractLines();
+  EXPECT_THAT(lines, IsEmpty());
 }
 
 TEST(StreamingWriteRpcError, ErrorStream) {

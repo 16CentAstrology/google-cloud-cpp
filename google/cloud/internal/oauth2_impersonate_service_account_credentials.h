@@ -26,6 +26,19 @@ namespace cloud {
 namespace oauth2_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+struct ImpersonatedServiceAccountCredentialsInfo {
+  std::string service_account;
+  std::vector<std::string> delegates;
+  absl::optional<std::string> quota_project_id;
+  std::string source_credentials;
+};
+
+/// Parses the contents of a JSON keyfile into an
+/// ImpersonatedServiceAccountCredentialsInfo.
+StatusOr<ImpersonatedServiceAccountCredentialsInfo>
+ParseImpersonatedServiceAccountCredentials(std::string const& content,
+                                           std::string const& source);
+
 /**
  * Provides Credentials when impersonating an existing service account.
  */
@@ -45,8 +58,12 @@ class ImpersonateServiceAccountCredentials
       google::cloud::internal::ImpersonateServiceAccountConfig const& config,
       std::shared_ptr<MinimalIamCredentialsRest> stub);
 
-  StatusOr<internal::AccessToken> GetToken(
+  StatusOr<AccessToken> GetToken(
       std::chrono::system_clock::time_point tp) override;
+
+  StatusOr<std::string> universe_domain(Options const& options) const override {
+    return stub_->universe_domain(options);
+  }
 
  private:
   std::shared_ptr<MinimalIamCredentialsRest> stub_;

@@ -17,7 +17,6 @@
 // source: google/cloud/dialogflow/v2/fulfillment.proto
 
 #include "google/cloud/dialogflow_es/fulfillments_connection_idempotency_policy.h"
-#include "absl/memory/memory.h"
 #include <memory>
 
 namespace google {
@@ -32,7 +31,7 @@ FulfillmentsConnectionIdempotencyPolicy::
 
 std::unique_ptr<FulfillmentsConnectionIdempotencyPolicy>
 FulfillmentsConnectionIdempotencyPolicy::clone() const {
-  return absl::make_unique<FulfillmentsConnectionIdempotencyPolicy>(*this);
+  return std::make_unique<FulfillmentsConnectionIdempotencyPolicy>(*this);
 }
 
 Idempotency FulfillmentsConnectionIdempotencyPolicy::GetFulfillment(
@@ -45,9 +44,34 @@ Idempotency FulfillmentsConnectionIdempotencyPolicy::UpdateFulfillment(
   return Idempotency::kNonIdempotent;
 }
 
+Idempotency FulfillmentsConnectionIdempotencyPolicy::ListLocations(
+    google::cloud::location::ListLocationsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency FulfillmentsConnectionIdempotencyPolicy::GetLocation(
+    google::cloud::location::GetLocationRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency FulfillmentsConnectionIdempotencyPolicy::ListOperations(
+    google::longrunning::ListOperationsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency FulfillmentsConnectionIdempotencyPolicy::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency FulfillmentsConnectionIdempotencyPolicy::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
 std::unique_ptr<FulfillmentsConnectionIdempotencyPolicy>
 MakeDefaultFulfillmentsConnectionIdempotencyPolicy() {
-  return absl::make_unique<FulfillmentsConnectionIdempotencyPolicy>();
+  return std::make_unique<FulfillmentsConnectionIdempotencyPolicy>();
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

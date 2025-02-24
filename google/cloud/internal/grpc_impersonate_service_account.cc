@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "google/cloud/internal/grpc_impersonate_service_account.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/internal/minimal_iam_credentials_stub.h"
 #include "google/cloud/internal/time_utils.h"
 #include "google/cloud/internal/unified_grpc_credentials.h"
@@ -29,7 +30,7 @@ using ::google::iam::credentials::v1::GenerateAccessTokenResponse;
 AsyncAccessTokenSource MakeSource(ImpersonateServiceAccountConfig const& config,
                                   CompletionQueue cq, Options const& options) {
   auto stub = MakeMinimalIamCredentialsStub(
-      CreateAuthenticationStrategy(config.base_credentials(), std::move(cq),
+      CreateAuthenticationStrategy(*config.base_credentials(), std::move(cq),
                                    options),
       MakeMinimalIamCredentialsOptions(options));
 
@@ -43,7 +44,7 @@ AsyncAccessTokenSource MakeSource(ImpersonateServiceAccountConfig const& config,
 
   return [stub, request](CompletionQueue& cq) {
     return stub
-        ->AsyncGenerateAccessToken(cq, absl::make_unique<grpc::ClientContext>(),
+        ->AsyncGenerateAccessToken(cq, std::make_shared<grpc::ClientContext>(),
                                    request)
         .then([](future<StatusOr<GenerateAccessTokenResponse>> f)
                   -> StatusOr<AccessToken> {
@@ -101,17 +102,18 @@ Status GrpcImpersonateServiceAccount::ConfigureContext(
   return Status{};
 }
 
-future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
 GrpcImpersonateServiceAccount::AsyncConfigureContext(
-    std::unique_ptr<grpc::ClientContext> context) {
+    std::shared_ptr<grpc::ClientContext> context) {
   struct Capture {
     std::weak_ptr<GrpcImpersonateServiceAccount> w;
-    std::unique_ptr<grpc::ClientContext> context;
+    std::shared_ptr<grpc::ClientContext> context;
 
-    StatusOr<std::unique_ptr<grpc::ClientContext>> operator()(
+    StatusOr<std::shared_ptr<grpc::ClientContext>> operator()(
         future<StatusOr<AccessToken>> f) {
       auto self = w.lock();
-      if (!self) return Status{StatusCode::kUnknown, "lost reference"};
+      if (!self)
+        return internal::UnknownError("lost reference", GCP_ERROR_INFO());
       return self->OnGetCallCredentials(std::move(context), f.get());
     }
   };
@@ -129,9 +131,9 @@ GrpcImpersonateServiceAccount::UpdateCallCredentials(std::string token) {
   return credentials_;
 }
 
-StatusOr<std::unique_ptr<grpc::ClientContext>>
+StatusOr<std::shared_ptr<grpc::ClientContext>>
 GrpcImpersonateServiceAccount::OnGetCallCredentials(
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
     StatusOr<AccessToken> result) {
   if (!result) return std::move(result).status();
   context->set_credentials(UpdateCallCredentials(std::move(result->token)));

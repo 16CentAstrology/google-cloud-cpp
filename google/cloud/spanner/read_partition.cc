@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "google/cloud/spanner/read_partition.h"
+#include "google/cloud/internal/make_status.h"
 #include <google/spanner/v1/spanner.pb.h>
 
 namespace google {
@@ -20,13 +21,18 @@ namespace cloud {
 namespace spanner {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
-ReadPartition::ReadPartition(std::string transaction_id,
+// Local extension to google::spanner::v1::ReadRequest, reserved using
+// Google's conventions.
+constexpr int kRouteToLeaderFieldNumber = 511037315;
+
+ReadPartition::ReadPartition(std::string transaction_id, bool route_to_leader,
                              std::string transaction_tag,
                              std::string session_id,
                              std::string partition_token,
                              std::string table_name,
                              google::cloud::spanner::KeySet key_set,
                              std::vector<std::string> column_names,
+                             bool data_boost,
                              google::cloud::spanner::ReadOptions read_options) {
   proto_.set_session(std::move(session_id));
   proto_.mutable_transaction()->set_id(std::move(transaction_id));
@@ -38,6 +44,9 @@ ReadPartition::ReadPartition(std::string transaction_id,
   *proto_.mutable_key_set() = spanner_internal::ToProto(std::move(key_set));
   proto_.set_limit(read_options.limit);
   proto_.set_partition_token(std::move(partition_token));
+  if (data_boost) {
+    proto_.set_data_boost_enabled(true);
+  }
   if (read_options.request_priority) {
     auto* request_options = proto_.mutable_request_options();
     switch (*read_options.request_priority) {
@@ -61,6 +70,11 @@ ReadPartition::ReadPartition(std::string transaction_id,
   }
   proto_.mutable_request_options()->set_transaction_tag(
       std::move(transaction_tag));
+  if (route_to_leader) {
+    google::spanner::v1::ReadRequest::GetReflection()
+        ->MutableUnknownFields(&proto_)
+        ->AddVarint(kRouteToLeaderFieldNumber, 1);
+  }
 }
 
 google::cloud::spanner::ReadOptions ReadPartition::ReadOptions() const {
@@ -88,13 +102,26 @@ google::cloud::spanner::ReadOptions ReadPartition::ReadOptions() const {
   return options;
 }
 
-bool operator==(ReadPartition const& lhs, ReadPartition const& rhs) {
-  google::protobuf::util::MessageDifferencer differencer;
-  return differencer.Compare(lhs.proto_, rhs.proto_);
+bool ReadPartition::RouteToLeader() const {
+  auto const& unknown_fields =
+      google::spanner::v1::ReadRequest::GetReflection()->GetUnknownFields(
+          proto_);
+  for (int index = 0; index != unknown_fields.field_count(); ++index) {
+    auto const& field = unknown_fields.field(index);
+    if (field.number() == kRouteToLeaderFieldNumber) {
+      return field.varint() != 0;
+    }
+  }
+  return false;
 }
 
-bool operator!=(ReadPartition const& lhs, ReadPartition const& rhs) {
-  return !(lhs == rhs);
+bool operator==(ReadPartition const& lhs, ReadPartition const& rhs) {
+  google::protobuf::util::MessageDifferencer differencer;
+  // This is the default comparison mode, but we set it explicitly
+  // to emphasize that unknown fields are included in the comparison.
+  differencer.set_message_field_comparison(
+      google::protobuf::util::MessageDifferencer::EQUAL);
+  return differencer.Compare(lhs.proto_, rhs.proto_);
 }
 
 StatusOr<std::string> SerializeReadPartition(
@@ -103,16 +130,16 @@ StatusOr<std::string> SerializeReadPartition(
   if (read_partition.proto_.SerializeToString(&serialized_proto)) {
     return serialized_proto;
   }
-  return Status(StatusCode::kInvalidArgument,
-                "Failed to serialize SqlPartition");
+  return internal::InvalidArgumentError("Failed to serialize SqlPartition",
+                                        GCP_ERROR_INFO());
 }
 
 StatusOr<ReadPartition> DeserializeReadPartition(
     std::string const& serialized_read_partition) {
   google::spanner::v1::ReadRequest proto;
   if (!proto.ParseFromString(serialized_read_partition)) {
-    return Status(StatusCode::kInvalidArgument,
-                  "Failed to deserialize into SqlPartition");
+    return internal::InvalidArgumentError(
+        "Failed to deserialize into SqlPartition", GCP_ERROR_INFO());
   }
   return ReadPartition(std::move(proto));
 }

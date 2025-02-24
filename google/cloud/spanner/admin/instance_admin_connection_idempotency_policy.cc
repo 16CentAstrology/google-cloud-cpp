@@ -17,7 +17,6 @@
 // source: google/spanner/admin/instance/v1/spanner_instance_admin.proto
 
 #include "google/cloud/spanner/admin/instance_admin_connection_idempotency_policy.h"
-#include "absl/memory/memory.h"
 #include <memory>
 
 namespace google {
@@ -32,7 +31,7 @@ InstanceAdminConnectionIdempotencyPolicy::
 
 std::unique_ptr<InstanceAdminConnectionIdempotencyPolicy>
 InstanceAdminConnectionIdempotencyPolicy::clone() const {
-  return absl::make_unique<InstanceAdminConnectionIdempotencyPolicy>(*this);
+  return std::make_unique<InstanceAdminConnectionIdempotencyPolicy>(*this);
 }
 
 Idempotency InstanceAdminConnectionIdempotencyPolicy::ListInstanceConfigs(
@@ -73,6 +72,12 @@ Idempotency InstanceAdminConnectionIdempotencyPolicy::ListInstances(
   return Idempotency::kIdempotent;
 }
 
+Idempotency InstanceAdminConnectionIdempotencyPolicy::ListInstancePartitions(
+    google::spanner::admin::instance::v1::
+        ListInstancePartitionsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
 Idempotency InstanceAdminConnectionIdempotencyPolicy::GetInstance(
     google::spanner::admin::instance::v1::GetInstanceRequest const&) {
   return Idempotency::kIdempotent;
@@ -101,21 +106,75 @@ Idempotency InstanceAdminConnectionIdempotencyPolicy::SetIamPolicy(
 
 Idempotency InstanceAdminConnectionIdempotencyPolicy::GetIamPolicy(
     google::iam::v1::GetIamPolicyRequest const&) {
-  return Idempotency::kNonIdempotent;
+  return Idempotency::kIdempotent;
 }
 
 Idempotency InstanceAdminConnectionIdempotencyPolicy::TestIamPermissions(
     google::iam::v1::TestIamPermissionsRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency InstanceAdminConnectionIdempotencyPolicy::GetInstancePartition(
+    google::spanner::admin::instance::v1::GetInstancePartitionRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency InstanceAdminConnectionIdempotencyPolicy::CreateInstancePartition(
+    google::spanner::admin::instance::v1::
+        CreateInstancePartitionRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
+Idempotency InstanceAdminConnectionIdempotencyPolicy::DeleteInstancePartition(
+    google::spanner::admin::instance::v1::
+        DeleteInstancePartitionRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
+Idempotency InstanceAdminConnectionIdempotencyPolicy::UpdateInstancePartition(
+    google::spanner::admin::instance::v1::
+        UpdateInstancePartitionRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
+Idempotency
+InstanceAdminConnectionIdempotencyPolicy::ListInstancePartitionOperations(
+    google::spanner::admin::instance::v1::
+        ListInstancePartitionOperationsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency InstanceAdminConnectionIdempotencyPolicy::MoveInstance(
+    google::spanner::admin::instance::v1::MoveInstanceRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
+Idempotency InstanceAdminConnectionIdempotencyPolicy::ListOperations(
+    google::longrunning::ListOperationsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency InstanceAdminConnectionIdempotencyPolicy::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency InstanceAdminConnectionIdempotencyPolicy::DeleteOperation(
+    google::longrunning::DeleteOperationRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
+Idempotency InstanceAdminConnectionIdempotencyPolicy::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
   return Idempotency::kNonIdempotent;
 }
 
 std::unique_ptr<InstanceAdminConnectionIdempotencyPolicy>
 MakeDefaultInstanceAdminConnectionIdempotencyPolicy() {
-  return absl::make_unique<InstanceAdminConnectionIdempotencyPolicy>();
+  return std::make_unique<InstanceAdminConnectionIdempotencyPolicy>();
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
-namespace gcpcxxV1 = GOOGLE_CLOUD_CPP_NS;  // NOLINT(misc-unused-alias-decls)
 }  // namespace spanner_admin
 }  // namespace cloud
 }  // namespace google

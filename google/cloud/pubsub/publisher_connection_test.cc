@@ -14,14 +14,20 @@
 
 #include "google/cloud/pubsub/publisher_connection.h"
 #include "google/cloud/pubsub/internal/defaults.h"
+#include "google/cloud/pubsub/message.h"
 #include "google/cloud/pubsub/options.h"
+#include "google/cloud/pubsub/testing/mock_batch_sink.h"
 #include "google/cloud/pubsub/testing/mock_publisher_stub.h"
 #include "google/cloud/pubsub/testing/test_retry_policies.h"
 #include "google/cloud/internal/api_client_header.h"
+#include "google/cloud/internal/opentelemetry.h"
+#include "google/cloud/opentelemetry_options.h"
 #include "google/cloud/testing_util/async_sequencer.h"
+#include "google/cloud/testing_util/opentelemetry_matchers.h"
 #include "google/cloud/testing_util/scoped_log.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include "google/cloud/testing_util/validate_metadata.h"
+#include "google/cloud/testing_util/validate_propagator.h"
 #include <gmock/gmock.h>
 
 namespace google {
@@ -51,8 +57,7 @@ TEST(PublisherConnectionTest, Basic) {
   Topic const topic("test-project", "test-topic");
 
   EXPECT_CALL(*mock, AsyncPublish)
-      .WillOnce([&](google::cloud::CompletionQueue&,
-                    std::unique_ptr<grpc::ClientContext>,
+      .WillOnce([&](google::cloud::CompletionQueue&, auto, auto,
                     google::pubsub::v1::PublishRequest const& request) {
         EXPECT_EQ(topic.FullName(), request.topic());
         EXPECT_EQ(1, request.messages_size());
@@ -76,13 +81,12 @@ TEST(PublisherConnectionTest, Metadata) {
 
   EXPECT_CALL(*mock, AsyncPublish)
       .Times(AtLeast(1))
-      .WillRepeatedly([&](google::cloud::CompletionQueue&,
-                          std::unique_ptr<grpc::ClientContext> context,
+      .WillRepeatedly([&](google::cloud::CompletionQueue&, auto context, auto,
                           google::pubsub::v1::PublishRequest const& request) {
         google::cloud::testing_util::ValidateMetadataFixture fixture;
         fixture.IsContextMDValid(
             *context, "google.pubsub.v1.Publisher.Publish", request,
-            google::cloud::internal::ApiClientHeader("generator"));
+            google::cloud::internal::HandCraftedLibClientHeader());
         google::pubsub::v1::PublishResponse response;
         for (auto const& m : request.messages()) {
           response.add_message_ids("ack-" + m.message_id());
@@ -91,7 +95,7 @@ TEST(PublisherConnectionTest, Metadata) {
       });
 
   auto publisher = MakeTestPublisherConnection(
-      topic, mock, Options{}.set<TracingComponentsOption>({"rpc"}));
+      topic, mock, Options{}.set<LoggingComponentsOption>({"rpc"}));
   auto response =
       publisher->Publish({MessageBuilder{}.SetData("test-data-0").Build()})
           .get();
@@ -105,8 +109,7 @@ TEST(PublisherConnectionTest, Logging) {
 
   EXPECT_CALL(*mock, AsyncPublish)
       .Times(AtLeast(1))
-      .WillRepeatedly([&](google::cloud::CompletionQueue&,
-                          std::unique_ptr<grpc::ClientContext>,
+      .WillRepeatedly([&](google::cloud::CompletionQueue&, auto, auto,
                           google::pubsub::v1::PublishRequest const& request) {
         google::pubsub::v1::PublishResponse response;
         for (auto const& m : request.messages()) {
@@ -116,7 +119,7 @@ TEST(PublisherConnectionTest, Logging) {
       });
 
   auto publisher = MakeTestPublisherConnection(
-      topic, mock, Options{}.set<TracingComponentsOption>({"rpc"}));
+      topic, mock, Options{}.set<LoggingComponentsOption>({"rpc"}));
   auto response =
       publisher->Publish({MessageBuilder{}.SetData("test-data-0").Build()})
           .get();
@@ -139,14 +142,13 @@ TEST(PublisherConnectionTest, FlowControl) {
   AsyncSequencer<void> publish;
   EXPECT_CALL(*mock, AsyncPublish)
       .Times(AtLeast(1))
-      .WillRepeatedly([&](google::cloud::CompletionQueue&,
-                          std::unique_ptr<grpc::ClientContext>,
+      .WillRepeatedly([&](google::cloud::CompletionQueue&, auto, auto,
                           google::pubsub::v1::PublishRequest const& request) {
         {
           std::lock_guard<std::mutex> lk(mu);
           received_count += request.messages_size();
+          ++publish_count;
         }
-        ++publish_count;
         cv.notify_all();
         return publish.PushBack().then([request](future<void>) {
           google::pubsub::v1::PublishResponse response;
@@ -191,8 +193,7 @@ TEST(PublisherConnectionTest, OrderingKey) {
   Topic const topic("test-project", "test-topic");
 
   EXPECT_CALL(*mock, AsyncPublish)
-      .WillOnce([&](google::cloud::CompletionQueue&,
-                    std::unique_ptr<grpc::ClientContext>,
+      .WillOnce([&](google::cloud::CompletionQueue&, auto, auto,
                     google::pubsub::v1::PublishRequest const& request) {
         EXPECT_EQ(topic.FullName(), request.topic());
         EXPECT_EQ(1, request.messages_size());
@@ -232,8 +233,7 @@ TEST(PublisherConnectionTest, HandleInvalidResponse) {
   Topic const topic("test-project", "test-topic");
 
   EXPECT_CALL(*mock, AsyncPublish)
-      .WillOnce([&](google::cloud::CompletionQueue&,
-                    std::unique_ptr<grpc::ClientContext>,
+      .WillOnce([&](google::cloud::CompletionQueue&, auto, auto,
                     google::pubsub::v1::PublishRequest const&) {
         google::pubsub::v1::PublishResponse response;
         return make_ready_future(make_status_or(response));
@@ -257,8 +257,7 @@ TEST(PublisherConnectionTest, HandleTooManyFailures) {
 
   EXPECT_CALL(*mock, AsyncPublish)
       .Times(AtLeast(2))
-      .WillRepeatedly([&](google::cloud::CompletionQueue&,
-                          std::unique_ptr<grpc::ClientContext>,
+      .WillRepeatedly([&](google::cloud::CompletionQueue&, auto, auto,
                           google::pubsub::v1::PublishRequest const&) {
         return make_ready_future(StatusOr<google::pubsub::v1::PublishResponse>(
             Status(StatusCode::kUnavailable, "try-again")));
@@ -277,8 +276,7 @@ TEST(PublisherConnectionTest, HandlePermanentError) {
   Topic const topic("test-project", "test-topic");
 
   EXPECT_CALL(*mock, AsyncPublish)
-      .WillOnce([&](google::cloud::CompletionQueue&,
-                    std::unique_ptr<grpc::ClientContext>,
+      .WillOnce([&](google::cloud::CompletionQueue&, auto, auto,
                     google::pubsub::v1::PublishRequest const&) {
         return make_ready_future(StatusOr<google::pubsub::v1::PublishResponse>(
             Status(StatusCode::kPermissionDenied, "uh-oh")));
@@ -297,8 +295,7 @@ TEST(PublisherConnectionTest, HandleTransientDisabledRetry) {
   Topic const topic("test-project", "test-topic");
 
   EXPECT_CALL(*mock, AsyncPublish)
-      .WillOnce([&](google::cloud::CompletionQueue&,
-                    std::unique_ptr<grpc::ClientContext>,
+      .WillOnce([&](google::cloud::CompletionQueue&, auto, auto,
                     google::pubsub::v1::PublishRequest const&) {
         return make_ready_future(StatusOr<google::pubsub::v1::PublishResponse>(
             Status(StatusCode::kUnavailable, "try-again")));
@@ -320,14 +317,12 @@ TEST(PublisherConnectionTest, HandleTransientEnabledRetry) {
   Topic const topic("test-project", "test-topic");
 
   EXPECT_CALL(*mock, AsyncPublish)
-      .WillOnce([&](google::cloud::CompletionQueue&,
-                    std::unique_ptr<grpc::ClientContext>,
+      .WillOnce([&](google::cloud::CompletionQueue&, auto, auto,
                     google::pubsub::v1::PublishRequest const&) {
         return make_ready_future(StatusOr<google::pubsub::v1::PublishResponse>(
             Status(StatusCode::kUnavailable, "try-again")));
       })
-      .WillOnce([&](google::cloud::CompletionQueue&,
-                    std::unique_ptr<grpc::ClientContext>,
+      .WillOnce([&](google::cloud::CompletionQueue&, auto, auto,
                     google::pubsub::v1::PublishRequest const& request) {
         EXPECT_EQ(topic.FullName(), request.topic());
         EXPECT_EQ(1, request.messages_size());
@@ -344,6 +339,70 @@ TEST(PublisherConnectionTest, HandleTransientEnabledRetry) {
   ASSERT_STATUS_OK(response);
   EXPECT_EQ("test-message-id-0", *response);
 }
+
+#ifdef GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
+using ::google::cloud::testing_util::DisableTracing;
+using ::google::cloud::testing_util::EnableTracing;
+using ::google::cloud::testing_util::InstallSpanCatcher;
+using ::google::cloud::testing_util::SpanNamed;
+using ::google::cloud::testing_util::ValidatePropagator;
+using ::testing::IsEmpty;
+using ::testing::UnorderedElementsAre;
+
+TEST(MakePublisherConnectionTest, TracingEnabled) {
+  auto span_catcher = InstallSpanCatcher();
+  auto mock = std::make_shared<pubsub_testing::MockPublisherStub>();
+  Topic const topic("test-project", "test-topic");
+
+  EXPECT_CALL(*mock, AsyncPublish)
+      .WillOnce([&](google::cloud::CompletionQueue&, auto context, auto,
+                    google::pubsub::v1::PublishRequest const&) {
+        ValidatePropagator(*context);
+        google::pubsub::v1::PublishResponse response;
+        response.add_message_ids("test-message-id-0");
+        return make_ready_future(make_status_or(response));
+      });
+  auto publisher =
+      MakeTestPublisherConnection(topic, mock, EnableTracing(Options{}));
+
+  auto response =
+      publisher->Publish({MessageBuilder{}.SetData("test-data-0").Build()})
+          .get();
+  publisher->Flush({});
+
+  auto spans = span_catcher->GetSpans();
+  EXPECT_THAT(
+      spans,
+      UnorderedElementsAre(
+          SpanNamed("test-topic create"), SpanNamed("publisher flow control"),
+          SpanNamed("publisher batching"), SpanNamed("test-topic publish"),
+          SpanNamed("google.pubsub.v1.Publisher/Publish"),
+          SpanNamed("pubsub::BatchingPublisherConnection::Flush"),
+          SpanNamed("pubsub::FlowControlledPublisherConnection::Flush"),
+          SpanNamed("pubsub::Publisher::Flush")));
+}
+
+TEST(MakePublisherConnectionTest, TracingDisabled) {
+  auto span_catcher = InstallSpanCatcher();
+  auto mock = std::make_shared<pubsub_testing::MockPublisherStub>();
+  Topic const topic("test-project", "test-topic");
+  EXPECT_CALL(*mock, AsyncPublish)
+      .WillOnce([&](google::cloud::CompletionQueue&, auto, auto,
+                    google::pubsub::v1::PublishRequest const&) {
+        google::pubsub::v1::PublishResponse response;
+        response.add_message_ids("test-message-id-0");
+        return make_ready_future(make_status_or(response));
+      });
+  auto publisher =
+      MakeTestPublisherConnection(topic, mock, DisableTracing(Options{}));
+
+  auto response =
+      publisher->Publish({MessageBuilder{}.SetData("test-data-0").Build()})
+          .get();
+
+  EXPECT_THAT(span_catcher->GetSpans(), IsEmpty());
+}
+#endif  // GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
 
 }  // namespace
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

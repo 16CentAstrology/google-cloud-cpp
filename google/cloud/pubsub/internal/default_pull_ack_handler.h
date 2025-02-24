@@ -1,4 +1,4 @@
-// Copyright 2022 Google LLC
+// Copyright 2023 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #ifndef GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_PUBSUB_INTERNAL_DEFAULT_PULL_ACK_HANDLER_H
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_PUBSUB_INTERNAL_DEFAULT_PULL_ACK_HANDLER_H
 
+#include "google/cloud/pubsub/internal/pull_lease_manager.h"
 #include "google/cloud/pubsub/internal/subscriber_stub.h"
 #include "google/cloud/pubsub/pull_ack_handler.h"
 #include "google/cloud/pubsub/subscription.h"
@@ -42,15 +43,25 @@ class PullLeaseManager;
 class DefaultPullAckHandler : public pubsub::PullAckHandler::Impl {
  public:
   DefaultPullAckHandler(CompletionQueue cq, std::weak_ptr<SubscriberStub> w,
-                        Options options, pubsub::Subscription subscription,
-                        std::string ack_id, std::int32_t delivery_attempt);
+                        Options const& options,
+                        pubsub::Subscription subscription, std::string ack_id,
+                        std::int32_t delivery_attempt);
+  // For testing.
+  DefaultPullAckHandler(CompletionQueue cq, std::weak_ptr<SubscriberStub> w,
+                        pubsub::Subscription subscription, std::string ack_id,
+                        std::int32_t delivery_attempt,
+                        std::shared_ptr<PullLeaseManager> manager);
   ~DefaultPullAckHandler() override;
 
   future<Status> ack() override;
   future<Status> nack() override;
   std::int32_t delivery_attempt() const override;
+  std::string ack_id() const override;
+  pubsub::Subscription subscription() const override;
 
  private:
+  void initialize() { lease_manager_->StartLeaseLoop(); }
+
   CompletionQueue cq_;
   std::weak_ptr<SubscriberStub> stub_;
   pubsub::Subscription subscription_;

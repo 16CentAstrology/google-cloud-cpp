@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! [all]
 #include "google/cloud/dialogflow_cx/agents_client.h"
+#include "google/cloud/location.h"
 #include <iostream>
 
 int main(int argc, char* argv[]) try {
@@ -20,15 +22,14 @@ int main(int argc, char* argv[]) try {
     std::cerr << "Usage: " << argv[0] << " project-id region-id\n";
     return 1;
   }
-  auto const project = std::string{argv[1]};
-  auto const region = std::string{argv[2]};
+
+  auto const location = google::cloud::Location(argv[1], argv[2]);
 
   namespace dialogflow_cx = ::google::cloud::dialogflow_cx;
-  auto client =
-      dialogflow_cx::AgentsClient(dialogflow_cx::MakeAgentsConnection(region));
+  auto client = dialogflow_cx::AgentsClient(
+      dialogflow_cx::MakeAgentsConnection(location.location_id()));
 
-  auto const location = "projects/" + project + "/locations/" + region;
-  for (auto a : client.ListAgents(location)) {
+  for (auto a : client.ListAgents(location.FullName())) {
     if (!a) throw std::move(a).status();
     std::cout << a->DebugString() << "\n";
   }
@@ -38,3 +39,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

@@ -16,6 +16,8 @@
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
 #include <limits>
+#include <string>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -231,6 +233,39 @@ TEST(MetadataParserTest, ParseIntegralFieldInvalidFieldType) {
   CheckParseInvalidFieldType<std::uint32_t>(&ParseUnsignedIntField);
   CheckParseInvalidFieldType<std::int64_t>(&ParseLongField);
   CheckParseInvalidFieldType<std::uint64_t>(&ParseUnsignedLongField);
+}
+
+TEST(MetadataParserTest, NotJsonObject) {
+  EXPECT_THAT(NotJsonObject(nlohmann::json{}, GCP_ERROR_INFO()),
+              StatusIs(StatusCode::kInvalidArgument));
+  EXPECT_THAT(NotJsonObject(nlohmann::json{"1234"}, GCP_ERROR_INFO()),
+              StatusIs(StatusCode::kInvalidArgument));
+  EXPECT_THAT(NotJsonObject(nlohmann::json{std::vector<int>{1, 2, 3}},
+                            GCP_ERROR_INFO()),
+              StatusIs(StatusCode::kInvalidArgument));
+  EXPECT_THAT(NotJsonObject(nlohmann::json::parse("", nullptr, false),
+                            GCP_ERROR_INFO()),
+              StatusIs(StatusCode::kInvalidArgument));
+  EXPECT_THAT(NotJsonObject(nlohmann::json::parse("{ invalid", nullptr, false),
+                            GCP_ERROR_INFO()),
+              StatusIs(StatusCode::kInvalidArgument));
+  EXPECT_THAT(
+      NotJsonObject(nlohmann::json::parse(R"js("abc")js", nullptr, false),
+                    GCP_ERROR_INFO()),
+      StatusIs(StatusCode::kInvalidArgument));
+}
+
+TEST(MetadataParserTest, ExpectedJsonObject) {
+  EXPECT_THAT(ExpectedJsonObject("", GCP_ERROR_INFO()),
+              StatusIs(StatusCode::kInvalidArgument));
+  EXPECT_THAT(ExpectedJsonObject("123", GCP_ERROR_INFO()),
+              StatusIs(StatusCode::kInvalidArgument));
+  EXPECT_THAT(ExpectedJsonObject("{", GCP_ERROR_INFO()),
+              StatusIs(StatusCode::kInvalidArgument));
+  EXPECT_THAT(
+      ExpectedJsonObject("01234567890123456789012345678901234567890123456789",
+                         GCP_ERROR_INFO()),
+      StatusIs(StatusCode::kInvalidArgument));
 }
 
 }  // namespace

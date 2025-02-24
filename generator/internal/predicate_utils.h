@@ -26,13 +26,6 @@ namespace cloud {
 namespace generator_internal {
 
 /**
- * Determines if the given method meets the criteria for pagination.
- *
- * https://google.aip.dev/client-libraries/4233
- */
-bool IsPaginated(google::protobuf::MethodDescriptor const& method);
-
-/**
  * Determines if the given method has either client-side streaming,
  * or server-side streaming, or both.
  */
@@ -62,42 +55,9 @@ bool IsStreamingWrite(google::protobuf::MethodDescriptor const& method);
 bool IsBidirStreaming(google::protobuf::MethodDescriptor const& method);
 
 /**
- * Determines if the given method is a long running operation.
- */
-bool IsLongrunningOperation(google::protobuf::MethodDescriptor const& method);
-
-/**
  * Determines if the given method returns `google::protobug::Empty`.
  */
 bool IsResponseTypeEmpty(google::protobuf::MethodDescriptor const& method);
-
-/**
- * Determines if the given method's response is contained in the longrunning
- * metadata field.
- */
-bool IsLongrunningMetadataTypeUsedAsResponse(
-    google::protobuf::MethodDescriptor const& method);
-
-/**
- * Determines if the method contains a routing header as specified in AIP-4222.
- */
-bool HasRoutingHeader(google::protobuf::MethodDescriptor const& method);
-
-/**
- * Determines if the method contains a google.api.http annotation necessary for
- * supporting REST transport.
- */
-bool HasHttpAnnotation(google::protobuf::MethodDescriptor const& method);
-
-/**
- * If method meets pagination criteria, provides paginated field type and field
- * name.
- *
- * https://google.aip.dev/client-libraries/4233
- */
-google::cloud::optional<
-    std::pair<std::string, google::protobuf::Descriptor const*>>
-DeterminePagination(google::protobuf::MethodDescriptor const& method);
 
 /**
  * Returns true if all predicates return true.

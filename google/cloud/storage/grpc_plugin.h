@@ -21,46 +21,86 @@
 
 namespace google {
 namespace cloud {
+namespace storage {
+GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
+
 /**
- * Contains experimental features for the GCS C++ Client Library.
+ * Create a `google::cloud::storage::Client` object configured to use gRPC.
  *
- * The types, functions, aliases, and objects in this namespace are subject to
- * change without notice, including removal.
+ * @param opts the configuration parameters for the Client.
+ *
+ * @par Example
+ * @snippet storage_grpc_samples.cc grpc-read-write
  */
+google::cloud::storage::Client MakeGrpcClient(Options opts = {});
+
+GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
+}  // namespace storage
+
+// TODO(#13857) - remove the backwards compatibility shims.
 namespace storage_experimental {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 /**
  * Configure the GCS+gRPC plugin.
  *
- * - "none": use REST, disables gRPC.
- * - "media": use gRPC for media (aka data, aka I/O) operations, and REST for
- *   all other requests. In other words, only `ReadObject()`, `WriteObject()`,
- *   and `InsertObject()` use gRPC.
- * - "metadata": use gRPC for all operations.
- *
- * @warning GCS+gRPC is an experimental feature of the C++ client library, and
- *   subject to change without notice.  The service itself is not generally
- *   available, does not have an SLA and requires projects to be allow-listed.
+ * @deprecated use `google::cloud::storage::Client()` to create JSON-based
+ *     clients and `google::cloud::storage::DefaultGrpcClient()` to create
+ *     gRPC-based clients. If you need to pick one dynamically a simple
+ *     `if()` statement or ternary expression can do the job.
  */
-struct GrpcPluginOption {
+struct [[deprecated(
+    "use storage::Client() or storage::MakeGrpcClient()")]] GrpcPluginOption {
   using Type = std::string;
 };
 
 /**
  * Create a `google::cloud::storage::Client` object configured to use gRPC.
  *
- * @note The Credentials parameter in the configuration is ignored. The gRPC
- *     client only supports Google Default Credentials.
- *
- * @param opts the configuration parameters for the Client.
- *
- * @warning This is an experimental feature, and subject to change without
- *     notice.
- *
- * @par Example storage_grpc_samples.cc grpc-read-write
+ * @deprecated Please use `google::cloud::storage::MakeGrpcClient`.
  */
-google::cloud::storage::Client DefaultGrpcClient(Options opts = {});
+[[deprecated(
+    "use ::google::cloud::storage::MakeGrpcClient() instead")]] google::cloud::
+    storage::Client
+    DefaultGrpcClient(Options opts = {});
+
+/**
+ * Enable gRPC telemetry for GCS RPCs.
+ *
+ * Troubleshooting problems with GCS over gRPC is difficult without some
+ * telemetry indicating how the client is configured, and what load balancing
+ * information was available to the gRPC library.
+ *
+ * When this option is enabled (the default), the GCS client will export the
+ * gRPC telemetry discussed in [gRFC/66] and [gRFC/78] to
+ * [Google Cloud Monitoring]. Google Cloud Support can use this information to
+ * more quickly diagnose problems related to GCS and gRPC.
+ *
+ * Sending this data does not incur any billing charges, and requires minimal
+ * CPU (a single RPC every few minutes) or memory (a few KiB to batch the
+ * telemetry).
+ *
+ * [gRFC/66]: https://github.com/grpc/proposal/blob/master/A66-otel-stats.md
+ * [gRFC/78]:
+ * https://github.com/grpc/proposal/blob/master/A78-grpc-metrics-wrr-pf-xds.md
+ * [Google Cloud Monitoring]: https://cloud.google.com/monitoring/docs
+ */
+struct EnableGrpcMetricsOption {
+  using Type = bool;
+};
+
+/**
+ * gRPC telemetry export period.
+ *
+ * When `EnableGrpcMetrics` is enabled, this option controls the frequency at
+ * which metrics are exported to [Google Cloud Monitoring]. The default is 60
+ * seconds. Values below 5 seconds are ignored.
+ *
+ * [Google Cloud Monitoring]: https://cloud.google.com/monitoring/docs
+ */
+struct GrpcMetricsPeriodOption {
+  using Type = std::chrono::seconds;
+};
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace storage_experimental

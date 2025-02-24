@@ -34,17 +34,10 @@ using ::testing::AnyOf;
 using ::testing::IsEmpty;
 using ::testing::Not;
 
-struct TestParam {
-  absl::optional<std::string> rest_config;
-};
-
 class ObjectReadPreconditionsIntegrationTest
-    : public ::google::cloud::storage::testing::StorageIntegrationTest,
-      public ::testing::WithParamInterface<TestParam> {
+    : public ::google::cloud::storage::testing::StorageIntegrationTest {
  protected:
-  ObjectReadPreconditionsIntegrationTest()
-      : config_("GOOGLE_CLOUD_CPP_STORAGE_REST_CONFIG",
-                GetParam().rest_config) {}
+  ObjectReadPreconditionsIntegrationTest() = default;
 
   void SetUp() override {
     bucket_name_ =
@@ -57,73 +50,68 @@ class ObjectReadPreconditionsIntegrationTest
 
  private:
   std::string bucket_name_;
-  google::cloud::testing_util::ScopedEnvironment config_;
 };
 
-TEST_P(ObjectReadPreconditionsIntegrationTest, IfGenerationMatchSuccess) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+TEST_F(ObjectReadPreconditionsIntegrationTest, IfGenerationMatchSuccess) {
+  auto client = MakeIntegrationTestClient();
   auto const object_name = MakeRandomObjectName();
   auto const expected_text = LoremIpsum();
-  auto meta = client->InsertObject(bucket_name(), object_name, expected_text,
-                                   IfGenerationMatch(0));
+
+  auto meta = client.InsertObject(bucket_name(), object_name, expected_text,
+                                  IfGenerationMatch(0));
   ASSERT_THAT(meta, IsOk());
   ScheduleForDelete(*meta);
 
-  auto reader = client->ReadObject(bucket_name(), object_name,
-                                   IfGenerationMatch(meta->generation()));
+  auto reader = client.ReadObject(bucket_name(), object_name,
+                                  IfGenerationMatch(meta->generation()));
   reader.Close();
   EXPECT_THAT(reader.status(), IsOk());
 }
 
-TEST_P(ObjectReadPreconditionsIntegrationTest, IfGenerationMatchFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+TEST_F(ObjectReadPreconditionsIntegrationTest, IfGenerationMatchFailure) {
+  auto client = MakeIntegrationTestClient();
 
   auto const object_name = MakeRandomObjectName();
   auto const expected_text = LoremIpsum();
-  auto meta = client->InsertObject(bucket_name(), object_name, expected_text,
-                                   IfGenerationMatch(0));
+  auto meta = client.InsertObject(bucket_name(), object_name, expected_text,
+                                  IfGenerationMatch(0));
   ASSERT_THAT(meta, IsOk());
   ScheduleForDelete(*meta);
 
-  auto reader = client->ReadObject(bucket_name(), object_name,
-                                   IfGenerationMatch(meta->generation() + 1));
+  auto reader = client.ReadObject(bucket_name(), object_name,
+                                  IfGenerationMatch(meta->generation() + 1));
   reader.Close();
   EXPECT_THAT(reader.status(), StatusIs(StatusCode::kFailedPrecondition));
 }
 
-TEST_P(ObjectReadPreconditionsIntegrationTest, IfGenerationNotMatchSuccess) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+TEST_F(ObjectReadPreconditionsIntegrationTest, IfGenerationNotMatchSuccess) {
+  auto client = MakeIntegrationTestClient();
 
   auto const object_name = MakeRandomObjectName();
   auto const expected_text = LoremIpsum();
-  auto meta = client->InsertObject(bucket_name(), object_name, expected_text,
-                                   IfGenerationMatch(0));
+  auto meta = client.InsertObject(bucket_name(), object_name, expected_text,
+                                  IfGenerationMatch(0));
   ASSERT_THAT(meta, IsOk());
   ScheduleForDelete(*meta);
 
-  auto reader = client->ReadObject(
-      bucket_name(), object_name, IfGenerationNotMatch(meta->generation() + 1));
+  auto reader = client.ReadObject(bucket_name(), object_name,
+                                  IfGenerationNotMatch(meta->generation() + 1));
   reader.Close();
   EXPECT_THAT(reader.status(), IsOk());
 }
 
-TEST_P(ObjectReadPreconditionsIntegrationTest, IfGenerationNotMatchFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+TEST_F(ObjectReadPreconditionsIntegrationTest, IfGenerationNotMatchFailure) {
+  auto client = MakeIntegrationTestClient();
 
   auto const object_name = MakeRandomObjectName();
   auto const expected_text = LoremIpsum();
-  auto meta = client->InsertObject(bucket_name(), object_name, expected_text,
-                                   IfGenerationMatch(0));
+  auto meta = client.InsertObject(bucket_name(), object_name, expected_text,
+                                  IfGenerationMatch(0));
   ASSERT_THAT(meta, IsOk());
   ScheduleForDelete(*meta);
 
-  auto reader = client->ReadObject(bucket_name(), object_name,
-                                   IfGenerationNotMatch(meta->generation()));
+  auto reader = client.ReadObject(bucket_name(), object_name,
+                                  IfGenerationNotMatch(meta->generation()));
   reader.Close();
   // GCS returns different error codes depending on the API used by the client
   // library. This is a bit terrible, but in this context we just want to verify
@@ -133,76 +121,72 @@ TEST_P(ObjectReadPreconditionsIntegrationTest, IfGenerationNotMatchFailure) {
                                               StatusCode::kAborted)));
 }
 
-TEST_P(ObjectReadPreconditionsIntegrationTest, IfMetagenerationMatchSuccess) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+TEST_F(ObjectReadPreconditionsIntegrationTest, IfMetagenerationMatchSuccess) {
+  auto client = MakeIntegrationTestClient();
 
   auto const object_name = MakeRandomObjectName();
   auto const expected_text = LoremIpsum();
-  auto meta = client->InsertObject(bucket_name(), object_name, expected_text,
-                                   IfGenerationMatch(0));
+  auto meta = client.InsertObject(bucket_name(), object_name, expected_text,
+                                  IfGenerationMatch(0));
   ASSERT_THAT(meta, IsOk());
   ScheduleForDelete(*meta);
 
   auto reader =
-      client->ReadObject(bucket_name(), object_name,
-                         IfMetagenerationMatch(meta->metageneration()));
+      client.ReadObject(bucket_name(), object_name,
+                        IfMetagenerationMatch(meta->metageneration()));
   reader.Close();
   EXPECT_THAT(reader.status(), IsOk());
 }
 
-TEST_P(ObjectReadPreconditionsIntegrationTest, IfMetagenerationMatchFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+TEST_F(ObjectReadPreconditionsIntegrationTest, IfMetagenerationMatchFailure) {
+  auto client = MakeIntegrationTestClient();
 
   auto const object_name = MakeRandomObjectName();
   auto const expected_text = LoremIpsum();
-  auto meta = client->InsertObject(bucket_name(), object_name, expected_text,
-                                   IfGenerationMatch(0));
+  auto meta = client.InsertObject(bucket_name(), object_name, expected_text,
+                                  IfGenerationMatch(0));
   ASSERT_THAT(meta, IsOk());
   ScheduleForDelete(*meta);
 
   auto reader =
-      client->ReadObject(bucket_name(), object_name,
-                         IfMetagenerationMatch(meta->metageneration() + 1));
+      client.ReadObject(bucket_name(), object_name,
+                        IfMetagenerationMatch(meta->metageneration() + 1));
   reader.Close();
   EXPECT_THAT(reader.status(), StatusIs(StatusCode::kFailedPrecondition));
 }
 
-TEST_P(ObjectReadPreconditionsIntegrationTest,
+TEST_F(ObjectReadPreconditionsIntegrationTest,
        IfMetagenerationNotMatchSuccess) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto const object_name = MakeRandomObjectName();
   auto const expected_text = LoremIpsum();
-  auto meta = client->InsertObject(bucket_name(), object_name, expected_text,
-                                   IfGenerationMatch(0));
+  auto meta = client.InsertObject(bucket_name(), object_name, expected_text,
+                                  IfGenerationMatch(0));
   ASSERT_THAT(meta, IsOk());
   ScheduleForDelete(*meta);
 
   auto reader =
-      client->ReadObject(bucket_name(), object_name,
-                         IfMetagenerationNotMatch(meta->generation() + 1));
+      client.ReadObject(bucket_name(), object_name,
+                        IfMetagenerationNotMatch(meta->generation() + 1));
   reader.Close();
   EXPECT_THAT(reader.status(), IsOk());
 }
 
-TEST_P(ObjectReadPreconditionsIntegrationTest,
+TEST_F(ObjectReadPreconditionsIntegrationTest,
        IfMetagenerationNotMatchFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto const object_name = MakeRandomObjectName();
   auto const expected_text = LoremIpsum();
-  auto meta = client->InsertObject(bucket_name(), object_name, expected_text,
-                                   IfGenerationMatch(0));
+  auto meta = client.InsertObject(bucket_name(), object_name, expected_text,
+                                  IfGenerationMatch(0));
   ASSERT_THAT(meta, IsOk());
   ScheduleForDelete(*meta);
 
   auto reader =
-      client->ReadObject(bucket_name(), object_name,
-                         IfMetagenerationNotMatch(meta->metageneration()));
+      client.ReadObject(bucket_name(), object_name,
+                        IfMetagenerationNotMatch(meta->metageneration()));
   reader.Close();
   // GCS returns different error codes depending on the API used by the client
   // library. This is a bit terrible, but in this context we just want to verify
@@ -211,11 +195,6 @@ TEST_P(ObjectReadPreconditionsIntegrationTest,
   EXPECT_THAT(reader.status(), StatusIs(AnyOf(StatusCode::kFailedPrecondition,
                                               StatusCode::kAborted)));
 }
-
-INSTANTIATE_TEST_SUITE_P(XmlDisabled, ObjectReadPreconditionsIntegrationTest,
-                         ::testing::Values(TestParam{"disable-xml"}));
-INSTANTIATE_TEST_SUITE_P(XmlEnabled, ObjectReadPreconditionsIntegrationTest,
-                         ::testing::Values(TestParam{absl::nullopt}));
 
 }  // namespace
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

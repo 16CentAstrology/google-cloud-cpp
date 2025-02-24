@@ -13,14 +13,14 @@
 // limitations under the License.
 
 #include "google/cloud/storage/idempotency_policy.h"
-#include "absl/memory/memory.h"
+#include <memory>
 
 namespace google {
 namespace cloud {
 namespace storage {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 std::unique_ptr<IdempotencyPolicy> AlwaysRetryIdempotencyPolicy::clone() const {
-  return absl::make_unique<AlwaysRetryIdempotencyPolicy>(*this);
+  return std::make_unique<AlwaysRetryIdempotencyPolicy>(*this);
 }
 
 bool AlwaysRetryIdempotencyPolicy::IsIdempotent(
@@ -93,6 +93,10 @@ bool AlwaysRetryIdempotencyPolicy::IsIdempotent(
   return true;
 }
 bool AlwaysRetryIdempotencyPolicy::IsIdempotent(
+    internal::MoveObjectRequest const&) const {
+  return true;
+}
+bool AlwaysRetryIdempotencyPolicy::IsIdempotent(
     internal::PatchObjectRequest const&) const {
   return true;
 }
@@ -102,6 +106,10 @@ bool AlwaysRetryIdempotencyPolicy::IsIdempotent(
 }
 bool AlwaysRetryIdempotencyPolicy::IsIdempotent(
     internal::RewriteObjectRequest const&) const {
+  return true;
+}
+bool AlwaysRetryIdempotencyPolicy::IsIdempotent(
+    internal::RestoreObjectRequest const&) const {
   return true;
 }
 bool AlwaysRetryIdempotencyPolicy::IsIdempotent(
@@ -235,7 +243,7 @@ bool AlwaysRetryIdempotencyPolicy::IsIdempotent(
 }
 
 std::unique_ptr<IdempotencyPolicy> StrictIdempotencyPolicy::clone() const {
-  return absl::make_unique<StrictIdempotencyPolicy>(*this);
+  return std::make_unique<StrictIdempotencyPolicy>(*this);
 }
 
 bool StrictIdempotencyPolicy::IsIdempotent(
@@ -338,6 +346,11 @@ bool StrictIdempotencyPolicy::IsIdempotent(
 }
 
 bool StrictIdempotencyPolicy::IsIdempotent(
+    internal::MoveObjectRequest const& request) const {
+  return request.HasOption<IfGenerationMatch>();
+}
+
+bool StrictIdempotencyPolicy::IsIdempotent(
     internal::PatchObjectRequest const& request) const {
   return request.HasOption<IfMatchEtag>() ||
          request.HasOption<IfMetagenerationMatch>();
@@ -358,6 +371,11 @@ bool StrictIdempotencyPolicy::IsIdempotent(
   // is possible for the request to succeed more than once, even if the source
   // pre-conditions are set. If they are set, the operation can only succeed
   // once, but the results may be different.
+  return request.HasOption<IfGenerationMatch>();
+}
+
+bool StrictIdempotencyPolicy::IsIdempotent(
+    internal::RestoreObjectRequest const& request) const {
   return request.HasOption<IfGenerationMatch>();
 }
 

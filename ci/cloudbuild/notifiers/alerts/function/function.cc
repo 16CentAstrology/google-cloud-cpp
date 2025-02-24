@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <google/cloud/functions/cloud_event.h>
+#include <google/cloud/functions/function.h>
 #include <cppcodec/base64_rfc4648.hpp>
 #include <curl/curl.h>
 #include <fmt/core.h>
@@ -22,6 +23,8 @@
 #include <stdexcept>
 
 namespace {
+
+namespace gcf = google::cloud::functions;
 
 struct BuildStatus {
   nlohmann::json build;
@@ -57,13 +60,20 @@ nlohmann::json MakeChatPayload(BuildStatus const& bs) {
   return nlohmann::json{{"text", std::move(text)}};
 }
 
+struct CurlPtrCleanup {
+  void operator()(CURL* arg) const { return curl_easy_cleanup(arg); }
+};
+
+struct CurlSListFreeAll {
+  void operator()(curl_slist* arg) const { return curl_slist_free_all(arg); }
+};
+
 void HttpPost(std::string const& url, std::string const& data) {
   static constexpr auto kContentType = "Content-Type: application/json";
-  using Headers = std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)>;
-  auto const headers =
-      Headers{curl_slist_append(nullptr, kContentType), curl_slist_free_all};
-  using CurlHandle = std::unique_ptr<CURL, decltype(&curl_easy_cleanup)>;
-  auto curl = CurlHandle(curl_easy_init(), curl_easy_cleanup);
+  using Headers = std::unique_ptr<curl_slist, CurlSListFreeAll>;
+  auto const headers = Headers{curl_slist_append(nullptr, kContentType)};
+  using CurlHandle = std::unique_ptr<CURL, CurlPtrCleanup>;
+  auto curl = CurlHandle(curl_easy_init());
   if (!curl) throw std::runtime_error("Failed to create CurlHandle");
   curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
   curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, headers.get());
@@ -72,11 +82,15 @@ void HttpPost(std::string const& url, std::string const& data) {
   if (code != CURLE_OK) throw std::runtime_error(curl_easy_strerror(code));
 }
 
-}  // namespace
-
-void SendBuildAlerts(google::cloud::functions::CloudEvent event) {
+void Impl(google::cloud::functions::CloudEvent event) {
   static auto const webhook = [] {
     std::string const name = "GCB_BUILD_ALERT_WEBHOOK";
+    auto const* env = std::getenv(name.c_str());
+    if (env) return std::string{env};
+    throw std::runtime_error("Missing environment variable: " + name);
+  }();
+  static auto const webhook_friends = [] {
+    std::string const name = "GCB_FRIENDS_BUILD_ALERT_WEBHOOK";
     auto const* env = std::getenv(name.c_str());
     if (env) return std::string{env};
     throw std::runtime_error("Missing environment variable: " + name);
@@ -94,5 +108,14 @@ void SendBuildAlerts(google::cloud::functions::CloudEvent event) {
   if (trigger_type == "pr" || trigger_name.empty()) return;
   auto const chat = MakeChatPayload(bs);
   std::cout << nlohmann::json{{"severity", "INFO"}, {"chat", chat}} << "\n";
-  HttpPost(webhook, chat.dump());
+  auto const tags = bs.build.value("tags", std::vector<std::string>{});
+  auto const loc = std::find(tags.begin(), tags.end(), "friends");
+  auto const friends_only = loc != tags.end();
+  HttpPost(friends_only ? webhook_friends : webhook, chat.dump());
+}
+
+}  // namespace
+
+google::cloud::functions::Function SendBuildAlerts() {
+  return gcf::MakeFunction([](gcf::CloudEvent e) { Impl(std::move(e)); });
 }

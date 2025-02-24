@@ -22,6 +22,7 @@
 #include "google/cloud/storage/well_known_parameters.h"
 #include <iosfwd>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace google {
@@ -152,6 +153,7 @@ std::ostream& operator<<(std::ostream& os, UpdateBucketAclRequest const& r);
 class PatchBucketAclRequest
     : public GenericBucketAclRequest<PatchBucketAclRequest> {
  public:
+  PatchBucketAclRequest() = default;
   PatchBucketAclRequest(std::string bucket, std::string entity,
                         BucketAccessControl const& original,
                         BucketAccessControl const& new_acl);

@@ -20,8 +20,8 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_SPANNER_ADMIN_INSTANCE_ADMIN_CONNECTION_IDEMPOTENCY_POLICY_H
 
 #include "google/cloud/idempotency.h"
-#include "google/cloud/internal/retry_policy.h"
 #include "google/cloud/version.h"
+#include <google/longrunning/operations.grpc.pb.h>
 #include <google/spanner/admin/instance/v1/spanner_instance_admin.grpc.pb.h>
 #include <memory>
 
@@ -64,6 +64,10 @@ class InstanceAdminConnectionIdempotencyPolicy {
   virtual google::cloud::Idempotency ListInstances(
       google::spanner::admin::instance::v1::ListInstancesRequest request);
 
+  virtual google::cloud::Idempotency ListInstancePartitions(
+      google::spanner::admin::instance::v1::ListInstancePartitionsRequest
+          request);
+
   virtual google::cloud::Idempotency GetInstance(
       google::spanner::admin::instance::v1::GetInstanceRequest const& request);
 
@@ -87,6 +91,41 @@ class InstanceAdminConnectionIdempotencyPolicy {
 
   virtual google::cloud::Idempotency TestIamPermissions(
       google::iam::v1::TestIamPermissionsRequest const& request);
+
+  virtual google::cloud::Idempotency GetInstancePartition(
+      google::spanner::admin::instance::v1::GetInstancePartitionRequest const&
+          request);
+
+  virtual google::cloud::Idempotency CreateInstancePartition(
+      google::spanner::admin::instance::v1::
+          CreateInstancePartitionRequest const& request);
+
+  virtual google::cloud::Idempotency DeleteInstancePartition(
+      google::spanner::admin::instance::v1::
+          DeleteInstancePartitionRequest const& request);
+
+  virtual google::cloud::Idempotency UpdateInstancePartition(
+      google::spanner::admin::instance::v1::
+          UpdateInstancePartitionRequest const& request);
+
+  virtual google::cloud::Idempotency ListInstancePartitionOperations(
+      google::spanner::admin::instance::v1::
+          ListInstancePartitionOperationsRequest request);
+
+  virtual google::cloud::Idempotency MoveInstance(
+      google::spanner::admin::instance::v1::MoveInstanceRequest const& request);
+
+  virtual google::cloud::Idempotency ListOperations(
+      google::longrunning::ListOperationsRequest request);
+
+  virtual google::cloud::Idempotency GetOperation(
+      google::longrunning::GetOperationRequest const& request);
+
+  virtual google::cloud::Idempotency DeleteOperation(
+      google::longrunning::DeleteOperationRequest const& request);
+
+  virtual google::cloud::Idempotency CancelOperation(
+      google::longrunning::CancelOperationRequest const& request);
 };
 
 std::unique_ptr<InstanceAdminConnectionIdempotencyPolicy>

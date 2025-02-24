@@ -12,49 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("//bazel:gapic.bzl", "cc_gapic_library")
+
 package(default_visibility = ["//visibility:private"])
 
 licenses(["notice"])  # Apache 2.0
 
-filegroup(
-    name = "srcs",
-    srcs = glob([
-        "*.cc",
-        "internal/*.cc",
-    ]),
-)
+service_dirs = [
+    "",
+    "v1/",
+]
 
-filegroup(
-    name = "hdrs",
-    srcs = glob([
-        "*.h",
-        "internal/*.h",
-    ]),
-)
+googleapis_deps = [
+    "@com_google_googleapis//google/cloud/apigeeconnect/v1:apigeeconnect_cc_grpc",
+]
 
-filegroup(
-    name = "mocks",
-    srcs = glob(["mocks/*.h"]),
-)
-
-cc_library(
-    name = "google_cloud_cpp_apigeeconnect",
-    srcs = [":srcs"],
-    hdrs = [":hdrs"],
-    visibility = ["//:__pkg__"],
-    deps = [
-        "//:common",
-        "//:grpc_utils",
-        "@com_google_googleapis//google/cloud/apigeeconnect/v1:apigeeconnect_cc_grpc",
-    ],
-)
-
-cc_library(
-    name = "google_cloud_cpp_apigeeconnect_mocks",
-    hdrs = [":mocks"],
-    visibility = ["//:__pkg__"],
-    deps = [
-        ":google_cloud_cpp_apigeeconnect",
-        "@com_google_googletest//:gtest",
-    ],
+cc_gapic_library(
+    name = "apigeeconnect",
+    googleapis_deps = googleapis_deps,
+    service_dirs = service_dirs,
 )

@@ -21,14 +21,16 @@
 
 #include "google/cloud/dialogflow_es/conversation_models_connection_idempotency_policy.h"
 #include "google/cloud/dialogflow_es/internal/conversation_models_retry_traits.h"
-#include "google/cloud/dialogflow_es/internal/conversation_models_stub.h"
 #include "google/cloud/backoff_policy.h"
 #include "google/cloud/future.h"
+#include "google/cloud/internal/retry_policy_impl.h"
+#include "google/cloud/no_await_tag.h"
 #include "google/cloud/options.h"
 #include "google/cloud/polling_policy.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/stream_range.h"
 #include "google/cloud/version.h"
+#include <google/cloud/dialogflow/v2/conversation_model.pb.h>
 #include <google/longrunning/operations.grpc.pb.h>
 #include <memory>
 #include <string>
@@ -38,17 +40,137 @@ namespace cloud {
 namespace dialogflow_es {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
-using ConversationModelsRetryPolicy =
-    ::google::cloud::internal::TraitBasedRetryPolicy<
-        dialogflow_es_internal::ConversationModelsRetryTraits>;
+/// The retry policy for `ConversationModelsConnection`.
+class ConversationModelsRetryPolicy : public ::google::cloud::RetryPolicy {
+ public:
+  /// Creates a new instance of the policy, reset to the initial state.
+  virtual std::unique_ptr<ConversationModelsRetryPolicy> clone() const = 0;
+};
 
-using ConversationModelsLimitedTimeRetryPolicy =
-    ::google::cloud::internal::LimitedTimeRetryPolicy<
-        dialogflow_es_internal::ConversationModelsRetryTraits>;
+/**
+ * A retry policy for `ConversationModelsConnection` based on counting errors.
+ *
+ * This policy stops retrying if:
+ * - An RPC returns a non-transient error.
+ * - More than a prescribed number of transient failures is detected.
+ *
+ * In this class the following status codes are treated as transient errors:
+ * - [`kUnavailable`](@ref google::cloud::StatusCode)
+ */
+class ConversationModelsLimitedErrorCountRetryPolicy
+    : public ConversationModelsRetryPolicy {
+ public:
+  /**
+   * Create an instance that tolerates up to @p maximum_failures transient
+   * errors.
+   *
+   * @note Disable the retry loop by providing an instance of this policy with
+   *     @p maximum_failures == 0.
+   */
+  explicit ConversationModelsLimitedErrorCountRetryPolicy(int maximum_failures)
+      : impl_(maximum_failures) {}
 
-using ConversationModelsLimitedErrorCountRetryPolicy =
-    ::google::cloud::internal::LimitedErrorCountRetryPolicy<
-        dialogflow_es_internal::ConversationModelsRetryTraits>;
+  ConversationModelsLimitedErrorCountRetryPolicy(
+      ConversationModelsLimitedErrorCountRetryPolicy&& rhs) noexcept
+      : ConversationModelsLimitedErrorCountRetryPolicy(rhs.maximum_failures()) {
+  }
+  ConversationModelsLimitedErrorCountRetryPolicy(
+      ConversationModelsLimitedErrorCountRetryPolicy const& rhs) noexcept
+      : ConversationModelsLimitedErrorCountRetryPolicy(rhs.maximum_failures()) {
+  }
+
+  int maximum_failures() const { return impl_.maximum_failures(); }
+
+  bool OnFailure(Status const& status) override {
+    return impl_.OnFailure(status);
+  }
+  bool IsExhausted() const override { return impl_.IsExhausted(); }
+  bool IsPermanentFailure(Status const& status) const override {
+    return impl_.IsPermanentFailure(status);
+  }
+  std::unique_ptr<ConversationModelsRetryPolicy> clone() const override {
+    return std::make_unique<ConversationModelsLimitedErrorCountRetryPolicy>(
+        maximum_failures());
+  }
+
+  // This is provided only for backwards compatibility.
+  using BaseType = ConversationModelsRetryPolicy;
+
+ private:
+  google::cloud::internal::LimitedErrorCountRetryPolicy<
+      dialogflow_es_internal::ConversationModelsRetryTraits>
+      impl_;
+};
+
+/**
+ * A retry policy for `ConversationModelsConnection` based on elapsed time.
+ *
+ * This policy stops retrying if:
+ * - An RPC returns a non-transient error.
+ * - The elapsed time in the retry loop exceeds a prescribed duration.
+ *
+ * In this class the following status codes are treated as transient errors:
+ * - [`kUnavailable`](@ref google::cloud::StatusCode)
+ */
+class ConversationModelsLimitedTimeRetryPolicy
+    : public ConversationModelsRetryPolicy {
+ public:
+  /**
+   * Constructor given a `std::chrono::duration<>` object.
+   *
+   * @tparam DurationRep a placeholder to match the `Rep` tparam for @p
+   *     duration's type. The semantics of this template parameter are
+   *     documented in `std::chrono::duration<>`. In brief, the underlying
+   *     arithmetic type used to store the number of ticks. For our purposes it
+   *     is simply a formal parameter.
+   * @tparam DurationPeriod a placeholder to match the `Period` tparam for @p
+   *     duration's type. The semantics of this template parameter are
+   *     documented in `std::chrono::duration<>`. In brief, the length of the
+   *     tick in seconds, expressed as a `std::ratio<>`. For our purposes it is
+   *     simply a formal parameter.
+   * @param maximum_duration the maximum time allowed before the policy expires.
+   *     While the application can express this time in any units they desire,
+   *     the class truncates to milliseconds.
+   *
+   * @see https://en.cppreference.com/w/cpp/chrono/duration for more information
+   *     about `std::chrono::duration`.
+   */
+  template <typename DurationRep, typename DurationPeriod>
+  explicit ConversationModelsLimitedTimeRetryPolicy(
+      std::chrono::duration<DurationRep, DurationPeriod> maximum_duration)
+      : impl_(maximum_duration) {}
+
+  ConversationModelsLimitedTimeRetryPolicy(
+      ConversationModelsLimitedTimeRetryPolicy&& rhs) noexcept
+      : ConversationModelsLimitedTimeRetryPolicy(rhs.maximum_duration()) {}
+  ConversationModelsLimitedTimeRetryPolicy(
+      ConversationModelsLimitedTimeRetryPolicy const& rhs) noexcept
+      : ConversationModelsLimitedTimeRetryPolicy(rhs.maximum_duration()) {}
+
+  std::chrono::milliseconds maximum_duration() const {
+    return impl_.maximum_duration();
+  }
+
+  bool OnFailure(Status const& status) override {
+    return impl_.OnFailure(status);
+  }
+  bool IsExhausted() const override { return impl_.IsExhausted(); }
+  bool IsPermanentFailure(Status const& status) const override {
+    return impl_.IsPermanentFailure(status);
+  }
+  std::unique_ptr<ConversationModelsRetryPolicy> clone() const override {
+    return std::make_unique<ConversationModelsLimitedTimeRetryPolicy>(
+        maximum_duration());
+  }
+
+  // This is provided only for backwards compatibility.
+  using BaseType = ConversationModelsRetryPolicy;
+
+ private:
+  google::cloud::internal::LimitedTimeRetryPolicy<
+      dialogflow_es_internal::ConversationModelsRetryTraits>
+      impl_;
+};
 
 /**
  * The `ConversationModelsConnection` object for `ConversationModelsClient`.
@@ -73,6 +195,14 @@ class ConversationModelsConnection {
       google::cloud::dialogflow::v2::CreateConversationModelRequest const&
           request);
 
+  virtual StatusOr<google::longrunning::Operation> CreateConversationModel(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::CreateConversationModelRequest const&
+          request);
+
+  virtual future<StatusOr<google::cloud::dialogflow::v2::ConversationModel>>
+  CreateConversationModel(google::longrunning::Operation const& operation);
+
   virtual StatusOr<google::cloud::dialogflow::v2::ConversationModel>
   GetConversationModel(
       google::cloud::dialogflow::v2::GetConversationModelRequest const&
@@ -88,17 +218,44 @@ class ConversationModelsConnection {
       google::cloud::dialogflow::v2::DeleteConversationModelRequest const&
           request);
 
+  virtual StatusOr<google::longrunning::Operation> DeleteConversationModel(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::DeleteConversationModelRequest const&
+          request);
+
+  virtual future<StatusOr<
+      google::cloud::dialogflow::v2::DeleteConversationModelOperationMetadata>>
+  DeleteConversationModel(google::longrunning::Operation const& operation);
+
   virtual future<StatusOr<
       google::cloud::dialogflow::v2::DeployConversationModelOperationMetadata>>
   DeployConversationModel(
       google::cloud::dialogflow::v2::DeployConversationModelRequest const&
           request);
 
+  virtual StatusOr<google::longrunning::Operation> DeployConversationModel(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::DeployConversationModelRequest const&
+          request);
+
+  virtual future<StatusOr<
+      google::cloud::dialogflow::v2::DeployConversationModelOperationMetadata>>
+  DeployConversationModel(google::longrunning::Operation const& operation);
+
   virtual future<StatusOr<google::cloud::dialogflow::v2::
                               UndeployConversationModelOperationMetadata>>
   UndeployConversationModel(
       google::cloud::dialogflow::v2::UndeployConversationModelRequest const&
           request);
+
+  virtual StatusOr<google::longrunning::Operation> UndeployConversationModel(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::UndeployConversationModelRequest const&
+          request);
+
+  virtual future<StatusOr<google::cloud::dialogflow::v2::
+                              UndeployConversationModelOperationMetadata>>
+  UndeployConversationModel(google::longrunning::Operation const& operation);
 
   virtual StatusOr<google::cloud::dialogflow::v2::ConversationModelEvaluation>
   GetConversationModelEvaluation(
@@ -116,6 +273,31 @@ class ConversationModelsConnection {
   CreateConversationModelEvaluation(
       google::cloud::dialogflow::v2::
           CreateConversationModelEvaluationRequest const& request);
+
+  virtual StatusOr<google::longrunning::Operation>
+  CreateConversationModelEvaluation(
+      NoAwaitTag, google::cloud::dialogflow::v2::
+                      CreateConversationModelEvaluationRequest const& request);
+
+  virtual future<
+      StatusOr<google::cloud::dialogflow::v2::ConversationModelEvaluation>>
+  CreateConversationModelEvaluation(
+      google::longrunning::Operation const& operation);
+
+  virtual StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request);
+
+  virtual StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request);
+
+  virtual StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request);
+
+  virtual StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request);
+
+  virtual Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request);
 };
 
 /**

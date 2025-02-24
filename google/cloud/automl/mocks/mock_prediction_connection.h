@@ -20,42 +20,18 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_AUTOML_MOCKS_MOCK_PREDICTION_CONNECTION_H
 
 #include "google/cloud/automl/prediction_connection.h"
-#include <gmock/gmock.h>
+#include "google/cloud/automl/v1/mocks/mock_prediction_connection.h"
 
 namespace google {
 namespace cloud {
+/// @deprecated This namespace exists for backwards compatibility. Use the
+///     types defined in automl_v1_mocks instead of the aliases
+///     defined in this namespace.
 namespace automl_mocks {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
-/**
- * A class to mock `PredictionServiceConnection`.
- *
- * Application developers may want to test their code with simulated responses,
- * including errors, from an object of type `PredictionServiceClient`. To do so,
- * construct an object of type `PredictionServiceClient` with an instance of
- * this class. Then use the Google Test framework functions to program the
- * behavior of this mock.
- *
- * @see [This example][bq-mock] for how to test your application with
- * GoogleTest. While the example showcases types from the BigQuery library, the
- * underlying principles apply for any pair of `*Client` and `*Connection`.
- *
- * [bq-mock]: @googleapis_dev_link{bigquery,bigquery-read-mock.html}
- */
-class MockPredictionServiceConnection
-    : public automl::PredictionServiceConnection {
- public:
-  MOCK_METHOD(Options, options, (), (override));
-
-  MOCK_METHOD(StatusOr<google::cloud::automl::v1::PredictResponse>, Predict,
-              (google::cloud::automl::v1::PredictRequest const& request),
-              (override));
-
-  MOCK_METHOD(future<StatusOr<google::cloud::automl::v1::BatchPredictResult>>,
-              BatchPredict,
-              (google::cloud::automl::v1::BatchPredictRequest const& request),
-              (override));
-};
+/// @deprecated Use automl_v1_mocks::MockPredictionServiceConnection directly.
+using ::google::cloud::automl_v1_mocks::MockPredictionServiceConnection;
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace automl_mocks

@@ -74,10 +74,26 @@ class TestCasesConnectionImpl : public dialogflow_cx::TestCasesConnection {
   RunTestCase(google::cloud::dialogflow::cx::v3::RunTestCaseRequest const&
                   request) override;
 
+  StatusOr<google::longrunning::Operation> RunTestCase(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::RunTestCaseRequest const& request)
+      override;
+
+  future<StatusOr<google::cloud::dialogflow::cx::v3::RunTestCaseResponse>>
+  RunTestCase(google::longrunning::Operation const& operation) override;
+
   future<StatusOr<google::cloud::dialogflow::cx::v3::BatchRunTestCasesResponse>>
   BatchRunTestCases(
       google::cloud::dialogflow::cx::v3::BatchRunTestCasesRequest const&
           request) override;
+
+  StatusOr<google::longrunning::Operation> BatchRunTestCases(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::BatchRunTestCasesRequest const&
+          request) override;
+
+  future<StatusOr<google::cloud::dialogflow::cx::v3::BatchRunTestCasesResponse>>
+  BatchRunTestCases(google::longrunning::Operation const& operation) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::CalculateCoverageResponse>
   CalculateCoverage(
@@ -89,10 +105,26 @@ class TestCasesConnectionImpl : public dialogflow_cx::TestCasesConnection {
       google::cloud::dialogflow::cx::v3::ImportTestCasesRequest const& request)
       override;
 
+  StatusOr<google::longrunning::Operation> ImportTestCases(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::ImportTestCasesRequest const& request)
+      override;
+
+  future<StatusOr<google::cloud::dialogflow::cx::v3::ImportTestCasesResponse>>
+  ImportTestCases(google::longrunning::Operation const& operation) override;
+
   future<StatusOr<google::cloud::dialogflow::cx::v3::ExportTestCasesResponse>>
   ExportTestCases(
       google::cloud::dialogflow::cx::v3::ExportTestCasesRequest const& request)
       override;
+
+  StatusOr<google::longrunning::Operation> ExportTestCases(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::ExportTestCasesRequest const& request)
+      override;
+
+  future<StatusOr<google::cloud::dialogflow::cx::v3::ExportTestCasesResponse>>
+  ExportTestCases(google::longrunning::Operation const& operation) override;
 
   StreamRange<google::cloud::dialogflow::cx::v3::TestCaseResult>
   ListTestCaseResults(
@@ -103,47 +135,22 @@ class TestCasesConnectionImpl : public dialogflow_cx::TestCasesConnection {
       google::cloud::dialogflow::cx::v3::GetTestCaseResultRequest const&
           request) override;
 
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_cx::TestCasesRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::TestCasesRetryPolicyOption>()) {
-      return options.get<dialogflow_cx::TestCasesRetryPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_cx::TestCasesRetryPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::TestCasesBackoffPolicyOption>()) {
-      return options.get<dialogflow_cx::TestCasesBackoffPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_cx::TestCasesBackoffPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<dialogflow_cx::TestCasesConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options
-            .has<dialogflow_cx::TestCasesConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_cx::TestCasesConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_cx::TestCasesConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<PollingPolicy> polling_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::TestCasesPollingPolicyOption>()) {
-      return options.get<dialogflow_cx::TestCasesPollingPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_cx::TestCasesPollingPolicyOption>()->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_cx_internal::TestCasesStub> stub_;
   Options options_;

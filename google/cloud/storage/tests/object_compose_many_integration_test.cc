@@ -20,12 +20,13 @@
 #include "google/cloud/testing_util/expect_exception.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
-#include <sys/types.h>
 #include <algorithm>
 #include <cstring>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -37,9 +38,7 @@ using ObjectComposeManyIntegrationTest =
     ::google::cloud::storage::testing::ObjectIntegrationTest;
 
 TEST_F(ObjectComposeManyIntegrationTest, ComposeMany) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto prefix = CreateRandomPrefixName();
   std::string const dest_object_name = prefix + ".dest";
 
@@ -49,21 +48,22 @@ TEST_F(ObjectComposeManyIntegrationTest, ComposeMany) {
     std::string const object_name = prefix + ".src-" + std::to_string(i);
     std::string content = std::to_string(i);
     expected += content;
-    StatusOr<ObjectMetadata> insert_meta = client->InsertObject(
+    StatusOr<ObjectMetadata> insert_meta = client.InsertObject(
         bucket_name_, object_name, std::move(content), IfGenerationMatch(0));
     ASSERT_STATUS_OK(insert_meta);
+    // NOLINTNEXTLINE(modernize-use-emplace) - brace initialization
     source_objs.emplace_back(ComposeSourceObject{
         std::move(object_name), insert_meta->generation(), {}});
   }
 
-  auto res = ComposeMany(*client, bucket_name_, std::move(source_objs), prefix,
+  auto res = ComposeMany(client, bucket_name_, std::move(source_objs), prefix,
                          dest_object_name, false);
 
   ASSERT_STATUS_OK(res);
   ScheduleForDelete(*res);
   EXPECT_EQ(dest_object_name, res->name());
 
-  auto stream = client->ReadObject(bucket_name_, dest_object_name);
+  auto stream = client.ReadObject(bucket_name_, dest_object_name);
   std::string actual(std::istreambuf_iterator<char>{stream}, {});
   EXPECT_EQ(expected, actual);
 }

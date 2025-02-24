@@ -20,7 +20,9 @@
 #include "absl/strings/str_split.h"
 #include <gmock/gmock.h>
 #include <fstream>
+#include <string>
 #include <thread>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -60,10 +62,9 @@ auto constexpr kFirstLine =
     "000000001: The quick brown fox jumps over the lazy dog";
 
 TEST_F(DecompressiveTranscodingIntegrationTest, WriteAndReadJson) {
-  auto client = Client(
-      Options{}
-          .set<TransferStallTimeoutOption>(std::chrono::seconds(3))
-          .set<RetryPolicyOption>(LimitedErrorCountRetryPolicy(5).clone()));
+  if (UsingGrpc()) GTEST_SKIP();
+
+  auto client = MakeIntegrationTestClient();
 
   auto object_name = MakeRandomObjectName();
   auto insert = client.InsertObject(
@@ -75,9 +76,6 @@ TEST_F(DecompressiveTranscodingIntegrationTest, WriteAndReadJson) {
   ScheduleForDelete(*insert);
   EXPECT_EQ(insert->content_encoding(), "gzip");
   EXPECT_EQ(insert->content_type(), "text/plain");
-
-  // TODO(#8829) - decompressive transcoding does not work with gRPC
-  if (UsingGrpc()) return;
 
   auto reader =
       client.ReadObject(bucket_name(), object_name, IfGenerationNotMatch(0));
@@ -91,42 +89,8 @@ TEST_F(DecompressiveTranscodingIntegrationTest, WriteAndReadJson) {
   EXPECT_THAT(decompressed, StartsWith(kFirstLine));
 }
 
-TEST_F(DecompressiveTranscodingIntegrationTest, WriteAndReadXml) {
-  auto client = Client(
-      Options{}
-          .set<TransferStallTimeoutOption>(std::chrono::seconds(3))
-          .set<RetryPolicyOption>(LimitedErrorCountRetryPolicy(5).clone()));
-
-  auto object_name = MakeRandomObjectName();
-  auto insert = client.InsertObject(
-      bucket_name(), object_name, gzipped_contents(), IfGenerationMatch(0),
-      WithObjectMetadata(
-          ObjectMetadata().set_content_encoding("gzip").set_content_type(
-              "text/plain")));
-  ASSERT_STATUS_OK(insert);
-  ScheduleForDelete(*insert);
-  EXPECT_EQ(insert->content_encoding(), "gzip");
-  EXPECT_EQ(insert->content_type(), "text/plain");
-
-  // TODO(#8829) - decompressive transcoding does not work with gRPC
-  if (UsingGrpc()) return;
-
-  auto reader = client.ReadObject(bucket_name(), object_name);
-  ASSERT_STATUS_OK(reader.status());
-  auto decompressed = std::string{std::istreambuf_iterator<char>(reader), {}};
-  ASSERT_STATUS_OK(reader.status());
-
-  // The whole point is to decompress the data and return something different.
-  ASSERT_NE(decompressed.substr(0, 32), gzipped_contents().substr(0, 32));
-  // Verify the decompressed data looks right.
-  EXPECT_THAT(decompressed, StartsWith(kFirstLine));
-}
-
 TEST_F(DecompressiveTranscodingIntegrationTest, WriteAndReadCompressedJson) {
-  auto client = Client(
-      Options{}
-          .set<TransferStallTimeoutOption>(std::chrono::seconds(3))
-          .set<RetryPolicyOption>(LimitedErrorCountRetryPolicy(5).clone()));
+  auto client = MakeIntegrationTestClient();
 
   auto object_name = MakeRandomObjectName();
   auto insert = client.InsertObject(
@@ -149,43 +113,15 @@ TEST_F(DecompressiveTranscodingIntegrationTest, WriteAndReadCompressedJson) {
   ASSERT_EQ(compressed.substr(0, 32), gzipped_contents().substr(0, 32));
 }
 
-TEST_F(DecompressiveTranscodingIntegrationTest, WriteAndReadCompressedXml) {
-  auto client = Client(
-      Options{}
-          .set<TransferStallTimeoutOption>(std::chrono::seconds(3))
-          .set<RetryPolicyOption>(LimitedErrorCountRetryPolicy(5).clone()));
-
-  auto object_name = MakeRandomObjectName();
-  auto insert = client.InsertObject(
-      bucket_name(), object_name, gzipped_contents(), IfGenerationMatch(0),
-      WithObjectMetadata(
-          ObjectMetadata().set_content_encoding("gzip").set_content_type(
-              "text/plain")));
-  ASSERT_STATUS_OK(insert);
-  ScheduleForDelete(*insert);
-  EXPECT_EQ(insert->content_encoding(), "gzip");
-  EXPECT_EQ(insert->content_type(), "text/plain");
-
-  auto reader =
-      client.ReadObject(bucket_name(), object_name, AcceptEncodingGzip());
-  ASSERT_STATUS_OK(reader.status());
-  auto compressed = std::string{std::istreambuf_iterator<char>(reader), {}};
-  ASSERT_STATUS_OK(reader.status());
-
-  ASSERT_EQ(compressed.substr(0, 32), gzipped_contents().substr(0, 32));
-}
-
 TEST_F(DecompressiveTranscodingIntegrationTest, ResumeGunzippedDownloadJson) {
   // This test requires the emulator to force specific download failures.
   // TODO(#8829) - decompressive transcoding does not work with gRPC
   if (!UsingEmulator() || UsingGrpc()) GTEST_SKIP();
 
-  auto client = Client(
+  auto client = MakeIntegrationTestClient(
       Options{}
           .set<MaximumCurlSocketRecvSizeOption>(16 * 1024)
-          .set<DownloadBufferSizeOption>(1024)
-          .set<TransferStallTimeoutOption>(std::chrono::seconds(3))
-          .set<RetryPolicyOption>(LimitedErrorCountRetryPolicy(5).clone()));
+          .set<DownloadBufferSizeOption>(1024));
 
   auto object_name = MakeRandomObjectName();
   auto insert = client.InsertObject(

@@ -15,8 +15,10 @@
 # ~~~
 
 include(IncludeNlohmannJson)
-include(FindCurlWithTargets)
-find_package(OpenSSL REQUIRED)
+find_package(CURL REQUIRED)
+if (NOT WIN32)
+    find_package(OpenSSL REQUIRED)
+endif ()
 
 # the library
 add_library(
@@ -38,6 +40,8 @@ add_library(
     internal/curl_rest_response.h
     internal/curl_wrappers.cc
     internal/curl_wrappers.h
+    internal/curl_writev.cc
+    internal/curl_writev.h
     internal/external_account_source_format.cc
     internal/external_account_source_format.h
     internal/external_account_token_source_aws.cc
@@ -55,6 +59,8 @@ add_library(
     internal/oauth2_access_token_credentials.h
     internal/oauth2_anonymous_credentials.cc
     internal/oauth2_anonymous_credentials.h
+    internal/oauth2_api_key_credentials.cc
+    internal/oauth2_api_key_credentials.h
     internal/oauth2_authorized_user_credentials.cc
     internal/oauth2_authorized_user_credentials.h
     internal/oauth2_cached_credentials.cc
@@ -86,11 +92,22 @@ add_library(
     internal/oauth2_refreshing_credentials_wrapper.h
     internal/oauth2_service_account_credentials.cc
     internal/oauth2_service_account_credentials.h
-    internal/openssl_util.cc
-    internal/openssl_util.h
+    internal/oauth2_universe_domain.cc
+    internal/oauth2_universe_domain.h
+    internal/openssl/parse_service_account_p12_file.cc
+    internal/openssl/sign_using_sha256.cc
+    internal/parse_service_account_p12_file.h
+    internal/populate_rest_options.cc
+    internal/populate_rest_options.h
+    internal/rest_carrier.cc
+    internal/rest_carrier.h
     internal/rest_client.h
     internal/rest_context.cc
     internal/rest_context.h
+    internal/rest_lro_helpers.cc
+    internal/rest_lro_helpers.h
+    internal/rest_opentelemetry.cc
+    internal/rest_opentelemetry.h
     internal/rest_options.h
     internal/rest_parse_json_error.cc
     internal/rest_parse_json_error.h
@@ -98,13 +115,38 @@ add_library(
     internal/rest_request.h
     internal/rest_response.cc
     internal/rest_response.h
+    internal/rest_retry_loop.h
+    internal/rest_set_metadata.cc
+    internal/rest_set_metadata.h
+    internal/sign_using_sha256.h
+    internal/tracing_http_payload.cc
+    internal/tracing_http_payload.h
+    internal/tracing_rest_client.cc
+    internal/tracing_rest_client.h
+    internal/tracing_rest_response.cc
+    internal/tracing_rest_response.h
     internal/unified_rest_credentials.cc
     internal/unified_rest_credentials.h
+    internal/win32/parse_service_account_p12_file.cc
+    internal/win32/sign_using_sha256.cc
+    internal/win32/win32_helpers.cc
+    internal/win32/win32_helpers.h
     rest_options.h)
 target_link_libraries(
     google_cloud_cpp_rest_internal
     PUBLIC absl::span google-cloud-cpp::common CURL::libcurl
-           nlohmann_json::nlohmann_json OpenSSL::SSL OpenSSL::Crypto)
+           nlohmann_json::nlohmann_json)
+if (WIN32)
+    target_compile_definitions(google_cloud_cpp_rest_internal
+                               PRIVATE WIN32_LEAN_AND_MEAN)
+    # We use `setsockopt()` directly, which requires the ws2_32 (Winsock2 for
+    # Windows32?) library on Windows.
+    target_link_libraries(google_cloud_cpp_rest_internal PUBLIC ws2_32 bcrypt
+                                                                crypt32)
+else ()
+    target_link_libraries(google_cloud_cpp_rest_internal PUBLIC OpenSSL::SSL
+                                                                OpenSSL::Crypto)
+endif ()
 google_cloud_cpp_add_common_options(google_cloud_cpp_rest_internal)
 target_include_directories(
     google_cloud_cpp_rest_internal
@@ -135,16 +177,7 @@ install(
             COMPONENT google_cloud_cpp_runtime
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
             COMPONENT google_cloud_cpp_runtime
-            NAMELINK_SKIP
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            COMPONENT google_cloud_cpp_development)
-# With CMake-3.12 and higher we could avoid this separate command (and the
-# duplication).
-install(
-    TARGETS google_cloud_cpp_rest_internal
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            COMPONENT google_cloud_cpp_development
-            NAMELINK_ONLY
+            NAMELINK_COMPONENT google_cloud_cpp_development
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
             COMPONENT google_cloud_cpp_development)
 
@@ -152,9 +185,17 @@ google_cloud_cpp_install_headers(google_cloud_cpp_rest_internal
                                  include/google/cloud)
 
 google_cloud_cpp_add_pkgconfig(
-    rest_internal "REST library for the Google Cloud C++ Client Library"
+    rest_internal
+    "REST library for the Google Cloud C++ Client Library"
     "Provides REST Transport for the Google Cloud C++ Client Library."
-    "google_cloud_cpp_common" " libcurl" " openssl")
+    "google_cloud_cpp_common"
+    "libcurl"
+    NON_WIN32_REQUIRES
+    openssl
+    WIN32_LIBS
+    ws2_32
+    bcrypt
+    crypt32)
 
 # Create and install the CMake configuration files.
 include(CMakePackageConfigHelpers)
@@ -189,9 +230,6 @@ function (google_cloud_cpp_rest_internal_add_test fname labels)
                 GTest::gtest
                 CURL::libcurl)
     google_cloud_cpp_add_common_options(${target})
-    if (MSVC)
-        target_compile_options(${target} PRIVATE "/bigobj")
-    endif ()
     add_test(NAME ${target} COMMAND ${target})
     set_tests_properties(${target} PROPERTIES LABELS "${labels}")
 endfunction ()
@@ -212,6 +250,7 @@ if (BUILD_TESTING)
         internal/curl_wrappers_locking_disabled_test.cc
         internal/curl_wrappers_locking_enabled_test.cc
         internal/curl_wrappers_test.cc
+        internal/curl_writev_test.cc
         internal/external_account_source_format_test.cc
         internal/external_account_token_source_aws_test.cc
         internal/external_account_token_source_file_test.cc
@@ -220,6 +259,7 @@ if (BUILD_TESTING)
         internal/make_jwt_assertion_test.cc
         internal/oauth2_access_token_credentials_test.cc
         internal/oauth2_anonymous_credentials_test.cc
+        internal/oauth2_api_key_credentials_test.cc
         internal/oauth2_authorized_user_credentials_test.cc
         internal/oauth2_cached_credentials_test.cc
         internal/oauth2_compute_engine_credentials_test.cc
@@ -232,11 +272,20 @@ if (BUILD_TESTING)
         internal/oauth2_minimal_iam_credentials_rest_test.cc
         internal/oauth2_refreshing_credentials_wrapper_test.cc
         internal/oauth2_service_account_credentials_test.cc
-        internal/openssl_util_test.cc
+        internal/oauth2_universe_domain_test.cc
+        internal/populate_rest_options_test.cc
+        internal/rest_carrier_test.cc
         internal/rest_context_test.cc
+        internal/rest_lro_helpers_test.cc
+        internal/rest_opentelemetry_test.cc
         internal/rest_parse_json_error_test.cc
         internal/rest_request_test.cc
         internal/rest_response_test.cc
+        internal/rest_retry_loop_test.cc
+        internal/rest_set_metadata_test.cc
+        internal/tracing_http_payload_test.cc
+        internal/tracing_rest_client_test.cc
+        internal/tracing_rest_response_test.cc
         internal/unified_rest_credentials_test.cc)
 
     # List the emulator integration tests, then setup the targets and

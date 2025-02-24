@@ -21,6 +21,7 @@
 #include "google/cloud/status_or.h"
 #include <google/cloud/dialogflow/cx/v3/transition_route_group.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -31,12 +32,12 @@ TransitionRouteGroupsStub::~TransitionRouteGroupsStub() = default;
 
 StatusOr<google::cloud::dialogflow::cx::v3::ListTransitionRouteGroupsResponse>
 DefaultTransitionRouteGroupsStub::ListTransitionRouteGroups(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::cx::v3::ListTransitionRouteGroupsRequest const&
         request) {
   google::cloud::dialogflow::cx::v3::ListTransitionRouteGroupsResponse response;
-  auto status = grpc_stub_->ListTransitionRouteGroups(&client_context, request,
-                                                      &response);
+  auto status =
+      grpc_stub_->ListTransitionRouteGroups(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -45,12 +46,12 @@ DefaultTransitionRouteGroupsStub::ListTransitionRouteGroups(
 
 StatusOr<google::cloud::dialogflow::cx::v3::TransitionRouteGroup>
 DefaultTransitionRouteGroupsStub::GetTransitionRouteGroup(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::cx::v3::GetTransitionRouteGroupRequest const&
         request) {
   google::cloud::dialogflow::cx::v3::TransitionRouteGroup response;
   auto status =
-      grpc_stub_->GetTransitionRouteGroup(&client_context, request, &response);
+      grpc_stub_->GetTransitionRouteGroup(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -59,12 +60,12 @@ DefaultTransitionRouteGroupsStub::GetTransitionRouteGroup(
 
 StatusOr<google::cloud::dialogflow::cx::v3::TransitionRouteGroup>
 DefaultTransitionRouteGroupsStub::CreateTransitionRouteGroup(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::cx::v3::CreateTransitionRouteGroupRequest const&
         request) {
   google::cloud::dialogflow::cx::v3::TransitionRouteGroup response;
-  auto status = grpc_stub_->CreateTransitionRouteGroup(&client_context, request,
-                                                       &response);
+  auto status =
+      grpc_stub_->CreateTransitionRouteGroup(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -73,12 +74,12 @@ DefaultTransitionRouteGroupsStub::CreateTransitionRouteGroup(
 
 StatusOr<google::cloud::dialogflow::cx::v3::TransitionRouteGroup>
 DefaultTransitionRouteGroupsStub::UpdateTransitionRouteGroup(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::cx::v3::UpdateTransitionRouteGroupRequest const&
         request) {
   google::cloud::dialogflow::cx::v3::TransitionRouteGroup response;
-  auto status = grpc_stub_->UpdateTransitionRouteGroup(&client_context, request,
-                                                       &response);
+  auto status =
+      grpc_stub_->UpdateTransitionRouteGroup(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -86,12 +87,71 @@ DefaultTransitionRouteGroupsStub::UpdateTransitionRouteGroup(
 }
 
 Status DefaultTransitionRouteGroupsStub::DeleteTransitionRouteGroup(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::cx::v3::DeleteTransitionRouteGroupRequest const&
         request) {
   google::protobuf::Empty response;
-  auto status = grpc_stub_->DeleteTransitionRouteGroup(&client_context, request,
-                                                       &response);
+  auto status =
+      grpc_stub_->DeleteTransitionRouteGroup(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return google::cloud::Status();
+}
+
+StatusOr<google::cloud::location::ListLocationsResponse>
+DefaultTransitionRouteGroupsStub::ListLocations(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::location::ListLocationsRequest const& request) {
+  google::cloud::location::ListLocationsResponse response;
+  auto status = locations_stub_->ListLocations(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::cloud::location::Location>
+DefaultTransitionRouteGroupsStub::GetLocation(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::location::GetLocationRequest const& request) {
+  google::cloud::location::Location response;
+  auto status = locations_stub_->GetLocation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+DefaultTransitionRouteGroupsStub::ListOperations(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::ListOperationsRequest const& request) {
+  google::longrunning::ListOperationsResponse response;
+  auto status = operations_stub_->ListOperations(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::longrunning::Operation>
+DefaultTransitionRouteGroupsStub::GetOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::GetOperationRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = operations_stub_->GetOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+Status DefaultTransitionRouteGroupsStub::CancelOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::CancelOperationRequest const& request) {
+  google::protobuf::Empty response;
+  auto status = operations_stub_->CancelOperation(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }

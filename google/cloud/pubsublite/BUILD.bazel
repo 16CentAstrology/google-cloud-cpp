@@ -12,11 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load(":google_cloud_cpp_pubsublite.bzl", "google_cloud_cpp_pubsublite_hdrs", "google_cloud_cpp_pubsublite_srcs")
+load(":google_cloud_cpp_pubsublite_mocks.bzl", "google_cloud_cpp_pubsublite_mocks_hdrs")
+load(":pubsublite_testing.bzl", "pubsublite_testing_hdrs", "pubsublite_testing_srcs")
+load(":pubsublite_unit_tests.bzl", "pubsublite_unit_tests")
+
 package(default_visibility = ["//visibility:private"])
 
 licenses(["notice"])  # Apache 2.0
 
-load(":google_cloud_cpp_pubsublite.bzl", "google_cloud_cpp_pubsublite_hdrs", "google_cloud_cpp_pubsublite_srcs")
+filegroup(
+    name = "public_hdrs",
+    srcs = [h for h in google_cloud_cpp_pubsublite_hdrs if not h.startswith("internal/")],
+    visibility = ["//:__pkg__"],
+)
 
 cc_library(
     name = "google_cloud_cpp_pubsublite",
@@ -31,12 +40,16 @@ cc_library(
     ],
 )
 
-load(":google_cloud_cpp_pubsublite_mocks.bzl", "google_cloud_cpp_pubsublite_mocks_hdrs", "google_cloud_cpp_pubsublite_mocks_srcs")
+filegroup(
+    name = "mocks",
+    srcs = [h for h in google_cloud_cpp_pubsublite_mocks_hdrs if not h.startswith("internal/")],
+    visibility = ["//:__pkg__"],
+)
 
 cc_library(
     name = "google_cloud_cpp_pubsublite_mocks",
     testonly = True,
-    srcs = google_cloud_cpp_pubsublite_mocks_srcs,
+    srcs = [],
     hdrs = google_cloud_cpp_pubsublite_mocks_hdrs,
     visibility = ["//:__pkg__"],
     deps = [
@@ -44,8 +57,6 @@ cc_library(
         "@com_google_googletest//:gtest",
     ],
 )
-
-load(":pubsublite_testing.bzl", "pubsublite_testing_hdrs", "pubsublite_testing_srcs")
 
 cc_library(
     name = "pubsublite_testing",
@@ -62,8 +73,6 @@ cc_library(
     ],
 )
 
-load(":pubsublite_unit_tests.bzl", "pubsublite_unit_tests")
-
 [
     cc_test(
         name = test.replace("/", "_").replace(".cc", ""),
@@ -73,8 +82,10 @@ load(":pubsublite_unit_tests.bzl", "pubsublite_unit_tests")
             ":google_cloud_cpp_pubsublite_mocks",
             ":pubsublite_testing",
             "//:common",
+            "//:mocks",
             "//google/cloud/testing_util:google_cloud_cpp_testing_grpc_private",
             "//google/cloud/testing_util:google_cloud_cpp_testing_private",
+            "@com_google_absl//absl/memory",
             "@com_google_googletest//:gtest_main",
         ],
     )

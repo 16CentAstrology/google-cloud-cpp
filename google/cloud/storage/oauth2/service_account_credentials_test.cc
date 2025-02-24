@@ -18,9 +18,10 @@
 #include "google/cloud/storage/testing/constants.h"
 #include "google/cloud/storage/testing/mock_http_request.h"
 #include "google/cloud/storage/testing/write_base64.h"
+#include "google/cloud/internal/base64_transforms.h"
 #include "google/cloud/internal/filesystem.h"
-#include "google/cloud/internal/openssl_util.h"
 #include "google/cloud/internal/random.h"
+#include "google/cloud/internal/sign_using_sha256.h"
 #include "google/cloud/testing_util/mock_fake_clock.h"
 #include "google/cloud/testing_util/scoped_environment.h"
 #include "google/cloud/testing_util/status_matchers.h"
@@ -28,18 +29,34 @@
 #include "absl/strings/str_split.h"
 #include <gmock/gmock.h>
 #include <nlohmann/json.hpp>
+#include <algorithm>
 #include <chrono>
 #include <fstream>
+#include <memory>
+#include <set>
+#include <string>
+#include <vector>
 
 namespace google {
 namespace cloud {
 namespace storage {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace oauth2 {
+
+// Define a helper to test the specialization.
+struct ServiceAccountCredentialsTester {
+  static StatusOr<std::string> Header(
+      ServiceAccountCredentials<>& tested,
+      std::chrono::system_clock::time_point tp) {
+    return tested.AuthorizationHeaderForTesting(tp);
+  }
+};
+
 namespace {
 
 using ::google::cloud::internal::SignUsingSha256;
 using ::google::cloud::internal::UrlsafeBase64Decode;
+using ::google::cloud::internal::UrlsafeBase64Encode;
 using ::google::cloud::storage::internal::HttpResponse;
 using ::google::cloud::storage::testing::kP12KeyFileContents;
 using ::google::cloud::storage::testing::kP12ServiceAccountId;
@@ -49,11 +66,13 @@ using ::google::cloud::storage::testing::MockHttpRequestBuilder;
 using ::google::cloud::storage::testing::WriteBase64AsBinary;
 using ::google::cloud::testing_util::FakeClock;
 using ::google::cloud::testing_util::IsOk;
+using ::google::cloud::testing_util::IsOkAndHolds;
 using ::google::cloud::testing_util::ScopedEnvironment;
 using ::google::cloud::testing_util::StatusIs;
 using ::testing::_;
 using ::testing::An;
 using ::testing::AtLeast;
+using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::HasSubstr;
 using ::testing::Not;
@@ -64,14 +83,6 @@ constexpr char kScopeForTest0[] =
     "https://www.googleapis.com/auth/devstorage.full_control";
 constexpr char kScopeForTest1[] =
     "https://www.googleapis.com/auth/cloud-platform";
-// This "magic" assertion below was generated from helper script,
-// "make_jwt_assertion_for_test_data.py". Note that when our JSON library dumps
-// a string representation, the keys are always in alphabetical order; our
-// helper script also takes special care to ensure Python dicts are dumped in
-// this manner, as dumping the keys in a different order would result in a
-// different Base64-encoded string, and thus a different assertion string.
-constexpr char kExpectedAssertionParam[] =
-    R"""(assertion=eyJhbGciOiJSUzI1NiIsImtpZCI6ImExYTExMWFhMTExMWExMWExMWExMWFhMTExYTExMWExYTExMTExMTEiLCJ0eXAiOiJKV1QifQ.eyJhdWQiOiJodHRwczovL29hdXRoMi5nb29nbGVhcGlzLmNvbS90b2tlbiIsImV4cCI6MTUzMDA2MzkyNCwiaWF0IjoxNTMwMDYwMzI0LCJpc3MiOiJmb28tZW1haWxAZm9vLXByb2plY3QuaWFtLmdzZXJ2aWNlYWNjb3VudC5jb20iLCJzY29wZSI6Imh0dHBzOi8vd3d3Lmdvb2dsZWFwaXMuY29tL2F1dGgvY2xvdWQtcGxhdGZvcm0ifQ.OtL40PSxdAB9rxRkXj-UeyuMhQCoT10WJY4ccOrPXriwm-DRl5AMgbBkQvVmWeYuPMTiFKWz_CMMBjVc3lFPW015eHvKT5r3ySGra1i8hJ9cDsWO7SdIGB-l00G-BdRxVEhN8U4C20eUhlvhtjXemOwlCFrKjF22rJB-ChiKy84rXs3O-Hz0dWmsSZPfVD9q-2S2vJdr9vz7NoP-fCmpxhQ3POVocYb-2OEM5c4Uo_e7lQTX3bRtVc19wz_wrTu9wMMMRYt52K8WPoWPURt7qpjHX88_EitXMzH-cJUQoDsgIoZ6vDlQMs7_nqNfgrlsGWHpPoSoGgvJMg1vJbzVLw)""";
 constexpr std::time_t kFixedJwtTimestamp = 1530060324;
 constexpr char kGrantParamUnescaped[] =
     "urn:ietf:params:oauth:grant-type:jwt-bearer";
@@ -498,16 +509,28 @@ TEST_F(ServiceAccountCredentialsTest, ParseSimpleP12) {
   WriteBase64AsBinary(filename, kP12KeyFileContents);
 
   auto info = ParseServiceAccountP12File(filename);
-  if (info.status().code() == StatusCode::kInvalidArgument &&
-      absl::StrContains(info.status().message(), "error:0308010C")) {
-    // With OpenSSL 3.0 the PKCS#12 files may not be supported by default.
-    GTEST_SKIP();
+  EXPECT_EQ(0, std::remove(filename.c_str()));
+
+  if (info.status().code() == StatusCode::kInvalidArgument) {
+    if (absl::StrContains(info.status().message(), "error:0308010C")) {
+      // With OpenSSL 3.0 the PKCS#12 files may not be supported by default.
+      GTEST_SKIP() << "PKCS#12 support unavailable, skipping test";
+    }
+#if _WIN32
+    // On Windows, the OS may not have the necessary providers to support
+    // PKCS#12. Unfortunately the error message is not as unambiguous, so we use
+    // the function that fails instead.
+    auto const& metadata = info.status().error_info().metadata();
+    auto const l = metadata.find("gcloud-cpp.source.function");
+    if (l != metadata.end() && l->second == "GetCertificatePrivateKey") {
+      GTEST_SKIP() << "PKCS#12 support unavailable, skipping test";
+    }
+#endif  // _WIN32
   }
   ASSERT_STATUS_OK(info);
 
   EXPECT_EQ(kP12ServiceAccountId, info->client_email);
   EXPECT_FALSE(info->private_key.empty());
-  EXPECT_EQ(0, std::remove(filename.c_str()));
 
   ServiceAccountCredentials<> credentials(*info);
 
@@ -553,14 +576,25 @@ TEST_F(ServiceAccountCredentialsTest, CreateFromP12ValidFile) {
   WriteBase64AsBinary(filename, kP12KeyFileContents);
 
   auto actual = CreateServiceAccountCredentialsFromP12FilePath(filename);
-  if (actual.status().code() == StatusCode::kInvalidArgument &&
-      absl::StrContains(actual.status().message(), "error:0308010C")) {
-    // With OpenSSL 3.0 the PKCS#12 files may not be supported by default.
-    GTEST_SKIP();
+  EXPECT_EQ(0, std::remove(filename.c_str()));
+
+  if (actual.status().code() == StatusCode::kInvalidArgument) {
+    if (absl::StrContains(actual.status().message(), "error:0308010C")) {
+      // With OpenSSL 3.0 the PKCS#12 files may not be supported by default.
+      GTEST_SKIP() << "PKCS#12 support unavailable, skipping test";
+    }
+#if _WIN32
+    // On Windows, the OS may not have the necessary providers to support
+    // PKCS#12. Unfortunately the error message is not as unambiguous, so we use
+    // the function that fails instead.
+    auto const& metadata = actual.status().error_info().metadata();
+    auto const l = metadata.find("gcloud-cpp.source.function");
+    if (l != metadata.end() && l->second == "GetCertificatePrivateKey") {
+      GTEST_SKIP() << "PKCS#12 support unavailable, skipping test";
+    }
+#endif  // _WIN32
   }
   EXPECT_STATUS_OK(actual);
-
-  EXPECT_EQ(0, std::remove(filename.c_str()));
 }
 
 /// @test Verify we can obtain JWT assertion components given the info parsed
@@ -594,20 +628,16 @@ TEST_F(ServiceAccountCredentialsTest, MakeJWTAssertion) {
   auto assertion =
       MakeJWTAssertion(components.first, components.second, info->private_key);
 
-  std::vector<std::string> expected_tokens =
-      absl::StrSplit(kExpectedAssertionParam, '.');
-  std::string const& expected_encoded_header = expected_tokens[0];
-  std::string const& expected_encoded_payload = expected_tokens[1];
-  std::string const& expected_encoded_signature = expected_tokens[2];
+  auto const body = UrlsafeBase64Encode(components.first) + "." +
+                    UrlsafeBase64Encode(components.second);
+  auto signed_body =
+      google::cloud::internal::SignUsingSha256(body, info->private_key);
+  ASSERT_STATUS_OK(signed_body);
 
   std::vector<std::string> actual_tokens = absl::StrSplit(assertion, '.');
-  std::string const& actual_encoded_header = actual_tokens[0];
-  std::string const& actual_encoded_payload = actual_tokens[1];
-  std::string const& actual_encoded_signature = actual_tokens[2];
-
-  EXPECT_EQ(expected_encoded_header, "assertion=" + actual_encoded_header);
-  EXPECT_EQ(expected_encoded_payload, actual_encoded_payload);
-  EXPECT_EQ(expected_encoded_signature, actual_encoded_signature);
+  EXPECT_THAT(actual_tokens, ElementsAre(UrlsafeBase64Encode(components.first),
+                                         UrlsafeBase64Encode(components.second),
+                                         UrlsafeBase64Encode(*signed_body)));
 }
 
 /// @test Verify we can construct a service account refresh payload given the
@@ -819,6 +849,31 @@ TEST_F(ServiceAccountCredentialsTest, UseOauth) {
         test.environment);
     EXPECT_EQ(test.expected, ServiceAccountUseOAuth(test.info));
   }
+}
+
+TEST_F(ServiceAccountCredentialsTest, CachingWithSelfSignedJwt) {
+  auto clear = ScopedEnvironment(
+      "GOOGLE_CLOUD_CPP_EXPERIMENTAL_DISABLE_SELF_SIGNED_JWT", absl::nullopt);
+  auto info = ParseServiceAccountCredentials(MakeTestContents(), "test");
+  ASSERT_STATUS_OK(info);
+
+  ServiceAccountCredentials<> tested(*info);
+  auto tp = std::chrono::system_clock::now();
+  auto initial = ServiceAccountCredentialsTester::Header(tested, tp);
+  ASSERT_STATUS_OK(initial);
+
+  auto cached = ServiceAccountCredentialsTester::Header(
+      tested, tp + std::chrono::seconds(30));
+  EXPECT_THAT(cached, IsOkAndHolds(*initial));
+
+  cached = ServiceAccountCredentialsTester::Header(
+      tested, tp + std::chrono::seconds(300));
+  EXPECT_THAT(cached, IsOkAndHolds(*initial));
+
+  auto uncached = ServiceAccountCredentialsTester::Header(
+      tested, tp + std::chrono::hours(2));
+  ASSERT_STATUS_OK(uncached);
+  EXPECT_NE(*initial, *uncached);
 }
 
 }  // namespace

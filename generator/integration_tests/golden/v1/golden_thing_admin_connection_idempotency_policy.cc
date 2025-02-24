@@ -17,7 +17,6 @@
 // source: generator/integration_tests/test.proto
 
 #include "generator/integration_tests/golden/v1/golden_thing_admin_connection_idempotency_policy.h"
-#include "absl/memory/memory.h"
 #include <memory>
 
 namespace google {
@@ -31,7 +30,7 @@ GoldenThingAdminConnectionIdempotencyPolicy::~GoldenThingAdminConnectionIdempote
 
 std::unique_ptr<GoldenThingAdminConnectionIdempotencyPolicy>
 GoldenThingAdminConnectionIdempotencyPolicy::clone() const {
-  return absl::make_unique<GoldenThingAdminConnectionIdempotencyPolicy>(*this);
+  return std::make_unique<GoldenThingAdminConnectionIdempotencyPolicy>(*this);
 }
 
 Idempotency GoldenThingAdminConnectionIdempotencyPolicy::ListDatabases(google::test::admin::database::v1::ListDatabasesRequest) {  // NOLINT
@@ -51,7 +50,7 @@ Idempotency GoldenThingAdminConnectionIdempotencyPolicy::UpdateDatabaseDdl(googl
 }
 
 Idempotency GoldenThingAdminConnectionIdempotencyPolicy::DropDatabase(google::test::admin::database::v1::DropDatabaseRequest const&) {
-  return Idempotency::kNonIdempotent;
+  return Idempotency::kIdempotent;
 }
 
 Idempotency GoldenThingAdminConnectionIdempotencyPolicy::GetDatabaseDdl(google::test::admin::database::v1::GetDatabaseDdlRequest const&) {
@@ -65,11 +64,11 @@ Idempotency GoldenThingAdminConnectionIdempotencyPolicy::SetIamPolicy(
 }
 
 Idempotency GoldenThingAdminConnectionIdempotencyPolicy::GetIamPolicy(google::iam::v1::GetIamPolicyRequest const&) {
-  return Idempotency::kNonIdempotent;
+  return Idempotency::kIdempotent;
 }
 
 Idempotency GoldenThingAdminConnectionIdempotencyPolicy::TestIamPermissions(google::iam::v1::TestIamPermissionsRequest const&) {
-  return Idempotency::kNonIdempotent;
+  return Idempotency::kIdempotent;
 }
 
 Idempotency GoldenThingAdminConnectionIdempotencyPolicy::CreateBackup(google::test::admin::database::v1::CreateBackupRequest const&) {
@@ -108,9 +107,17 @@ Idempotency GoldenThingAdminConnectionIdempotencyPolicy::LongRunningWithoutRouti
   return Idempotency::kNonIdempotent;
 }
 
+Idempotency GoldenThingAdminConnectionIdempotencyPolicy::GetLocation(google::cloud::location::GetLocationRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency GoldenThingAdminConnectionIdempotencyPolicy::ListOperations(google::longrunning::ListOperationsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
 std::unique_ptr<GoldenThingAdminConnectionIdempotencyPolicy>
     MakeDefaultGoldenThingAdminConnectionIdempotencyPolicy() {
-  return absl::make_unique<GoldenThingAdminConnectionIdempotencyPolicy>();
+  return std::make_unique<GoldenThingAdminConnectionIdempotencyPolicy>();
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

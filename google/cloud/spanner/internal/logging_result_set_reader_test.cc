@@ -18,7 +18,6 @@
 #include "google/cloud/log.h"
 #include "google/cloud/testing_util/scoped_log.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
 #include <gmock/gmock.h>
 
 namespace google {
@@ -28,8 +27,11 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
 using ::testing::_;
+using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
+using ::testing::StartsWith;
 
 class LoggingResultSetReaderTest : public ::testing::Test {
  protected:
@@ -37,16 +39,16 @@ class LoggingResultSetReaderTest : public ::testing::Test {
 };
 
 TEST_F(LoggingResultSetReaderTest, TryCancel) {
-  auto mock = absl::make_unique<spanner_testing::MockPartialResultSetReader>();
+  auto mock = std::make_unique<spanner_testing::MockPartialResultSetReader>();
   EXPECT_CALL(*mock, TryCancel()).Times(1);
   LoggingResultSetReader reader(std::move(mock), TracingOptions{});
   reader.TryCancel();
 
-  EXPECT_THAT(log_.ExtractLines(), Contains(HasSubstr("TryCancel")));
+  EXPECT_THAT(log_.ExtractLines(), IsEmpty());
 }
 
 TEST_F(LoggingResultSetReaderTest, Read) {
-  auto mock = absl::make_unique<spanner_testing::MockPartialResultSetReader>();
+  auto mock = std::make_unique<spanner_testing::MockPartialResultSetReader>();
   EXPECT_CALL(*mock, Read(_))
       .WillOnce([] {
         google::spanner::v1::PartialResultSet result;
@@ -60,19 +62,22 @@ TEST_F(LoggingResultSetReaderTest, Read) {
   EXPECT_EQ("test-token", result->result.resume_token());
 
   auto log_lines = log_.ExtractLines();
-  EXPECT_THAT(log_lines, Contains(HasSubstr("Read")));
-  EXPECT_THAT(log_lines, Contains(HasSubstr("test-token")));
+  EXPECT_THAT(log_lines, AllOf(Contains(StartsWith("Read()"))));
+  EXPECT_THAT(log_lines, Contains(HasSubstr("resume_token=\"\"")));
+  EXPECT_THAT(log_lines, Contains(HasSubstr("resumption=false")));
 
   result = reader.Read("test-token");
   ASSERT_FALSE(result.has_value());
 
   log_lines = log_.ExtractLines();
+  EXPECT_THAT(log_lines, AllOf(Contains(StartsWith("Read()"))));
+  EXPECT_THAT(log_lines, Contains(HasSubstr("resume_token=\"test-token\"")));
   EXPECT_THAT(log_lines, Contains(HasSubstr("(optional-with-no-value)")));
 }
 
 TEST_F(LoggingResultSetReaderTest, Finish) {
   Status const expected_status = Status(StatusCode::kOutOfRange, "weird");
-  auto mock = absl::make_unique<spanner_testing::MockPartialResultSetReader>();
+  auto mock = std::make_unique<spanner_testing::MockPartialResultSetReader>();
   EXPECT_CALL(*mock, Finish()).WillOnce([expected_status] {
     return expected_status;  // NOLINT(performance-no-automatic-move)
   });
@@ -81,8 +86,7 @@ TEST_F(LoggingResultSetReaderTest, Finish) {
   EXPECT_EQ(expected_status, status);
 
   auto log_lines = log_.ExtractLines();
-  EXPECT_THAT(log_lines, Contains(HasSubstr("Finish")));
-  EXPECT_THAT(log_lines, Contains(HasSubstr("weird")));
+  EXPECT_THAT(log_lines, IsEmpty());
 }
 
 }  // namespace

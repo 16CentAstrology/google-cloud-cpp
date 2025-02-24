@@ -20,13 +20,16 @@
 #include "google/cloud/dialogflow_es/internal/versions_connection_impl.h"
 #include "google/cloud/dialogflow_es/internal/versions_option_defaults.h"
 #include "google/cloud/dialogflow_es/internal/versions_stub_factory.h"
+#include "google/cloud/dialogflow_es/internal/versions_tracing_connection.h"
 #include "google/cloud/dialogflow_es/versions_options.h"
 #include "google/cloud/background_threads.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/credentials.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/pagination_range.h"
+#include "google/cloud/internal/unified_grpc_credentials.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -65,6 +68,36 @@ Status VersionsConnection::DeleteVersion(
   return Status(StatusCode::kUnimplemented, "not implemented");
 }
 
+StreamRange<google::cloud::location::Location>
+VersionsConnection::ListLocations(
+    google::cloud::location::
+        ListLocationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::cloud::location::Location>>();
+}
+
+StatusOr<google::cloud::location::Location> VersionsConnection::GetLocation(
+    google::cloud::location::GetLocationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+StreamRange<google::longrunning::Operation> VersionsConnection::ListOperations(
+    google::longrunning::
+        ListOperationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::longrunning::Operation>>();
+}
+
+StatusOr<google::longrunning::Operation> VersionsConnection::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+Status VersionsConnection::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
 std::shared_ptr<VersionsConnection> MakeVersionsConnection(
     std::string const& location, Options options) {
   internal::CheckExpectedOptions<CommonOptionList, GrpcOptionList,
@@ -73,10 +106,12 @@ std::shared_ptr<VersionsConnection> MakeVersionsConnection(
   options = dialogflow_es_internal::VersionsDefaultOptions(location,
                                                            std::move(options));
   auto background = internal::MakeBackgroundThreadsFactory(options)();
-  auto stub = dialogflow_es_internal::CreateDefaultVersionsStub(
-      background->cq(), options);
-  return std::make_shared<dialogflow_es_internal::VersionsConnectionImpl>(
-      std::move(background), std::move(stub), std::move(options));
+  auto auth = internal::CreateAuthenticationStrategy(background->cq(), options);
+  auto stub = dialogflow_es_internal::CreateDefaultVersionsStub(std::move(auth),
+                                                                options);
+  return dialogflow_es_internal::MakeVersionsTracingConnection(
+      std::make_shared<dialogflow_es_internal::VersionsConnectionImpl>(
+          std::move(background), std::move(stub), std::move(options)));
 }
 
 std::shared_ptr<VersionsConnection> MakeVersionsConnection(Options options) {

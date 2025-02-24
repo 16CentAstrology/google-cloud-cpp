@@ -14,6 +14,7 @@
 
 #include "google/cloud/pubsub/internal/blocking_publisher_connection_impl.h"
 #include "google/cloud/pubsub/internal/publisher_stub_factory.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/internal/retry_loop.h"
 
 namespace google {
@@ -41,29 +42,20 @@ StatusOr<std::string> BlockingPublisherConnectionImpl::Publish(
       current.get<pubsub::RetryPolicyOption>()->clone(),
       current.get<pubsub::BackoffPolicyOption>()->clone(),
       Idempotency::kIdempotent,
-      [this](grpc::ClientContext& context,
+      [this](grpc::ClientContext& context, Options const& options,
              google::pubsub::v1::PublishRequest const& request) {
-        return stub_->Publish(context, request);
+        return stub_->Publish(context, options, request);
       },
-      request, __func__);
+      current, request, __func__);
   if (!response) return std::move(response).status();
   if (response->message_ids_size() != 1) {
-    return Status(StatusCode::kInternal,
-                  "invalid response, mismatched ID count");
+    return internal::InternalError("invalid response, mismatched ID count",
+                                   GCP_ERROR_INFO());
   }
   return std::move(*response->mutable_message_ids(0));
 }
 
 Options BlockingPublisherConnectionImpl::options() { return options_; }
-
-std::shared_ptr<pubsub::BlockingPublisherConnection>
-MakeTestBlockingPublisherConnection(
-    Options opts, std::vector<std::shared_ptr<PublisherStub>> mocks) {
-  auto background = internal::MakeBackgroundThreadsFactory(opts)();
-  auto stub = MakeTestPublisherStub(background->cq(), opts, std::move(mocks));
-  return std::make_shared<pubsub_internal::BlockingPublisherConnectionImpl>(
-      std::move(background), std::move(stub), std::move(opts));
-}
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace pubsub_internal

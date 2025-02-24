@@ -20,7 +20,9 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_DIALOGFLOW_CX_INTERNAL_EXPERIMENTS_METADATA_DECORATOR_H
 
 #include "google/cloud/dialogflow_cx/internal/experiments_stub.h"
+#include "google/cloud/options.h"
 #include "google/cloud/version.h"
+#include <map>
 #include <memory>
 #include <string>
 
@@ -32,50 +34,73 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 class ExperimentsMetadata : public ExperimentsStub {
  public:
   ~ExperimentsMetadata() override = default;
-  explicit ExperimentsMetadata(std::shared_ptr<ExperimentsStub> child);
+  ExperimentsMetadata(std::shared_ptr<ExperimentsStub> child,
+                      std::multimap<std::string, std::string> fixed_metadata,
+                      std::string api_client_header = "");
 
   StatusOr<google::cloud::dialogflow::cx::v3::ListExperimentsResponse>
   ListExperiments(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::ListExperimentsRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Experiment> GetExperiment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetExperimentRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Experiment> CreateExperiment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::CreateExperimentRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Experiment> UpdateExperiment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::UpdateExperimentRequest const& request)
       override;
 
   Status DeleteExperiment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::DeleteExperimentRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Experiment> StartExperiment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::StartExperimentRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Experiment> StopExperiment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::StopExperimentRequest const& request)
       override;
 
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  void SetMetadata(grpc::ClientContext& context,
+  void SetMetadata(grpc::ClientContext& context, Options const& options,
                    std::string const& request_params);
-  void SetMetadata(grpc::ClientContext& context);
+  void SetMetadata(grpc::ClientContext& context, Options const& options);
 
   std::shared_ptr<ExperimentsStub> child_;
+  std::multimap<std::string, std::string> fixed_metadata_;
   std::string api_client_header_;
 };
 

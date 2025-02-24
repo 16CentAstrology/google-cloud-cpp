@@ -15,13 +15,15 @@
 #include "google/cloud/bigtable/internal/defaults.h"
 #include "google/cloud/bigtable/internal/client_options_defaults.h"
 #include "google/cloud/bigtable/options.h"
-#include "google/cloud/connection_options.h"
+#include "google/cloud/common_options.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/background_threads_impl.h"
+#include "google/cloud/opentelemetry_options.h"
 #include "google/cloud/status.h"
+#include "google/cloud/testing_util/chrono_output.h"
 #include "google/cloud/testing_util/scoped_environment.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/time/time.h"
+#include "google/cloud/universe_domain_options.h"
 #include "absl/types/optional.h"
 #include <gmock/gmock.h>
 #include <thread>
@@ -44,6 +46,8 @@ using mins = std::chrono::minutes;
 TEST(OptionsTest, Defaults) {
   ScopedEnvironment user_project("GOOGLE_CLOUD_CPP_USER_PROJECT",
                                  absl::nullopt);
+  ScopedEnvironment tracing("GOOGLE_CLOUD_CPP_OPENTELEMETRY_TRACING",
+                            absl::nullopt);
   ScopedEnvironment emulator_host("BIGTABLE_EMULATOR_HOST", absl::nullopt);
   ScopedEnvironment instance_emulator_host(
       "BIGTABLE_INSTANCE_ADMIN_EMULATOR_HOST", absl::nullopt);
@@ -56,6 +60,7 @@ TEST(OptionsTest, Defaults) {
   EXPECT_EQ(typeid(grpc::GoogleDefaultCredentials()),
             typeid(opts.get<GrpcCredentialOption>()));
   EXPECT_FALSE(opts.has<UserProjectOption>());
+  EXPECT_FALSE(opts.has<OpenTelemetryTracingOption>());
 
   auto args = google::cloud::internal::MakeChannelArguments(opts);
   // Check that the pool domain is not set by default
@@ -95,7 +100,7 @@ TEST(OptionsTest, DefaultOptionsDoesNotOverride) {
           .set<GrpcCredentialOption>(grpc::InsecureChannelCredentials())
           .set<GrpcTracingOptionsOption>(
               TracingOptions{}.SetOptions("single_line_mode=F"))
-          .set<TracingComponentsOption>({"test-component"})
+          .set<LoggingComponentsOption>({"test-component"})
           .set<GrpcNumChannelsOption>(3)
           .set<GrpcBackgroundThreadPoolSizeOption>(5)
           .set<GrpcChannelArgumentsNativeOption>(channel_args)
@@ -109,7 +114,7 @@ TEST(OptionsTest, DefaultOptionsDoesNotOverride) {
   EXPECT_EQ(typeid(grpc::InsecureChannelCredentials()),
             typeid(opts.get<GrpcCredentialOption>()));
   EXPECT_FALSE(opts.get<GrpcTracingOptionsOption>().single_line_mode());
-  EXPECT_THAT(opts.get<TracingComponentsOption>(), Contains("test-component"));
+  EXPECT_THAT(opts.get<LoggingComponentsOption>(), Contains("test-component"));
   EXPECT_EQ(3U, opts.get<GrpcNumChannelsOption>());
   EXPECT_EQ(5U, opts.get<GrpcBackgroundThreadPoolSizeOption>());
 
@@ -207,6 +212,12 @@ TEST(OptionsTest, DataUserProjectOption) {
   EXPECT_EQ(options.get<UserProjectOption>(), "env-project");
 }
 
+TEST(OptionsTest, DataOpenTelemetryOption) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_CPP_OPENTELEMETRY_TRACING", "on");
+  auto options = DefaultDataOptions(Options{});
+  EXPECT_TRUE(options.get<OpenTelemetryTracingOption>());
+}
+
 TEST(OptionsTest, DataAuthorityOption) {
   auto options = DefaultDataOptions(Options{});
   EXPECT_EQ(options.get<AuthorityOption>(), "bigtable.googleapis.com");
@@ -214,6 +225,97 @@ TEST(OptionsTest, DataAuthorityOption) {
   options = DefaultDataOptions(
       Options{}.set<AuthorityOption>("custom-endpoint.googleapis.com"));
   EXPECT_EQ(options.get<AuthorityOption>(), "custom-endpoint.googleapis.com");
+}
+
+TEST(OptionsTest, DataEnableServerRetriesOption) {
+  auto options = DefaultDataOptions(Options{});
+  EXPECT_TRUE(options.get<EnableServerRetriesOption>());
+
+  options = DefaultDataOptions(Options{}.set<EnableServerRetriesOption>(false));
+  EXPECT_FALSE(options.get<EnableServerRetriesOption>());
+}
+
+TEST(OptionsTest, UniverseDomain) {
+  auto options =
+      Options{}.set<google::cloud::internal::UniverseDomainOption>("ud.net");
+
+  auto data_options = DefaultDataOptions(options);
+  EXPECT_EQ(data_options.get<EndpointOption>(), "bigtable.ud.net");
+  EXPECT_EQ(data_options.get<AuthorityOption>(), "bigtable.ud.net");
+
+  EXPECT_EQ(DefaultTableAdminOptions(options).get<EndpointOption>(),
+            "bigtableadmin.ud.net");
+  EXPECT_EQ(DefaultInstanceAdminOptions(options).get<EndpointOption>(),
+            "bigtableadmin.ud.net");
+}
+
+TEST(OptionsTest, UniverseDomainEnvVar) {
+  ScopedEnvironment ud("GOOGLE_CLOUD_UNIVERSE_DOMAIN", "ud-env-var.net");
+
+  auto options = Options{}.set<google::cloud::internal::UniverseDomainOption>(
+      "ud-option.net");
+
+  auto data_options = DefaultDataOptions(options);
+  EXPECT_EQ(data_options.get<EndpointOption>(), "bigtable.ud-env-var.net");
+  EXPECT_EQ(data_options.get<AuthorityOption>(), "bigtable.ud-env-var.net");
+
+  EXPECT_EQ(DefaultTableAdminOptions(options).get<EndpointOption>(),
+            "bigtableadmin.ud-env-var.net");
+  EXPECT_EQ(DefaultInstanceAdminOptions(options).get<EndpointOption>(),
+            "bigtableadmin.ud-env-var.net");
+}
+
+TEST(OptionsTest, EndpointOptionsOverrideUniverseDomain) {
+  ScopedEnvironment ud("GOOGLE_CLOUD_UNIVERSE_DOMAIN", "ud-env-var.net");
+
+  auto options =
+      Options{}
+          .set<google::cloud::internal::UniverseDomainOption>("ud-option.net")
+          .set<EndpointOption>("data-endpoint.googleapis.com")
+          .set<AuthorityOption>("data-authority.googleapis.com");
+  auto data_options = DefaultDataOptions(options);
+  EXPECT_EQ(data_options.get<EndpointOption>(), "data-endpoint.googleapis.com");
+  EXPECT_EQ(data_options.get<AuthorityOption>(),
+            "data-authority.googleapis.com");
+}
+
+TEST(OptionsTest, BigtableEndpointOptionsOverrideUniverseDomain) {
+  ScopedEnvironment ud("GOOGLE_CLOUD_UNIVERSE_DOMAIN", "ud-env-var.net");
+
+  auto options =
+      Options{}
+          .set<google::cloud::internal::UniverseDomainOption>("ud-option.net")
+          .set<DataEndpointOption>("data.googleapis.com")
+          .set<AdminEndpointOption>("tableadmin.googleapis.com")
+          .set<InstanceAdminEndpointOption>("instanceadmin.googleapis.com");
+
+  EXPECT_EQ(DefaultDataOptions(options).get<EndpointOption>(),
+            "data.googleapis.com");
+  EXPECT_EQ(DefaultTableAdminOptions(options).get<EndpointOption>(),
+            "tableadmin.googleapis.com");
+  EXPECT_EQ(DefaultInstanceAdminOptions(options).get<EndpointOption>(),
+            "instanceadmin.googleapis.com");
+}
+
+TEST(OptionsTest, BigtableEndpointEnvVarsOverrideUniverseDomain) {
+  ScopedEnvironment emulator("BIGTABLE_EMULATOR_HOST", "emulator-host:8000");
+  ScopedEnvironment ud("GOOGLE_CLOUD_UNIVERSE_DOMAIN", "ud-env-var.net");
+
+  auto options =
+      Options{}
+          .set<google::cloud::internal::UniverseDomainOption>("ud-option.net")
+          .set<DataEndpointOption>("ignored-data.googleapis.com")
+          .set<AdminEndpointOption>("ignored-tableadmin.googleapis.com")
+          .set<InstanceAdminEndpointOption>(
+              "ignored-instanceadmin.googleapis.com")
+          .set<EndpointOption>("ignored-endpoint.googleapis.com");
+
+  EXPECT_EQ(DefaultDataOptions(options).get<EndpointOption>(),
+            "emulator-host:8000");
+  EXPECT_EQ(DefaultTableAdminOptions(options).get<EndpointOption>(),
+            "emulator-host:8000");
+  EXPECT_EQ(DefaultInstanceAdminOptions(options).get<EndpointOption>(),
+            "emulator-host:8000");
 }
 
 TEST(EndpointEnvTest, EmulatorEnvOnly) {
@@ -340,56 +442,59 @@ TEST(EndpointEnvTest, EmulatorOverridesDirectPath) {
 }
 
 TEST(ConnectionRefreshRange, BothUnset) {
+  ScopedEnvironment emulator("BIGTABLE_EMULATOR_HOST", absl::nullopt);
   auto opts = DefaultOptions();
 
   // See `kDefaultMinRefreshPeriod`
-  EXPECT_LT(absl::FromChrono(secs(15)),
-            absl::FromChrono(opts.get<MinConnectionRefreshOption>()));
+  EXPECT_LT(secs(15), opts.get<MinConnectionRefreshOption>());
   // See `kDefaultMaxRefreshPeriod`
-  EXPECT_GT(absl::FromChrono(mins(4)),
-            absl::FromChrono(opts.get<MaxConnectionRefreshOption>()));
+  EXPECT_GT(mins(4), opts.get<MaxConnectionRefreshOption>());
 }
 
 TEST(ConnectionRefreshRange, MinSetAboveMaxDefault) {
+  ScopedEnvironment emulator("BIGTABLE_EMULATOR_HOST", absl::nullopt);
   auto opts =
       DefaultOptions(Options{}.set<MinConnectionRefreshOption>(mins(10)));
 
-  EXPECT_EQ(absl::FromChrono(mins(10)),
-            absl::FromChrono(opts.get<MinConnectionRefreshOption>()));
-  EXPECT_EQ(absl::FromChrono(mins(10)),
-            absl::FromChrono(opts.get<MaxConnectionRefreshOption>()));
+  EXPECT_EQ(mins(10), opts.get<MinConnectionRefreshOption>());
+  EXPECT_EQ(mins(10), opts.get<MaxConnectionRefreshOption>());
 }
 
 TEST(ConnectionRefreshRange, MaxSetBelowMinDefault) {
+  ScopedEnvironment emulator("BIGTABLE_EMULATOR_HOST", absl::nullopt);
   auto opts =
       DefaultOptions(Options{}.set<MaxConnectionRefreshOption>(secs(1)));
 
-  EXPECT_EQ(absl::FromChrono(secs(1)),
-            absl::FromChrono(opts.get<MinConnectionRefreshOption>()));
-  EXPECT_EQ(absl::FromChrono(secs(1)),
-            absl::FromChrono(opts.get<MaxConnectionRefreshOption>()));
+  EXPECT_EQ(secs(1), opts.get<MinConnectionRefreshOption>());
+  EXPECT_EQ(secs(1), opts.get<MaxConnectionRefreshOption>());
 }
 
 TEST(ConnectionRefreshRange, BothSetValid) {
+  ScopedEnvironment emulator("BIGTABLE_EMULATOR_HOST", absl::nullopt);
   auto opts = DefaultOptions(Options{}
                                  .set<MinConnectionRefreshOption>(secs(30))
                                  .set<MaxConnectionRefreshOption>(mins(2)));
 
-  EXPECT_EQ(absl::FromChrono(secs(30)),
-            absl::FromChrono(opts.get<MinConnectionRefreshOption>()));
-  EXPECT_EQ(absl::FromChrono(mins(2)),
-            absl::FromChrono(opts.get<MaxConnectionRefreshOption>()));
+  EXPECT_EQ(secs(30), opts.get<MinConnectionRefreshOption>());
+  EXPECT_EQ(mins(2), opts.get<MaxConnectionRefreshOption>());
 }
 
 TEST(ConnectionRefreshRange, BothSetInvalidUsesMax) {
+  ScopedEnvironment emulator("BIGTABLE_EMULATOR_HOST", absl::nullopt);
   auto opts = DefaultOptions(Options{}
                                  .set<MinConnectionRefreshOption>(mins(2))
                                  .set<MaxConnectionRefreshOption>(secs(30)));
 
-  EXPECT_EQ(absl::FromChrono(mins(2)),
-            absl::FromChrono(opts.get<MinConnectionRefreshOption>()));
-  EXPECT_EQ(absl::FromChrono(mins(2)),
-            absl::FromChrono(opts.get<MaxConnectionRefreshOption>()));
+  EXPECT_EQ(mins(2), opts.get<MinConnectionRefreshOption>());
+  EXPECT_EQ(mins(2), opts.get<MaxConnectionRefreshOption>());
+}
+
+TEST(ConnectionRefreshRange, DisabledIfEmulator) {
+  ScopedEnvironment emulator("BIGTABLE_EMULATOR_HOST", "emulator-host:8000");
+  auto opts = DefaultOptions();
+
+  // Zero duration means connection refreshing is disabled.
+  EXPECT_EQ(secs(0), opts.get<MaxConnectionRefreshOption>());
 }
 
 }  // namespace

@@ -18,6 +18,7 @@ set -euo pipefail
 
 source "$(dirname "$0")/../../lib/init.sh"
 source module ci/cloudbuild/builds/lib/bazel.sh
+source module ci/cloudbuild/builds/lib/cloudcxxrc.sh
 source module ci/cloudbuild/builds/lib/git.sh
 source module ci/cloudbuild/builds/lib/integration.sh
 source module ci/lib/io.sh
@@ -26,18 +27,18 @@ export CC=clang
 export CXX=clang++
 
 mapfile -t args < <(bazel::common_args)
-bazel test "${args[@]}" --test_tag_filters=-integration-test ...
+io::run bazel test "${args[@]}" --test_tag_filters=-integration-test "${BAZEL_TARGETS[@]}"
 
 excluded_rules=(
   "-//examples:grpc_credential_types"
   "-//google/cloud/bigtable/examples:bigtable_grpc_credentials"
+  # This sample uses HMAC keys, which are very limited in production (at most
+  # 5 per service account). Disabled for now.
   "-//google/cloud/storage/examples:storage_service_account_samples"
-  "-//google/cloud/storage/tests:service_account_integration_test"
-  "-//google/cloud/storage/tests:grpc_integration_test"
 )
 
 io::log_h2 "Running the integration tests against prod"
 mapfile -t integration_args < <(integration::bazel_args)
 io::run bazel test "${args[@]}" "${integration_args[@]}" \
-  --cache_test_results="auto" \
-  --test_tag_filters="integration-test" -- ... "${excluded_rules[@]}"
+  --cache_test_results="auto" --test_tag_filters="integration-test,-ud-only" \
+  -- "${BAZEL_TARGETS[@]}" "${excluded_rules[@]}"

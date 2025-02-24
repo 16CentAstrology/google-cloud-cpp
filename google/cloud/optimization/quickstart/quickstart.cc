@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/optimization/fleet_routing_client.h"
+//! [all]
+#include "google/cloud/optimization/v1/fleet_routing_client.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/project.h"
 #include <iostream>
@@ -31,7 +32,7 @@ int main(int argc, char* argv[]) try {
       std::string{"gs://"} + argv[2] + "/optimization_quickstart_solution.json";
 
   namespace gc = ::google::cloud;
-  namespace optimization = ::google::cloud::optimization;
+  namespace optimization = ::google::cloud::optimization_v1;
 
   auto options = gc::Options{}.set<gc::UserProjectOption>(argv[1]);
   auto client = optimization::FleetRoutingClient(
@@ -58,3 +59,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

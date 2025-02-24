@@ -20,6 +20,9 @@
 #include "google/cloud/testing_util/status_matchers.h"
 #include "absl/types/optional.h"
 #include <gmock/gmock.h>
+#include <sstream>
+#include <string>
+#include <vector>
 #ifndef _WIN32
 #include <dlfcn.h>
 #endif  // _WIN32
@@ -30,7 +33,7 @@ namespace storage {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
-using ::google::cloud::testing_util::chrono_literals::operator"" _us;  // NOLINT
+using ::google::cloud::testing_util::chrono_literals::operator""_us;
 using ::google::cloud::testing_util::IsOk;
 using ::google::cloud::testing_util::StatusIs;
 using ::testing::HasSubstr;

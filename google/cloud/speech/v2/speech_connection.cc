@@ -20,13 +20,16 @@
 #include "google/cloud/speech/v2/internal/speech_connection_impl.h"
 #include "google/cloud/speech/v2/internal/speech_option_defaults.h"
 #include "google/cloud/speech/v2/internal/speech_stub_factory.h"
+#include "google/cloud/speech/v2/internal/speech_tracing_connection.h"
 #include "google/cloud/speech/v2/speech_options.h"
 #include "google/cloud/background_threads.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/credentials.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/pagination_range.h"
+#include "google/cloud/internal/unified_grpc_credentials.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -38,6 +41,19 @@ SpeechConnection::~SpeechConnection() = default;
 future<StatusOr<google::cloud::speech::v2::Recognizer>>
 SpeechConnection::CreateRecognizer(
     google::cloud::speech::v2::CreateRecognizerRequest const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::speech::v2::Recognizer>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation> SpeechConnection::CreateRecognizer(
+    NoAwaitTag, google::cloud::speech::v2::CreateRecognizerRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::cloud::speech::v2::Recognizer>>
+SpeechConnection::CreateRecognizer(google::longrunning::Operation const&) {
   return google::cloud::make_ready_future<
       StatusOr<google::cloud::speech::v2::Recognizer>>(
       Status(StatusCode::kUnimplemented, "not implemented"));
@@ -64,6 +80,19 @@ SpeechConnection::UpdateRecognizer(
       Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
+StatusOr<google::longrunning::Operation> SpeechConnection::UpdateRecognizer(
+    NoAwaitTag, google::cloud::speech::v2::UpdateRecognizerRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::cloud::speech::v2::Recognizer>>
+SpeechConnection::UpdateRecognizer(google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::speech::v2::Recognizer>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
 future<StatusOr<google::cloud::speech::v2::Recognizer>>
 SpeechConnection::DeleteRecognizer(
     google::cloud::speech::v2::DeleteRecognizerRequest const&) {
@@ -72,9 +101,35 @@ SpeechConnection::DeleteRecognizer(
       Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
+StatusOr<google::longrunning::Operation> SpeechConnection::DeleteRecognizer(
+    NoAwaitTag, google::cloud::speech::v2::DeleteRecognizerRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::cloud::speech::v2::Recognizer>>
+SpeechConnection::DeleteRecognizer(google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::speech::v2::Recognizer>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
 future<StatusOr<google::cloud::speech::v2::Recognizer>>
 SpeechConnection::UndeleteRecognizer(
     google::cloud::speech::v2::UndeleteRecognizerRequest const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::speech::v2::Recognizer>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation> SpeechConnection::UndeleteRecognizer(
+    NoAwaitTag, google::cloud::speech::v2::UndeleteRecognizerRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::cloud::speech::v2::Recognizer>>
+SpeechConnection::UndeleteRecognizer(google::longrunning::Operation const&) {
   return google::cloud::make_ready_future<
       StatusOr<google::cloud::speech::v2::Recognizer>>(
       Status(StatusCode::kUnimplemented, "not implemented"));
@@ -90,7 +145,7 @@ std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
     google::cloud::speech::v2::StreamingRecognizeRequest,
     google::cloud::speech::v2::StreamingRecognizeResponse>>
 SpeechConnection::AsyncStreamingRecognize() {
-  return absl::make_unique<
+  return std::make_unique<
       ::google::cloud::internal::AsyncStreamingReadWriteRpcError<
           google::cloud::speech::v2::StreamingRecognizeRequest,
           google::cloud::speech::v2::StreamingRecognizeResponse>>(
@@ -100,6 +155,19 @@ SpeechConnection::AsyncStreamingRecognize() {
 future<StatusOr<google::cloud::speech::v2::BatchRecognizeResponse>>
 SpeechConnection::BatchRecognize(
     google::cloud::speech::v2::BatchRecognizeRequest const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::speech::v2::BatchRecognizeResponse>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation> SpeechConnection::BatchRecognize(
+    NoAwaitTag, google::cloud::speech::v2::BatchRecognizeRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::cloud::speech::v2::BatchRecognizeResponse>>
+SpeechConnection::BatchRecognize(google::longrunning::Operation const&) {
   return google::cloud::make_ready_future<
       StatusOr<google::cloud::speech::v2::BatchRecognizeResponse>>(
       Status(StatusCode::kUnimplemented, "not implemented"));
@@ -118,6 +186,19 @@ StatusOr<google::cloud::speech::v2::Config> SpeechConnection::UpdateConfig(
 future<StatusOr<google::cloud::speech::v2::CustomClass>>
 SpeechConnection::CreateCustomClass(
     google::cloud::speech::v2::CreateCustomClassRequest const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::speech::v2::CustomClass>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation> SpeechConnection::CreateCustomClass(
+    NoAwaitTag, google::cloud::speech::v2::CreateCustomClassRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::cloud::speech::v2::CustomClass>>
+SpeechConnection::CreateCustomClass(google::longrunning::Operation const&) {
   return google::cloud::make_ready_future<
       StatusOr<google::cloud::speech::v2::CustomClass>>(
       Status(StatusCode::kUnimplemented, "not implemented"));
@@ -145,9 +226,35 @@ SpeechConnection::UpdateCustomClass(
       Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
+StatusOr<google::longrunning::Operation> SpeechConnection::UpdateCustomClass(
+    NoAwaitTag, google::cloud::speech::v2::UpdateCustomClassRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::cloud::speech::v2::CustomClass>>
+SpeechConnection::UpdateCustomClass(google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::speech::v2::CustomClass>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
 future<StatusOr<google::cloud::speech::v2::CustomClass>>
 SpeechConnection::DeleteCustomClass(
     google::cloud::speech::v2::DeleteCustomClassRequest const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::speech::v2::CustomClass>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation> SpeechConnection::DeleteCustomClass(
+    NoAwaitTag, google::cloud::speech::v2::DeleteCustomClassRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::cloud::speech::v2::CustomClass>>
+SpeechConnection::DeleteCustomClass(google::longrunning::Operation const&) {
   return google::cloud::make_ready_future<
       StatusOr<google::cloud::speech::v2::CustomClass>>(
       Status(StatusCode::kUnimplemented, "not implemented"));
@@ -161,9 +268,35 @@ SpeechConnection::UndeleteCustomClass(
       Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
+StatusOr<google::longrunning::Operation> SpeechConnection::UndeleteCustomClass(
+    NoAwaitTag, google::cloud::speech::v2::UndeleteCustomClassRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::cloud::speech::v2::CustomClass>>
+SpeechConnection::UndeleteCustomClass(google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::speech::v2::CustomClass>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
 future<StatusOr<google::cloud::speech::v2::PhraseSet>>
 SpeechConnection::CreatePhraseSet(
     google::cloud::speech::v2::CreatePhraseSetRequest const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::speech::v2::PhraseSet>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation> SpeechConnection::CreatePhraseSet(
+    NoAwaitTag, google::cloud::speech::v2::CreatePhraseSetRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::cloud::speech::v2::PhraseSet>>
+SpeechConnection::CreatePhraseSet(google::longrunning::Operation const&) {
   return google::cloud::make_ready_future<
       StatusOr<google::cloud::speech::v2::PhraseSet>>(
       Status(StatusCode::kUnimplemented, "not implemented"));
@@ -190,9 +323,35 @@ SpeechConnection::UpdatePhraseSet(
       Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
+StatusOr<google::longrunning::Operation> SpeechConnection::UpdatePhraseSet(
+    NoAwaitTag, google::cloud::speech::v2::UpdatePhraseSetRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::cloud::speech::v2::PhraseSet>>
+SpeechConnection::UpdatePhraseSet(google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::speech::v2::PhraseSet>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
 future<StatusOr<google::cloud::speech::v2::PhraseSet>>
 SpeechConnection::DeletePhraseSet(
     google::cloud::speech::v2::DeletePhraseSetRequest const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::speech::v2::PhraseSet>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation> SpeechConnection::DeletePhraseSet(
+    NoAwaitTag, google::cloud::speech::v2::DeletePhraseSetRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::cloud::speech::v2::PhraseSet>>
+SpeechConnection::DeletePhraseSet(google::longrunning::Operation const&) {
   return google::cloud::make_ready_future<
       StatusOr<google::cloud::speech::v2::PhraseSet>>(
       Status(StatusCode::kUnimplemented, "not implemented"));
@@ -206,17 +365,71 @@ SpeechConnection::UndeletePhraseSet(
       Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
-std::shared_ptr<SpeechConnection> MakeSpeechConnection(ExperimentalTag,
-                                                       Options options) {
+StatusOr<google::longrunning::Operation> SpeechConnection::UndeletePhraseSet(
+    NoAwaitTag, google::cloud::speech::v2::UndeletePhraseSetRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::cloud::speech::v2::PhraseSet>>
+SpeechConnection::UndeletePhraseSet(google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::speech::v2::PhraseSet>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StreamRange<google::cloud::location::Location> SpeechConnection::ListLocations(
+    google::cloud::location::
+        ListLocationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::cloud::location::Location>>();
+}
+
+StatusOr<google::cloud::location::Location> SpeechConnection::GetLocation(
+    google::cloud::location::GetLocationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+StreamRange<google::longrunning::Operation> SpeechConnection::ListOperations(
+    google::longrunning::
+        ListOperationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::longrunning::Operation>>();
+}
+
+StatusOr<google::longrunning::Operation> SpeechConnection::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+Status SpeechConnection::DeleteOperation(
+    google::longrunning::DeleteOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+Status SpeechConnection::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+std::shared_ptr<SpeechConnection> MakeSpeechConnection(
+    std::string const& location, Options options) {
   internal::CheckExpectedOptions<CommonOptionList, GrpcOptionList,
                                  UnifiedCredentialsOptionList,
                                  SpeechPolicyOptionList>(options, __func__);
-  options = speech_v2_internal::SpeechDefaultOptions(std::move(options));
+  options =
+      speech_v2_internal::SpeechDefaultOptions(location, std::move(options));
   auto background = internal::MakeBackgroundThreadsFactory(options)();
+  auto auth = internal::CreateAuthenticationStrategy(background->cq(), options);
   auto stub =
-      speech_v2_internal::CreateDefaultSpeechStub(background->cq(), options);
-  return std::make_shared<speech_v2_internal::SpeechConnectionImpl>(
-      std::move(background), std::move(stub), std::move(options));
+      speech_v2_internal::CreateDefaultSpeechStub(std::move(auth), options);
+  return speech_v2_internal::MakeSpeechTracingConnection(
+      std::make_shared<speech_v2_internal::SpeechConnectionImpl>(
+          std::move(background), std::move(stub), std::move(options)));
+}
+
+std::shared_ptr<SpeechConnection> MakeSpeechConnection(Options options) {
+  return MakeSpeechConnection(std::string{}, std::move(options));
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

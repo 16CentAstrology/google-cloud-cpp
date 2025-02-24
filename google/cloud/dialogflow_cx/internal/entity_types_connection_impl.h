@@ -26,10 +26,13 @@
 #include "google/cloud/dialogflow_cx/internal/entity_types_stub.h"
 #include "google/cloud/background_threads.h"
 #include "google/cloud/backoff_policy.h"
+#include "google/cloud/future.h"
 #include "google/cloud/options.h"
+#include "google/cloud/polling_policy.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/stream_range.h"
 #include "google/cloud/version.h"
+#include <google/longrunning/operations.grpc.pb.h>
 #include <memory>
 
 namespace google {
@@ -48,10 +51,6 @@ class EntityTypesConnectionImpl : public dialogflow_cx::EntityTypesConnection {
 
   Options options() override { return options_; }
 
-  StreamRange<google::cloud::dialogflow::cx::v3::EntityType> ListEntityTypes(
-      google::cloud::dialogflow::cx::v3::ListEntityTypesRequest request)
-      override;
-
   StatusOr<google::cloud::dialogflow::cx::v3::EntityType> GetEntityType(
       google::cloud::dialogflow::cx::v3::GetEntityTypeRequest const& request)
       override;
@@ -68,40 +67,52 @@ class EntityTypesConnectionImpl : public dialogflow_cx::EntityTypesConnection {
       google::cloud::dialogflow::cx::v3::DeleteEntityTypeRequest const& request)
       override;
 
+  StreamRange<google::cloud::dialogflow::cx::v3::EntityType> ListEntityTypes(
+      google::cloud::dialogflow::cx::v3::ListEntityTypesRequest request)
+      override;
+
+  future<StatusOr<google::cloud::dialogflow::cx::v3::ExportEntityTypesResponse>>
+  ExportEntityTypes(
+      google::cloud::dialogflow::cx::v3::ExportEntityTypesRequest const&
+          request) override;
+
+  StatusOr<google::longrunning::Operation> ExportEntityTypes(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::ExportEntityTypesRequest const&
+          request) override;
+
+  future<StatusOr<google::cloud::dialogflow::cx::v3::ExportEntityTypesResponse>>
+  ExportEntityTypes(google::longrunning::Operation const& operation) override;
+
+  future<StatusOr<google::cloud::dialogflow::cx::v3::ImportEntityTypesResponse>>
+  ImportEntityTypes(
+      google::cloud::dialogflow::cx::v3::ImportEntityTypesRequest const&
+          request) override;
+
+  StatusOr<google::longrunning::Operation> ImportEntityTypes(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::ImportEntityTypesRequest const&
+          request) override;
+
+  future<StatusOr<google::cloud::dialogflow::cx::v3::ImportEntityTypesResponse>>
+  ImportEntityTypes(google::longrunning::Operation const& operation) override;
+
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_cx::EntityTypesRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::EntityTypesRetryPolicyOption>()) {
-      return options.get<dialogflow_cx::EntityTypesRetryPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_cx::EntityTypesRetryPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::EntityTypesBackoffPolicyOption>()) {
-      return options.get<dialogflow_cx::EntityTypesBackoffPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_cx::EntityTypesBackoffPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<dialogflow_cx::EntityTypesConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<
-            dialogflow_cx::EntityTypesConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_cx::EntityTypesConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_cx::EntityTypesConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_cx_internal::EntityTypesStub> stub_;
   Options options_;

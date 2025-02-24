@@ -5,23 +5,8 @@ This directory contains an idiomatic C++ client library for the
 natural language understanding technologies, such as sentiment analysis, entity
 recognition, entity sentiment analysis, and other text annotations.
 
-While this library is **GA**, please note that the Google Cloud C++ client libraries do **not** follow
-[Semantic Versioning](https://semver.org/).
-
-## Supported Platforms
-
-- Windows, macOS, Linux
-- C++14 (and higher) compilers (we test with GCC >= 7.3, Clang >= 6.0, and
-  MSVC >= 2017)
-- Environments with or without exceptions
-- Bazel (>= 4.0) and CMake (>= 3.5) builds
-
-## Documentation
-
-- Official documentation about the [Cloud Natural Language API][cloud-service-docs] service
-- [Reference doxygen documentation][doxygen-link] for each release of this
-  client library
-- Detailed header comments in our [public `.h`][source-link] files
+While this library is **GA**, please note that the Google Cloud C++ client
+libraries do **not** follow [Semantic Versioning](https://semver.org/).
 
 ## Quickstart
 
@@ -33,7 +18,7 @@ this library.
 <!-- inject-quickstart-start -->
 
 ```cc
-#include "google/cloud/language/language_client.h"
+#include "google/cloud/language/v2/language_client.h"
 #include <iostream>
 
 auto constexpr kText = R"""(
@@ -47,20 +32,20 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace language = ::google::cloud::language;
+  namespace language = ::google::cloud::language_v2;
   auto client = language::LanguageServiceClient(
       language::MakeLanguageServiceConnection());
 
-  language::v1::Document document;
-  document.set_type(language::v1::Document::PLAIN_TEXT);
+  google::cloud::language::v2::Document document;
+  document.set_type(google::cloud::language::v2::Document::PLAIN_TEXT);
   document.set_content(kText);
-  document.set_language("en-US");
+  document.set_language_code("en-US");
 
   auto response = client.AnalyzeEntities(document);
   if (!response) throw std::move(response).status();
 
   for (auto const& entity : response->entities()) {
-    if (entity.type() != language::v1::Entity::NUMBER) continue;
+    if (entity.type() != google::cloud::language::v2::Entity::NUMBER) continue;
     std::cout << entity.DebugString() << "\n";
   }
 
@@ -73,32 +58,14 @@ int main(int argc, char* argv[]) try {
 
 <!-- inject-quickstart-end -->
 
-- Packaging maintainers or developers who prefer to install the library in a
-  fixed directory (such as `/usr/local` or `/opt`) should consult the
-  [packaging guide](/doc/packaging.md).
-- Developers that prefer using a package manager such as
-  [vcpkg](https://vcpkg.io), [Conda](https://conda.io),
-  or [Conan](https://conan.io) should follow the instructions for their package
-  manager.
-- Developers wanting to use the libraries as part of a larger CMake or Bazel
-  project should consult the [quickstart guides](#quickstart) for the library
-  or libraries they want to use.
-- Developers wanting to compile the library just to run some examples or
-  tests should read the current document.
-- Contributors and developers to `google-cloud-cpp` should consult the guide to
-  [set up a development workstation][howto-setup-dev-workstation].
+## More Information
 
-## Contributing changes
-
-See [`CONTRIBUTING.md`](/CONTRIBUTING.md) for details on how to
-contribute to this project, including how to build and test your changes
-as well as how to properly format your code.
-
-## Licensing
-
-Apache 2.0; see [`LICENSE`](/LICENSE) for details.
+- Official documentation about the
+  [Cloud Natural Language API][cloud-service-docs] service
+- [Reference doxygen documentation][doxygen-link] for each release of this
+  client library
+- Detailed header comments in our [public `.h`][source-link] files
 
 [cloud-service-docs]: https://cloud.google.com/natural-language
-[doxygen-link]: https://googleapis.dev/cpp/google-cloud-language/latest/
-[howto-setup-dev-workstation]: /doc/contributor/howto-guide-setup-development-workstation.md
+[doxygen-link]: https://cloud.google.com/cpp/docs/reference/language/latest/
 [source-link]: https://github.com/googleapis/google-cloud-cpp/tree/main/google/cloud/language

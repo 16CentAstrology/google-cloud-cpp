@@ -73,51 +73,22 @@ class TransitionRouteGroupsConnectionImpl
       google::cloud::dialogflow::cx::v3::
           DeleteTransitionRouteGroupRequest const& request) override;
 
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_cx::TransitionRouteGroupsRetryPolicy>
-  retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::TransitionRouteGroupsRetryPolicyOption>()) {
-      return options
-          .get<dialogflow_cx::TransitionRouteGroupsRetryPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_cx::TransitionRouteGroupsRetryPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options
-            .has<dialogflow_cx::TransitionRouteGroupsBackoffPolicyOption>()) {
-      return options
-          .get<dialogflow_cx::TransitionRouteGroupsBackoffPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_cx::TransitionRouteGroupsBackoffPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<
-      dialogflow_cx::TransitionRouteGroupsConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<
-            dialogflow_cx::
-                TransitionRouteGroupsConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_cx::
-                   TransitionRouteGroupsConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_cx::
-                 TransitionRouteGroupsConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_cx_internal::TransitionRouteGroupsStub> stub_;
   Options options_;

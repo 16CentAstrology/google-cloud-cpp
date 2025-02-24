@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "generator/internal/codegen_utils.h"
+#include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -24,12 +25,15 @@ namespace generator_internal {
 namespace {
 
 using ::google::cloud::testing_util::IsOk;
+using ::google::cloud::testing_util::IsOkAndHolds;
 using ::google::cloud::testing_util::StatusIs;
 using ::testing::AllOf;
 using ::testing::Contains;
-using ::testing::ElementsAre;
+using ::testing::ContainsRegex;
+using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::Pair;
+using ::testing::Values;
 
 TEST(LocalInclude, Success) {
   EXPECT_EQ("#include \"google/cloud/status.h\"\n",
@@ -93,69 +97,52 @@ TEST(ProtoNameToCppName, MessageType) {
             ProtoNameToCppName("google.spanner.admin.database.v1.Request"));
 }
 
-TEST(BuildNamespaces, NoDirectoryPathInternal) {
-  auto result = BuildNamespaces("/", NamespaceType::kInternal);
-  ASSERT_EQ(result.size(), 4);
-  EXPECT_THAT(result, ElementsAre("google", "cloud", "_internal",
-                                  "GOOGLE_CLOUD_CPP_NS"));
+TEST(Namespace, Normal) {
+  EXPECT_EQ("test", Namespace("google/cloud/test"));
+  EXPECT_EQ("test", Namespace("google/cloud/test/"));
+  EXPECT_EQ("test_v1", Namespace("google/cloud/test/v1"));
+  EXPECT_EQ("test_v1", Namespace("google/cloud/test/v1/"));
+  EXPECT_EQ("test_foo_v1", Namespace("google/cloud/test/foo/v1"));
+  EXPECT_EQ("golden", Namespace("blah/golden"));
+  EXPECT_EQ("golden_v1", Namespace("blah/golden/v1"));
+  EXPECT_EQ("service", Namespace("foo/bar/service"));
 }
 
-TEST(BuildNamespaces, OneDirectoryPathInternal) {
-  auto result = BuildNamespaces("one/", NamespaceType::kInternal);
-  ASSERT_EQ(result.size(), 4);
-  EXPECT_THAT(result, ElementsAre("google", "cloud", "one_internal",
-                                  "GOOGLE_CLOUD_CPP_NS"));
+TEST(Namespace, Internal) {
+  EXPECT_EQ("test_internal",
+            Namespace("google/cloud/test", NamespaceType::kInternal));
+  EXPECT_EQ("test_internal",
+            Namespace("google/cloud/test/", NamespaceType::kInternal));
+  EXPECT_EQ("test_v1_internal",
+            Namespace("google/cloud/test/v1", NamespaceType::kInternal));
+  EXPECT_EQ("test_v1_internal",
+            Namespace("google/cloud/test/v1/", NamespaceType::kInternal));
+  EXPECT_EQ("test_foo_v1_internal",
+            Namespace("google/cloud/test/foo/v1", NamespaceType::kInternal));
+  EXPECT_EQ("golden_internal",
+            Namespace("blah/golden", NamespaceType::kInternal));
+  EXPECT_EQ("golden_v1_internal",
+            Namespace("blah/golden/v1", NamespaceType::kInternal));
+  EXPECT_EQ("service_internal",
+            Namespace("foo/bar/service", NamespaceType::kInternal));
 }
 
-TEST(BuildNamespaces, TwoDirectoryPathInternal) {
-  auto result = BuildNamespaces("unusual/product/", NamespaceType::kInternal);
-  ASSERT_EQ(result.size(), 4);
-  EXPECT_THAT(result, ElementsAre("google", "cloud", "unusual_product_internal",
-                                  "GOOGLE_CLOUD_CPP_NS"));
-}
-
-TEST(BuildNamespaces, TwoDirectoryPathNotInternal) {
-  auto result = BuildNamespaces("unusual/product/");
-  ASSERT_EQ(result.size(), 4);
-  EXPECT_THAT(result, ElementsAre("google", "cloud", "unusual_product",
-                                  "GOOGLE_CLOUD_CPP_NS"));
-}
-
-TEST(BuildNamespaces, ThreeDirectoryPathInternal) {
-  auto result =
-      BuildNamespaces("google/cloud/spanner/", NamespaceType::kInternal);
-  ASSERT_EQ(result.size(), 4);
-  EXPECT_THAT(result, ElementsAre("google", "cloud", "spanner_internal",
-                                  "GOOGLE_CLOUD_CPP_NS"));
-}
-
-TEST(BuildNamespaces, ThreeDirectoryPathMocks) {
-  auto result = BuildNamespaces("google/cloud/spanner/", NamespaceType::kMocks);
-  ASSERT_EQ(result.size(), 4);
-  EXPECT_THAT(result, ElementsAre("google", "cloud", "spanner_mocks",
-                                  "GOOGLE_CLOUD_CPP_NS"));
-}
-
-TEST(BuildNamespaces, ThreeDirectoryPathNotInternal) {
-  auto result = BuildNamespaces("google/cloud/translation/");
-  ASSERT_EQ(result.size(), 4);
-  EXPECT_THAT(result, ElementsAre("google", "cloud", "translation",
-                                  "GOOGLE_CLOUD_CPP_NS"));
-}
-
-TEST(BuildNamespaces, FourDirectoryPathInternal) {
-  auto result =
-      BuildNamespaces("google/cloud/foo/bar/baz/", NamespaceType::kInternal);
-  ASSERT_EQ(result.size(), 4);
-  EXPECT_THAT(result, ElementsAre("google", "cloud", "foo_bar_baz_internal",
-                                  "GOOGLE_CLOUD_CPP_NS"));
-}
-
-TEST(BuildNamespaces, FourDirectoryPathNotInternal) {
-  auto result = BuildNamespaces("google/cloud/foo/bar/baz/");
-  ASSERT_EQ(result.size(), 4);
-  EXPECT_THAT(result, ElementsAre("google", "cloud", "foo_bar_baz",
-                                  "GOOGLE_CLOUD_CPP_NS"));
+TEST(Namespace, Mocks) {
+  EXPECT_EQ("test_mocks",
+            Namespace("google/cloud/test", NamespaceType::kMocks));
+  EXPECT_EQ("test_mocks",
+            Namespace("google/cloud/test/", NamespaceType::kMocks));
+  EXPECT_EQ("test_v1_mocks",
+            Namespace("google/cloud/test/v1", NamespaceType::kMocks));
+  EXPECT_EQ("test_v1_mocks",
+            Namespace("google/cloud/test/v1/", NamespaceType::kMocks));
+  EXPECT_EQ("test_foo_v1_mocks",
+            Namespace("google/cloud/test/foo/v1", NamespaceType::kMocks));
+  EXPECT_EQ("golden_mocks", Namespace("blah/golden", NamespaceType::kMocks));
+  EXPECT_EQ("golden_v1_mocks",
+            Namespace("blah/golden/v1", NamespaceType::kMocks));
+  EXPECT_EQ("service_mocks",
+            Namespace("foo/bar/service", NamespaceType::kMocks));
 }
 
 TEST(ProcessCommandLineArgs, NoProductPath) {
@@ -312,6 +299,14 @@ TEST(ProcessCommandLineArgs, ProcessOmitStubFactory) {
   EXPECT_THAT(*result, Contains(Pair("omit_stub_factory", "true")));
 }
 
+TEST(ProcessCommandLineArgs, ProcessOmitStreamingUpdater) {
+  auto result = ProcessCommandLineArgs(
+      "product_path=google/cloud/bigquery/storage/v1/"
+      ",omit_streaming_updater=true");
+  ASSERT_THAT(result,
+              IsOkAndHolds(Contains(Pair("omit_streaming_updater", "true"))));
+}
+
 TEST(ProcessCommandLineArgs, ProcessGenerateRoundRobinGenerator) {
   auto result = ProcessCommandLineArgs(
       "product_path=google/cloud/spanner/"
@@ -347,7 +342,203 @@ TEST(ProcessCommandLineArgs, ProcessArgForwardingProductPath) {
                                      "google/cloud/spanner/")));
 }
 
+TEST(ProcessCommandLineArgs, ProcessServiceNameMapping) {
+  auto result = ProcessCommandLineArgs(
+      "product_path=google/cloud/pubsub/"
+      ",service_name_mapping=old_name1=new_name1"
+      ",service_name_mapping=old_name2=new_name2");
+  ASSERT_THAT(result, IsOk());
+  EXPECT_THAT(*result, Contains(Pair("service_name_mappings",
+                                     AllOf(HasSubstr("old_name1=new_name1"),
+                                           HasSubstr("old_name2=new_name2")))));
+}
+
+TEST(ProcessCommandLineArgs, ProcessServiceNameToComment) {
+  auto result = ProcessCommandLineArgs(
+      "product_path=google/cloud/pubsub/"
+      ",service_name_to_comment=name1=comment1"
+      ",service_name_to_comment=name2=comment2");
+  ASSERT_THAT(result, IsOk());
+  EXPECT_THAT(*result, Contains(Pair("service_name_to_comments",
+                                     AllOf(HasSubstr("name1=comment1"),
+                                           HasSubstr("name2=comment2")))));
+}
+
+TEST(SafeReplaceAll, Success) {
+  EXPECT_EQ("one@two", SafeReplaceAll("one,two", ",", "@"));
+}
+
+TEST(SafeReplaceAll, Death) {
+  EXPECT_DEATH_IF_SUPPORTED(SafeReplaceAll("one@two", ",", "@"),
+                            ContainsRegex(R"(found "@" in "one@two")"));
+}
+
+TEST(CapitalizeFirstLetter, StartsWithLowerCase) {
+  auto result = CapitalizeFirstLetter("foo");
+  EXPECT_THAT(result, Eq("Foo"));
+}
+
+TEST(CapitalizeFirstLetter, StartsWithUpperCase) {
+  auto result = CapitalizeFirstLetter("Foo");
+  EXPECT_THAT(result, Eq("Foo"));
+}
+
+struct FormatCommentBlockTestParams {
+  std::string comment;
+  std::size_t indent_level;
+  std::string introducer;
+  std::size_t indent_width;
+  std::size_t line_length;
+  std::string result;
+};
+
+class FormatCommentBlockTest
+    : public ::testing::TestWithParam<FormatCommentBlockTestParams> {};
+
+TEST_P(FormatCommentBlockTest, CommentBlockFormattedCorrectly) {
+  EXPECT_THAT(std::string("\n") + FormatCommentBlock(GetParam().comment,
+                                                     GetParam().indent_level,
+                                                     GetParam().introducer,
+                                                     GetParam().indent_width,
+                                                     GetParam().line_length),
+              Eq(GetParam().result));
+}
+
+auto constexpr kSingleWordComment = "brief";
+auto constexpr kLongSingleWordComment = "supercalifragilisticexpialidocious";
+auto constexpr kShortComment = "This is a comment.";
+auto constexpr k77CharComment =
+    "The comment is not less than, not greater than, but is exactly 77 "
+    "characters.";
+auto constexpr kContainsMarkdownBulletedLongUrlComment =
+    "Represents an IP Address resource. Google Compute Engine has two IP "
+    "Address resources: * [Global (external and "
+    "internal)](https://cloud.google.com/compute/docs/reference/rest/v1/"
+    "globalAddresses) * [Regional (external and "
+    "internal)](https://cloud.google.com/compute/docs/reference/rest/v1/"
+    "addresses) For more information, see Reserving a static external IP "
+    "address.";
+
+using FormatCommentBlockDeathTest = FormatCommentBlockTest;
+
+TEST_F(FormatCommentBlockDeathTest, LineLengthSmallerThanCommentIntro) {
+  EXPECT_DEATH(FormatCommentBlock(kShortComment, 0, "", 0, 0), "");
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    CommentBlockFormattedCorrectly, FormatCommentBlockTest,
+    Values(
+        FormatCommentBlockTestParams{"", 0, "", 0, 0, R"""(
+)"""},
+        FormatCommentBlockTestParams{kSingleWordComment, 0, "", 0, 1, R"""(
+brief)"""},
+        FormatCommentBlockTestParams{kSingleWordComment, 0, "", 0, 80, R"""(
+brief)"""},
+        FormatCommentBlockTestParams{kLongSingleWordComment, 0, "// ", 2, 40,
+                                     R"""(
+// supercalifragilisticexpialidocious)"""},
+        FormatCommentBlockTestParams{
+            absl::StrCat(kLongSingleWordComment, " w", kLongSingleWordComment),
+            0, "// ", 2, 30, R"""(
+// supercalifragilisticexpialidocious
+// wsupercalifragilisticexpialidocious)"""},
+        FormatCommentBlockTestParams{kSingleWordComment, 0, "// ", 2, 80, R"""(
+// brief)"""},
+        FormatCommentBlockTestParams{kShortComment, 0, "// ", 2, 80, R"""(
+// This is a comment.)"""},
+        FormatCommentBlockTestParams{kShortComment, 1, "// ", 2, 80, R"""(
+  // This is a comment.)"""},
+        FormatCommentBlockTestParams{kShortComment, 2, "// ", 2, 80, R"""(
+    // This is a comment.)"""},
+        FormatCommentBlockTestParams{k77CharComment, 0, "// ", 2, 80, R"""(
+// The comment is not less than, not greater than, but is exactly 77 characters.)"""},
+        FormatCommentBlockTestParams{k77CharComment, 1, "// ", 2, 80, R"""(
+  // The comment is not less than, not greater than, but is exactly 77
+  // characters.)"""},
+        FormatCommentBlockTestParams{k77CharComment, 2, "// ", 2, 80, R"""(
+    // The comment is not less than, not greater than, but is exactly 77
+    // characters.)"""},
+        FormatCommentBlockTestParams{k77CharComment, 0, "# ", 4, 40, R"""(
+# The comment is not less than, not
+# greater than, but is exactly 77
+# characters.)"""},
+        FormatCommentBlockTestParams{k77CharComment, 1, "# ", 4, 40, R"""(
+    # The comment is not less than, not
+    # greater than, but is exactly 77
+    # characters.)"""},
+        FormatCommentBlockTestParams{k77CharComment, 2, "# ", 4, 40, R"""(
+        # The comment is not less than,
+        # not greater than, but is
+        # exactly 77 characters.)"""},
+        FormatCommentBlockTestParams{"line1 uhoh", 0, "", 0, 5, R"""(
+line1
+uhoh)"""},
+        FormatCommentBlockTestParams{"foo wordthatiswaytoolong", 0, "", 0, 5,
+                                     R"""(
+foo
+wordthatiswaytoolong)"""},
+        // TODO(#11019): Improve formatting of comments containing markdown.
+        FormatCommentBlockTestParams{kContainsMarkdownBulletedLongUrlComment, 0,
+                                     "// ", 2, 80, R"""(
+// Represents an IP Address resource. Google Compute Engine has two IP Address
+// resources: * [Global (external and
+// internal)](https://cloud.google.com/compute/docs/reference/rest/v1/globalAddresses)
+// * [Regional (external and
+// internal)](https://cloud.google.com/compute/docs/reference/rest/v1/addresses)
+// For more information, see Reserving a static external IP address.)"""}));
+
+struct FormatCommentKeyValueListTestParams {
+  std::vector<std::pair<std::string, std::string>> comment;
+  std::size_t indent_level;
+  std::string separator;
+  std::string introducer;
+  std::size_t indent_width;
+  std::size_t line_length;
+  std::string result;
+};
+
+class FormatCommentKeyValueListTest
+    : public ::testing::TestWithParam<FormatCommentKeyValueListTestParams> {};
+
+TEST_P(FormatCommentKeyValueListTest, CommentKeyValueListFormattedCorrectly) {
+  EXPECT_THAT(
+      std::string("\n") + FormatCommentKeyValueList(
+                              GetParam().comment, GetParam().indent_level,
+                              GetParam().separator, GetParam().introducer,
+                              GetParam().indent_width, GetParam().line_length),
+      Eq(GetParam().result));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    CommentKeyValueListFormattedCorrectly, FormatCommentKeyValueListTest,
+    Values(
+        FormatCommentKeyValueListTestParams{{}, 0, "", "", 0, 0, R"""(
+)"""},
+        FormatCommentKeyValueListTestParams{
+            {std::make_pair("key", "value")}, 0, ":", "// ", 2, 80, R"""(
+// key: value)"""},
+        FormatCommentKeyValueListTestParams{
+            {std::make_pair("key", k77CharComment)}, 1, ":", "// ", 2, 80, R"""(
+  // key: The comment is not less than, not greater than, but is exactly 77
+  // characters.)"""},
+        FormatCommentKeyValueListTestParams{
+            {std::make_pair(k77CharComment, k77CharComment)},
+            2,
+            ":",
+            "// ",
+            2,
+            80,
+            R"""(
+    // The comment is not less than, not greater than, but is exactly 77
+    // characters.: The comment is not less than, not greater than, but is
+    // exactly 77 characters.)"""}));
+
 }  // namespace
 }  // namespace generator_internal
 }  // namespace cloud
 }  // namespace google
+
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}

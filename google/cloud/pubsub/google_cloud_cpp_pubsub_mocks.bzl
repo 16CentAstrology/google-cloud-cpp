@@ -17,12 +17,14 @@
 """Automatically generated unit tests list - DO NOT EDIT."""
 
 google_cloud_cpp_pubsub_mocks_hdrs = [
+    "admin/mocks/mock_subscription_admin_connection.h",
+    "admin/mocks/mock_topic_admin_connection.h",
     "mocks/mock_ack_handler.h",
     "mocks/mock_blocking_publisher_connection.h",
     "mocks/mock_exactly_once_ack_handler.h",
     "mocks/mock_publisher_connection.h",
     "mocks/mock_pull_ack_handler.h",
-    "mocks/mock_schema_admin_connection.h",
+    "mocks/mock_schema_connection.h",
     "mocks/mock_subscriber_connection.h",
     "mocks/mock_subscription_admin_connection.h",
     "mocks/mock_topic_admin_connection.h",

@@ -17,6 +17,9 @@
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
 #include <nlohmann/json.hpp>
+#include <map>
+#include <string>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -25,8 +28,10 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace internal {
 namespace {
 
+using ::google::cloud::testing_util::IsOkAndHolds;
 using ::google::cloud::testing_util::StatusIs;
 using ::testing::ElementsAre;
+using ::testing::StartsWith;
 
 TEST(PolicyDocumentRequest, SigningAccount) {
   PolicyDocumentRequest request;
@@ -59,29 +64,52 @@ TEST(PolicyDocumentV4Request, SigningAccount) {
 }
 
 TEST(PostPolicyV4EscapeTest, OnlyAscii) {
-  EXPECT_EQ("\\\\b\\f\\n\\r\\t\\vabcd",
-            *PostPolicyV4Escape("\\\b\f\n\r\t\vabcd"));
+  EXPECT_THAT(PostPolicyV4Escape("\\\b\f\n\r\t\vabcd"),
+              IsOkAndHolds("\\\\b\\f\\n\\r\\t\\vabcd"));
 }
 
-#if GOOGLE_CLOUD_CPP_HAVE_EXCEPTIONS
 TEST(PostPolicyV4EscapeTest, InvalidUtf) {
   // In UTF8 a byte larger than 0x7f indicates that there is a byte following
   // it. Here we truncate the string to cause the UTF parser to fail.
   std::string invalid_utf8(1, '\x80');
   EXPECT_THAT(PostPolicyV4Escape(invalid_utf8),
               StatusIs(StatusCode::kInvalidArgument));
+
+  // Missing characters in encoding
+  EXPECT_THAT(PostPolicyV4Escape("\xC2"),
+              StatusIs(StatusCode::kInvalidArgument));
+  EXPECT_THAT(PostPolicyV4Escape("\xED\x95"),
+              StatusIs(StatusCode::kInvalidArgument));
+  EXPECT_THAT(PostPolicyV4Escape("\xF0\x90\x8D"),
+              StatusIs(StatusCode::kInvalidArgument));
+
+  // Encoding with invalid characters
+  EXPECT_THAT(PostPolicyV4Escape("\xC2\x20"),
+              StatusIs(StatusCode::kInvalidArgument));
+  EXPECT_THAT(PostPolicyV4Escape("\xED\x95\x20"),
+              StatusIs(StatusCode::kInvalidArgument));
+  EXPECT_THAT(PostPolicyV4Escape("\xF0\x90\x8D\x20"),
+              StatusIs(StatusCode::kInvalidArgument));
+  EXPECT_THAT(PostPolicyV4Escape("\xFF"),
+              StatusIs(StatusCode::kInvalidArgument));
 }
-#endif  // GOOGLE_CLOUD_CPP_HAVE_EXCEPTIONS
 
 TEST(PostPolicyV4EscapeTest, Simple) {
-#if GOOGLE_CLOUD_CPP_HAVE_EXCEPTIONS
-  EXPECT_EQ("\127\065abcd$", *PostPolicyV4Escape("\127\065abcd$"));
+  EXPECT_THAT(PostPolicyV4Escape("\127\065abcd$"),
+              IsOkAndHolds("\127\065abcd$"));
   auto constexpr kUtf8Text = u8"\\\b\f\n\r\t\v\u0080\u0119";
   auto input = std::string{kUtf8Text, kUtf8Text + 11};
-  EXPECT_EQ("\\\\b\\f\\n\\r\\t\\v\\u0080\\u0119", *PostPolicyV4Escape(input));
-#else   // GOOGLE_CLOUD_CPP_HAVE_EXCEPTIONS
-  EXPECT_THAT(PostPolicyV4Escape("ąę"), StatusIs(StatusCode::kUnimplemented));
-#endif  // GOOGLE_CLOUD_CPP_HAVE_EXCEPTIONS
+  EXPECT_THAT(PostPolicyV4Escape(input),
+              IsOkAndHolds("\\\\b\\f\\n\\r\\t\\v\\u0080\\u0119"));
+  // Taken from the examples in https://en.wikipedia.org/wiki/UTF-8
+  EXPECT_THAT(PostPolicyV4Escape("\x24"), IsOkAndHolds("$"));
+  EXPECT_THAT(PostPolicyV4Escape("\xC2\xA3"), IsOkAndHolds("\\u00a3"));
+  EXPECT_THAT(PostPolicyV4Escape("\xD0\x98"), IsOkAndHolds("\\u0418"));
+  EXPECT_THAT(PostPolicyV4Escape("\xE0\xA4\xB9"), IsOkAndHolds("\\u0939"));
+  EXPECT_THAT(PostPolicyV4Escape("\xE2\x82\xAC"), IsOkAndHolds("\\u20ac"));
+  EXPECT_THAT(PostPolicyV4Escape("\xED\x95\x9C"), IsOkAndHolds("\\ud55c"));
+  EXPECT_THAT(PostPolicyV4Escape("\xF0\x90\x8D\x88"),
+              IsOkAndHolds("\\U00010348"));
 }
 
 TEST(PolicyDocumentV4Request, Printing) {
@@ -95,7 +123,8 @@ TEST(PolicyDocumentV4Request, Printing) {
   std::stringstream stream;
   stream << req;
   EXPECT_EQ(
-      "PolicyDocumentRequest={{\"conditions\":[{\"bucket\":\"test-bucket\"},{"
+      "PolicyDocumentRequest={endpoint_authority=storage.googleapis.com,"
+      "{\"conditions\":[{\"bucket\":\"test-bucket\"},{"
       "\"key\":\"test-object\"},{\"x-goog-date\":\"20100616T111111Z\"},{\"x-"
       "goog-credential\":\"/20100616/auto/storage/"
       "goog4_request\"},{\"x-goog-algorithm\":\"GOOG4-RSA-SHA256\"}],"
@@ -127,6 +156,27 @@ TEST(PolicyDocumentV4Request, RequiredFormFields) {
       {"x-goog-date", "20100616T111111Z"},
       {"x-some-header", "header-value"}};
   EXPECT_EQ(expected_fields, req.RequiredFormFields());
+}
+
+TEST(PolicyDocumentV4Request, Url) {
+  PolicyDocumentV4 doc;
+  doc.bucket = "test-bucket";
+  auto const custom_endpoint_authority = std::string{"storage.mydomain.com"};
+  PolicyDocumentV4Request request(doc, custom_endpoint_authority);
+  EXPECT_THAT(request.Url(),
+              StartsWith("https://" + custom_endpoint_authority));
+}
+
+TEST(PolicyDocumentV4Request, UrlWithVirtualHostName) {
+  PolicyDocumentV4 doc;
+  doc.bucket = "test-bucket";
+  auto const custom_endpoint_authority = std::string{"storage.mydomain.com"};
+  PolicyDocumentV4Request request(doc, custom_endpoint_authority);
+  request.SetOption(VirtualHostname(true));
+
+  auto const expected_url = std::string{"https://" + doc.bucket + "." +
+                                        custom_endpoint_authority + "/"};
+  EXPECT_EQ(request.Url(), expected_url);
 }
 
 }  // namespace

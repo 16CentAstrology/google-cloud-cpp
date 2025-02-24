@@ -28,6 +28,11 @@ auto constexpr kDefaultTokenLifetime = std::chrono::hours(1);
 
 }  // namespace
 
+std::shared_ptr<Credentials> MakeErrorCredentials(Status error_status) {
+  return std::make_shared<internal::ErrorCredentialsConfig>(
+      std::move(error_status));
+}
+
 Options PopulateAuthOptions(Options options) {
   // First set any defaults that may be missing.
   options =
@@ -37,14 +42,17 @@ Options PopulateAuthOptions(Options options) {
                        .set<AccessTokenLifetimeOption>(kDefaultTokenLifetime));
   // Then apply any overrides.
   return MergeOptions(
-      Options{}.set<TracingComponentsOption>(DefaultTracingComponents()),
+      Options{}.set<LoggingComponentsOption>(DefaultTracingComponents()),
       std::move(options));
 }
 
-void CredentialsVisitor::dispatch(Credentials& credentials,
+void CredentialsVisitor::dispatch(Credentials const& credentials,
                                   CredentialsVisitor& visitor) {
   credentials.dispatch(visitor);
 }
+
+ErrorCredentialsConfig::ErrorCredentialsConfig(Status error_status)
+    : status_(std::move(error_status)) {}
 
 InsecureCredentialsConfig::InsecureCredentialsConfig(Options opts)
     : options_(PopulateAuthOptions(std::move(opts))) {}
@@ -88,6 +96,10 @@ ExternalAccountConfig::ExternalAccountConfig(std::string json_object,
                                              Options options)
     : json_object_(std::move(json_object)),
       options_(PopulateAuthOptions(std::move(options))) {}
+
+ApiKeyConfig::ApiKeyConfig(std::string api_key, Options opts)
+    : api_key_(std::move(api_key)),
+      options_(PopulateAuthOptions(std::move(opts))) {}
 
 }  // namespace internal
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

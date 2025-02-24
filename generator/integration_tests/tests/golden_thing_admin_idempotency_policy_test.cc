@@ -58,7 +58,7 @@ TEST_F(GoldenIdempotencyPolicyTest, UpdateDatabaseDdl) {
 
 TEST_F(GoldenIdempotencyPolicyTest, DropDatabase) {
   gtab::DropDatabaseRequest request;
-  EXPECT_EQ(policy_->DropDatabase(request), Idempotency::kNonIdempotent);
+  EXPECT_EQ(policy_->DropDatabase(request), Idempotency::kIdempotent);
 }
 
 TEST_F(GoldenIdempotencyPolicyTest, GetDatabaseDdl) {
@@ -73,12 +73,12 @@ TEST_F(GoldenIdempotencyPolicyTest, SetIamPolicy) {
 
 TEST_F(GoldenIdempotencyPolicyTest, GetIamPolicy) {
   google::iam::v1::GetIamPolicyRequest request;
-  EXPECT_EQ(policy_->GetIamPolicy(request), Idempotency::kNonIdempotent);
+  EXPECT_EQ(policy_->GetIamPolicy(request), Idempotency::kIdempotent);
 }
 
 TEST_F(GoldenIdempotencyPolicyTest, TestIamPermissions) {
   google::iam::v1::TestIamPermissionsRequest request;
-  EXPECT_EQ(policy_->TestIamPermissions(request), Idempotency::kNonIdempotent);
+  EXPECT_EQ(policy_->TestIamPermissions(request), Idempotency::kIdempotent);
 }
 
 TEST_F(GoldenIdempotencyPolicyTest, CreateBackup) {

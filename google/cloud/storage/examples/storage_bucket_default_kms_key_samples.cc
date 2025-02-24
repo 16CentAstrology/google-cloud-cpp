@@ -17,7 +17,11 @@
 #include "google/cloud/internal/getenv.h"
 #include <functional>
 #include <iostream>
+#include <random>
+#include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -31,7 +35,7 @@ void AddBucketDefaultKmsKey(google::cloud::storage::Client client,
     StatusOr<gcs::BucketMetadata> updated = client.PatchBucket(
         bucket_name, gcs::BucketMetadataPatchBuilder().SetEncryption(
                          gcs::BucketEncryption{key_name}));
-    if (!updated) throw std::runtime_error(updated.status().message());
+    if (!updated) throw std::move(updated).status();
 
     if (!updated->has_encryption()) {
       std::cerr << "The change to set the encryption attribute on bucket "
@@ -58,7 +62,7 @@ void GetBucketDefaultKmsKey(google::cloud::storage::Client client,
   [](gcs::Client client, std::string const& bucket_name) {
     StatusOr<gcs::BucketMetadata> metadata =
         client.GetBucketMetadata(bucket_name);
-    if (!metadata) throw std::runtime_error(metadata.status().message());
+    if (!metadata) throw std::move(metadata).status();
 
     if (!metadata->has_encryption()) {
       std::cout << "The bucket " << metadata->name()
@@ -82,7 +86,7 @@ void RemoveBucketDefaultKmsKey(google::cloud::storage::Client client,
   [](gcs::Client client, std::string const& bucket_name) {
     StatusOr<gcs::BucketMetadata> updated = client.PatchBucket(
         bucket_name, gcs::BucketMetadataPatchBuilder().ResetEncryption());
-    if (!updated) throw std::runtime_error(updated.status().message());
+    if (!updated) throw std::move(updated).status();
 
     std::cout << "Successfully removed default KMS key on bucket "
               << updated->name() << "\n";
@@ -113,7 +117,8 @@ void RunAll(std::vector<std::string> const& argv) {
   std::cout << "\nCreating bucket to run the example (" << bucket_name << ")"
             << std::endl;
   (void)client
-      .CreateBucketForProject(bucket_name, project_id, gcs::BucketMetadata{})
+      .CreateBucketForProject(bucket_name, project_id, gcs::BucketMetadata{},
+                              examples::CreateBucketOptions())
       .value();
   // In GCS a single project cannot create or delete buckets more often than
   // once every two seconds. We will pause until that time before deleting the

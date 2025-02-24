@@ -17,7 +17,6 @@
 // source: google/cloud/dialogflow/v2/knowledge_base.proto
 
 #include "google/cloud/dialogflow_es/knowledge_bases_connection_idempotency_policy.h"
-#include "absl/memory/memory.h"
 #include <memory>
 
 namespace google {
@@ -32,7 +31,7 @@ KnowledgeBasesConnectionIdempotencyPolicy::
 
 std::unique_ptr<KnowledgeBasesConnectionIdempotencyPolicy>
 KnowledgeBasesConnectionIdempotencyPolicy::clone() const {
-  return absl::make_unique<KnowledgeBasesConnectionIdempotencyPolicy>(*this);
+  return std::make_unique<KnowledgeBasesConnectionIdempotencyPolicy>(*this);
 }
 
 Idempotency KnowledgeBasesConnectionIdempotencyPolicy::ListKnowledgeBases(
@@ -60,9 +59,34 @@ Idempotency KnowledgeBasesConnectionIdempotencyPolicy::UpdateKnowledgeBase(
   return Idempotency::kNonIdempotent;
 }
 
+Idempotency KnowledgeBasesConnectionIdempotencyPolicy::ListLocations(
+    google::cloud::location::ListLocationsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency KnowledgeBasesConnectionIdempotencyPolicy::GetLocation(
+    google::cloud::location::GetLocationRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency KnowledgeBasesConnectionIdempotencyPolicy::ListOperations(
+    google::longrunning::ListOperationsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency KnowledgeBasesConnectionIdempotencyPolicy::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency KnowledgeBasesConnectionIdempotencyPolicy::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
 std::unique_ptr<KnowledgeBasesConnectionIdempotencyPolicy>
 MakeDefaultKnowledgeBasesConnectionIdempotencyPolicy() {
-  return absl::make_unique<KnowledgeBasesConnectionIdempotencyPolicy>();
+  return std::make_unique<KnowledgeBasesConnectionIdempotencyPolicy>();
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

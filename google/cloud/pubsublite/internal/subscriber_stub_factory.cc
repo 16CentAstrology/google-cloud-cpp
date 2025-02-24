@@ -21,13 +21,17 @@
 #include "google/cloud/pubsublite/internal/subscriber_logging_decorator.h"
 #include "google/cloud/pubsublite/internal/subscriber_metadata_decorator.h"
 #include "google/cloud/pubsublite/internal/subscriber_stub.h"
+#include "google/cloud/pubsublite/internal/subscriber_tracing_stub.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/algorithm.h"
+#include "google/cloud/internal/opentelemetry.h"
 #include "google/cloud/log.h"
 #include "google/cloud/options.h"
 #include <google/cloud/pubsublite/v1/subscriber.grpc.pb.h>
+#include <google/longrunning/operations.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -35,27 +39,32 @@ namespace pubsublite_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 std::shared_ptr<SubscriberServiceStub> CreateDefaultSubscriberServiceStub(
-    google::cloud::CompletionQueue cq, Options const& options) {
-  auto auth = google::cloud::internal::CreateAuthenticationStrategy(
-      std::move(cq), options);
+    std::shared_ptr<internal::GrpcAuthenticationStrategy> auth,
+    Options const& options) {
   auto channel = auth->CreateChannel(options.get<EndpointOption>(),
                                      internal::MakeChannelArguments(options));
   auto service_grpc_stub =
       google::cloud::pubsublite::v1::SubscriberService::NewStub(channel);
+  auto service_operations_stub =
+      google::longrunning::Operations::NewStub(channel);
   std::shared_ptr<SubscriberServiceStub> stub =
       std::make_shared<DefaultSubscriberServiceStub>(
-          std::move(service_grpc_stub));
+          std::move(service_grpc_stub), std::move(service_operations_stub));
 
   if (auth->RequiresConfigureContext()) {
     stub = std::make_shared<SubscriberServiceAuth>(std::move(auth),
                                                    std::move(stub));
   }
-  stub = std::make_shared<SubscriberServiceMetadata>(std::move(stub));
-  if (internal::Contains(options.get<TracingComponentsOption>(), "rpc")) {
+  stub = std::make_shared<SubscriberServiceMetadata>(
+      std::move(stub), std::multimap<std::string, std::string>{});
+  if (internal::Contains(options.get<LoggingComponentsOption>(), "rpc")) {
     GCP_LOG(INFO) << "Enabled logging for gRPC calls";
     stub = std::make_shared<SubscriberServiceLogging>(
         std::move(stub), options.get<GrpcTracingOptionsOption>(),
-        options.get<TracingComponentsOption>());
+        options.get<LoggingComponentsOption>());
+  }
+  if (internal::TracingEnabled(options)) {
+    stub = MakeSubscriberServiceTracingStub(std::move(stub));
   }
   return stub;
 }

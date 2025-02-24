@@ -13,8 +13,9 @@
 // limitations under the License.
 
 #include "google/cloud/storage/testing/write_base64.h"
-#include "google/cloud/storage/internal/openssl_util.h"
+#include "google/cloud/storage/internal/base64.h"
 #include <fstream>
+#include <string>
 
 namespace google {
 namespace cloud {

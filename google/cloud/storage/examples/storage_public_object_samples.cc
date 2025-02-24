@@ -17,6 +17,10 @@
 #include "google/cloud/internal/getenv.h"
 #include <functional>
 #include <iostream>
+#include <random>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -33,7 +37,7 @@ void MakeObjectPublic(google::cloud::storage::Client client,
         bucket_name, object_name, gcs::ObjectMetadataPatchBuilder(),
         gcs::PredefinedAcl::PublicRead());
 
-    if (!updated) throw std::runtime_error(updated.status().message());
+    if (!updated) throw std::move(updated).status();
     std::cout << "Object updated. The full metadata after the update is: "
               << *updated << "\n";
   }
@@ -61,6 +65,7 @@ void ReadObjectUnauthenticated(std::vector<std::string> const& argv) {
     while (std::getline(stream, line, '\n')) {
       ++count;
     }
+    if (stream.bad()) throw google::cloud::Status(stream.status());
     std::cout << "The object has " << count << " lines\n";
   }
   //! [download_public_file] [END storage_download_public_file]

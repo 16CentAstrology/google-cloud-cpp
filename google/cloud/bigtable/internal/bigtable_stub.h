@@ -23,10 +23,12 @@
 #include "google/cloud/future.h"
 #include "google/cloud/internal/async_streaming_read_rpc.h"
 #include "google/cloud/internal/streaming_read_rpc.h"
+#include "google/cloud/options.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/version.h"
 #include <google/bigtable/v2/bigtable.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -39,71 +41,85 @@ class BigtableStub {
 
   virtual std::unique_ptr<google::cloud::internal::StreamingReadRpc<
       google::bigtable::v2::ReadRowsResponse>>
-  ReadRows(std::unique_ptr<grpc::ClientContext> context,
+  ReadRows(std::shared_ptr<grpc::ClientContext> context, Options const& options,
            google::bigtable::v2::ReadRowsRequest const& request) = 0;
 
   virtual std::unique_ptr<google::cloud::internal::StreamingReadRpc<
       google::bigtable::v2::SampleRowKeysResponse>>
-  SampleRowKeys(std::unique_ptr<grpc::ClientContext> context,
+  SampleRowKeys(std::shared_ptr<grpc::ClientContext> context,
+                Options const& options,
                 google::bigtable::v2::SampleRowKeysRequest const& request) = 0;
 
   virtual StatusOr<google::bigtable::v2::MutateRowResponse> MutateRow(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::bigtable::v2::MutateRowRequest const& request) = 0;
 
   virtual std::unique_ptr<google::cloud::internal::StreamingReadRpc<
       google::bigtable::v2::MutateRowsResponse>>
-  MutateRows(std::unique_ptr<grpc::ClientContext> context,
+  MutateRows(std::shared_ptr<grpc::ClientContext> context,
+             Options const& options,
              google::bigtable::v2::MutateRowsRequest const& request) = 0;
 
   virtual StatusOr<google::bigtable::v2::CheckAndMutateRowResponse>
   CheckAndMutateRow(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::bigtable::v2::CheckAndMutateRowRequest const& request) = 0;
 
   virtual StatusOr<google::bigtable::v2::PingAndWarmResponse> PingAndWarm(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::bigtable::v2::PingAndWarmRequest const& request) = 0;
 
   virtual StatusOr<google::bigtable::v2::ReadModifyWriteRowResponse>
   ReadModifyWriteRow(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::bigtable::v2::ReadModifyWriteRowRequest const& request) = 0;
+
+  virtual std::unique_ptr<google::cloud::internal::StreamingReadRpc<
+      google::bigtable::v2::ExecuteQueryResponse>>
+  ExecuteQuery(std::shared_ptr<grpc::ClientContext> context,
+               Options const& options,
+               google::bigtable::v2::ExecuteQueryRequest const& request) = 0;
 
   virtual std::unique_ptr<::google::cloud::internal::AsyncStreamingReadRpc<
       google::bigtable::v2::ReadRowsResponse>>
   AsyncReadRows(google::cloud::CompletionQueue const& cq,
-                std::unique_ptr<grpc::ClientContext> context,
+                std::shared_ptr<grpc::ClientContext> context,
+                google::cloud::internal::ImmutableOptions options,
                 google::bigtable::v2::ReadRowsRequest const& request) = 0;
 
   virtual std::unique_ptr<::google::cloud::internal::AsyncStreamingReadRpc<
       google::bigtable::v2::SampleRowKeysResponse>>
   AsyncSampleRowKeys(
       google::cloud::CompletionQueue const& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::bigtable::v2::SampleRowKeysRequest const& request) = 0;
 
   virtual future<StatusOr<google::bigtable::v2::MutateRowResponse>>
   AsyncMutateRow(google::cloud::CompletionQueue& cq,
-                 std::unique_ptr<grpc::ClientContext> context,
+                 std::shared_ptr<grpc::ClientContext> context,
+                 google::cloud::internal::ImmutableOptions options,
                  google::bigtable::v2::MutateRowRequest const& request) = 0;
 
   virtual std::unique_ptr<::google::cloud::internal::AsyncStreamingReadRpc<
       google::bigtable::v2::MutateRowsResponse>>
   AsyncMutateRows(google::cloud::CompletionQueue const& cq,
-                  std::unique_ptr<grpc::ClientContext> context,
+                  std::shared_ptr<grpc::ClientContext> context,
+                  google::cloud::internal::ImmutableOptions options,
                   google::bigtable::v2::MutateRowsRequest const& request) = 0;
 
   virtual future<StatusOr<google::bigtable::v2::CheckAndMutateRowResponse>>
   AsyncCheckAndMutateRow(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::bigtable::v2::CheckAndMutateRowRequest const& request) = 0;
 
   virtual future<StatusOr<google::bigtable::v2::ReadModifyWriteRowResponse>>
   AsyncReadModifyWriteRow(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::bigtable::v2::ReadModifyWriteRowRequest const& request) = 0;
 };
 
@@ -115,71 +131,84 @@ class DefaultBigtableStub : public BigtableStub {
 
   std::unique_ptr<google::cloud::internal::StreamingReadRpc<
       google::bigtable::v2::ReadRowsResponse>>
-  ReadRows(std::unique_ptr<grpc::ClientContext> client_context,
+  ReadRows(std::shared_ptr<grpc::ClientContext> context, Options const& options,
            google::bigtable::v2::ReadRowsRequest const& request) override;
 
   std::unique_ptr<google::cloud::internal::StreamingReadRpc<
       google::bigtable::v2::SampleRowKeysResponse>>
   SampleRowKeys(
-      std::unique_ptr<grpc::ClientContext> client_context,
+      std::shared_ptr<grpc::ClientContext> context, Options const& options,
       google::bigtable::v2::SampleRowKeysRequest const& request) override;
 
   StatusOr<google::bigtable::v2::MutateRowResponse> MutateRow(
-      grpc::ClientContext& client_context,
+      grpc::ClientContext& context, Options const& options,
       google::bigtable::v2::MutateRowRequest const& request) override;
 
   std::unique_ptr<google::cloud::internal::StreamingReadRpc<
       google::bigtable::v2::MutateRowsResponse>>
-  MutateRows(std::unique_ptr<grpc::ClientContext> client_context,
+  MutateRows(std::shared_ptr<grpc::ClientContext> context,
+             Options const& options,
              google::bigtable::v2::MutateRowsRequest const& request) override;
 
   StatusOr<google::bigtable::v2::CheckAndMutateRowResponse> CheckAndMutateRow(
-      grpc::ClientContext& client_context,
+      grpc::ClientContext& context, Options const& options,
       google::bigtable::v2::CheckAndMutateRowRequest const& request) override;
 
   StatusOr<google::bigtable::v2::PingAndWarmResponse> PingAndWarm(
-      grpc::ClientContext& client_context,
+      grpc::ClientContext& context, Options const& options,
       google::bigtable::v2::PingAndWarmRequest const& request) override;
 
   StatusOr<google::bigtable::v2::ReadModifyWriteRowResponse> ReadModifyWriteRow(
-      grpc::ClientContext& client_context,
+      grpc::ClientContext& context, Options const& options,
       google::bigtable::v2::ReadModifyWriteRowRequest const& request) override;
+
+  std::unique_ptr<google::cloud::internal::StreamingReadRpc<
+      google::bigtable::v2::ExecuteQueryResponse>>
+  ExecuteQuery(
+      std::shared_ptr<grpc::ClientContext> context, Options const& options,
+      google::bigtable::v2::ExecuteQueryRequest const& request) override;
 
   std::unique_ptr<::google::cloud::internal::AsyncStreamingReadRpc<
       google::bigtable::v2::ReadRowsResponse>>
   AsyncReadRows(google::cloud::CompletionQueue const& cq,
-                std::unique_ptr<grpc::ClientContext> context,
+                std::shared_ptr<grpc::ClientContext> context,
+                google::cloud::internal::ImmutableOptions options,
                 google::bigtable::v2::ReadRowsRequest const& request) override;
 
   std::unique_ptr<::google::cloud::internal::AsyncStreamingReadRpc<
       google::bigtable::v2::SampleRowKeysResponse>>
   AsyncSampleRowKeys(
       google::cloud::CompletionQueue const& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::bigtable::v2::SampleRowKeysRequest const& request) override;
 
   future<StatusOr<google::bigtable::v2::MutateRowResponse>> AsyncMutateRow(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::bigtable::v2::MutateRowRequest const& request) override;
 
   std::unique_ptr<::google::cloud::internal::AsyncStreamingReadRpc<
       google::bigtable::v2::MutateRowsResponse>>
   AsyncMutateRows(
       google::cloud::CompletionQueue const& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::bigtable::v2::MutateRowsRequest const& request) override;
 
   future<StatusOr<google::bigtable::v2::CheckAndMutateRowResponse>>
   AsyncCheckAndMutateRow(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::bigtable::v2::CheckAndMutateRowRequest const& request) override;
 
   future<StatusOr<google::bigtable::v2::ReadModifyWriteRowResponse>>
   AsyncReadModifyWriteRow(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::bigtable::v2::ReadModifyWriteRowRequest const& request) override;
 
  private:

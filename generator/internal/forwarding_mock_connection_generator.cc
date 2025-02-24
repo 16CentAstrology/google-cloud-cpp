@@ -22,10 +22,12 @@ ForwardingMockConnectionGenerator::ForwardingMockConnectionGenerator(
     google::protobuf::ServiceDescriptor const* service_descriptor,
     VarsDictionary service_vars,
     std::map<std::string, VarsDictionary> service_method_vars,
-    google::protobuf::compiler::GeneratorContext* context)
+    google::protobuf::compiler::GeneratorContext* context,
+    std::vector<MixinMethod> const& mixin_methods)
     : ServiceCodeGenerator("forwarding_mock_connection_header_path",
                            service_descriptor, std::move(service_vars),
-                           std::move(service_method_vars), context) {}
+                           std::move(service_method_vars), context,
+                           mixin_methods) {}
 
 Status ForwardingMockConnectionGenerator::GenerateHeader() {
   HeaderPrint(CopyrightLicenseFileHeader());
@@ -45,11 +47,15 @@ Status ForwardingMockConnectionGenerator::GenerateHeader() {
       vars("forwarding_connection_header_path"),
   });
 
-  auto result = HeaderOpenForwardingNamespaces(NamespaceType::kMocks);
+  auto result = HeaderOpenForwardingNamespaces(NamespaceType::kMocks, R"""(
+/// @deprecated This namespace exists for backwards compatibility. Use the
+///     types defined in $product_namespace$_mocks instead of the aliases
+///     defined in this namespace.)""");
   if (!result.ok()) return result;
 
   HeaderPrint(
       R"""(
+/// @deprecated Use $product_namespace$_mocks::$mock_connection_class_name$ directly.
 using ::google::cloud::$product_namespace$_mocks::$mock_connection_class_name$;
 )""");
 

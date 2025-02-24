@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! [all]
 #include "google/cloud/spanner/client.h"
 #include <iostream>
 
@@ -39,3 +40,4 @@ int main(int argc, char* argv[]) {
 
   return 0;
 }
+//! [all]

@@ -24,6 +24,10 @@
 #include "google/cloud/internal/oauth2_external_account_credentials.h"
 #include "google/cloud/internal/oauth2_google_credentials.h"
 #include "google/cloud/internal/oauth2_service_account_credentials.h"
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -33,7 +37,9 @@ namespace internal {
 namespace {
 
 using ::google::cloud::internal::AccessTokenConfig;
+using ::google::cloud::internal::ApiKeyConfig;
 using ::google::cloud::internal::CredentialsVisitor;
+using ::google::cloud::internal::ErrorCredentialsConfig;
 using ::google::cloud::internal::ExternalAccountConfig;
 using ::google::cloud::internal::GoogleDefaultCredentialsConfig;
 using ::google::cloud::internal::ImpersonateServiceAccountConfig;
@@ -52,7 +58,7 @@ class WrapRestCredentials : public oauth2::Credentials {
       : impl_(std::move(impl)) {}
 
   StatusOr<std::string> AuthorizationHeader() override {
-    return oauth2_internal::AuthorizationHeaderJoined(*impl_);
+    return oauth2_internal::AuthenticationHeaderJoined(*impl_);
   }
 
   StatusOr<std::vector<std::uint8_t>> SignBlob(
@@ -72,7 +78,7 @@ class WrapRestCredentials : public oauth2::Credentials {
 }  // namespace
 
 std::shared_ptr<oauth2::Credentials> MapCredentials(
-    std::shared_ptr<google::cloud::Credentials> const& credentials) {
+    google::cloud::Credentials const& credentials) {
   class RestVisitor : public CredentialsVisitor {
    public:
     explicit RestVisitor(oauth2_internal::HttpClientFactory client_factory)
@@ -80,10 +86,14 @@ std::shared_ptr<oauth2::Credentials> MapCredentials(
 
     std::shared_ptr<oauth2::Credentials> result;
 
-    void visit(InsecureCredentialsConfig&) override {
+    void visit(ErrorCredentialsConfig const& cfg) override {
+      result = MakeErrorCredentials(cfg.status());
+    }
+
+    void visit(InsecureCredentialsConfig const&) override {
       result = google::cloud::storage::oauth2::CreateAnonymousCredentials();
     }
-    void visit(GoogleDefaultCredentialsConfig& cfg) override {
+    void visit(GoogleDefaultCredentialsConfig const& cfg) override {
       auto credentials = oauth2_internal::GoogleDefaultCredentials(
           cfg.options(), std::move(client_factory_));
       if (credentials) {
@@ -93,13 +103,13 @@ std::shared_ptr<oauth2::Credentials> MapCredentials(
       }
       result = MakeErrorCredentials(std::move(credentials).status());
     }
-    void visit(AccessTokenConfig& cfg) override {
+    void visit(AccessTokenConfig const& cfg) override {
       result = std::make_shared<AccessTokenCredentials>(cfg.access_token());
     }
-    void visit(ImpersonateServiceAccountConfig& config) override {
+    void visit(ImpersonateServiceAccountConfig const& config) override {
       result = std::make_shared<ImpersonateServiceAccountCredentials>(config);
     }
-    void visit(ServiceAccountConfig& cfg) override {
+    void visit(ServiceAccountConfig const& cfg) override {
       auto info = oauth2::ParseServiceAccountCredentials(cfg.json_object(), {});
       if (!info) {
         result = MakeErrorCredentials(std::move(info).status());
@@ -112,7 +122,7 @@ std::shared_ptr<oauth2::Credentials> MapCredentials(
           std::make_shared<WrapRestCredentials>(WithCaching(std::move(impl)));
     }
 
-    void visit(ExternalAccountConfig& cfg) override {
+    void visit(ExternalAccountConfig const& cfg) override {
       auto const ec = google::cloud::internal::ErrorContext();
       auto info = oauth2_internal::ParseExternalAccountConfiguration(
           cfg.json_object(), ec);
@@ -125,6 +135,13 @@ std::shared_ptr<oauth2::Credentials> MapCredentials(
       result = std::make_shared<WrapRestCredentials>(
           Decorate(std::move(impl), cfg.options()));
     }
+    void visit(internal::ApiKeyConfig const&) override {
+      // Circa 2024, GCS does not support API key authentication. Moreover, we
+      // would have to grow the deprecated `storage::oauth2::Credentials` class
+      // to support setting the `x-goog-api-key` header. For these reasons, we
+      // just return anonymous (no-op) credentials.
+      result = google::cloud::storage::oauth2::CreateAnonymousCredentials();
+    }
 
    private:
     oauth2_internal::HttpClientFactory client_factory_;
@@ -133,7 +150,7 @@ std::shared_ptr<oauth2::Credentials> MapCredentials(
   RestVisitor visitor([](Options const& o) {
     return rest_internal::MakeDefaultRestClient(std::string{}, o);
   });
-  CredentialsVisitor::dispatch(*credentials, visitor);
+  CredentialsVisitor::dispatch(credentials, visitor);
   return std::move(visitor.result);
 }
 

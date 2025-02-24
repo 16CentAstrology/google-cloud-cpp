@@ -21,6 +21,7 @@
 #include "google/cloud/status_or.h"
 #include <google/cloud/dialogflow/v2/environment.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -31,11 +32,10 @@ EnvironmentsStub::~EnvironmentsStub() = default;
 
 StatusOr<google::cloud::dialogflow::v2::ListEnvironmentsResponse>
 DefaultEnvironmentsStub::ListEnvironments(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::ListEnvironmentsRequest const& request) {
   google::cloud::dialogflow::v2::ListEnvironmentsResponse response;
-  auto status =
-      grpc_stub_->ListEnvironments(&client_context, request, &response);
+  auto status = grpc_stub_->ListEnvironments(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -44,10 +44,10 @@ DefaultEnvironmentsStub::ListEnvironments(
 
 StatusOr<google::cloud::dialogflow::v2::Environment>
 DefaultEnvironmentsStub::GetEnvironment(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::GetEnvironmentRequest const& request) {
   google::cloud::dialogflow::v2::Environment response;
-  auto status = grpc_stub_->GetEnvironment(&client_context, request, &response);
+  auto status = grpc_stub_->GetEnvironment(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -56,11 +56,10 @@ DefaultEnvironmentsStub::GetEnvironment(
 
 StatusOr<google::cloud::dialogflow::v2::Environment>
 DefaultEnvironmentsStub::CreateEnvironment(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::CreateEnvironmentRequest const& request) {
   google::cloud::dialogflow::v2::Environment response;
-  auto status =
-      grpc_stub_->CreateEnvironment(&client_context, request, &response);
+  auto status = grpc_stub_->CreateEnvironment(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -69,11 +68,10 @@ DefaultEnvironmentsStub::CreateEnvironment(
 
 StatusOr<google::cloud::dialogflow::v2::Environment>
 DefaultEnvironmentsStub::UpdateEnvironment(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::UpdateEnvironmentRequest const& request) {
   google::cloud::dialogflow::v2::Environment response;
-  auto status =
-      grpc_stub_->UpdateEnvironment(&client_context, request, &response);
+  auto status = grpc_stub_->UpdateEnvironment(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -81,11 +79,10 @@ DefaultEnvironmentsStub::UpdateEnvironment(
 }
 
 Status DefaultEnvironmentsStub::DeleteEnvironment(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::DeleteEnvironmentRequest const& request) {
   google::protobuf::Empty response;
-  auto status =
-      grpc_stub_->DeleteEnvironment(&client_context, request, &response);
+  auto status = grpc_stub_->DeleteEnvironment(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -94,16 +91,73 @@ Status DefaultEnvironmentsStub::DeleteEnvironment(
 
 StatusOr<google::cloud::dialogflow::v2::EnvironmentHistory>
 DefaultEnvironmentsStub::GetEnvironmentHistory(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::GetEnvironmentHistoryRequest const&
         request) {
   google::cloud::dialogflow::v2::EnvironmentHistory response;
-  auto status =
-      grpc_stub_->GetEnvironmentHistory(&client_context, request, &response);
+  auto status = grpc_stub_->GetEnvironmentHistory(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
   return response;
+}
+
+StatusOr<google::cloud::location::ListLocationsResponse>
+DefaultEnvironmentsStub::ListLocations(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::location::ListLocationsRequest const& request) {
+  google::cloud::location::ListLocationsResponse response;
+  auto status = locations_stub_->ListLocations(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::cloud::location::Location>
+DefaultEnvironmentsStub::GetLocation(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::location::GetLocationRequest const& request) {
+  google::cloud::location::Location response;
+  auto status = locations_stub_->GetLocation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+DefaultEnvironmentsStub::ListOperations(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::ListOperationsRequest const& request) {
+  google::longrunning::ListOperationsResponse response;
+  auto status = operations_stub_->ListOperations(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::longrunning::Operation> DefaultEnvironmentsStub::GetOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::GetOperationRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = operations_stub_->GetOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+Status DefaultEnvironmentsStub::CancelOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::CancelOperationRequest const& request) {
+  google::protobuf::Empty response;
+  auto status = operations_stub_->CancelOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return google::cloud::Status();
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

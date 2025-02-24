@@ -74,9 +74,25 @@ class AgentsConnectionImpl : public dialogflow_cx::AgentsConnection {
   ExportAgent(google::cloud::dialogflow::cx::v3::ExportAgentRequest const&
                   request) override;
 
+  StatusOr<google::longrunning::Operation> ExportAgent(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::ExportAgentRequest const& request)
+      override;
+
+  future<StatusOr<google::cloud::dialogflow::cx::v3::ExportAgentResponse>>
+  ExportAgent(google::longrunning::Operation const& operation) override;
+
   future<StatusOr<google::protobuf::Struct>> RestoreAgent(
       google::cloud::dialogflow::cx::v3::RestoreAgentRequest const& request)
       override;
+
+  StatusOr<google::longrunning::Operation> RestoreAgent(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::RestoreAgentRequest const& request)
+      override;
+
+  future<StatusOr<google::protobuf::Struct>> RestoreAgent(
+      google::longrunning::Operation const& operation) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::AgentValidationResult>
   ValidateAgent(google::cloud::dialogflow::cx::v3::ValidateAgentRequest const&
@@ -87,44 +103,32 @@ class AgentsConnectionImpl : public dialogflow_cx::AgentsConnection {
       google::cloud::dialogflow::cx::v3::GetAgentValidationResultRequest const&
           request) override;
 
+  StatusOr<google::cloud::dialogflow::cx::v3::GenerativeSettings>
+  GetGenerativeSettings(
+      google::cloud::dialogflow::cx::v3::GetGenerativeSettingsRequest const&
+          request) override;
+
+  StatusOr<google::cloud::dialogflow::cx::v3::GenerativeSettings>
+  UpdateGenerativeSettings(
+      google::cloud::dialogflow::cx::v3::UpdateGenerativeSettingsRequest const&
+          request) override;
+
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_cx::AgentsRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::AgentsRetryPolicyOption>()) {
-      return options.get<dialogflow_cx::AgentsRetryPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_cx::AgentsRetryPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::AgentsBackoffPolicyOption>()) {
-      return options.get<dialogflow_cx::AgentsBackoffPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_cx::AgentsBackoffPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<dialogflow_cx::AgentsConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::AgentsConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_cx::AgentsConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_cx::AgentsConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<PollingPolicy> polling_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::AgentsPollingPolicyOption>()) {
-      return options.get<dialogflow_cx::AgentsPollingPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_cx::AgentsPollingPolicyOption>()->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_cx_internal::AgentsStub> stub_;
   Options options_;

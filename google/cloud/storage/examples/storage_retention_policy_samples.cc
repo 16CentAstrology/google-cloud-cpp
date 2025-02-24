@@ -17,7 +17,11 @@
 #include "google/cloud/internal/getenv.h"
 #include <functional>
 #include <iostream>
+#include <random>
+#include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -30,10 +34,7 @@ void GetRetentionPolicy(google::cloud::storage::Client client,
   [](gcs::Client client, std::string const& bucket_name) {
     StatusOr<gcs::BucketMetadata> bucket_metadata =
         client.GetBucketMetadata(bucket_name);
-
-    if (!bucket_metadata) {
-      throw std::runtime_error(bucket_metadata.status().message());
-    }
+    if (!bucket_metadata) throw std::move(bucket_metadata).status();
 
     if (!bucket_metadata->has_retention_policy()) {
       std::cout << "The bucket " << bucket_metadata->name()
@@ -60,26 +61,23 @@ void SetRetentionPolicy(google::cloud::storage::Client client,
      std::chrono::seconds period) {
     StatusOr<gcs::BucketMetadata> original =
         client.GetBucketMetadata(bucket_name);
+    if (!original) throw std::move(original).status();
 
-    if (!original) throw std::runtime_error(original.status().message());
-    StatusOr<gcs::BucketMetadata> patched_metadata = client.PatchBucket(
+    StatusOr<gcs::BucketMetadata> patched = client.PatchBucket(
         bucket_name,
         gcs::BucketMetadataPatchBuilder().SetRetentionPolicy(period),
         gcs::IfMetagenerationMatch(original->metageneration()));
+    if (!patched) throw std::move(patched).status();
 
-    if (!patched_metadata) {
-      throw std::runtime_error(patched_metadata.status().message());
-    }
-
-    if (!patched_metadata->has_retention_policy()) {
-      std::cout << "The bucket " << patched_metadata->name()
+    if (!patched->has_retention_policy()) {
+      std::cout << "The bucket " << patched->name()
                 << " does not have a retention policy set.\n";
       return;
     }
 
-    std::cout << "The bucket " << patched_metadata->name()
-              << " retention policy is set to "
-              << patched_metadata->retention_policy() << "\n";
+    std::cout << "The bucket " << patched->name()
+              << " retention policy is set to " << patched->retention_policy()
+              << "\n";
   }
   // [END storage_set_retention_policy]
   //! [set retention policy]
@@ -95,25 +93,21 @@ void RemoveRetentionPolicy(google::cloud::storage::Client client,
   [](gcs::Client client, std::string const& bucket_name) {
     StatusOr<gcs::BucketMetadata> original =
         client.GetBucketMetadata(bucket_name);
+    if (!original) throw std::move(original).status();
 
-    if (!original) throw std::runtime_error(original.status().message());
-    StatusOr<gcs::BucketMetadata> patched_metadata = client.PatchBucket(
+    StatusOr<gcs::BucketMetadata> patched = client.PatchBucket(
         bucket_name, gcs::BucketMetadataPatchBuilder().ResetRetentionPolicy(),
         gcs::IfMetagenerationMatch(original->metageneration()));
+    if (!patched) throw std::move(patched).status();
 
-    if (!patched_metadata) {
-      throw std::runtime_error(patched_metadata.status().message());
-    }
-
-    if (!patched_metadata->has_retention_policy()) {
-      std::cout << "The bucket " << patched_metadata->name()
+    if (!patched->has_retention_policy()) {
+      std::cout << "The bucket " << patched->name()
                 << " does not have a retention policy set.\n";
       return;
     }
 
-    std::cout << "The bucket " << patched_metadata->name()
-              << " retention policy is set to "
-              << patched_metadata->retention_policy()
+    std::cout << "The bucket " << patched->name()
+              << " retention policy is set to " << patched->retention_policy()
               << ". This is unexpected, maybe a concurrent change by another"
               << " application?\n";
   }
@@ -131,15 +125,12 @@ void LockRetentionPolicy(google::cloud::storage::Client client,
   [](gcs::Client client, std::string const& bucket_name) {
     StatusOr<gcs::BucketMetadata> original =
         client.GetBucketMetadata(bucket_name);
+    if (!original) throw std::move(original).status();
 
-    if (!original) throw std::runtime_error(original.status().message());
     StatusOr<gcs::BucketMetadata> updated_metadata =
         client.LockBucketRetentionPolicy(bucket_name,
                                          original->metageneration());
-
-    if (!updated_metadata) {
-      throw std::runtime_error(updated_metadata.status().message());
-    }
+    if (!updated_metadata) throw std::move(updated_metadata).status();
 
     if (!updated_metadata->has_retention_policy()) {
       std::cerr << "The bucket " << updated_metadata->name()
@@ -176,7 +167,8 @@ void RunAll(std::vector<std::string> const& argv) {
 
   std::cout << "\nCreating bucket to run the examples" << std::endl;
   (void)client.CreateBucketForProject(bucket_name, project_id,
-                                      gcs::BucketMetadata{});
+                                      gcs::BucketMetadata{},
+                                      examples::CreateBucketOptions());
   // In GCS a single project cannot create or delete buckets more often than
   // once every two seconds. We will pause until that time before deleting the
   // bucket.

@@ -12,14 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load(":bigtable_client_testing.bzl", "bigtable_client_testing_hdrs", "bigtable_client_testing_srcs")
+load(":bigtable_client_unit_tests.bzl", "bigtable_client_unit_tests")
+load(":google_cloud_cpp_bigtable.bzl", "google_cloud_cpp_bigtable_hdrs", "google_cloud_cpp_bigtable_srcs")
+load(":google_cloud_cpp_bigtable_mocks.bzl", "google_cloud_cpp_bigtable_mocks_hdrs", "google_cloud_cpp_bigtable_mocks_srcs")
+
 package(default_visibility = ["//visibility:private"])
 
 licenses(["notice"])  # Apache 2.0
 
-load(":google_cloud_cpp_bigtable.bzl", "google_cloud_cpp_bigtable_hdrs", "google_cloud_cpp_bigtable_srcs")
+filegroup(
+    name = "public_hdrs",
+    srcs = [h for h in google_cloud_cpp_bigtable_hdrs if not h.startswith("internal/")],
+    visibility = ["//:__pkg__"],
+)
 
 cc_library(
-    name = "bigtable_client_internal",
+    name = "google_cloud_cpp_bigtable",
     srcs = google_cloud_cpp_bigtable_srcs,
     hdrs = google_cloud_cpp_bigtable_hdrs,
     visibility = [
@@ -30,7 +39,6 @@ cc_library(
     deps = [
         "//:common",
         "//:grpc_utils",
-        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_googleapis//google/bigtable/admin/v2:admin_cc_grpc",
         "@com_google_googleapis//google/bigtable/v2:bigtable_cc_grpc",
@@ -40,7 +48,11 @@ cc_library(
     ],
 )
 
-load(":google_cloud_cpp_bigtable_mocks.bzl", "google_cloud_cpp_bigtable_mocks_hdrs", "google_cloud_cpp_bigtable_mocks_srcs")
+filegroup(
+    name = "mocks",
+    srcs = [h for h in google_cloud_cpp_bigtable_mocks_hdrs if not h.startswith("internal/")],
+    visibility = ["//:__pkg__"],
+)
 
 cc_library(
     name = "google_cloud_cpp_bigtable_mocks",
@@ -52,14 +64,12 @@ cc_library(
         "//:__pkg__",
     ],
     deps = [
-        ":bigtable_client_internal",
+        ":google_cloud_cpp_bigtable",
         "//:common",
         "//google/cloud/testing_util:google_cloud_cpp_testing_private",
         "@com_google_googletest//:gtest_main",
     ],
 )
-
-load(":bigtable_client_testing.bzl", "bigtable_client_testing_hdrs", "bigtable_client_testing_srcs")
 
 cc_library(
     name = "bigtable_client_testing",
@@ -68,7 +78,7 @@ cc_library(
     hdrs = bigtable_client_testing_hdrs,
     visibility = ["//visibility:public"],
     deps = [
-        ":bigtable_client_internal",
+        ":google_cloud_cpp_bigtable",
         ":google_cloud_cpp_bigtable_mocks",
         "//:common",
         "//:grpc_utils",
@@ -78,19 +88,16 @@ cc_library(
     ],
 )
 
-load(":bigtable_client_unit_tests.bzl", "bigtable_client_unit_tests")
-
 [cc_test(
     name = test.replace("/", "_").replace(".cc", ""),
     srcs = [test],
     deps = [
-        ":bigtable_client_internal",
         ":bigtable_client_testing",
+        ":google_cloud_cpp_bigtable",
         "//:common",
         "//:grpc_utils",
         "//google/cloud/testing_util:google_cloud_cpp_testing_grpc_private",
         "//google/cloud/testing_util:google_cloud_cpp_testing_private",
-        "@com_google_absl//absl/memory",
         "@com_google_googletest//:gtest_main",
     ],
 ) for test in bigtable_client_unit_tests]
@@ -102,13 +109,12 @@ cc_test(
         "internal/readrowsparser_test.cc",
     ],
     deps = [
-        ":bigtable_client_internal",
         ":bigtable_client_testing",
+        ":google_cloud_cpp_bigtable",
         "//:common",
         "//:grpc_utils",
         "//google/cloud/testing_util:google_cloud_cpp_testing_grpc_private",
         "//google/cloud/testing_util:google_cloud_cpp_testing_private",
-        "@com_google_absl//absl/memory",
         "@com_google_googletest//:gtest_main",
     ],
 )

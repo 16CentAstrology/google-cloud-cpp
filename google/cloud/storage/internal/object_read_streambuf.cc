@@ -15,20 +15,35 @@
 #include "google/cloud/storage/internal/object_read_streambuf.h"
 #include "google/cloud/storage/hash_mismatch_error.h"
 #include "google/cloud/storage/internal/hash_function.h"
-#include "absl/memory/memory.h"
+#include "google/cloud/internal/make_status.h"
+#include <algorithm>
 #include <cstring>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
 namespace storage {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace internal {
+namespace {
+
+std::streamoff InitialOffset(ReadObjectRangeRequest const& request) {
+  if (request.HasOption<ReadLast>()) {
+    return -request.GetOption<ReadLast>().value();
+  }
+  return request.StartingByte();
+}
+
+}  // namespace
 
 ObjectReadStreambuf::ObjectReadStreambuf(
     ReadObjectRangeRequest const& request,
-    std::unique_ptr<ObjectReadSource> source, std::streamoff pos_in_stream)
+    std::unique_ptr<ObjectReadSource> source)
     : source_(std::move(source)),
-      source_pos_(pos_in_stream),
+      source_pos_(InitialOffset(request)),
       hash_function_(CreateHashFunction(request)),
       hash_validator_(CreateHashValidator(request)) {}
 
@@ -52,6 +67,7 @@ ObjectReadStreambuf::pos_type ObjectReadStreambuf::seekoff(
   // recreated in the general case, which doesn't fit the current code
   // organization.  We can, however, at least implement the bare minimum of this
   // function allowing `tellg()` to work.
+  if (source_pos_ < 0) return -1;
   if (which == std::ios_base::in && dir == std::ios_base::cur && off == 0) {
     return source_pos_ - in_avail();
   }
@@ -99,7 +115,7 @@ void ObjectReadStreambuf::ThrowHashMismatchDelegate(char const* function_name) {
     // If there is an existing error, we should report that instead because
     // it is more specific, for example, every permanent network error will
     // produce invalid checksums, but that is not the interesting information.
-    status_ = Status(StatusCode::kDataLoss, msg);
+    status_ = google::cloud::internal::DataLossError(msg, GCP_ERROR_INFO());
   }
 #if GOOGLE_CLOUD_CPP_HAVE_EXCEPTIONS
   // The only way to report errors from a std::basic_streambuf<> (which this
@@ -196,10 +212,9 @@ std::streamsize ObjectReadStreambuf::xsgetn(char* s, std::streamsize count) {
   // number of bytes.
   if (!read) return run_validator_if_closed(std::move(read).status());
 
-  hash_function_->Update(s + offset, read->bytes_received);
+  hash_function_->Update(absl::string_view{s + offset, read->bytes_received});
   hash_validator_->ProcessHashValues(read->hashes);
   offset += static_cast<std::streamsize>(read->bytes_received);
-  source_pos_ += static_cast<std::streamoff>(read->bytes_received);
   for (auto const& kv : read->response.headers) {
     headers_.emplace(kv.first, kv.second);
   }
@@ -208,6 +223,12 @@ std::streamsize ObjectReadStreambuf::xsgetn(char* s, std::streamsize count) {
   if (!storage_class_) storage_class_ = std::move(read->storage_class);
   if (!size_) size_ = std::move(read->size);
   if (!transformation_) transformation_ = std::move(read->transformation);
+
+  if (source_pos_ >= 0) {
+    source_pos_ += static_cast<std::streamoff>(read->bytes_received);
+  } else if (size_) {
+    source_pos_ += *size_ + static_cast<std::streamoff>(read->bytes_received);
+  }
   return run_validator_if_closed(Status());
 }
 

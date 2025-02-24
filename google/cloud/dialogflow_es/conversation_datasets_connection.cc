@@ -21,12 +21,15 @@
 #include "google/cloud/dialogflow_es/internal/conversation_datasets_connection_impl.h"
 #include "google/cloud/dialogflow_es/internal/conversation_datasets_option_defaults.h"
 #include "google/cloud/dialogflow_es/internal/conversation_datasets_stub_factory.h"
+#include "google/cloud/dialogflow_es/internal/conversation_datasets_tracing_connection.h"
 #include "google/cloud/background_threads.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/credentials.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/pagination_range.h"
+#include "google/cloud/internal/unified_grpc_credentials.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -38,6 +41,22 @@ ConversationDatasetsConnection::~ConversationDatasetsConnection() = default;
 future<StatusOr<google::cloud::dialogflow::v2::ConversationDataset>>
 ConversationDatasetsConnection::CreateConversationDataset(
     google::cloud::dialogflow::v2::CreateConversationDatasetRequest const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::dialogflow::v2::ConversationDataset>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation>
+ConversationDatasetsConnection::CreateConversationDataset(
+    NoAwaitTag,
+    google::cloud::dialogflow::v2::CreateConversationDatasetRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::cloud::dialogflow::v2::ConversationDataset>>
+ConversationDatasetsConnection::CreateConversationDataset(
+    google::longrunning::Operation const&) {
   return google::cloud::make_ready_future<
       StatusOr<google::cloud::dialogflow::v2::ConversationDataset>>(
       Status(StatusCode::kUnimplemented, "not implemented"));
@@ -67,6 +86,24 @@ ConversationDatasetsConnection::DeleteConversationDataset(
       Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
+StatusOr<google::longrunning::Operation>
+ConversationDatasetsConnection::DeleteConversationDataset(
+    NoAwaitTag,
+    google::cloud::dialogflow::v2::DeleteConversationDatasetRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<
+    google::cloud::dialogflow::v2::DeleteConversationDatasetOperationMetadata>>
+ConversationDatasetsConnection::DeleteConversationDataset(
+    google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::dialogflow::v2::
+                   DeleteConversationDatasetOperationMetadata>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
 future<StatusOr<
     google::cloud::dialogflow::v2::ImportConversationDataOperationResponse>>
 ConversationDatasetsConnection::ImportConversationData(
@@ -74,6 +111,56 @@ ConversationDatasetsConnection::ImportConversationData(
   return google::cloud::make_ready_future<StatusOr<
       google::cloud::dialogflow::v2::ImportConversationDataOperationResponse>>(
       Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation>
+ConversationDatasetsConnection::ImportConversationData(
+    NoAwaitTag,
+    google::cloud::dialogflow::v2::ImportConversationDataRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<
+    google::cloud::dialogflow::v2::ImportConversationDataOperationResponse>>
+ConversationDatasetsConnection::ImportConversationData(
+    google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<StatusOr<
+      google::cloud::dialogflow::v2::ImportConversationDataOperationResponse>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StreamRange<google::cloud::location::Location>
+ConversationDatasetsConnection::ListLocations(
+    google::cloud::location::
+        ListLocationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::cloud::location::Location>>();
+}
+
+StatusOr<google::cloud::location::Location>
+ConversationDatasetsConnection::GetLocation(
+    google::cloud::location::GetLocationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+StreamRange<google::longrunning::Operation>
+ConversationDatasetsConnection::ListOperations(
+    google::longrunning::
+        ListOperationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::longrunning::Operation>>();
+}
+
+StatusOr<google::longrunning::Operation>
+ConversationDatasetsConnection::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+Status ConversationDatasetsConnection::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
 }
 
 std::shared_ptr<ConversationDatasetsConnection>
@@ -86,11 +173,13 @@ MakeConversationDatasetsConnection(std::string const& location,
   options = dialogflow_es_internal::ConversationDatasetsDefaultOptions(
       location, std::move(options));
   auto background = internal::MakeBackgroundThreadsFactory(options)();
+  auto auth = internal::CreateAuthenticationStrategy(background->cq(), options);
   auto stub = dialogflow_es_internal::CreateDefaultConversationDatasetsStub(
-      background->cq(), options);
-  return std::make_shared<
-      dialogflow_es_internal::ConversationDatasetsConnectionImpl>(
-      std::move(background), std::move(stub), std::move(options));
+      std::move(auth), options);
+  return dialogflow_es_internal::MakeConversationDatasetsTracingConnection(
+      std::make_shared<
+          dialogflow_es_internal::ConversationDatasetsConnectionImpl>(
+          std::move(background), std::move(stub), std::move(options)));
 }
 
 std::shared_ptr<ConversationDatasetsConnection>

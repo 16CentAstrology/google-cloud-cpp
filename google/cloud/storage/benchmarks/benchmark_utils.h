@@ -26,8 +26,10 @@
 #include <cstdint>
 #include <iomanip>
 #include <iostream>
+#include <set>
 #include <sstream>
 #include <string>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -59,7 +61,6 @@ void DeleteAllObjects(google::cloud::storage::Client client,
 // protocol, but it is easier to represent it as such in the benchmark.
 enum class ApiName {
   kApiJson,
-  kApiXml,
   kApiGrpc,
 };
 char const* ToString(ApiName api);
@@ -69,11 +70,9 @@ StatusOr<ApiName> ParseApiName(std::string const& val);
 // We want to compare the following alternatives.
 //
 // - Raw (no C++ client library) JSON Download
-// - Raw XML Download
 // - Raw gRPC Download
 // - Raw gRPC+DirectPath Download
 // - JSON Download
-// - XML Download
 // - gRPC Download
 // - gRPC+DirectPath Download
 // - JSON Upload
@@ -83,7 +82,7 @@ StatusOr<ApiName> ParseApiName(std::string const& val);
 // We will model this with 3 dimensions for each experiment:
 // - Direction: Upload vs. Download
 // - Library: Raw vs. Client library
-// - Transport: XML vs. JSON vs. gRPC vs. gRPC+DirectPath
+// - Transport: JSON vs. gRPC vs. gRPC+DirectPath
 //
 // Some combinations are simply not implemented and ignored when building the
 // set of experiments.
@@ -92,9 +91,6 @@ enum class ExperimentTransport {
   kDirectPath,
   kGrpc,
   kJson,
-  kXml,
-  kJsonV2,
-  kXmlV2,
 };
 
 StatusOr<ExperimentLibrary> ParseExperimentLibrary(std::string const& val);
@@ -113,10 +109,24 @@ std::string FormatBandwidthGbPerSecond(
     std::uintmax_t bytes, std::chrono::duration<Rep, Period> elapsed) {
   using ns = ::std::chrono::nanoseconds;
   auto const elapsed_ns = std::chrono::duration_cast<ns>(elapsed);
-  if (elapsed_ns == ns(0)) return "NaN";
+  if (elapsed_ns == ns::zero()) return "NaN";
 
   auto const bandwidth =
       8 * static_cast<double>(bytes) / static_cast<double>(elapsed_ns.count());
+  std::ostringstream os;
+  os << std::fixed << std::setprecision(2) << bandwidth;
+  return std::move(os).str();
+}
+
+template <typename Rep, typename Period>
+std::string FormatBandwidthMiBPerSecond(
+    std::uintmax_t bytes, std::chrono::duration<Rep, Period> elapsed) {
+  using us = ::std::chrono::microseconds;
+  auto const e = std::chrono::duration_cast<us>(elapsed);
+  if (e == us::zero()) return "NaN";
+
+  auto const bandwidth = static_cast<double>(bytes) / (1024 * 1024.0) /
+                         static_cast<double>(e.count()) * us::period::den;
   std::ostringstream os;
   os << std::fixed << std::setprecision(2) << bandwidth;
   return std::move(os).str();

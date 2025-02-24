@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/connectors/connectors_client.h"
+//! [all]
+#include "google/cloud/connectors/v1/connectors_client.h"
+#include "google/cloud/location.h"
 #include <iostream>
 
 int main(int argc, char* argv[]) try {
@@ -21,15 +23,15 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace connectors = ::google::cloud::connectors;
+  auto const location = google::cloud::Location(argv[1], argv[2]);
+
+  namespace connectors = ::google::cloud::connectors_v1;
   auto client =
       connectors::ConnectorsClient(connectors::MakeConnectorsConnection());
 
-  auto const parent =
-      std::string{"projects/"} + argv[1] + "/locations/" + argv[2];
-  for (auto r : client.ListConnections(parent)) {
-    if (!r) throw std::move(r).status();
-    std::cout << r->DebugString() << "\n";
+  for (auto c : client.ListConnections(location.FullName())) {
+    if (!c) throw std::move(c).status();
+    std::cout << c->DebugString() << "\n";
   }
 
   return 0;
@@ -37,3 +39,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

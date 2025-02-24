@@ -18,6 +18,7 @@
 #include "google/cloud/testing_util/scoped_log.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
+#include <string>
 
 namespace google {
 namespace cloud {
@@ -61,9 +62,11 @@ class TracingIntegrationTest
   std::string bucket_name_;
 };
 
-TEST_F(TracingIntegrationTest, RawClient) {
-  auto client =
-      Client(Options{}.set<TracingComponentsOption>({"raw-client", "http"}));
+TEST_F(TracingIntegrationTest, StorageConnection) {
+  if (UsingGrpc()) GTEST_SKIP();
+
+  auto client = MakeIntegrationTestClient(
+      Options{}.set<LoggingComponentsOption>({"raw-client", "http"}));
 
   ScopedLog log;
   auto const object_name = MakeRandomObjectName();

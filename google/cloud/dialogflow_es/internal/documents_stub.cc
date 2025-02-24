@@ -22,6 +22,7 @@
 #include <google/cloud/dialogflow/v2/document.grpc.pb.h>
 #include <google/longrunning/operations.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -32,10 +33,10 @@ DocumentsStub::~DocumentsStub() = default;
 
 StatusOr<google::cloud::dialogflow::v2::ListDocumentsResponse>
 DefaultDocumentsStub::ListDocuments(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::ListDocumentsRequest const& request) {
   google::cloud::dialogflow::v2::ListDocumentsResponse response;
-  auto status = grpc_stub_->ListDocuments(&client_context, request, &response);
+  auto status = grpc_stub_->ListDocuments(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -44,10 +45,10 @@ DefaultDocumentsStub::ListDocuments(
 
 StatusOr<google::cloud::dialogflow::v2::Document>
 DefaultDocumentsStub::GetDocument(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::GetDocumentRequest const& request) {
   google::cloud::dialogflow::v2::Document response;
-  auto status = grpc_stub_->GetDocument(&client_context, request, &response);
+  auto status = grpc_stub_->GetDocument(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -57,9 +58,13 @@ DefaultDocumentsStub::GetDocument(
 future<StatusOr<google::longrunning::Operation>>
 DefaultDocumentsStub::AsyncCreateDocument(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions,
     google::cloud::dialogflow::v2::CreateDocumentRequest const& request) {
-  return cq.MakeUnaryRpc(
+  return internal::MakeUnaryRpcImpl<
+      google::cloud::dialogflow::v2::CreateDocumentRequest,
+      google::longrunning::Operation>(
+      cq,
       [this](
           grpc::ClientContext* context,
           google::cloud::dialogflow::v2::CreateDocumentRequest const& request,
@@ -69,12 +74,27 @@ DefaultDocumentsStub::AsyncCreateDocument(
       request, std::move(context));
 }
 
+StatusOr<google::longrunning::Operation> DefaultDocumentsStub::CreateDocument(
+    grpc::ClientContext& context, Options,
+    google::cloud::dialogflow::v2::CreateDocumentRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = grpc_stub_->CreateDocument(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
 future<StatusOr<google::longrunning::Operation>>
 DefaultDocumentsStub::AsyncImportDocuments(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions,
     google::cloud::dialogflow::v2::ImportDocumentsRequest const& request) {
-  return cq.MakeUnaryRpc(
+  return internal::MakeUnaryRpcImpl<
+      google::cloud::dialogflow::v2::ImportDocumentsRequest,
+      google::longrunning::Operation>(
+      cq,
       [this](
           grpc::ClientContext* context,
           google::cloud::dialogflow::v2::ImportDocumentsRequest const& request,
@@ -84,12 +104,27 @@ DefaultDocumentsStub::AsyncImportDocuments(
       request, std::move(context));
 }
 
+StatusOr<google::longrunning::Operation> DefaultDocumentsStub::ImportDocuments(
+    grpc::ClientContext& context, Options,
+    google::cloud::dialogflow::v2::ImportDocumentsRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = grpc_stub_->ImportDocuments(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
 future<StatusOr<google::longrunning::Operation>>
 DefaultDocumentsStub::AsyncDeleteDocument(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions,
     google::cloud::dialogflow::v2::DeleteDocumentRequest const& request) {
-  return cq.MakeUnaryRpc(
+  return internal::MakeUnaryRpcImpl<
+      google::cloud::dialogflow::v2::DeleteDocumentRequest,
+      google::longrunning::Operation>(
+      cq,
       [this](
           grpc::ClientContext* context,
           google::cloud::dialogflow::v2::DeleteDocumentRequest const& request,
@@ -99,12 +134,27 @@ DefaultDocumentsStub::AsyncDeleteDocument(
       request, std::move(context));
 }
 
+StatusOr<google::longrunning::Operation> DefaultDocumentsStub::DeleteDocument(
+    grpc::ClientContext& context, Options,
+    google::cloud::dialogflow::v2::DeleteDocumentRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = grpc_stub_->DeleteDocument(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
 future<StatusOr<google::longrunning::Operation>>
 DefaultDocumentsStub::AsyncUpdateDocument(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions,
     google::cloud::dialogflow::v2::UpdateDocumentRequest const& request) {
-  return cq.MakeUnaryRpc(
+  return internal::MakeUnaryRpcImpl<
+      google::cloud::dialogflow::v2::UpdateDocumentRequest,
+      google::longrunning::Operation>(
+      cq,
       [this](
           grpc::ClientContext* context,
           google::cloud::dialogflow::v2::UpdateDocumentRequest const& request,
@@ -114,12 +164,27 @@ DefaultDocumentsStub::AsyncUpdateDocument(
       request, std::move(context));
 }
 
+StatusOr<google::longrunning::Operation> DefaultDocumentsStub::UpdateDocument(
+    grpc::ClientContext& context, Options,
+    google::cloud::dialogflow::v2::UpdateDocumentRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = grpc_stub_->UpdateDocument(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
 future<StatusOr<google::longrunning::Operation>>
 DefaultDocumentsStub::AsyncReloadDocument(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions,
     google::cloud::dialogflow::v2::ReloadDocumentRequest const& request) {
-  return cq.MakeUnaryRpc(
+  return internal::MakeUnaryRpcImpl<
+      google::cloud::dialogflow::v2::ReloadDocumentRequest,
+      google::longrunning::Operation>(
+      cq,
       [this](
           grpc::ClientContext* context,
           google::cloud::dialogflow::v2::ReloadDocumentRequest const& request,
@@ -129,12 +194,27 @@ DefaultDocumentsStub::AsyncReloadDocument(
       request, std::move(context));
 }
 
+StatusOr<google::longrunning::Operation> DefaultDocumentsStub::ReloadDocument(
+    grpc::ClientContext& context, Options,
+    google::cloud::dialogflow::v2::ReloadDocumentRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = grpc_stub_->ReloadDocument(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
 future<StatusOr<google::longrunning::Operation>>
 DefaultDocumentsStub::AsyncExportDocument(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions,
     google::cloud::dialogflow::v2::ExportDocumentRequest const& request) {
-  return cq.MakeUnaryRpc(
+  return internal::MakeUnaryRpcImpl<
+      google::cloud::dialogflow::v2::ExportDocumentRequest,
+      google::longrunning::Operation>(
+      cq,
       [this](
           grpc::ClientContext* context,
           google::cloud::dialogflow::v2::ExportDocumentRequest const& request,
@@ -144,32 +224,108 @@ DefaultDocumentsStub::AsyncExportDocument(
       request, std::move(context));
 }
 
+StatusOr<google::longrunning::Operation> DefaultDocumentsStub::ExportDocument(
+    grpc::ClientContext& context, Options,
+    google::cloud::dialogflow::v2::ExportDocumentRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = grpc_stub_->ExportDocument(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::cloud::location::ListLocationsResponse>
+DefaultDocumentsStub::ListLocations(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::location::ListLocationsRequest const& request) {
+  google::cloud::location::ListLocationsResponse response;
+  auto status = locations_stub_->ListLocations(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::cloud::location::Location> DefaultDocumentsStub::GetLocation(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::location::GetLocationRequest const& request) {
+  google::cloud::location::Location response;
+  auto status = locations_stub_->GetLocation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+DefaultDocumentsStub::ListOperations(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::ListOperationsRequest const& request) {
+  google::longrunning::ListOperationsResponse response;
+  auto status = operations_stub_->ListOperations(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::longrunning::Operation> DefaultDocumentsStub::GetOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::GetOperationRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = operations_stub_->GetOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+Status DefaultDocumentsStub::CancelOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::CancelOperationRequest const& request) {
+  google::protobuf::Empty response;
+  auto status = operations_stub_->CancelOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return google::cloud::Status();
+}
+
 future<StatusOr<google::longrunning::Operation>>
 DefaultDocumentsStub::AsyncGetOperation(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    // NOLINTNEXTLINE(performance-unnecessary-value-param)
+    google::cloud::internal::ImmutableOptions,
     google::longrunning::GetOperationRequest const& request) {
-  return cq.MakeUnaryRpc(
+  return internal::MakeUnaryRpcImpl<google::longrunning::GetOperationRequest,
+                                    google::longrunning::Operation>(
+      cq,
       [this](grpc::ClientContext* context,
              google::longrunning::GetOperationRequest const& request,
              grpc::CompletionQueue* cq) {
-        return operations_->AsyncGetOperation(context, request, cq);
+        return operations_stub_->AsyncGetOperation(context, request, cq);
       },
       request, std::move(context));
 }
 
 future<Status> DefaultDocumentsStub::AsyncCancelOperation(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    // NOLINTNEXTLINE(performance-unnecessary-value-param)
+    google::cloud::internal::ImmutableOptions,
     google::longrunning::CancelOperationRequest const& request) {
-  return cq
-      .MakeUnaryRpc(
-          [this](grpc::ClientContext* context,
-                 google::longrunning::CancelOperationRequest const& request,
-                 grpc::CompletionQueue* cq) {
-            return operations_->AsyncCancelOperation(context, request, cq);
-          },
-          request, std::move(context))
+  return internal::MakeUnaryRpcImpl<google::longrunning::CancelOperationRequest,
+                                    google::protobuf::Empty>(
+             cq,
+             [this](grpc::ClientContext* context,
+                    google::longrunning::CancelOperationRequest const& request,
+                    grpc::CompletionQueue* cq) {
+               return operations_stub_->AsyncCancelOperation(context, request,
+                                                             cq);
+             },
+             request, std::move(context))
       .then([](future<StatusOr<google::protobuf::Empty>> f) {
         return f.get().status();
       });

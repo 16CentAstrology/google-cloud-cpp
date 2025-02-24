@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include "google/cloud/internal/grpc_request_metadata.h"
+#include "google/cloud/internal/grpc_metadata_view.h"
+#include "google/cloud/testing_util/validate_metadata.h"
 #include <gmock/gmock.h>
 #include <algorithm>
 
@@ -22,14 +24,59 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace internal {
 namespace {
 
+using ::testing::_;
+using ::testing::IsEmpty;
+using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
+
+TEST(GrpcRequestMetadata, GetRequestMetadataFromContext) {
+  auto const server_metadata =
+      RpcMetadata{{{"header1", "value1"}, {"header2", "value2"}},
+                  {{"trailer1", "value3"}, {"trailer2", "value4"}}};
+  grpc::ClientContext context;
+  testing_util::SetServerMetadata(context, server_metadata);
+
+  auto md = GetRequestMetadataFromContext(
+      context, GrpcMetadataView::kWithServerMetadata);
+  EXPECT_THAT(md.headers,
+              UnorderedElementsAre(
+                  Pair("header1", "value1"), Pair("header2", "value2"),
+                  // This function also returns the peer and compression
+                  // algorithm as synthetic headers.
+                  Pair(":grpc-context-peer", _),
+                  Pair(":grpc-context-compression-algorithm", "identity")));
+  EXPECT_THAT(md.trailers, UnorderedElementsAre(Pair("trailer1", "value3"),
+                                                Pair("trailer2", "value4")));
+}
+
+TEST(GrpcRequestMetadata,
+     GetRequestMetadataFromContextWhenInitialMetadataIsNotReady) {
+  auto const server_metadata =
+      RpcMetadata{{{"header1", "value1"}, {"header2", "value2"}},
+                  {{"trailer1", "value3"}, {"trailer2", "value4"}}};
+  grpc::ClientContext context;
+
+  auto md = GetRequestMetadataFromContext(
+      context, GrpcMetadataView::kWithoutServerMetadata);
+  EXPECT_THAT(md.headers,
+              UnorderedElementsAre(
+                  // This function also returns the peer and compression
+                  // algorithm as synthetic headers.
+                  Pair(":grpc-context-peer", _),
+                  Pair(":grpc-context-compression-algorithm", "identity")));
+  EXPECT_THAT(md.trailers, IsEmpty());
+}
+
 TEST(GrpcRequestMetadata, FormatForLoggingDecorator) {
   struct Test {
-    StreamingRpcMetadata metadata;
+    RpcMetadata metadata;
     std::string expected;
-  } cases[] = {
-      {{}, ""},
-      {{{"a", "b"}}, "{a: b}"},
-      {{{"a", "b"}, {"k", "v"}}, "{a: b}, {k: v}"},
+  } const cases[] = {
+      {RpcMetadata{{}, {}}, "headers={}, trailers={}"},
+      {RpcMetadata{{{"a", "b"}}, {}}, "headers={{a: b}}, trailers={}"},
+      {RpcMetadata{{}, {{"a", "b"}}}, "headers={}, trailers={{a: b}}"},
+      {RpcMetadata{{{"a", "b"}, {"k", "v"}}, {{"d", "e"}, {"h", "f"}}},
+       "headers={{a: b}, {k: v}}, trailers={{d: e}, {h: f}}"},
   };
   for (auto const& test : cases) {
     auto const actual = FormatForLoggingDecorator(test.metadata);

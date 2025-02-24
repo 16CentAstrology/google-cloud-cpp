@@ -32,56 +32,75 @@ class MockPublisherStub : public pubsub_internal::PublisherStub {
   ~MockPublisherStub() override = default;
 
   MOCK_METHOD(StatusOr<google::pubsub::v1::Topic>, CreateTopic,
-              (grpc::ClientContext&, google::pubsub::v1::Topic const&),
+              (grpc::ClientContext&, Options const&,
+               google::pubsub::v1::Topic const&),
               (override));
 
   MOCK_METHOD(StatusOr<google::pubsub::v1::Topic>, GetTopic,
-              (grpc::ClientContext&,
+              (grpc::ClientContext&, Options const&,
                google::pubsub::v1::GetTopicRequest const&),
               (override));
 
   MOCK_METHOD(StatusOr<google::pubsub::v1::Topic>, UpdateTopic,
-              (grpc::ClientContext&,
+              (grpc::ClientContext&, Options const&,
                google::pubsub::v1::UpdateTopicRequest const&),
               (override));
 
   MOCK_METHOD(StatusOr<google::pubsub::v1::ListTopicsResponse>, ListTopics,
-              (grpc::ClientContext&,
+              (grpc::ClientContext&, Options const&,
                google::pubsub::v1::ListTopicsRequest const&),
               (override));
 
   MOCK_METHOD(Status, DeleteTopic,
-              (grpc::ClientContext&,
+              (grpc::ClientContext&, Options const&,
                google::pubsub::v1::DeleteTopicRequest const& request),
               (override));
 
   MOCK_METHOD(StatusOr<google::pubsub::v1::DetachSubscriptionResponse>,
               DetachSubscription,
-              (grpc::ClientContext&,
+              (grpc::ClientContext&, Options const&,
                google::pubsub::v1::DetachSubscriptionRequest const& request),
               (override));
 
   MOCK_METHOD(StatusOr<google::pubsub::v1::ListTopicSubscriptionsResponse>,
               ListTopicSubscriptions,
-              (grpc::ClientContext&,
+              (grpc::ClientContext&, Options const&,
                google::pubsub::v1::ListTopicSubscriptionsRequest const&),
               (override));
 
   MOCK_METHOD(StatusOr<google::pubsub::v1::ListTopicSnapshotsResponse>,
               ListTopicSnapshots,
-              (grpc::ClientContext&,
+              (grpc::ClientContext&, Options const&,
                google::pubsub::v1::ListTopicSnapshotsRequest const&),
               (override));
 
   MOCK_METHOD(future<StatusOr<google::pubsub::v1::PublishResponse>>,
               AsyncPublish,
               (google::cloud::CompletionQueue&,
-               std::unique_ptr<grpc::ClientContext>,
+               std::shared_ptr<grpc::ClientContext>,
+               google::cloud::internal::ImmutableOptions,
                google::pubsub::v1::PublishRequest const&),
               (override));
 
   MOCK_METHOD(StatusOr<google::pubsub::v1::PublishResponse>, Publish,
-              (grpc::ClientContext&, google::pubsub::v1::PublishRequest const&),
+              (grpc::ClientContext&, Options const&,
+               google::pubsub::v1::PublishRequest const&),
+              (override));
+
+  MOCK_METHOD(StatusOr<google::iam::v1::Policy>, SetIamPolicy,
+              (grpc::ClientContext&, Options const&,
+               google::iam::v1::SetIamPolicyRequest const&),
+              (override));
+
+  MOCK_METHOD(StatusOr<google::iam::v1::Policy>, GetIamPolicy,
+              (grpc::ClientContext&, Options const&,
+               google::iam::v1::GetIamPolicyRequest const&),
+              (override));
+
+  MOCK_METHOD(StatusOr<google::iam::v1::TestIamPermissionsResponse>,
+              TestIamPermissions,
+              (grpc::ClientContext&, Options const&,
+               google::iam::v1::TestIamPermissionsRequest const&),
               (override));
 };
 

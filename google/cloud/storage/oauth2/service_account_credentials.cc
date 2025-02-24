@@ -13,16 +13,20 @@
 // limitations under the License.
 
 #include "google/cloud/storage/oauth2/service_account_credentials.h"
+#include "google/cloud/storage/client_options.h"
+#include "google/cloud/storage/internal/base64.h"
 #include "google/cloud/storage/internal/make_jwt_assertion.h"
-#include "google/cloud/storage/internal/openssl_util.h"
 #include "google/cloud/internal/absl_str_join_quiet.h"
+#include "google/cloud/internal/oauth2_cached_credentials.h"
 #include "google/cloud/internal/oauth2_service_account_credentials.h"
+#include "google/cloud/internal/parse_service_account_p12_file.h"
+#include "google/cloud/internal/sign_using_sha256.h"
 #include <nlohmann/json.hpp>
-#include <openssl/err.h>
-#include <openssl/pem.h>
-#include <openssl/pkcs12.h>
 #include <array>
 #include <cstdio>
+#include <memory>
+#include <string>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -79,8 +83,8 @@ ParseServiceAccountRefreshResponse(
     storage::internal::HttpResponse const& response,
     std::chrono::system_clock::time_point now) {
   auto access_token = nlohmann::json::parse(response.payload, nullptr, false);
-  if (access_token.is_discarded() || access_token.count("access_token") == 0 or
-      access_token.count("expires_in") == 0 or
+  if (access_token.is_discarded() || access_token.count("access_token") == 0 ||
+      access_token.count("expires_in") == 0 ||
       access_token.count("token_type") == 0) {
     auto payload =
         response.payload +
@@ -122,12 +126,13 @@ ServiceAccountCredentials<storage::internal::CurlRequestBuilder,
                           std::chrono::system_clock>::
     ServiceAccountCredentials(ServiceAccountCredentialsInfo info,
                               ChannelOptions const& options)
-    : impl_(absl::make_unique<oauth2_internal::ServiceAccountCredentials>(
-          internal::MapServiceAccountCredentialsInfo(std::move(info)),
-          Options{}.set<CARootsFilePathOption>(options.ssl_root_path()),
-          [](Options const& o) {
-            return rest_internal::MakeDefaultRestClient(std::string{}, o);
-          })) {}
+    : impl_(std::make_unique<oauth2_internal::CachedCredentials>(
+          std::make_unique<oauth2_internal::ServiceAccountCredentials>(
+              internal::MapServiceAccountCredentialsInfo(std::move(info)),
+              Options{}.set<CARootsFilePathOption>(options.ssl_root_path()),
+              [](Options const& o) {
+                return rest_internal::MakeDefaultRestClient(std::string{}, o);
+              }))) {}
 
 }  // namespace oauth2
 
@@ -144,7 +149,8 @@ oauth2_internal::ServiceAccountCredentialsInfo MapServiceAccountCredentialsInfo(
   return {std::move(info.client_email), std::move(info.private_key_id),
           std::move(info.private_key),  std::move(info.token_uri),
           std::move(info.scopes),       std::move(info.subject),
-          enable_self_signed_jwt};
+          enable_self_signed_jwt,       /*.universe_domain=*/absl::nullopt,
+          /*.project_id=*/absl::nullopt};
 }
 
 }  // namespace internal

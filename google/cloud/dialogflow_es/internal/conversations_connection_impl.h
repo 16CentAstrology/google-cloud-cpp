@@ -67,41 +67,41 @@ class ConversationsConnectionImpl
   StreamRange<google::cloud::dialogflow::v2::Message> ListMessages(
       google::cloud::dialogflow::v2::ListMessagesRequest request) override;
 
+  StatusOr<google::cloud::dialogflow::v2::SuggestConversationSummaryResponse>
+  SuggestConversationSummary(
+      google::cloud::dialogflow::v2::SuggestConversationSummaryRequest const&
+          request) override;
+
+  StatusOr<google::cloud::dialogflow::v2::GenerateStatelessSummaryResponse>
+  GenerateStatelessSummary(
+      google::cloud::dialogflow::v2::GenerateStatelessSummaryRequest const&
+          request) override;
+
+  StatusOr<google::cloud::dialogflow::v2::GenerateStatelessSuggestionResponse>
+  GenerateStatelessSuggestion(
+      google::cloud::dialogflow::v2::GenerateStatelessSuggestionRequest const&
+          request) override;
+
+  StatusOr<google::cloud::dialogflow::v2::SearchKnowledgeResponse>
+  SearchKnowledge(google::cloud::dialogflow::v2::SearchKnowledgeRequest const&
+                      request) override;
+
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_es::ConversationsRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::ConversationsRetryPolicyOption>()) {
-      return options.get<dialogflow_es::ConversationsRetryPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_es::ConversationsRetryPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::ConversationsBackoffPolicyOption>()) {
-      return options.get<dialogflow_es::ConversationsBackoffPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_es::ConversationsBackoffPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<dialogflow_es::ConversationsConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<
-            dialogflow_es::ConversationsConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_es::ConversationsConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_es::ConversationsConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_es_internal::ConversationsStub> stub_;
   Options options_;

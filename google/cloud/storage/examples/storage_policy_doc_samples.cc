@@ -16,8 +16,12 @@
 #include "google/cloud/storage/examples/storage_examples_common.h"
 #include "google/cloud/internal/getenv.h"
 #include <iostream>
+#include <random>
 #include <sstream>
+#include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -36,15 +40,15 @@ void CreateSignedPolicyDocumentV2(google::cloud::storage::Client client,
                     gcs::PolicyDocumentCondition::StartsWith("key", ""),
                     gcs::PolicyDocumentCondition::ExactMatchObject(
                         "acl", "bucket-owner-read"),
-                    gcs::PolicyDocumentCondition::ExactMatchObject(
-                        "bucket", std::move(bucket_name)),
+                    gcs::PolicyDocumentCondition::ExactMatchObject("bucket",
+                                                                   bucket_name),
                     gcs::PolicyDocumentCondition::ExactMatch("Content-Type",
                                                              "image/jpeg"),
                     gcs::PolicyDocumentCondition::ContentLengthRange(0,
                                                                      1000000),
                 }},
             gcs::SigningAccount(signing_account));
-    if (!document) throw std::runtime_error(document.status().message());
+    if (!document) throw std::move(document).status();
 
     std::cout << "The signed document is: " << *document << "\n\n"
               << "You can use this with an HTML form.\n";
@@ -63,7 +67,7 @@ void CreateSignedPolicyDocumentV4(google::cloud::storage::Client client,
     StatusOr<gcs::PolicyDocumentV4Result> document =
         client.GenerateSignedPostPolicyV4(
             gcs::PolicyDocumentV4{
-                std::move(bucket_name),
+                bucket_name,
                 "scan_0001.jpg",
                 std::chrono::minutes(15),
                 std::chrono::system_clock::now(),
@@ -77,7 +81,7 @@ void CreateSignedPolicyDocumentV4(google::cloud::storage::Client client,
                                                                      1000000),
                 }},
             gcs::SigningAccount(signing_account));
-    if (!document) throw std::runtime_error(document.status().message());
+    if (!document) throw std::move(document).status();
 
     std::cout << "The signed document is: " << *document << "\n\n"
               << "You can use this with an HTML form.\n";
@@ -101,7 +105,7 @@ void CreatePolicyDocumentFormV4(google::cloud::storage::Client client,
         },
         gcs::AddExtensionFieldOption("x-goog-meta-test", "data"),
         gcs::SigningAccount(signing_account));
-    if (!document) throw std::runtime_error(document.status().message());
+    if (!document) throw std::move(document).status();
 
     // Create the HTML form for the computed policy.
     std::ostringstream os;
@@ -144,7 +148,8 @@ void RunAll(std::vector<std::string> const& argv) {
   std::cout << "\nCreating bucket to run the example (" << bucket_name << ")"
             << std::endl;
   (void)client
-      .CreateBucketForProject(bucket_name, project_id, gcs::BucketMetadata{})
+      .CreateBucketForProject(bucket_name, project_id, gcs::BucketMetadata{},
+                              examples::CreateBucketOptions())
       .value();
   // In GCS a single project cannot create or delete buckets more often than
   // once every two seconds. We will pause until that time before deleting the

@@ -24,18 +24,45 @@ namespace cloud {
 namespace pubsub_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+/**
+ * A function that creates a SubscriberStub using a pre-configured channel.
+ */
+using BaseSubscriberStubFactory = std::function<std::shared_ptr<SubscriberStub>(
+    std::shared_ptr<grpc::Channel>)>;
+
 /// Create a SubscriberStub using a pre-configured channel.
 std::shared_ptr<SubscriberStub> CreateDefaultSubscriberStub(
     std::shared_ptr<grpc::Channel> channel);
 
 /**
- * Creates a SubscriberStub configured with @p opts and @p channel_id.
+ * Creates a SubscriberStub configured with @p cq and @p options.
  *
- * @p channel_id should be unique among all stubs in the same Connection pool,
- * to ensure they use different underlying connections.
+ * By default, a SubscriberRoundRobinStub is created using the number of
+ * GrpcNumChannelsOption.
  */
-std::shared_ptr<SubscriberStub> CreateDefaultSubscriberStub(Options const& opts,
-                                                            int channel_id);
+std::shared_ptr<SubscriberStub> MakeRoundRobinSubscriberStub(
+    google::cloud::CompletionQueue cq, Options const& options);
+
+/**
+ * Creates a test SubscriberStub configured with @p cq and @p options and @p
+ * mocks.
+ *
+ * Used for testing the stubs at the connection layer.
+ */
+std::shared_ptr<SubscriberStub> MakeTestSubscriberStub(
+    google::cloud::CompletionQueue cq, Options const& options,
+    std::vector<std::shared_ptr<SubscriberStub>> mocks);
+
+/**
+ * Creates a test SubscriberStub configured with @p cq and @p options and @p
+ * base_factory.
+ *
+ * Used for unit testing to create decorated stubs. Accepts a stub factory so we
+ * can inject mock stubs in our unit tests.
+ */
+std::shared_ptr<SubscriberStub> CreateDecoratedStubs(
+    google::cloud::CompletionQueue cq, Options const& options,
+    BaseSubscriberStubFactory const& base_factory);
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace pubsub_internal

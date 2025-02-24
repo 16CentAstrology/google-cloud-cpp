@@ -15,9 +15,9 @@
 #ifndef GOOGLE_CLOUD_CPP_GENERATOR_INTERNAL_CODEGEN_UTILS_H
 #define GOOGLE_CLOUD_CPP_GENERATOR_INTERNAL_CODEGEN_UTILS_H
 
+#include "generator/internal/printer.h"
 #include "google/cloud/status_or.h"
 #include "absl/strings/string_view.h"
-#include "generator/internal/printer.h"
 #include <map>
 #include <string>
 #include <vector>
@@ -66,27 +66,16 @@ std::string ProtoNameToCppName(absl::string_view proto_name);
 enum class NamespaceType { kNormal, kInternal, kMocks };
 
 /**
- * Builds namespace hierarchy.
+ * Returns the namespace given a product path, and namespace type.
  *
- * Typically used with a product_path like to 'google/cloud/product/' and
- * returns {"google", "cloud", "product", "PRODUCT_CLIENT_NS"}.
+ * Typically used with a product_path like 'google/cloud/product/v1' and
+ * returns "product_v1".
  *
- * If the path contains fewer than two directories, they will be concatenated
- * to form the product value, e.g. 'unusual/product/' returns
- * {"google", "cloud", "unusual_product", "UNUSUAL_PRODUCT_CLIENT_NS"}.
- *
- * If the path contains more than three directories the third and subsequent
- * directories will be concatenated, e.g. 'google/cloud/foo/bar/baz/' returns
- * {"google", "cloud", "foo_bar_baz", "FOO_BAR_BAZ_CLIENT_NS"}.
- *
- * If ns_type is `NamespaceType::kInternal`, "_internal" is appended to the
- * product, e.g. 'google/cloud/product/' returns
- * {"google", "cloud", "product_internal", "PRODUCT_CLIENT_NS"}.
- *
+ * Depending on the NamespaceType, a suffix will be appended. e.g.
+ * "product_v1_mocks" or "product_v1_internal".
  */
-std::vector<std::string> BuildNamespaces(
-    std::string const& product_path,
-    NamespaceType ns_type = NamespaceType::kNormal);
+std::string Namespace(std::string const& product_path,
+                      NamespaceType ns_type = NamespaceType::kNormal);
 
 /**
  * Validates command line arguments passed to the microgenerator.
@@ -100,6 +89,18 @@ StatusOr<std::vector<std::pair<std::string, std::string>>>
 ProcessCommandLineArgs(std::string const& parameters);
 
 /**
+ * Change all occurrences of @p from to @p to within @p s.
+ *
+ * The "safe" part means it is a fatal error for @p s to already contain
+ * @p to. This makes it possible to reliably reverse the mapping.
+ *
+ * The primary use case is to replace/restore commas in the values used by
+ * ProcessCommandLineArgs(), where comma is a metacharacter (see above).
+ */
+std::string SafeReplaceAll(absl::string_view s, absl::string_view from,
+                           absl::string_view to);
+
+/**
  * Standard legal boilerplate file header.
  */
 std::string CopyrightLicenseFileHeader();
@@ -108,6 +109,29 @@ std::string CopyrightLicenseFileHeader();
  * Current year for copyright boilerplate purposes.
  */
 std::string CurrentCopyrightYear();
+
+// Returns a copy of the input string with the first letter capitalized.
+std::string CapitalizeFirstLetter(std::string str);
+
+// Creates a formatted comment block from the provided string.
+std::string FormatCommentBlock(std::string const& comment,
+                               std::size_t indent_level,
+                               std::string const& comment_introducer = "// ",
+                               std::size_t indent_width = 2,
+                               std::size_t line_length = 80);
+
+// Creates a formatted comment block from the list of key/value pairs.
+std::string FormatCommentKeyValueList(
+    std::vector<std::pair<std::string, std::string>> const& comment,
+    std::size_t indent_level, std::string const& separator = ":",
+    std::string const& comment_introducer = "// ", std::size_t indent_width = 2,
+    std::size_t line_length = 80);
+
+// Formats a header include guard per the provided header_path.
+std::string FormatHeaderIncludeGuard(absl::string_view header_path);
+
+/// Create a directory. The parent must exist.
+void MakeDirectory(std::string const& path);
 
 }  // namespace generator_internal
 }  // namespace cloud

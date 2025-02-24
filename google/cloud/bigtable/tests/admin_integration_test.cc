@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@
 #include "google/cloud/testing_util/scoped_environment.h"
 #include "google/cloud/testing_util/scoped_log.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
 #include <gmock/gmock.h>
 #include <string>
 #include <vector>
@@ -49,7 +48,7 @@ class AdminIntegrationTest : public bigtable::testing::TableIntegrationTest {
     std::shared_ptr<bigtable::AdminClient> admin_client =
         bigtable::MakeAdminClient(
             bigtable::testing::TableTestEnvironment::project_id());
-    table_admin_ = absl::make_unique<bigtable::TableAdmin>(
+    table_admin_ = std::make_unique<bigtable::TableAdmin>(
         admin_client, bigtable::testing::TableTestEnvironment::instance_id());
   }
 };
@@ -307,8 +306,8 @@ TEST_F(AdminIntegrationTest, CreateListGetDeleteTableWithLogging) {
   std::shared_ptr<bigtable::AdminClient> admin_client =
       bigtable::MakeAdminClient(
           bigtable::testing::TableTestEnvironment::project_id(),
-          Options{}.set<TracingComponentsOption>({"rpc"}));
-  auto table_admin = absl::make_unique<bigtable::TableAdmin>(
+          Options{}.set<LoggingComponentsOption>({"rpc"}));
+  auto table_admin = std::make_unique<bigtable::TableAdmin>(
       admin_client, bigtable::testing::TableTestEnvironment::instance_id());
 
   // Create table config

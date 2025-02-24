@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! [START iam_quickstart]
-#include "google/cloud/iam/iam_client.h"
+//! [START iam_quickstart] [all]
+#include "google/cloud/iam/admin/v1/iam_client.h"
 #include "google/cloud/project.h"
 #include <iostream>
 
@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) try {
   }
 
   // Create a namespace alias to make the code easier to read.
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_admin_v1;
   iam::IAMClient client(iam::MakeIAMConnection());
   auto const project = google::cloud::Project(argv[1]);
   std::cout << "Service Accounts for project: " << project.project_id() << "\n";
@@ -41,4 +41,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
-//! [END iam_quickstart]
+//! [END iam_quickstart] [all]

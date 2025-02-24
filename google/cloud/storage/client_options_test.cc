@@ -19,12 +19,16 @@
 #include "google/cloud/internal/random.h"
 #include "google/cloud/internal/rest_options.h"
 #include "google/cloud/internal/rest_response.h"
+#include "google/cloud/opentelemetry_options.h"
 #include "google/cloud/testing_util/scoped_environment.h"
 #include "google/cloud/testing_util/setenv.h"
 #include "google/cloud/testing_util/status_matchers.h"
+#include "google/cloud/universe_domain_options.h"
 #include <gmock/gmock.h>
 #include <cstdlib>
 #include <fstream>
+#include <string>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -390,6 +394,43 @@ TEST_F(ClientOptionsTest, DefaultOptions) {
   EXPECT_FALSE(o.has<rest::CAPathOption>());
 }
 
+TEST_F(ClientOptionsTest, IncorporatesUniverseDomain) {
+  auto o = internal::DefaultOptions(
+      oauth2::CreateAnonymousCredentials(),
+      Options{}.set<google::cloud::internal::UniverseDomainOption>(
+          "my-ud.net"));
+  EXPECT_EQ(o.get<RestEndpointOption>(), "https://storage.my-ud.net");
+  EXPECT_EQ(o.get<IamEndpointOption>(), "https://iamcredentials.my-ud.net/v1");
+}
+
+TEST_F(ClientOptionsTest, IncorporatesUniverseDomainEnvVar) {
+  ScopedEnvironment ud("GOOGLE_CLOUD_UNIVERSE_DOMAIN", "ud-env-var.net");
+
+  auto o = internal::DefaultOptions(
+      oauth2::CreateAnonymousCredentials(),
+      Options{}.set<google::cloud::internal::UniverseDomainOption>(
+          "ud-option.net"));
+  EXPECT_EQ(o.get<RestEndpointOption>(), "https://storage.ud-env-var.net");
+  EXPECT_EQ(o.get<IamEndpointOption>(),
+            "https://iamcredentials.ud-env-var.net/v1");
+}
+
+TEST_F(ClientOptionsTest, CustomEndpointOverridesUniverseDomain) {
+  ScopedEnvironment ud("GOOGLE_CLOUD_UNIVERSE_DOMAIN", "ud-env-var.net");
+
+  auto o = internal::DefaultOptions(
+      oauth2::CreateAnonymousCredentials(),
+      Options{}
+          .set<RestEndpointOption>("https://custom-storage.googleapis.com")
+          .set<IamEndpointOption>(
+              "https://custom-iamcredentials.googleapis.com/v1")
+          .set<google::cloud::internal::UniverseDomainOption>("ud-option.net"));
+  EXPECT_EQ(o.get<RestEndpointOption>(),
+            "https://custom-storage.googleapis.com");
+  EXPECT_EQ(o.get<IamEndpointOption>(),
+            "https://custom-iamcredentials.googleapis.com/v1");
+}
+
 TEST_F(ClientOptionsTest, HttpVersion) {
   namespace rest = ::google::cloud::rest_internal;
   auto const options = internal::DefaultOptions(
@@ -406,23 +447,44 @@ TEST_F(ClientOptionsTest, CAPathOption) {
   EXPECT_EQ("test-only", options.get<rest::CAPathOption>());
 }
 
-TEST_F(ClientOptionsTest, TracingWithoutEnv) {
+TEST_F(ClientOptionsTest, LoggingWithoutEnv) {
   ScopedEnvironment env_common("GOOGLE_CLOUD_CPP_ENABLE_TRACING",
                                absl::nullopt);
   ScopedEnvironment env("CLOUD_STORAGE_ENABLE_TRACING", absl::nullopt);
   auto const options =
       internal::DefaultOptions(oauth2::CreateAnonymousCredentials(), {});
-  EXPECT_FALSE(options.has<TracingComponentsOption>());
+  EXPECT_FALSE(options.has<LoggingComponentsOption>());
 }
 
-TEST_F(ClientOptionsTest, TracingWithEnv) {
+TEST_F(ClientOptionsTest, LoggingWithEnv) {
   ScopedEnvironment env_common("GOOGLE_CLOUD_CPP_ENABLE_TRACING",
                                absl::nullopt);
   ScopedEnvironment env("CLOUD_STORAGE_ENABLE_TRACING", "rpc,http");
   auto const options =
       internal::DefaultOptions(oauth2::CreateAnonymousCredentials(), {});
-  EXPECT_THAT(options.get<TracingComponentsOption>(),
+  EXPECT_THAT(options.get<LoggingComponentsOption>(),
               UnorderedElementsAre("rpc", "http"));
+}
+
+TEST_F(ClientOptionsTest, TracingWithoutEnv) {
+  ScopedEnvironment env("GOOGLE_CLOUD_CPP_OPENTELEMETRY_TRACING",
+                        absl::nullopt);
+  auto options =
+      internal::DefaultOptions(oauth2::CreateAnonymousCredentials(), {});
+  EXPECT_FALSE(options.get<OpenTelemetryTracingOption>());
+
+  options =
+      internal::DefaultOptions(oauth2::CreateAnonymousCredentials(),
+                               Options{}.set<OpenTelemetryTracingOption>(true));
+  EXPECT_TRUE(options.get<OpenTelemetryTracingOption>());
+}
+
+TEST_F(ClientOptionsTest, TracingWithEnv) {
+  ScopedEnvironment env("GOOGLE_CLOUD_CPP_OPENTELEMETRY_TRACING", "ON");
+  auto const options = internal::DefaultOptions(
+      oauth2::CreateAnonymousCredentials(),
+      Options{}.set<OpenTelemetryTracingOption>(false));
+  EXPECT_TRUE(options.get<OpenTelemetryTracingOption>());
 }
 
 TEST_F(ClientOptionsTest, ProjectIdWithoutEnv) {
@@ -437,23 +499,6 @@ TEST_F(ClientOptionsTest, ProjecIdtWithEnv) {
   auto const options =
       internal::DefaultOptions(oauth2::CreateAnonymousCredentials(), {});
   EXPECT_EQ("my-project", options.get<ProjectIdOption>());
-}
-
-TEST_F(ClientOptionsTest, UseRestClientByDefault) {
-  ScopedEnvironment env("GOOGLE_CLOUD_CPP_STORAGE_USE_LEGACY_HTTP",
-                        absl::nullopt);
-  auto const options =
-      internal::DefaultOptions(oauth2::CreateAnonymousCredentials(), {});
-  EXPECT_TRUE(options.has<internal::UseRestClientOption>());
-  EXPECT_TRUE(options.get<internal::UseRestClientOption>());
-}
-
-TEST_F(ClientOptionsTest, UseLegacyHttpWithEnv) {
-  ScopedEnvironment env("GOOGLE_CLOUD_CPP_STORAGE_USE_LEGACY_HTTP", "yes");
-  auto const options =
-      internal::DefaultOptions(oauth2::CreateAnonymousCredentials(), {});
-  EXPECT_TRUE(options.has<internal::UseRestClientOption>());
-  EXPECT_FALSE(options.get<internal::UseRestClientOption>());
 }
 
 TEST_F(ClientOptionsTest, OverrideWithRestInternal) {

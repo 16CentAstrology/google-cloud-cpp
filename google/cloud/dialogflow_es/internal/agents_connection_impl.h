@@ -66,60 +66,69 @@ class AgentsConnectionImpl : public dialogflow_es::AgentsConnection {
   future<StatusOr<google::protobuf::Struct>> TrainAgent(
       google::cloud::dialogflow::v2::TrainAgentRequest const& request) override;
 
+  StatusOr<google::longrunning::Operation> TrainAgent(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::TrainAgentRequest const& request) override;
+
+  future<StatusOr<google::protobuf::Struct>> TrainAgent(
+      google::longrunning::Operation const& operation) override;
+
   future<StatusOr<google::cloud::dialogflow::v2::ExportAgentResponse>>
   ExportAgent(google::cloud::dialogflow::v2::ExportAgentRequest const& request)
       override;
+
+  StatusOr<google::longrunning::Operation> ExportAgent(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::ExportAgentRequest const& request)
+      override;
+
+  future<StatusOr<google::cloud::dialogflow::v2::ExportAgentResponse>>
+  ExportAgent(google::longrunning::Operation const& operation) override;
 
   future<StatusOr<google::protobuf::Struct>> ImportAgent(
       google::cloud::dialogflow::v2::ImportAgentRequest const& request)
       override;
 
+  StatusOr<google::longrunning::Operation> ImportAgent(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::ImportAgentRequest const& request)
+      override;
+
+  future<StatusOr<google::protobuf::Struct>> ImportAgent(
+      google::longrunning::Operation const& operation) override;
+
   future<StatusOr<google::protobuf::Struct>> RestoreAgent(
       google::cloud::dialogflow::v2::RestoreAgentRequest const& request)
       override;
+
+  StatusOr<google::longrunning::Operation> RestoreAgent(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::RestoreAgentRequest const& request)
+      override;
+
+  future<StatusOr<google::protobuf::Struct>> RestoreAgent(
+      google::longrunning::Operation const& operation) override;
 
   StatusOr<google::cloud::dialogflow::v2::ValidationResult> GetValidationResult(
       google::cloud::dialogflow::v2::GetValidationResultRequest const& request)
       override;
 
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_es::AgentsRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::AgentsRetryPolicyOption>()) {
-      return options.get<dialogflow_es::AgentsRetryPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_es::AgentsRetryPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::AgentsBackoffPolicyOption>()) {
-      return options.get<dialogflow_es::AgentsBackoffPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_es::AgentsBackoffPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<dialogflow_es::AgentsConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::AgentsConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_es::AgentsConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_es::AgentsConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<PollingPolicy> polling_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::AgentsPollingPolicyOption>()) {
-      return options.get<dialogflow_es::AgentsPollingPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_es::AgentsPollingPolicyOption>()->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_es_internal::AgentsStub> stub_;
   Options options_;

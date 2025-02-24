@@ -17,7 +17,11 @@
 #include "google/cloud/internal/getenv.h"
 #include <functional>
 #include <iostream>
+#include <random>
+#include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -29,10 +33,7 @@ void GetBucketLifecycleManagement(google::cloud::storage::Client client,
   [](gcs::Client client, std::string const& bucket_name) {
     StatusOr<gcs::BucketMetadata> updated_metadata =
         client.GetBucketMetadata(bucket_name);
-
-    if (!updated_metadata) {
-      throw std::runtime_error(updated_metadata.status().message());
-    }
+    if (!updated_metadata) throw std::move(updated_metadata).status();
 
     if (!updated_metadata->has_lifecycle() ||
         updated_metadata->lifecycle().rule.empty()) {
@@ -68,10 +69,7 @@ void EnableBucketLifecycleManagement(google::cloud::storage::Client client,
     StatusOr<gcs::BucketMetadata> updated_metadata = client.PatchBucket(
         bucket_name,
         gcs::BucketMetadataPatchBuilder().SetLifecycle(bucket_lifecycle_rules));
-
-    if (!updated_metadata) {
-      throw std::runtime_error(updated_metadata.status().message());
-    }
+    if (!updated_metadata) throw std::move(updated_metadata).status();
 
     if (!updated_metadata->has_lifecycle() ||
         updated_metadata->lifecycle().rule.empty()) {
@@ -101,10 +99,7 @@ void DisableBucketLifecycleManagement(google::cloud::storage::Client client,
   [](gcs::Client client, std::string const& bucket_name) {
     StatusOr<gcs::BucketMetadata> updated_metadata = client.PatchBucket(
         bucket_name, gcs::BucketMetadataPatchBuilder().ResetLifecycle());
-
-    if (!updated_metadata) {
-      throw std::runtime_error(updated_metadata.status().message());
-    }
+    if (!updated_metadata) throw std::move(updated_metadata).status();
 
     std::cout << "Successfully disabled bucket lifecycle management for bucket "
               << updated_metadata->name() << ".\n";
@@ -121,7 +116,7 @@ void SetLifecycleAbortMultipartUpload(google::cloud::storage::Client client,
   using ::google::cloud::StatusOr;
   [](gcs::Client client, std::string const& bucket_name) {
     auto metadata = client.GetBucketMetadata(bucket_name);
-    if (!metadata) throw std::runtime_error(metadata.status().message());
+    if (!metadata) throw std::move(metadata).status();
 
     auto lifecycle = metadata->has_lifecycle() ? metadata->lifecycle()
                                                : gcs::BucketLifecycle{};
@@ -133,7 +128,7 @@ void SetLifecycleAbortMultipartUpload(google::cloud::storage::Client client,
         bucket_name,
         gcs::BucketMetadataPatchBuilder().SetLifecycle(std::move(lifecycle)),
         gcs::IfMetagenerationMatch(metadata->metageneration()));
-    if (!patched) throw std::runtime_error(metadata.status().message());
+    if (!patched) throw std::move(metadata).status();
 
     std::cout << "Added new lifecycle rule on bucket " << bucket_name
               << "\nThe updated metadata is: " << *patched << ".\n";
@@ -158,7 +153,8 @@ void RunAll(std::vector<std::string> const& argv) {
 
   std::cout << "\nCreating bucket to run the examples" << std::endl;
   (void)client.CreateBucketForProject(bucket_name, project_id,
-                                      gcs::BucketMetadata());
+                                      gcs::BucketMetadata(),
+                                      examples::CreateBucketOptions());
   // In GCS a single project cannot create or delete buckets more often than
   // once every two seconds. We will pause until that time before deleting the
   // bucket.

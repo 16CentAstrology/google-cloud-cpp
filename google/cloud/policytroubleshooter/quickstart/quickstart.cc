@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/policytroubleshooter/iam_checker_client.h"
+//! [all]
+#include "google/cloud/policytroubleshooter/v1/iam_checker_client.h"
 #include <iostream>
 
 int main(int argc, char* argv[]) try {
@@ -22,16 +23,16 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace policytroubleshooter = ::google::cloud::policytroubleshooter;
+  namespace policytroubleshooter = ::google::cloud::policytroubleshooter_v1;
   auto client = policytroubleshooter::IamCheckerClient(
       policytroubleshooter::MakeIamCheckerConnection());
 
-  policytroubleshooter::v1::TroubleshootIamPolicyRequest request;
+  google::cloud::policytroubleshooter::v1::TroubleshootIamPolicyRequest request;
   auto& access_tuple = *request.mutable_access_tuple();
   access_tuple.set_principal(argv[1]);
   access_tuple.set_full_resource_name(argv[2]);
   access_tuple.set_permission(argv[3]);
-  auto const response = client.TroubleshootIamPolicy(request);
+  auto response = client.TroubleshootIamPolicy(request);
   if (!response) throw std::move(response).status();
   std::cout << response->DebugString() << "\n";
 
@@ -40,3 +41,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

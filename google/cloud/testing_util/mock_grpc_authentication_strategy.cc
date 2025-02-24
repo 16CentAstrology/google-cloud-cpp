@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "google/cloud/testing_util/mock_grpc_authentication_strategy.h"
+#include "google/cloud/internal/make_status.h"
 #include <grpcpp/grpcpp.h>
 
 namespace google {
@@ -20,11 +21,15 @@ namespace cloud {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace testing_util {
 
+using ::testing::NiceMock;
+using ::testing::Return;
+
 std::shared_ptr<MockAuthenticationStrategy> MakeTypicalMockAuth() {
   auto auth = std::make_shared<MockAuthenticationStrategy>();
   EXPECT_CALL(*auth, ConfigureContext)
       .WillOnce([](grpc::ClientContext&) {
-        return Status(StatusCode::kInvalidArgument, "cannot-set-credentials");
+        return internal::InvalidArgumentError("cannot-set-credentials",
+                                              GCP_ERROR_INFO());
       })
       .WillOnce([](grpc::ClientContext& context) {
         context.set_credentials(
@@ -35,18 +40,27 @@ std::shared_ptr<MockAuthenticationStrategy> MakeTypicalMockAuth() {
 }
 
 std::shared_ptr<MockAuthenticationStrategy> MakeTypicalAsyncMockAuth() {
-  using ReturnType = StatusOr<std::unique_ptr<grpc::ClientContext>>;
+  using ReturnType = StatusOr<std::shared_ptr<grpc::ClientContext>>;
   auto auth = std::make_shared<MockAuthenticationStrategy>();
   EXPECT_CALL(*auth, AsyncConfigureContext)
-      .WillOnce([](std::unique_ptr<grpc::ClientContext>) {
-        return make_ready_future(ReturnType(
-            Status(StatusCode::kInvalidArgument, "cannot-set-credentials")));
+      .WillOnce([](auto) {
+        return make_ready_future(ReturnType(internal::InvalidArgumentError(
+            "cannot-set-credentials", GCP_ERROR_INFO())));
       })
-      .WillOnce([](std::unique_ptr<grpc::ClientContext> context) {
+      .WillOnce([](auto context) {
         context->set_credentials(
             grpc::AccessTokenCredentials("test-only-invalid"));
         return make_ready_future(make_status_or(std::move(context)));
       });
+  return auth;
+}
+
+std::shared_ptr<MockAuthenticationStrategy> MakeStubFactoryMockAuth() {
+  auto auth = std::make_shared<NiceMock<MockAuthenticationStrategy>>();
+  ON_CALL(*auth, CreateChannel)
+      .WillByDefault(Return(grpc::CreateCustomChannel(
+          "error:///", grpc::InsecureChannelCredentials(), {})));
+  ON_CALL(*auth, RequiresConfigureContext).WillByDefault(Return(false));
   return auth;
 }
 

@@ -18,7 +18,6 @@
 #include "google/cloud/internal/api_client_header.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include "google/cloud/testing_util/validate_metadata.h"
-#include "absl/memory/memory.h"
 #include <gmock/gmock.h>
 #include <grpcpp/grpcpp.h>
 
@@ -44,7 +43,8 @@ class InstanceAdminMetadataTest : public ::testing::Test {
   void IsContextMDValid(grpc::ClientContext& context, std::string const& method,
                         google::protobuf::Message const& request) {
     return validate_metadata_fixture_.IsContextMDValid(
-        context, method, request, google::cloud::internal::ApiClientHeader());
+        context, method, request,
+        google::cloud::internal::HandCraftedLibClientHeader());
   }
 
   static Status TransientError() {
@@ -118,8 +118,7 @@ TEST_F(InstanceAdminMetadataTest, ListInstanceConfigs) {
 
 TEST_F(InstanceAdminMetadataTest, CreateInstance) {
   EXPECT_CALL(*mock_, AsyncCreateInstance)
-      .WillOnce([this](CompletionQueue&,
-                       std::unique_ptr<grpc::ClientContext> context,
+      .WillOnce([this](CompletionQueue&, auto context,
                        gsai::v1::CreateInstanceRequest const& request) {
         IsContextMDValid(*context,
                          "google.spanner.admin.instance.v1.InstanceAdmin."
@@ -135,14 +134,13 @@ TEST_F(InstanceAdminMetadataTest, CreateInstance) {
   request.set_parent(google::cloud::Project("test-project-id").FullName());
   request.set_instance_id("test-instance-id");
   auto response = stub.AsyncCreateInstance(
-      cq, absl::make_unique<grpc::ClientContext>(), request);
+      cq, std::make_shared<grpc::ClientContext>(), request);
   EXPECT_EQ(TransientError(), response.get().status());
 }
 
 TEST_F(InstanceAdminMetadataTest, UpdateInstance) {
   EXPECT_CALL(*mock_, AsyncUpdateInstance)
-      .WillOnce([this](CompletionQueue&,
-                       std::unique_ptr<grpc::ClientContext> context,
+      .WillOnce([this](CompletionQueue&, auto context,
                        gsai::v1::UpdateInstanceRequest const& request) {
         IsContextMDValid(*context,
                          "google.spanner.admin.instance.v1.InstanceAdmin."
@@ -160,7 +158,7 @@ TEST_F(InstanceAdminMetadataTest, UpdateInstance) {
           google::cloud::Project("test-project-id"), "test-instance-id")
           .FullName());
   auto response = stub.AsyncUpdateInstance(
-      cq, absl::make_unique<grpc::ClientContext>(), request);
+      cq, std::make_shared<grpc::ClientContext>(), request);
   EXPECT_EQ(TransientError(), response.get().status());
 }
 

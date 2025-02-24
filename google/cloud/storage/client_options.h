@@ -73,10 +73,12 @@ Options DefaultOptionsWithCredentials(Options opts);
  */
 class ChannelOptions {
  public:
-  /// @deprecated Use google::cloud::Options and CAPathOption instead.
+  /// @deprecated Use google::cloud::Options and
+  /// google::cloud::CARootsFilePathOption instead.
   std::string ssl_root_path() const { return ssl_root_path_; }
 
-  /// @deprecated Use google::cloud::Options and CAPathOption instead.
+  /// @deprecated Use google::cloud::Options and
+  /// google::cloud::CARootsFilePathOption instead.
   ChannelOptions& set_ssl_root_path(std::string ssl_root_path) {
     ssl_root_path_ = std::move(ssl_root_path);
     return *this;
@@ -206,25 +208,25 @@ class ClientOptions {
 
   /**
    * @deprecated Use google::cloud::Options and
-   *     google::cloud::TracingComponentsOption instead.
+   *     google::cloud::LoggingComponentsOption instead.
    */
   bool enable_http_tracing() const;
 
   /**
    * @deprecated Use google::cloud::Options and
-   *     google::cloud::TracingComponentsOption instead.
+   *     google::cloud::LoggingComponentsOption instead.
    */
   ClientOptions& set_enable_http_tracing(bool enable);
 
   /**
    * @deprecated Use google::cloud::Options and
-   *     google::cloud::TracingComponentsOption instead.
+   *     google::cloud::LoggingComponentsOption instead.
    */
   bool enable_raw_client_tracing() const;
 
   /**
    * @deprecated Use google::cloud::Options and
-   *     google::cloud::TracingComponentsOption instead.
+   *     google::cloud::LoggingComponentsOption instead.
    */
   ClientOptions& set_enable_raw_client_tracing(bool enable);
 
@@ -400,13 +402,15 @@ class ClientOptions {
     return *this;
   }
 
-  /// @deprecated Use google::cloud::Options and CAPathOption instead.
+  /// @deprecated Use google::cloud::Options and
+  /// google::cloud::CARootsFilePathOption instead.
   ChannelOptions& channel_options() { return channel_options_; }
 
-  /// @deprecated Use google::cloud::Options and CAPathOption instead.
+  /// @deprecated Use google::cloud::Options and
+  /// google::cloud::CARootsFilePathOption instead.
   ChannelOptions const& channel_options() const { return channel_options_; }
 
-  //@{
+  ///@{
   /**
    * Control the maximum amount of time allowed for "stalls" during a download.
    *
@@ -431,7 +435,7 @@ class ClientOptions {
     opts_.set<TransferStallTimeoutOption>(std::move(v));
     return *this;
   }
-  //@}
+  ///@}
 
  private:
   friend Options internal::MakeOptions(ClientOptions);

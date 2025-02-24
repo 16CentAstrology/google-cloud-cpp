@@ -42,10 +42,10 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * reader and the spanner `ResultSet`, and is used to iterate over the rows
  * returned from a read operation.
  */
-class PartialResultSetSource : public ResultSourceInterface {
+class PartialResultSetSource : public spanner::ResultSourceInterface {
  public:
   /// Factory method to create a PartialResultSetSource.
-  static StatusOr<std::unique_ptr<ResultSourceInterface>> Create(
+  static StatusOr<std::unique_ptr<spanner::ResultSourceInterface>> Create(
       std::unique_ptr<PartialResultSetReader> reader);
 
   ~PartialResultSetSource() override;
@@ -85,7 +85,7 @@ class PartialResultSetSource : public ResultSourceInterface {
   // any data in (or previously in) `rows_`. When disengaged, we have already
   // delivered data that would be replayed, so resumption is disabled until we
   // see a new token.
-  absl::optional<std::string> resume_token_ = std::string{};
+  absl::optional<std::string> resume_token_ = "";
 
   // `Value`s that could be combined into `rows_` when we have enough to fill
   // an entire row, plus a token that would resume the stream after such rows.

@@ -64,11 +64,65 @@ class BigtableTableAdminConnectionImpl
   future<StatusOr<google::bigtable::admin::v2::Table>> UpdateTable(
       google::bigtable::admin::v2::UpdateTableRequest const& request) override;
 
+  StatusOr<google::longrunning::Operation> UpdateTable(
+      NoAwaitTag,
+      google::bigtable::admin::v2::UpdateTableRequest const& request) override;
+
+  future<StatusOr<google::bigtable::admin::v2::Table>> UpdateTable(
+      google::longrunning::Operation const& operation) override;
+
   Status DeleteTable(
       google::bigtable::admin::v2::DeleteTableRequest const& request) override;
 
   future<StatusOr<google::bigtable::admin::v2::Table>> UndeleteTable(
       google::bigtable::admin::v2::UndeleteTableRequest const& request)
+      override;
+
+  StatusOr<google::longrunning::Operation> UndeleteTable(
+      NoAwaitTag,
+      google::bigtable::admin::v2::UndeleteTableRequest const& request)
+      override;
+
+  future<StatusOr<google::bigtable::admin::v2::Table>> UndeleteTable(
+      google::longrunning::Operation const& operation) override;
+
+  future<StatusOr<google::bigtable::admin::v2::AuthorizedView>>
+  CreateAuthorizedView(
+      google::bigtable::admin::v2::CreateAuthorizedViewRequest const& request)
+      override;
+
+  StatusOr<google::longrunning::Operation> CreateAuthorizedView(
+      NoAwaitTag,
+      google::bigtable::admin::v2::CreateAuthorizedViewRequest const& request)
+      override;
+
+  future<StatusOr<google::bigtable::admin::v2::AuthorizedView>>
+  CreateAuthorizedView(
+      google::longrunning::Operation const& operation) override;
+
+  StreamRange<google::bigtable::admin::v2::AuthorizedView> ListAuthorizedViews(
+      google::bigtable::admin::v2::ListAuthorizedViewsRequest request) override;
+
+  StatusOr<google::bigtable::admin::v2::AuthorizedView> GetAuthorizedView(
+      google::bigtable::admin::v2::GetAuthorizedViewRequest const& request)
+      override;
+
+  future<StatusOr<google::bigtable::admin::v2::AuthorizedView>>
+  UpdateAuthorizedView(
+      google::bigtable::admin::v2::UpdateAuthorizedViewRequest const& request)
+      override;
+
+  StatusOr<google::longrunning::Operation> UpdateAuthorizedView(
+      NoAwaitTag,
+      google::bigtable::admin::v2::UpdateAuthorizedViewRequest const& request)
+      override;
+
+  future<StatusOr<google::bigtable::admin::v2::AuthorizedView>>
+  UpdateAuthorizedView(
+      google::longrunning::Operation const& operation) override;
+
+  Status DeleteAuthorizedView(
+      google::bigtable::admin::v2::DeleteAuthorizedViewRequest const& request)
       override;
 
   StatusOr<google::bigtable::admin::v2::Table> ModifyColumnFamilies(
@@ -90,6 +144,13 @@ class BigtableTableAdminConnectionImpl
   future<StatusOr<google::bigtable::admin::v2::Backup>> CreateBackup(
       google::bigtable::admin::v2::CreateBackupRequest const& request) override;
 
+  StatusOr<google::longrunning::Operation> CreateBackup(
+      NoAwaitTag,
+      google::bigtable::admin::v2::CreateBackupRequest const& request) override;
+
+  future<StatusOr<google::bigtable::admin::v2::Backup>> CreateBackup(
+      google::longrunning::Operation const& operation) override;
+
   StatusOr<google::bigtable::admin::v2::Backup> GetBackup(
       google::bigtable::admin::v2::GetBackupRequest const& request) override;
 
@@ -104,6 +165,23 @@ class BigtableTableAdminConnectionImpl
 
   future<StatusOr<google::bigtable::admin::v2::Table>> RestoreTable(
       google::bigtable::admin::v2::RestoreTableRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> RestoreTable(
+      NoAwaitTag,
+      google::bigtable::admin::v2::RestoreTableRequest const& request) override;
+
+  future<StatusOr<google::bigtable::admin::v2::Table>> RestoreTable(
+      google::longrunning::Operation const& operation) override;
+
+  future<StatusOr<google::bigtable::admin::v2::Backup>> CopyBackup(
+      google::bigtable::admin::v2::CopyBackupRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> CopyBackup(
+      NoAwaitTag,
+      google::bigtable::admin::v2::CopyBackupRequest const& request) override;
+
+  future<StatusOr<google::bigtable::admin::v2::Backup>> CopyBackup(
+      google::longrunning::Operation const& operation) override;
 
   StatusOr<google::iam::v1::Policy> GetIamPolicy(
       google::iam::v1::GetIamPolicyRequest const& request) override;
@@ -120,58 +198,6 @@ class BigtableTableAdminConnectionImpl
       override;
 
  private:
-  std::unique_ptr<bigtable_admin::BigtableTableAdminRetryPolicy>
-  retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<bigtable_admin::BigtableTableAdminRetryPolicyOption>()) {
-      return options.get<bigtable_admin::BigtableTableAdminRetryPolicyOption>()
-          ->clone();
-    }
-    return options_.get<bigtable_admin::BigtableTableAdminRetryPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<bigtable_admin::BigtableTableAdminBackoffPolicyOption>()) {
-      return options
-          .get<bigtable_admin::BigtableTableAdminBackoffPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<bigtable_admin::BigtableTableAdminBackoffPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<bigtable_admin::BigtableTableAdminConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options
-            .has<bigtable_admin::
-                     BigtableTableAdminConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<bigtable_admin::
-                   BigtableTableAdminConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<bigtable_admin::
-                 BigtableTableAdminConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<PollingPolicy> polling_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<bigtable_admin::BigtableTableAdminPollingPolicyOption>()) {
-      return options
-          .get<bigtable_admin::BigtableTableAdminPollingPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<bigtable_admin::BigtableTableAdminPollingPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<bigtable_admin_internal::BigtableTableAdminStub> stub_;
   Options options_;

@@ -13,9 +13,9 @@
 // limitations under the License.
 
 #include "generator/integration_tests/golden/v1/internal/golden_kitchen_sink_stub.h"
+#include "google/cloud/options.h"
 #include "google/cloud/testing_util/mock_completion_queue_impl.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
 #include <gmock/gmock.h>
 #include <grpcpp/impl/codegen/status_code_enum.h>
 #include <deque>
@@ -35,6 +35,7 @@ using ::google::test::admin::database::v1::Request;
 using ::google::test::admin::database::v1::Response;
 using ::testing::_;
 using ::testing::Return;
+using ::testing::VariantWith;
 
 class MockGrpcGoldenKitchenSinkStub : public ::google::test::admin::database::
                                           v1::GoldenKitchenSink::StubInterface {
@@ -229,6 +230,54 @@ class MockGrpcGoldenKitchenSinkStub : public ::google::test::admin::database::
        ::google::protobuf::Empty const& request, ::grpc::CompletionQueue* cq),
       (override));
 
+  MOCK_METHOD(
+      ::grpc::Status, Deprecated1,
+      (::grpc::ClientContext * context,
+       ::google::test::admin::database::v1::GenerateAccessTokenRequest const&
+           request,
+       ::google::protobuf::Empty* response),
+      (override));
+  MOCK_METHOD(
+      ::grpc::ClientAsyncResponseReaderInterface<::google::protobuf::Empty>*,
+      AsyncDeprecated1Raw,
+      (::grpc::ClientContext * context,
+       ::google::test::admin::database::v1::GenerateAccessTokenRequest const&
+           request,
+       ::grpc::CompletionQueue* cq),
+      (override));
+  MOCK_METHOD(
+      ::grpc::ClientAsyncResponseReaderInterface<::google::protobuf::Empty>*,
+      PrepareAsyncDeprecated1Raw,
+      (::grpc::ClientContext * context,
+       ::google::test::admin::database::v1::GenerateAccessTokenRequest const&
+           request,
+       ::grpc::CompletionQueue* cq),
+      (override));
+
+  MOCK_METHOD(
+      ::grpc::Status, Deprecated2,
+      (::grpc::ClientContext * context,
+       ::google::test::admin::database::v1::GenerateAccessTokenRequest const&
+           request,
+       ::google::protobuf::Empty* response),
+      (override));
+  MOCK_METHOD(
+      ::grpc::ClientAsyncResponseReaderInterface<::google::protobuf::Empty>*,
+      AsyncDeprecated2Raw,
+      (::grpc::ClientContext * context,
+       ::google::test::admin::database::v1::GenerateAccessTokenRequest const&
+           request,
+       ::grpc::CompletionQueue* cq),
+      (override));
+  MOCK_METHOD(
+      ::grpc::ClientAsyncResponseReaderInterface<::google::protobuf::Empty>*,
+      PrepareAsyncDeprecated2Raw,
+      (::grpc::ClientContext * context,
+       ::google::test::admin::database::v1::GenerateAccessTokenRequest const&
+           request,
+       ::grpc::CompletionQueue* cq),
+      (override));
+
   using StreamingReadWriteInterface =
       ::grpc::ClientReaderWriterInterface<Request, Response>;
   using StreamingReadWriteAsyncInterface =
@@ -301,10 +350,247 @@ class MockGrpcGoldenKitchenSinkStub : public ::google::test::admin::database::
       (override));
 };
 
+class MockLocationStub
+    : public google::cloud::location::Locations::StubInterface {
+ public:
+  ~MockLocationStub() override = default;
+  MOCK_METHOD(::grpc::Status, ListLocations,
+              (::grpc::ClientContext * context,
+               ::google::cloud::location::ListLocationsRequest const& request,
+               ::google::cloud::location::ListLocationsResponse* response),
+              (override));
+
+  MOCK_METHOD(::grpc::Status, GetLocation,
+              (::grpc::ClientContext * context,
+               ::google::cloud::location::GetLocationRequest const& request,
+               ::google::cloud::location::Location* response),
+              (override));
+
+  MOCK_METHOD(::grpc::ClientAsyncResponseReaderInterface<
+                  ::google::cloud::location::ListLocationsResponse>*,
+              AsyncListLocationsRaw,
+              (::grpc::ClientContext * context,
+               ::google::cloud::location::ListLocationsRequest const& request,
+               ::grpc::CompletionQueue* cq),
+              (override));
+
+  MOCK_METHOD(::grpc::ClientAsyncResponseReaderInterface<
+                  ::google::cloud::location::ListLocationsResponse>*,
+              PrepareAsyncListLocationsRaw,
+              (::grpc::ClientContext * context,
+               ::google::cloud::location::ListLocationsRequest const& request,
+               ::grpc::CompletionQueue* cq),
+              (override));
+
+  MOCK_METHOD(::grpc::ClientAsyncResponseReaderInterface<
+                  ::google::cloud::location::Location>*,
+              AsyncGetLocationRaw,
+              (::grpc::ClientContext * context,
+               ::google::cloud::location::GetLocationRequest const& request,
+               ::grpc::CompletionQueue* cq),
+              (override));
+
+  MOCK_METHOD(::grpc::ClientAsyncResponseReaderInterface<
+                  ::google::cloud::location::Location>*,
+              PrepareAsyncGetLocationRaw,
+              (::grpc::ClientContext * context,
+               ::google::cloud::location::GetLocationRequest const& request,
+               ::grpc::CompletionQueue* cq),
+              (override));
+};
+
+class MockIamPolicyStub : public google::iam::v1::IAMPolicy::StubInterface {
+ public:
+  ~MockIamPolicyStub() override = default;
+  MOCK_METHOD(::grpc::Status, SetIamPolicy,
+              (::grpc::ClientContext * context,
+               ::google::iam::v1::SetIamPolicyRequest const& request,
+               ::google::iam::v1::Policy* response),
+              (override));
+
+  MOCK_METHOD(::grpc::Status, GetIamPolicy,
+              (::grpc::ClientContext * context,
+               ::google::iam::v1::GetIamPolicyRequest const& request,
+               ::google::iam::v1::Policy* response),
+              (override));
+
+  MOCK_METHOD(::grpc::Status, TestIamPermissions,
+              (::grpc::ClientContext * context,
+               ::google::iam::v1::TestIamPermissionsRequest const& request,
+               ::google::iam::v1::TestIamPermissionsResponse* response),
+              (override));
+
+  MOCK_METHOD(
+      ::grpc::ClientAsyncResponseReaderInterface<::google::iam::v1::Policy>*,
+      AsyncSetIamPolicyRaw,
+      (::grpc::ClientContext * context,
+       ::google::iam::v1::SetIamPolicyRequest const& request,
+       ::grpc::CompletionQueue* cq),
+      (override));
+
+  MOCK_METHOD(
+      ::grpc::ClientAsyncResponseReaderInterface<::google::iam::v1::Policy>*,
+      PrepareAsyncSetIamPolicyRaw,
+      (::grpc::ClientContext * context,
+       ::google::iam::v1::SetIamPolicyRequest const& request,
+       ::grpc::CompletionQueue* cq),
+      (override));
+
+  MOCK_METHOD(
+      ::grpc::ClientAsyncResponseReaderInterface<::google::iam::v1::Policy>*,
+      AsyncGetIamPolicyRaw,
+      (::grpc::ClientContext * context,
+       ::google::iam::v1::GetIamPolicyRequest const& request,
+       ::grpc::CompletionQueue* cq),
+      (override));
+
+  MOCK_METHOD(
+      ::grpc::ClientAsyncResponseReaderInterface<::google::iam::v1::Policy>*,
+      PrepareAsyncGetIamPolicyRaw,
+      (::grpc::ClientContext * context,
+       ::google::iam::v1::GetIamPolicyRequest const& request,
+       ::grpc::CompletionQueue* cq),
+      (override));
+
+  MOCK_METHOD(::grpc::ClientAsyncResponseReaderInterface<
+                  ::google::iam::v1::TestIamPermissionsResponse>*,
+              AsyncTestIamPermissionsRaw,
+              (::grpc::ClientContext * context,
+               ::google::iam::v1::TestIamPermissionsRequest const& request,
+               ::grpc::CompletionQueue* cq),
+              (override));
+
+  MOCK_METHOD(::grpc::ClientAsyncResponseReaderInterface<
+                  ::google::iam::v1::TestIamPermissionsResponse>*,
+              PrepareAsyncTestIamPermissionsRaw,
+              (::grpc::ClientContext * context,
+               ::google::iam::v1::TestIamPermissionsRequest const& request,
+               ::grpc::CompletionQueue* cq),
+              (override));
+};
+
+class MockOperationsStub
+    : public google::longrunning::Operations::StubInterface {
+ public:
+  ~MockOperationsStub() override = default;
+  MOCK_METHOD(::grpc::Status, ListOperations,
+              (::grpc::ClientContext * context,
+               ::google::longrunning::ListOperationsRequest const& request,
+               ::google::longrunning::ListOperationsResponse* response),
+              (override));
+
+  MOCK_METHOD(::grpc::Status, GetOperation,
+              (::grpc::ClientContext * context,
+               ::google::longrunning::GetOperationRequest const& request,
+               ::google::longrunning::Operation* response),
+              (override));
+
+  MOCK_METHOD(::grpc::Status, DeleteOperation,
+              (::grpc::ClientContext * context,
+               ::google::longrunning::DeleteOperationRequest const& request,
+               ::google::protobuf::Empty* response),
+              (override));
+
+  MOCK_METHOD(::grpc::Status, CancelOperation,
+              (::grpc::ClientContext * context,
+               ::google::longrunning::CancelOperationRequest const& request,
+               ::google::protobuf::Empty* response),
+              (override));
+
+  MOCK_METHOD(::grpc::Status, WaitOperation,
+              (::grpc::ClientContext * context,
+               ::google::longrunning::WaitOperationRequest const& request,
+               ::google::longrunning::Operation* response),
+              (override));
+
+  MOCK_METHOD(::grpc::ClientAsyncResponseReaderInterface<
+                  ::google::longrunning::ListOperationsResponse>*,
+              AsyncListOperationsRaw,
+              (::grpc::ClientContext * context,
+               ::google::longrunning::ListOperationsRequest const& request,
+               ::grpc::CompletionQueue* cq),
+              (override));
+
+  MOCK_METHOD(::grpc::ClientAsyncResponseReaderInterface<
+                  ::google::longrunning::ListOperationsResponse>*,
+              PrepareAsyncListOperationsRaw,
+              (::grpc::ClientContext * context,
+               ::google::longrunning::ListOperationsRequest const& request,
+               ::grpc::CompletionQueue* cq),
+              (override));
+
+  MOCK_METHOD(::grpc::ClientAsyncResponseReaderInterface<
+                  ::google::longrunning::Operation>*,
+              AsyncGetOperationRaw,
+              (::grpc::ClientContext * context,
+               ::google::longrunning::GetOperationRequest const& request,
+               ::grpc::CompletionQueue* cq),
+              (override));
+
+  MOCK_METHOD(::grpc::ClientAsyncResponseReaderInterface<
+                  ::google::longrunning::Operation>*,
+              PrepareAsyncGetOperationRaw,
+              (::grpc::ClientContext * context,
+               ::google::longrunning::GetOperationRequest const& request,
+               ::grpc::CompletionQueue* cq),
+              (override));
+
+  MOCK_METHOD(
+      ::grpc::ClientAsyncResponseReaderInterface<::google::protobuf::Empty>*,
+      AsyncDeleteOperationRaw,
+      (::grpc::ClientContext * context,
+       ::google::longrunning::DeleteOperationRequest const& request,
+       ::grpc::CompletionQueue* cq),
+      (override));
+
+  MOCK_METHOD(
+      ::grpc::ClientAsyncResponseReaderInterface<::google::protobuf::Empty>*,
+      PrepareAsyncDeleteOperationRaw,
+      (::grpc::ClientContext * context,
+       ::google::longrunning::DeleteOperationRequest const& request,
+       ::grpc::CompletionQueue* cq),
+      (override));
+
+  MOCK_METHOD(
+      ::grpc::ClientAsyncResponseReaderInterface<::google::protobuf::Empty>*,
+      AsyncCancelOperationRaw,
+      (::grpc::ClientContext * context,
+       ::google::longrunning::CancelOperationRequest const& request,
+       ::grpc::CompletionQueue* cq),
+      (override));
+
+  MOCK_METHOD(
+      ::grpc::ClientAsyncResponseReaderInterface<::google::protobuf::Empty>*,
+      PrepareAsyncCancelOperationRaw,
+      (::grpc::ClientContext * context,
+       ::google::longrunning::CancelOperationRequest const& request,
+       ::grpc::CompletionQueue* cq),
+      (override));
+
+  MOCK_METHOD(::grpc::ClientAsyncResponseReaderInterface<
+                  ::google::longrunning::Operation>*,
+              AsyncWaitOperationRaw,
+              (::grpc::ClientContext * context,
+               ::google::longrunning::WaitOperationRequest const& request,
+               ::grpc::CompletionQueue* cq),
+              (override));
+
+  MOCK_METHOD(::grpc::ClientAsyncResponseReaderInterface<
+                  ::google::longrunning::Operation>*,
+              PrepareAsyncWaitOperationRaw,
+              (::grpc::ClientContext * context,
+               ::google::longrunning::WaitOperationRequest const& request,
+               ::grpc::CompletionQueue* cq),
+              (override));
+};
+
 class GoldenKitchenSinkStubTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    grpc_stub_ = absl::make_unique<MockGrpcGoldenKitchenSinkStub>();
+    grpc_stub_ = std::make_unique<MockGrpcGoldenKitchenSinkStub>();
+    operations_stub_ = std::make_unique<MockOperationsStub>();
+    iampolicy_stub_ = std::make_unique<MockIamPolicyStub>();
+    location_stub_ = std::make_unique<MockLocationStub>();
   }
 
   static grpc::Status GrpcTransientError() {
@@ -315,7 +601,61 @@ class GoldenKitchenSinkStubTest : public ::testing::Test {
   }
 
   std::unique_ptr<MockGrpcGoldenKitchenSinkStub> grpc_stub_;
+  std::unique_ptr<MockOperationsStub> operations_stub_;
+  std::unique_ptr<MockIamPolicyStub> iampolicy_stub_;
+  std::unique_ptr<MockLocationStub> location_stub_;
 };
+
+TEST_F(GoldenKitchenSinkStubTest, GetLocation) {
+  grpc::Status status;
+  grpc::ClientContext context;
+  google::cloud::location::GetLocationRequest request;
+  EXPECT_CALL(*location_stub_, GetLocation(&context, _, _))
+      .WillOnce(Return(status))
+      .WillOnce(Return(GrpcTransientError()));
+
+  DefaultGoldenKitchenSinkStub stub(
+      std::move(grpc_stub_), std::move(operations_stub_),
+      std::move(iampolicy_stub_), std::move(location_stub_));
+  auto success = stub.GetLocation(context, Options{}, request);
+  EXPECT_THAT(success, IsOk());
+  auto failure = stub.GetLocation(context, Options{}, request);
+  EXPECT_EQ(failure.status(), TransientError());
+}
+
+TEST_F(GoldenKitchenSinkStubTest, ListOperations) {
+  grpc::Status status;
+  grpc::ClientContext context;
+  google::longrunning::ListOperationsRequest request;
+  EXPECT_CALL(*operations_stub_, ListOperations(&context, _, _))
+      .WillOnce(Return(status))
+      .WillOnce(Return(GrpcTransientError()));
+
+  DefaultGoldenKitchenSinkStub stub(
+      std::move(grpc_stub_), std::move(operations_stub_),
+      std::move(iampolicy_stub_), std::move(location_stub_));
+  auto success = stub.ListOperations(context, Options{}, request);
+  EXPECT_THAT(success, IsOk());
+  auto failure = stub.ListOperations(context, Options{}, request);
+  EXPECT_EQ(failure.status(), TransientError());
+}
+
+TEST_F(GoldenKitchenSinkStubTest, GetIamPolicy) {
+  grpc::Status status;
+  grpc::ClientContext context;
+  google::iam::v1::GetIamPolicyRequest request;
+  EXPECT_CALL(*iampolicy_stub_, GetIamPolicy(&context, _, _))
+      .WillOnce(Return(status))
+      .WillOnce(Return(GrpcTransientError()));
+
+  DefaultGoldenKitchenSinkStub stub(
+      std::move(grpc_stub_), std::move(operations_stub_),
+      std::move(iampolicy_stub_), std::move(location_stub_));
+  auto success = stub.GetIamPolicy(context, Options{}, request);
+  EXPECT_THAT(success, IsOk());
+  auto failure = stub.GetIamPolicy(context, Options{}, request);
+  EXPECT_EQ(failure.status(), TransientError());
+}
 
 TEST_F(GoldenKitchenSinkStubTest, GenerateAccessToken) {
   grpc::Status status;
@@ -324,10 +664,12 @@ TEST_F(GoldenKitchenSinkStubTest, GenerateAccessToken) {
   EXPECT_CALL(*grpc_stub_, GenerateAccessToken(&context, _, _))
       .WillOnce(Return(status))
       .WillOnce(Return(GrpcTransientError()));
-  DefaultGoldenKitchenSinkStub stub(std::move(grpc_stub_));
-  auto success = stub.GenerateAccessToken(context, request);
+  DefaultGoldenKitchenSinkStub stub(
+      std::move(grpc_stub_), std::move(operations_stub_),
+      std::move(iampolicy_stub_), std::move(location_stub_));
+  auto success = stub.GenerateAccessToken(context, Options{}, request);
   EXPECT_THAT(success, IsOk());
-  auto failure = stub.GenerateAccessToken(context, request);
+  auto failure = stub.GenerateAccessToken(context, Options{}, request);
   EXPECT_EQ(failure.status(), TransientError());
 }
 
@@ -338,10 +680,12 @@ TEST_F(GoldenKitchenSinkStubTest, GenerateIdToken) {
   EXPECT_CALL(*grpc_stub_, GenerateIdToken(&context, _, _))
       .WillOnce(Return(status))
       .WillOnce(Return(GrpcTransientError()));
-  DefaultGoldenKitchenSinkStub stub(std::move(grpc_stub_));
-  auto success = stub.GenerateIdToken(context, request);
+  DefaultGoldenKitchenSinkStub stub(
+      std::move(grpc_stub_), std::move(operations_stub_),
+      std::move(iampolicy_stub_), std::move(location_stub_));
+  auto success = stub.GenerateIdToken(context, Options{}, request);
   EXPECT_THAT(success, IsOk());
-  auto failure = stub.GenerateIdToken(context, request);
+  auto failure = stub.GenerateIdToken(context, Options{}, request);
   EXPECT_EQ(failure.status(), TransientError());
 }
 
@@ -352,10 +696,12 @@ TEST_F(GoldenKitchenSinkStubTest, WriteLogEntries) {
   EXPECT_CALL(*grpc_stub_, WriteLogEntries(&context, _, _))
       .WillOnce(Return(status))
       .WillOnce(Return(GrpcTransientError()));
-  DefaultGoldenKitchenSinkStub stub(std::move(grpc_stub_));
-  auto success = stub.WriteLogEntries(context, request);
+  DefaultGoldenKitchenSinkStub stub(
+      std::move(grpc_stub_), std::move(operations_stub_),
+      std::move(iampolicy_stub_), std::move(location_stub_));
+  auto success = stub.WriteLogEntries(context, Options{}, request);
   EXPECT_THAT(success, IsOk());
-  auto failure = stub.WriteLogEntries(context, request);
+  auto failure = stub.WriteLogEntries(context, Options{}, request);
   EXPECT_EQ(failure.status(), TransientError());
 }
 
@@ -366,10 +712,12 @@ TEST_F(GoldenKitchenSinkStubTest, ListLogs) {
   EXPECT_CALL(*grpc_stub_, ListLogs(&context, _, _))
       .WillOnce(Return(status))
       .WillOnce(Return(GrpcTransientError()));
-  DefaultGoldenKitchenSinkStub stub(std::move(grpc_stub_));
-  auto success = stub.ListLogs(context, request);
+  DefaultGoldenKitchenSinkStub stub(
+      std::move(grpc_stub_), std::move(operations_stub_),
+      std::move(iampolicy_stub_), std::move(location_stub_));
+  auto success = stub.ListLogs(context, Options{}, request);
   EXPECT_THAT(success, IsOk());
-  auto failure = stub.ListLogs(context, request);
+  auto failure = stub.ListLogs(context, Options{}, request);
   EXPECT_EQ(failure.status(), TransientError());
 }
 
@@ -380,10 +728,12 @@ TEST_F(GoldenKitchenSinkStubTest, ListServiceAccountKeys) {
   EXPECT_CALL(*grpc_stub_, ListServiceAccountKeys(&context, _, _))
       .WillOnce(Return(status))
       .WillOnce(Return(GrpcTransientError()));
-  DefaultGoldenKitchenSinkStub stub(std::move(grpc_stub_));
-  auto success = stub.ListServiceAccountKeys(context, request);
+  DefaultGoldenKitchenSinkStub stub(
+      std::move(grpc_stub_), std::move(operations_stub_),
+      std::move(iampolicy_stub_), std::move(location_stub_));
+  auto success = stub.ListServiceAccountKeys(context, Options{}, request);
   EXPECT_THAT(success, IsOk());
-  auto failure = stub.ListServiceAccountKeys(context, request);
+  auto failure = stub.ListServiceAccountKeys(context, Options{}, request);
   EXPECT_EQ(failure.status(), TransientError());
 }
 
@@ -398,8 +748,8 @@ class MockStreamingReadResponse
 
 TEST_F(GoldenKitchenSinkStubTest, StreamingRead) {
   grpc::Status status;
-  auto success_response = absl::make_unique<MockStreamingReadResponse>();
-  auto failure_response = absl::make_unique<MockStreamingReadResponse>();
+  auto success_response = std::make_unique<MockStreamingReadResponse>();
+  auto failure_response = std::make_unique<MockStreamingReadResponse>();
   EXPECT_CALL(*success_response, Read).WillOnce(Return(false));
   EXPECT_CALL(*success_response, Finish()).WillOnce(Return(status));
   EXPECT_CALL(*failure_response, Read).WillOnce(Return(false));
@@ -409,15 +759,16 @@ TEST_F(GoldenKitchenSinkStubTest, StreamingRead) {
   EXPECT_CALL(*grpc_stub_, StreamingReadRaw)
       .WillOnce(Return(success_response.release()))
       .WillOnce(Return(failure_response.release()));
-  DefaultGoldenKitchenSinkStub stub(std::move(grpc_stub_));
-  auto success_stream =
-      stub.StreamingRead(absl::make_unique<grpc::ClientContext>(), request);
-  auto success_status = absl::get<Status>(success_stream->Read());
-  EXPECT_THAT(success_status, IsOk());
-  auto failure_stream =
-      stub.StreamingRead(absl::make_unique<grpc::ClientContext>(), request);
-  auto failure_status = absl::get<Status>(failure_stream->Read());
-  EXPECT_THAT(failure_status, StatusIs(StatusCode::kUnavailable));
+  DefaultGoldenKitchenSinkStub stub(
+      std::move(grpc_stub_), std::move(operations_stub_),
+      std::move(iampolicy_stub_), std::move(location_stub_));
+  auto success_stream = stub.StreamingRead(
+      std::make_shared<grpc::ClientContext>(), Options{}, request);
+  EXPECT_THAT(success_stream->Read(), VariantWith<Status>(IsOk()));
+  auto failure_stream = stub.StreamingRead(
+      std::make_shared<grpc::ClientContext>(), Options{}, request);
+  EXPECT_THAT(failure_stream->Read(),
+              VariantWith<Status>(StatusIs(StatusCode::kUnavailable)));
 }
 
 class MockWriteObjectResponse
@@ -430,18 +781,20 @@ class MockWriteObjectResponse
 };
 
 TEST_F(GoldenKitchenSinkStubTest, StreamingWrite) {
-  auto context = absl::make_unique<grpc::ClientContext>();
+  auto context = std::make_shared<grpc::ClientContext>();
   Request request;
   EXPECT_CALL(*grpc_stub_, StreamingWriteRaw(context.get(), _))
       .WillOnce([](::grpc::ClientContext*, Response*) {
-        auto stream = absl::make_unique<MockWriteObjectResponse>();
+        auto stream = std::make_unique<MockWriteObjectResponse>();
         EXPECT_CALL(*stream, Write).WillOnce(Return(true));
         EXPECT_CALL(*stream, WritesDone).WillOnce(Return(true));
         EXPECT_CALL(*stream, Finish).WillOnce(Return(grpc::Status::OK));
         return stream.release();
       });
-  DefaultGoldenKitchenSinkStub stub(std::move(grpc_stub_));
-  auto stream = stub.StreamingWrite(std::move(context));
+  DefaultGoldenKitchenSinkStub stub(
+      std::move(grpc_stub_), std::move(operations_stub_),
+      std::move(iampolicy_stub_), std::move(location_stub_));
+  auto stream = stub.StreamingWrite(std::move(context), Options{});
   EXPECT_TRUE(stream->Write(Request{}, grpc::WriteOptions()));
   EXPECT_THAT(stream->Close(), StatusIs(StatusCode::kOk));
 }
@@ -463,7 +816,7 @@ TEST_F(GoldenKitchenSinkStubTest, AsyncStreamingWriteRead) {
   grpc::Status status;
   EXPECT_CALL(*grpc_stub_, PrepareAsyncStreamingReadWriteRaw)
       .WillOnce([](grpc::ClientContext*, grpc::CompletionQueue*) {
-        auto stream = absl::make_unique<MockAsyncStreamingReadWriteResponse>();
+        auto stream = std::make_unique<MockAsyncStreamingReadWriteResponse>();
         EXPECT_CALL(*stream, StartCall).Times(1);
         using ::testing::_;
         EXPECT_CALL(*stream, Write(_, _, _)).Times(1);
@@ -494,10 +847,13 @@ TEST_F(GoldenKitchenSinkStubTest, AsyncStreamingWriteRead) {
       });
   google::cloud::CompletionQueue cq(mock_cq);
 
-  DefaultGoldenKitchenSinkStub stub(std::move(grpc_stub_));
+  DefaultGoldenKitchenSinkStub stub(
+      std::move(grpc_stub_), std::move(operations_stub_),
+      std::move(iampolicy_stub_), std::move(location_stub_));
 
   auto stream = stub.AsyncStreamingReadWrite(
-      cq, absl::make_unique<grpc::ClientContext>());
+      cq, std::make_shared<grpc::ClientContext>(),
+      google::cloud::internal::MakeImmutableOptions({}));
   auto start = stream->Start();
   notify_next_op(true);
   EXPECT_TRUE(start.get());
@@ -537,7 +893,7 @@ TEST_F(GoldenKitchenSinkStubTest, AsyncStreamingRead) {
   EXPECT_CALL(*grpc_stub_, PrepareAsyncStreamingReadRaw)
       .WillOnce([](grpc::ClientContext*, Request const&,
                    grpc::CompletionQueue*) {
-        auto stream = absl::make_unique<MockAsyncStreamingReadResponse>();
+        auto stream = std::make_unique<MockAsyncStreamingReadResponse>();
         EXPECT_CALL(*stream, StartCall).Times(1);
         EXPECT_CALL(*stream, Read).Times(2);
         EXPECT_CALL(*stream, Finish).WillOnce([](grpc::Status* status, void*) {
@@ -565,11 +921,14 @@ TEST_F(GoldenKitchenSinkStubTest, AsyncStreamingRead) {
       });
   google::cloud::CompletionQueue cq(mock_cq);
 
-  DefaultGoldenKitchenSinkStub stub(std::move(grpc_stub_));
+  DefaultGoldenKitchenSinkStub stub(
+      std::move(grpc_stub_), std::move(operations_stub_),
+      std::move(iampolicy_stub_), std::move(location_stub_));
 
   Request request;
   auto stream = stub.AsyncStreamingRead(
-      cq, absl::make_unique<grpc::ClientContext>(), request);
+      cq, std::make_shared<grpc::ClientContext>(),
+      google::cloud::internal::MakeImmutableOptions({}), request);
   auto start = stream->Start();
   notify_next_op(true);
   EXPECT_TRUE(start.get());
@@ -604,7 +963,7 @@ TEST_F(GoldenKitchenSinkStubTest, AsyncStreamingWrite) {
   EXPECT_CALL(*grpc_stub_, PrepareAsyncStreamingWriteRaw)
       .WillOnce(
           [](grpc::ClientContext*, Response* response, grpc::CompletionQueue*) {
-            auto stream = absl::make_unique<MockAsyncStreamingWriteResponse>();
+            auto stream = std::make_unique<MockAsyncStreamingWriteResponse>();
             EXPECT_CALL(*stream, StartCall).Times(1);
             using ::testing::_;
             EXPECT_CALL(*stream, Write(_, _, _)).Times(1);
@@ -636,10 +995,13 @@ TEST_F(GoldenKitchenSinkStubTest, AsyncStreamingWrite) {
       });
   google::cloud::CompletionQueue cq(mock_cq);
 
-  DefaultGoldenKitchenSinkStub stub(std::move(grpc_stub_));
+  DefaultGoldenKitchenSinkStub stub(
+      std::move(grpc_stub_), std::move(operations_stub_),
+      std::move(iampolicy_stub_), std::move(location_stub_));
 
-  auto stream =
-      stub.AsyncStreamingWrite(cq, absl::make_unique<grpc::ClientContext>());
+  auto stream = stub.AsyncStreamingWrite(
+      cq, std::make_shared<grpc::ClientContext>(),
+      google::cloud::internal::MakeImmutableOptions({}));
   auto start = stream->Start();
   notify_next_op(true);
   EXPECT_TRUE(start.get());

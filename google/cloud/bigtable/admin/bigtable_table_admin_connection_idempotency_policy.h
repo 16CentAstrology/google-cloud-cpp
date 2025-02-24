@@ -20,7 +20,6 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_BIGTABLE_ADMIN_BIGTABLE_TABLE_ADMIN_CONNECTION_IDEMPOTENCY_POLICY_H
 
 #include "google/cloud/idempotency.h"
-#include "google/cloud/internal/retry_policy.h"
 #include "google/cloud/version.h"
 #include <google/bigtable/admin/v2/bigtable_table_admin.grpc.pb.h>
 #include <memory>
@@ -56,6 +55,21 @@ class BigtableTableAdminConnectionIdempotencyPolicy {
   virtual google::cloud::Idempotency UndeleteTable(
       google::bigtable::admin::v2::UndeleteTableRequest const& request);
 
+  virtual google::cloud::Idempotency CreateAuthorizedView(
+      google::bigtable::admin::v2::CreateAuthorizedViewRequest const& request);
+
+  virtual google::cloud::Idempotency ListAuthorizedViews(
+      google::bigtable::admin::v2::ListAuthorizedViewsRequest request);
+
+  virtual google::cloud::Idempotency GetAuthorizedView(
+      google::bigtable::admin::v2::GetAuthorizedViewRequest const& request);
+
+  virtual google::cloud::Idempotency UpdateAuthorizedView(
+      google::bigtable::admin::v2::UpdateAuthorizedViewRequest const& request);
+
+  virtual google::cloud::Idempotency DeleteAuthorizedView(
+      google::bigtable::admin::v2::DeleteAuthorizedViewRequest const& request);
+
   virtual google::cloud::Idempotency ModifyColumnFamilies(
       google::bigtable::admin::v2::ModifyColumnFamiliesRequest const& request);
 
@@ -86,6 +100,9 @@ class BigtableTableAdminConnectionIdempotencyPolicy {
 
   virtual google::cloud::Idempotency RestoreTable(
       google::bigtable::admin::v2::RestoreTableRequest const& request);
+
+  virtual google::cloud::Idempotency CopyBackup(
+      google::bigtable::admin::v2::CopyBackupRequest const& request);
 
   virtual google::cloud::Idempotency GetIamPolicy(
       google::iam::v1::GetIamPolicyRequest const& request);

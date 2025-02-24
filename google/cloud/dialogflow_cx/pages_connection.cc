@@ -20,13 +20,16 @@
 #include "google/cloud/dialogflow_cx/internal/pages_connection_impl.h"
 #include "google/cloud/dialogflow_cx/internal/pages_option_defaults.h"
 #include "google/cloud/dialogflow_cx/internal/pages_stub_factory.h"
+#include "google/cloud/dialogflow_cx/internal/pages_tracing_connection.h"
 #include "google/cloud/dialogflow_cx/pages_options.h"
 #include "google/cloud/background_threads.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/credentials.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/pagination_range.h"
+#include "google/cloud/internal/unified_grpc_credentials.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -62,6 +65,35 @@ Status PagesConnection::DeletePage(
   return Status(StatusCode::kUnimplemented, "not implemented");
 }
 
+StreamRange<google::cloud::location::Location> PagesConnection::ListLocations(
+    google::cloud::location::
+        ListLocationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::cloud::location::Location>>();
+}
+
+StatusOr<google::cloud::location::Location> PagesConnection::GetLocation(
+    google::cloud::location::GetLocationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+StreamRange<google::longrunning::Operation> PagesConnection::ListOperations(
+    google::longrunning::
+        ListOperationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::longrunning::Operation>>();
+}
+
+StatusOr<google::longrunning::Operation> PagesConnection::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+Status PagesConnection::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
 std::shared_ptr<PagesConnection> MakePagesConnection(
     std::string const& location, Options options) {
   internal::CheckExpectedOptions<CommonOptionList, GrpcOptionList,
@@ -70,10 +102,12 @@ std::shared_ptr<PagesConnection> MakePagesConnection(
   options =
       dialogflow_cx_internal::PagesDefaultOptions(location, std::move(options));
   auto background = internal::MakeBackgroundThreadsFactory(options)();
+  auto auth = internal::CreateAuthenticationStrategy(background->cq(), options);
   auto stub =
-      dialogflow_cx_internal::CreateDefaultPagesStub(background->cq(), options);
-  return std::make_shared<dialogflow_cx_internal::PagesConnectionImpl>(
-      std::move(background), std::move(stub), std::move(options));
+      dialogflow_cx_internal::CreateDefaultPagesStub(std::move(auth), options);
+  return dialogflow_cx_internal::MakePagesTracingConnection(
+      std::make_shared<dialogflow_cx_internal::PagesConnectionImpl>(
+          std::move(background), std::move(stub), std::move(options)));
 }
 
 std::shared_ptr<PagesConnection> MakePagesConnection(Options options) {

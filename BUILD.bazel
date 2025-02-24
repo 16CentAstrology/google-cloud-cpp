@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("//bazel:library_names.bzl", "hdrs_filegroup_name", "library_dir_name", "mocks_filegroup_name")
+load(":libraries.bzl", "GOOGLE_CLOUD_CPP_EXPERIMENTAL_LIBRARIES", "GOOGLE_CLOUD_CPP_GA_LIBRARIES", "GOOGLE_CLOUD_CPP_TRANSITION_LIBRARIES")
+
 package(default_visibility = ["//visibility:public"])
 
 licenses(["notice"])  # Apache 2.0
@@ -20,168 +24,111 @@ exports_files([
     "LICENSE",
 ])
 
-EXPERIMENTAL_LIBRARIES = [
-    # Introduced circa 2022-08-17
-    "apikeys",
-    # This is WIP, it needs a number of hand-crafted APIs.
-    "pubsublite",
-]
+EXPERIMENTAL_LIBRARIES = GOOGLE_CLOUD_CPP_EXPERIMENTAL_LIBRARIES
 
-TRANSITION_LIBRARIES = [
-    # Promoted to GA circa 2022-10-12
-    "batch",
-]
+TRANSITION_LIBRARIES = GOOGLE_CLOUD_CPP_TRANSITION_LIBRARIES
 
-GA_LIBRARIES = [
-    "accessapproval",
-    "accesscontextmanager",
-    "apigateway",
-    "apigeeconnect",
-    "appengine",
-    "artifactregistry",
-    "asset",
-    "assuredworkloads",
-    "automl",
-    "baremetalsolution",
-    "beyondcorp",
-    "billing",
-    "binaryauthorization",
-    "certificatemanager",
-    "channel",
-    "cloudbuild",
-    "composer",
-    "connectors",
-    "contactcenterinsights",
-    "container",
-    "containeranalysis",
-    "datacatalog",
-    "datamigration",
-    "dataplex",
-    "dataproc",
-    "datastream",
-    "debugger",
-    "deploy",
-    "dialogflow_cx",
-    "dialogflow_es",
-    "dlp",
-    "documentai",
-    "edgecontainer",
-    "eventarc",
-    "filestore",
-    "functions",
-    "gameservices",
-    "gkehub",
-    "iap",
-    "ids",
-    "iot",
-    "kms",
-    "language",
-    "logging",
-    "managedidentities",
-    "memcache",
-    "monitoring",
-    "networkconnectivity",
-    "networkmanagement",
-    "notebooks",
-    "optimization",
-    "orgpolicy",
-    "osconfig",
-    "oslogin",
-    "policytroubleshooter",
-    "privateca",
-    "profiler",
-    "recommender",
-    "redis",
-    "resourcemanager",
-    "resourcesettings",
-    "retail",
-    "run",
-    "scheduler",
-    "secretmanager",
-    "securitycenter",
-    "servicecontrol",
-    "servicedirectory",
-    "servicemanagement",
-    "serviceusage",
-    "shell",
-    "speech",
-    "storagetransfer",
-    "talent",
-    "tasks",
-    "texttospeech",
-    "tpu",
-    "trace",
-    "translate",
-    "video",
-    "videointelligence",
-    "vision",
-    "vmmigration",
-    "vmwareengine",
-    "vpcaccess",
-    "webrisk",
-    "websecurityscanner",
-    "workflows",
-]
+GA_LIBRARIES = GOOGLE_CLOUD_CPP_GA_LIBRARIES
+
+AD_HOC_LIBRARIES = ["storage_grpc"]
+
+NO_MOCK_LIBRARIES = ["oauth2"] + AD_HOC_LIBRARIES
 
 [cc_library(
     name = "experimental-{library}".format(library = library),
+    hdrs = ["//google/cloud/{dir}:{group}".format(
+        dir = library_dir_name(library),
+        group = hdrs_filegroup_name(library),
+    )],
     deps = [
-        "//google/cloud/{library}:google_cloud_cpp_{library}".format(library = library),
+        "//google/cloud/{dir}:google_cloud_cpp_{library}".format(
+            dir = library_dir_name(library),
+            library = library,
+        ),
     ],
-) for library in EXPERIMENTAL_LIBRARIES]
+) for library in EXPERIMENTAL_LIBRARIES if library not in AD_HOC_LIBRARIES]
 
 [cc_library(
     name = "experimental-{library}_mocks".format(library = library),
     testonly = True,
+    hdrs = ["//google/cloud/{dir}:{group}".format(
+        dir = library_dir_name(library),
+        group = mocks_filegroup_name(library),
+    )],
     deps = [
-        "//google/cloud/{library}:google_cloud_cpp_{library}_mocks".format(library = library),
+        "//google/cloud/{dir}:google_cloud_cpp_{library}_mocks".format(
+            dir = library_dir_name(library),
+            library = library,
+        ),
     ],
-) for library in EXPERIMENTAL_LIBRARIES]
+) for library in EXPERIMENTAL_LIBRARIES if library not in NO_MOCK_LIBRARIES]
 
 [cc_library(
     name = "experimental-{library}".format(library = library),
+    hdrs = ["//google/cloud/{dir}:{group}".format(
+        dir = library_dir_name(library),
+        group = hdrs_filegroup_name(library),
+    )],
     deprecation = "this library is now GA, please use //:{library} instead.".format(library = library),
     tags = ["manual"],
     deps = [
-        "//google/cloud/{library}:google_cloud_cpp_{library}".format(library = library),
+        "//google/cloud/{dir}:google_cloud_cpp_{library}".format(
+            dir = library_dir_name(library),
+            library = library,
+        ),
     ],
-) for library in TRANSITION_LIBRARIES]
+) for library in TRANSITION_LIBRARIES if library not in AD_HOC_LIBRARIES]
 
 [cc_library(
     name = "experimental-{library}_mocks".format(library = library),
     testonly = True,
+    hdrs = ["//google/cloud/{dir}:{group}".format(
+        dir = library_dir_name(library),
+        group = mocks_filegroup_name(library),
+    )],
     deprecation = "this library is now GA, please use //:{library}_mocks instead.".format(library = library),
     tags = ["manual"],
     deps = [
-        "//google/cloud/{library}:google_cloud_cpp_{library}_mocks".format(library = library),
+        "//google/cloud/{dir}:google_cloud_cpp_{library}_mocks".format(
+            dir = library_dir_name(library),
+            library = library,
+        ),
     ],
-) for library in TRANSITION_LIBRARIES]
+) for library in TRANSITION_LIBRARIES if library not in NO_MOCK_LIBRARIES]
 
 [cc_library(
     name = "{library}".format(library = library),
+    hdrs = ["//google/cloud/{dir}:{group}".format(
+        dir = library_dir_name(library),
+        group = hdrs_filegroup_name(library),
+    )],
     deps = [
-        "//google/cloud/{library}:google_cloud_cpp_{library}".format(library = library),
+        "//google/cloud/{dir}:google_cloud_cpp_{library}".format(
+            dir = library_dir_name(library),
+            library = library,
+        ),
     ],
-) for library in GA_LIBRARIES + TRANSITION_LIBRARIES]
+) for library in GA_LIBRARIES + TRANSITION_LIBRARIES if library not in AD_HOC_LIBRARIES]
 
 [cc_library(
     name = "{library}_mocks".format(library = library),
     testonly = True,
+    hdrs = ["//google/cloud/{dir}:{group}".format(
+        dir = library_dir_name(library),
+        group = mocks_filegroup_name(library),
+    )],
     deps = [
-        "//google/cloud/{library}:google_cloud_cpp_{library}_mocks".format(library = library),
+        "//google/cloud/{dir}:google_cloud_cpp_{library}_mocks".format(
+            dir = library_dir_name(library),
+            library = library,
+        ),
     ],
-) for library in GA_LIBRARIES + TRANSITION_LIBRARIES]
-
-cc_library(
-    name = "bigquery",
-    deps = [
-        "//google/cloud/bigquery:google_cloud_cpp_bigquery",
-    ],
-)
+) for library in GA_LIBRARIES + TRANSITION_LIBRARIES if library not in NO_MOCK_LIBRARIES]
 
 cc_library(
     name = "bigquery-mocks",
     testonly = True,
+    hdrs = ["//google/cloud/bigquery:mocks"],
     deprecation = "please use //:bigquery_mocks instead.",
     tags = ["manual"],
     deps = [
@@ -190,30 +137,9 @@ cc_library(
 )
 
 cc_library(
-    name = "bigquery_mocks",
-    testonly = True,
-    deps = [
-        "//google/cloud/bigquery:google_cloud_cpp_bigquery_mocks",
-    ],
-)
-
-cc_library(
-    name = "bigtable",
-    deps = [
-        "//google/cloud/bigtable:bigtable_client_internal",
-    ],
-)
-
-cc_library(
-    name = "iam",
-    deps = [
-        "//google/cloud/iam:google_cloud_cpp_iam",
-    ],
-)
-
-cc_library(
     name = "iam-mocks",
     testonly = True,
+    hdrs = ["//google/cloud/iam:mocks"],
     deprecation = "please use //:iam_mocks instead.",
     tags = ["manual"],
     deps = [
@@ -221,61 +147,48 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "iam_mocks",
-    testonly = True,
-    deps = [
-        "//google/cloud/iam:google_cloud_cpp_iam_mocks",
-    ],
+bool_flag(
+    name = "enable-ctype-cord-workaround",
+    build_setting_default = False,
 )
 
 cc_library(
-    name = "pubsub",
-    deps = [
-        "//google/cloud/pubsub:google_cloud_cpp_pubsub",
-    ],
-)
-
-cc_library(
-    name = "pubsub_mocks",
-    testonly = True,
-    deps = [
-        "//google/cloud/pubsub:google_cloud_cpp_pubsub_mocks",
-    ],
-)
-
-cc_library(
-    name = "spanner",
-    deps = [
-        "//google/cloud/spanner:google_cloud_cpp_spanner",
-    ],
-)
-
-cc_library(
-    name = "spanner_mocks",
-    testonly = True,
-    deps = [
-        "//google/cloud/spanner:google_cloud_cpp_spanner_mocks",
-    ],
-)
-
-cc_library(
-    name = "storage",
-    deps = [
-        "//google/cloud/storage:google_cloud_cpp_storage",
-    ],
-)
-
-cc_library(
-    name = "experimental-storage-grpc",
-    tags = ["manual"],
+    name = "storage_grpc",
+    hdrs = ["//google/cloud/storage:public_grpc_hdrs"],
     deps = [
         "//google/cloud/storage:google_cloud_cpp_storage_grpc",
     ],
 )
 
 cc_library(
+    name = "storage_grpc_mocks",
+    testonly = True,
+    hdrs = ["//google/cloud/storage:grpc_mocks_hdrs"],
+    deps = [
+        "//google/cloud/storage:google_cloud_cpp_storage_grpc_mocks",
+    ],
+)
+
+cc_library(
+    name = "experimental-storage_grpc",
+    hdrs = ["//google/cloud/storage:public_grpc_hdrs"],
+    deps = [
+        "//google/cloud/storage:google_cloud_cpp_storage_grpc",
+    ],
+)
+
+cc_library(
+    name = "experimental-storage_grpc_mocks",
+    testonly = True,
+    hdrs = ["//google/cloud/storage:grpc_mocks_hdrs"],
+    deps = [
+        "//google/cloud/storage:google_cloud_cpp_storage_grpc_mocks",
+    ],
+)
+
+cc_library(
     name = "common",
+    hdrs = ["//google/cloud:common_hdrs"],
     deps = [
         "//google/cloud:google_cloud_cpp_common_private",
     ],
@@ -283,6 +196,7 @@ cc_library(
 
 cc_library(
     name = "grpc_utils",
+    hdrs = ["//google/cloud:grpc_utils_hdrs"],
     deps = [
         "//google/cloud:google_cloud_cpp_grpc_utils_private",
     ],
@@ -291,15 +205,57 @@ cc_library(
 cc_library(
     name = "mocks",
     testonly = True,
+    hdrs = ["//google/cloud:mocks"],
     deps = [
         "//google/cloud:google_cloud_cpp_mocks",
     ],
 )
 
-load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+cc_library(
+    name = "opentelemetry",
+    hdrs = ["//google/cloud/opentelemetry:public_hdrs"],
+    deps = [
+        "//google/cloud/opentelemetry:google_cloud_cpp_opentelemetry",
+    ],
+)
+
+cc_library(
+    name = "compute",
+    hdrs = [
+        "//google/cloud/compute:{}_public_hdrs".format(l.replace("compute_", ""))
+        for l in GOOGLE_CLOUD_CPP_GA_LIBRARIES
+        if l.startswith("compute_")
+    ],
+    deps = [
+        "//google/cloud/compute:google_cloud_cpp_{}".format(l)
+        for l in GOOGLE_CLOUD_CPP_GA_LIBRARIES
+        if l.startswith("compute_")
+    ],
+)
+
+cc_library(
+    name = "experimental-bigquery-rest",
+    deps = [
+        "//google/cloud/bigquery:google_cloud_cpp_bigquery_rest",
+    ],
+)
+
+cc_library(
+    name = "experimental-bigquery-rest_mocks",
+    testonly = True,
+    deps = [
+        "//google/cloud/bigquery:google_cloud_cpp_bigquery_rest_mocks",
+    ],
+)
+
+cc_library(
+    name = "experimental-universe_domain",
+    deps = [
+        "//google/cloud:google_cloud_cpp_universe_domain",
+    ],
+)
 
 bool_flag(
-    name = "experimental-opentelemetry",
+    name = "enable_opentelemetry",
     build_setting_default = False,
-    visibility = ["//:__subpackages__"],
 )

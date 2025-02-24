@@ -1,0 +1,36 @@
+/*!
+@page language-override-endpoint How to Override the Default Endpoint
+
+In some cases, you may need to override the default endpoint used by the client
+library. Use the
+[EndpointOption](@ref google::cloud::EndpointOption) when initializing the
+client library to change this default.
+
+<!-- inject-endpoint-snippet-start -->
+For example, this will override the default endpoint for `language_v1::LanguageServiceClient`:
+
+@snippet language_client_samples.cc set-client-endpoint
+
+Follow these links to find examples for other \c *Client classes:
+
+- [\c language_v1::LanguageServiceClient](@ref language_v1::LanguageServiceClient-endpoint-snippet)
+- [\c language_v2::LanguageServiceClient](@ref language_v2::LanguageServiceClient-endpoint-snippet)
+
+<!-- inject-endpoint-snippet-end -->
+
+*/
+
+// <!-- inject-endpoint-pages-start -->
+
+/*! @page language_v1::LanguageServiceClient-endpoint-snippet Override language_v1::LanguageServiceClient Endpoint Configuration
+
+@snippet google/cloud/language/v1/samples/language_client_samples.cc set-client-endpoint
+
+*/
+
+/*! @page language_v2::LanguageServiceClient-endpoint-snippet Override language_v2::LanguageServiceClient Endpoint Configuration
+
+@snippet google/cloud/language/v2/samples/language_client_samples.cc set-client-endpoint
+
+*/
+// <!-- inject-endpoint-pages-end -->

@@ -15,10 +15,16 @@
 #include "google/cloud/storage/internal/bucket_requests.h"
 #include "google/cloud/storage/internal/bucket_acl_requests.h"
 #include "google/cloud/storage/internal/bucket_metadata_parser.h"
+#include "google/cloud/storage/internal/metadata_parser.h"
 #include "google/cloud/internal/absl_str_join_quiet.h"
 #include "google/cloud/internal/format_time_point.h"
 #include <nlohmann/json.hpp>
+#include <map>
+#include <set>
 #include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -224,9 +230,7 @@ std::ostream& operator<<(std::ostream& os, ListBucketsRequest const& r) {
 StatusOr<ListBucketsResponse> ListBucketsResponse::FromHttpResponse(
     std::string const& payload) {
   auto json = nlohmann::json::parse(payload, nullptr, false);
-  if (!json.is_object()) {
-    return Status(StatusCode::kInvalidArgument, __func__);
-  }
+  if (!json.is_object()) return ExpectedJsonObject(payload, GCP_ERROR_INFO());
 
   ListBucketsResponse result;
   result.next_page_token = json.value("nextPageToken", "");
@@ -302,6 +306,10 @@ std::ostream& operator<<(std::ostream& os, GetBucketIamPolicyRequest const& r) {
   return os << "}";
 }
 
+SetNativeBucketIamPolicyRequest::SetNativeBucketIamPolicyRequest()
+    : SetNativeBucketIamPolicyRequest(
+          std::string{}, NativeIamPolicy(std::vector<NativeIamBinding>{})) {}
+
 SetNativeBucketIamPolicyRequest::SetNativeBucketIamPolicyRequest(
     std::string bucket_name, NativeIamPolicy const& policy)
     : bucket_name_(std::move(bucket_name)),
@@ -333,9 +341,7 @@ StatusOr<TestBucketIamPermissionsResponse>
 TestBucketIamPermissionsResponse::FromHttpResponse(std::string const& payload) {
   TestBucketIamPermissionsResponse result;
   auto json = nlohmann::json::parse(payload, nullptr, false);
-  if (!json.is_object()) {
-    return Status(StatusCode::kInvalidArgument, __func__);
-  }
+  if (!json.is_object()) return ExpectedJsonObject(payload, GCP_ERROR_INFO());
   for (auto const& kv : json["permissions"].items()) {
     result.permissions.emplace_back(kv.value().get<std::string>());
   }

@@ -20,7 +20,9 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_DIALOGFLOW_CX_INTERNAL_SECURITY_SETTINGS_METADATA_DECORATOR_H
 
 #include "google/cloud/dialogflow_cx/internal/security_settings_stub.h"
+#include "google/cloud/options.h"
 #include "google/cloud/version.h"
+#include <map>
 #include <memory>
 #include <string>
 
@@ -32,44 +34,67 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 class SecuritySettingsServiceMetadata : public SecuritySettingsServiceStub {
  public:
   ~SecuritySettingsServiceMetadata() override = default;
-  explicit SecuritySettingsServiceMetadata(
-      std::shared_ptr<SecuritySettingsServiceStub> child);
+  SecuritySettingsServiceMetadata(
+      std::shared_ptr<SecuritySettingsServiceStub> child,
+      std::multimap<std::string, std::string> fixed_metadata,
+      std::string api_client_header = "");
 
   StatusOr<google::cloud::dialogflow::cx::v3::SecuritySettings>
   CreateSecuritySettings(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::CreateSecuritySettingsRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::SecuritySettings>
   GetSecuritySettings(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetSecuritySettingsRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::SecuritySettings>
   UpdateSecuritySettings(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::UpdateSecuritySettingsRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::ListSecuritySettingsResponse>
   ListSecuritySettings(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::ListSecuritySettingsRequest const&
           request) override;
 
   Status DeleteSecuritySettings(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::DeleteSecuritySettingsRequest const&
           request) override;
 
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  void SetMetadata(grpc::ClientContext& context,
+  void SetMetadata(grpc::ClientContext& context, Options const& options,
                    std::string const& request_params);
-  void SetMetadata(grpc::ClientContext& context);
+  void SetMetadata(grpc::ClientContext& context, Options const& options);
 
   std::shared_ptr<SecuritySettingsServiceStub> child_;
+  std::multimap<std::string, std::string> fixed_metadata_;
   std::string api_client_header_;
 };
 

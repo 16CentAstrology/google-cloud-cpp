@@ -18,7 +18,6 @@
 #include "google/cloud/status_or.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
-#include <sys/types.h>
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
@@ -40,13 +39,10 @@ using ObjectListObjectsVersionsIntegrationTest =
 
 TEST_F(ObjectListObjectsVersionsIntegrationTest, ListObjectsVersions) {
   auto bucket_client = MakeBucketIntegrationTestClient();
-  ASSERT_STATUS_OK(bucket_client);
-
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   std::string bucket_name = MakeRandomBucketName();
-  auto create = bucket_client->CreateBucketForProject(
+
+  auto create = bucket_client.CreateBucketForProject(
       bucket_name, project_id_,
       BucketMetadata{}.set_versioning(BucketVersioning{true}));
   ASSERT_STATUS_OK(create) << bucket_name;
@@ -62,9 +58,9 @@ TEST_F(ObjectListObjectsVersionsIntegrationTest, ListObjectsVersions) {
     auto precondition = storage::IfGenerationMatch(0);
     for (std::string rev : {"first", "second", "third"}) {
       auto meta = client
-                      ->InsertObject(bucket_name, object_name,
-                                     "contents for the " + rev + " revision",
-                                     precondition)
+                      .InsertObject(bucket_name, object_name,
+                                    "contents for the " + rev + " revision",
+                                    precondition)
                       .value();
       ScheduleForDelete(meta);
       expected.emplace_back(meta.name(), meta.generation());
@@ -72,7 +68,7 @@ TEST_F(ObjectListObjectsVersionsIntegrationTest, ListObjectsVersions) {
     }
   }
 
-  ListObjectsReader reader = client->ListObjects(bucket_name, Versions(true));
+  ListObjectsReader reader = client.ListObjects(bucket_name, Versions(true));
   std::vector<std::pair<std::string, std::int64_t>> actual;
   for (auto& it : reader) {
     auto const& meta = it.value();

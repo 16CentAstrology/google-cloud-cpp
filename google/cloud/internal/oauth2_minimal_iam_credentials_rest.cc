@@ -42,10 +42,11 @@ MinimalIamCredentialsRestStub::MinimalIamCredentialsRestStub(
       options_(std::move(options)),
       client_factory_(std::move(client_factory)) {}
 
-StatusOr<google::cloud::internal::AccessToken>
+StatusOr<google::cloud::AccessToken>
 MinimalIamCredentialsRestStub::GenerateAccessToken(
     GenerateAccessTokenRequest const& request) {
-  auto auth_header = AuthorizationHeader(*credentials_);
+  auto auth_header =
+      credentials_->AuthenticationHeader(std::chrono::system_clock::now());
   if (!auth_header) return std::move(auth_header).status();
 
   rest_internal::RestRequest rest_request;
@@ -59,7 +60,8 @@ MinimalIamCredentialsRestStub::GenerateAccessToken(
   };
 
   auto client = client_factory_(options_);
-  auto response = client->Post(rest_request, {payload.dump()});
+  rest_internal::RestContext context;
+  auto response = client->Post(context, rest_request, {payload.dump()});
   if (!response) return std::move(response).status();
   return ParseGenerateAccessTokenResponse(
       **response,
@@ -70,17 +72,18 @@ MinimalIamCredentialsRestStub::GenerateAccessToken(
 }
 
 std::string MinimalIamCredentialsRestStub::MakeRequestPath(
-    GenerateAccessTokenRequest const& request) {
-  return absl::StrCat(
-      "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/",
-      request.service_account, ":generateAccessToken");
+    GenerateAccessTokenRequest const& request) const {
+  auto ud = universe_domain(Options{});
+  return absl::StrCat("https://iamcredentials.", ud ? *ud : "googleapis.com",
+                      "/v1/projects/-/serviceAccounts/",
+                      request.service_account, ":generateAccessToken");
 }
 
 MinimalIamCredentialsRestLogging::MinimalIamCredentialsRestLogging(
     std::shared_ptr<MinimalIamCredentialsRest> child)
     : child_(std::move(child)) {}
 
-StatusOr<google::cloud::internal::AccessToken>
+StatusOr<google::cloud::AccessToken>
 MinimalIamCredentialsRestLogging::GenerateAccessToken(
     GenerateAccessTokenRequest const& request) {
   GCP_LOG(INFO) << __func__
@@ -101,7 +104,7 @@ MinimalIamCredentialsRestLogging::GenerateAccessToken(
   return response;
 }
 
-StatusOr<internal::AccessToken> ParseGenerateAccessTokenResponse(
+StatusOr<AccessToken> ParseGenerateAccessTokenResponse(
     rest_internal::RestResponse& response,
     google::cloud::internal::ErrorContext const& ec) {
   if (IsHttpError(response)) return AsStatus(std::move(response));
@@ -126,15 +129,15 @@ StatusOr<internal::AccessToken> ParseGenerateAccessTokenResponse(
         "response`",
         GCP_ERROR_INFO().WithContext(ec));
   }
-  return google::cloud::internal::AccessToken{*std::move(token), *expire_time};
+  return google::cloud::AccessToken{*std::move(token), *expire_time};
 }
 
 std::shared_ptr<MinimalIamCredentialsRest> MakeMinimalIamCredentialsRestStub(
     std::shared_ptr<oauth2_internal::Credentials> credentials, Options options,
     HttpClientFactory client_factory) {
   auto enable_logging =
-      options.get<TracingComponentsOption>().count("rpc") != 0 ||
-      options.get<TracingComponentsOption>().count("raw-client") != 0;
+      options.get<LoggingComponentsOption>().count("rpc") != 0 ||
+      options.get<LoggingComponentsOption>().count("raw-client") != 0;
   std::shared_ptr<MinimalIamCredentialsRest> stub =
       std::make_shared<MinimalIamCredentialsRestStub>(
           std::move(credentials), std::move(options),

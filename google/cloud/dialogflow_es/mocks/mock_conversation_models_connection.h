@@ -36,23 +36,59 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * of this class. Then use the Google Test framework functions to program the
  * behavior of this mock.
  *
- * @see [This example][bq-mock] for how to test your application with
- * GoogleTest. While the example showcases types from the BigQuery library, the
- * underlying principles apply for any pair of `*Client` and `*Connection`.
+ * @see [This example][bq-mock] for how to test your application with GoogleTest.
+ * While the example showcases types from the BigQuery library, the underlying
+ * principles apply for any pair of `*Client` and `*Connection`.
  *
- * [bq-mock]: @googleapis_dev_link{bigquery,bigquery-read-mock.html}
+ * [bq-mock]: @cloud_cpp_docs_link{bigquery,bigquery-read-mock}
  */
 class MockConversationModelsConnection
     : public dialogflow_es::ConversationModelsConnection {
  public:
   MOCK_METHOD(Options, options, (), (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// CreateConversationModel(Matcher<google::cloud::dialogflow::v2::CreateConversationModelRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<StatusOr<google::cloud::dialogflow::v2::ConversationModel>>,
       CreateConversationModel,
       (google::cloud::dialogflow::v2::CreateConversationModelRequest const&
            request),
       (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, CreateConversationModel(_, _))
+  /// @endcode
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, CreateConversationModel,
+      (NoAwaitTag,
+       google::cloud::dialogflow::v2::CreateConversationModelRequest const&
+           request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// CreateConversationModel(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(
+      future<StatusOr<google::cloud::dialogflow::v2::ConversationModel>>,
+      CreateConversationModel,
+      (google::longrunning::Operation const& operation), (override));
 
   MOCK_METHOD(StatusOr<google::cloud::dialogflow::v2::ConversationModel>,
               GetConversationModel,
@@ -61,11 +97,20 @@ class MockConversationModelsConnection
               (override));
 
   MOCK_METHOD(
-      StreamRange<google::cloud::dialogflow::v2::ConversationModel>,
+      (StreamRange<google::cloud::dialogflow::v2::ConversationModel>),
       ListConversationModels,
       (google::cloud::dialogflow::v2::ListConversationModelsRequest request),
       (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// DeleteConversationModel(Matcher<google::cloud::dialogflow::v2::DeleteConversationModelRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<StatusOr<google::cloud::dialogflow::v2::
                           DeleteConversationModelOperationMetadata>>,
@@ -74,6 +119,42 @@ class MockConversationModelsConnection
            request),
       (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, DeleteConversationModel(_, _))
+  /// @endcode
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, DeleteConversationModel,
+      (NoAwaitTag,
+       google::cloud::dialogflow::v2::DeleteConversationModelRequest const&
+           request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// DeleteConversationModel(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(future<StatusOr<google::cloud::dialogflow::v2::
+                                  DeleteConversationModelOperationMetadata>>,
+              DeleteConversationModel,
+              (google::longrunning::Operation const& operation), (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// DeployConversationModel(Matcher<google::cloud::dialogflow::v2::DeployConversationModelRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<StatusOr<google::cloud::dialogflow::v2::
                           DeployConversationModelOperationMetadata>>,
@@ -82,6 +163,42 @@ class MockConversationModelsConnection
            request),
       (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, DeployConversationModel(_, _))
+  /// @endcode
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, DeployConversationModel,
+      (NoAwaitTag,
+       google::cloud::dialogflow::v2::DeployConversationModelRequest const&
+           request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// DeployConversationModel(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(future<StatusOr<google::cloud::dialogflow::v2::
+                                  DeployConversationModelOperationMetadata>>,
+              DeployConversationModel,
+              (google::longrunning::Operation const& operation), (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// UndeployConversationModel(Matcher<google::cloud::dialogflow::v2::UndeployConversationModelRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<StatusOr<google::cloud::dialogflow::v2::
                           UndeployConversationModelOperationMetadata>>,
@@ -89,6 +206,33 @@ class MockConversationModelsConnection
       (google::cloud::dialogflow::v2::UndeployConversationModelRequest const&
            request),
       (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, UndeployConversationModel(_, _))
+  /// @endcode
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, UndeployConversationModel,
+      (NoAwaitTag,
+       google::cloud::dialogflow::v2::UndeployConversationModelRequest const&
+           request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// UndeployConversationModel(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(future<StatusOr<google::cloud::dialogflow::v2::
+                                  UndeployConversationModelOperationMetadata>>,
+              UndeployConversationModel,
+              (google::longrunning::Operation const& operation), (override));
 
   MOCK_METHOD(
       StatusOr<google::cloud::dialogflow::v2::ConversationModelEvaluation>,
@@ -98,12 +242,21 @@ class MockConversationModelsConnection
       (override));
 
   MOCK_METHOD(
-      StreamRange<google::cloud::dialogflow::v2::ConversationModelEvaluation>,
+      (StreamRange<google::cloud::dialogflow::v2::ConversationModelEvaluation>),
       ListConversationModelEvaluations,
       (google::cloud::dialogflow::v2::ListConversationModelEvaluationsRequest
            request),
       (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// CreateConversationModelEvaluation(Matcher<google::cloud::dialogflow::v2::CreateConversationModelEvaluationRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<
           StatusOr<google::cloud::dialogflow::v2::ConversationModelEvaluation>>,
@@ -111,6 +264,53 @@ class MockConversationModelsConnection
       (google::cloud::dialogflow::v2::
            CreateConversationModelEvaluationRequest const& request),
       (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, CreateConversationModelEvaluation(_, _))
+  /// @endcode
+  MOCK_METHOD(StatusOr<google::longrunning::Operation>,
+              CreateConversationModelEvaluation,
+              (NoAwaitTag,
+               google::cloud::dialogflow::v2::
+                   CreateConversationModelEvaluationRequest const& request),
+              (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// CreateConversationModelEvaluation(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(
+      future<
+          StatusOr<google::cloud::dialogflow::v2::ConversationModelEvaluation>>,
+      CreateConversationModelEvaluation,
+      (google::longrunning::Operation const& operation), (override));
+
+  MOCK_METHOD((StreamRange<google::cloud::location::Location>), ListLocations,
+              (google::cloud::location::ListLocationsRequest request),
+              (override));
+
+  MOCK_METHOD(StatusOr<google::cloud::location::Location>, GetLocation,
+              (google::cloud::location::GetLocationRequest const& request),
+              (override));
+
+  MOCK_METHOD((StreamRange<google::longrunning::Operation>), ListOperations,
+              (google::longrunning::ListOperationsRequest request), (override));
+
+  MOCK_METHOD(StatusOr<google::longrunning::Operation>, GetOperation,
+              (google::longrunning::GetOperationRequest const& request),
+              (override));
+
+  MOCK_METHOD(Status, CancelOperation,
+              (google::longrunning::CancelOperationRequest const& request),
+              (override));
 };
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

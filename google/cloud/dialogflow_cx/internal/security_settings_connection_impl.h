@@ -73,52 +73,22 @@ class SecuritySettingsServiceConnectionImpl
       google::cloud::dialogflow::cx::v3::DeleteSecuritySettingsRequest const&
           request) override;
 
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_cx::SecuritySettingsServiceRetryPolicy>
-  retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options
-            .has<dialogflow_cx::SecuritySettingsServiceRetryPolicyOption>()) {
-      return options
-          .get<dialogflow_cx::SecuritySettingsServiceRetryPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_cx::SecuritySettingsServiceRetryPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options
-            .has<dialogflow_cx::SecuritySettingsServiceBackoffPolicyOption>()) {
-      return options
-          .get<dialogflow_cx::SecuritySettingsServiceBackoffPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_cx::SecuritySettingsServiceBackoffPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<
-      dialogflow_cx::SecuritySettingsServiceConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<
-            dialogflow_cx::
-                SecuritySettingsServiceConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_cx::
-                   SecuritySettingsServiceConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_cx::
-                 SecuritySettingsServiceConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_cx_internal::SecuritySettingsServiceStub> stub_;
   Options options_;

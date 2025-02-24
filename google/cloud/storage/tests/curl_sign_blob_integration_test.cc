@@ -13,11 +13,12 @@
 // limitations under the License.
 
 #include "google/cloud/storage/client.h"
-#include "google/cloud/storage/internal/openssl_util.h"
+#include "google/cloud/storage/internal/base64.h"
 #include "google/cloud/storage/testing/storage_integration_test.h"
 #include "google/cloud/internal/getenv.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
+#include <string>
 
 namespace google {
 namespace cloud {
@@ -41,18 +42,18 @@ class CurlSignBlobIntegrationTest
 };
 
 TEST_F(CurlSignBlobIntegrationTest, Simple) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  // TODO(#14385) - the emulator does not support this feature for gRPC.
+  if (UsingEmulator() && UsingGrpc()) GTEST_SKIP();
 
+  auto client = MakeIntegrationTestClient();
   auto encoded = Base64Encode(LoremIpsum());
-
   SignBlobRequest request(service_account_, encoded, {});
 
   // This is normally done by `storage::Client`, but we are bypassing it as part
   // of this test.
-  auto raw_client = internal::ClientImplDetails::GetRawClient(*client);
-  google::cloud::internal::OptionsSpan const span(raw_client->options());
-  StatusOr<SignBlobResponse> response = raw_client->SignBlob(request);
+  auto connection = internal::ClientImplDetails::GetConnection(client);
+  google::cloud::internal::OptionsSpan const span(connection->options());
+  StatusOr<SignBlobResponse> response = connection->SignBlob(request);
   ASSERT_STATUS_OK(response);
 
   EXPECT_FALSE(response->key_id.empty());

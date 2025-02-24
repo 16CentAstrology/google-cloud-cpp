@@ -1,4 +1,4 @@
-// Copyright 2021 Google Inc.
+// Copyright 2021 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 #include "google/cloud/bigtable/benchmarks/mutation_batcher_throughput_options.h"
 #include "google/cloud/internal/absl_str_join_quiet.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/testing_util/command_line_parsing.h"
 #include <sstream>
@@ -103,8 +104,7 @@ ParseMutationBatcherThroughputOptions(std::vector<std::string> const& argv,
   }
 
   auto make_status = [](std::ostringstream& os) {
-    auto const code = google::cloud::StatusCode::kInvalidArgument;
-    return google::cloud::Status{code, std::move(os).str()};
+    return internal::InvalidArgumentError(std::move(os).str());
   };
 
   if (unparsed.size() != 1) {

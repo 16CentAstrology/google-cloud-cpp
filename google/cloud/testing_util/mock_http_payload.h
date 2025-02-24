@@ -32,12 +32,14 @@ class MockHttpPayload : public rest_internal::HttpPayload {
   MOCK_METHOD(bool, HasUnreadData, (), (const, override));
   MOCK_METHOD(StatusOr<std::size_t>, Read, (absl::Span<char> buffer),
               (override));
+  MOCK_METHOD((std::multimap<std::string, std::string>), DebugHeaders, (),
+              (const, override));
 };
 
 template <typename Collection>
 std::unique_ptr<rest_internal::HttpPayload> MakeMockHttpPayloadSuccess(
     Collection contents) {
-  auto mock = absl::make_unique<MockHttpPayload>();
+  auto mock = std::make_unique<MockHttpPayload>();
   // This is shared by the next two mocking functions.
   auto c = std::make_shared<Collection>(std::forward<Collection>(contents));
   EXPECT_CALL(*mock, HasUnreadData).WillRepeatedly([c] { return !c->empty(); });

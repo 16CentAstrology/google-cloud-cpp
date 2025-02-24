@@ -26,6 +26,7 @@ namespace oauth2_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 using ::google::cloud::rest_internal::HttpStatusCode;
+using ::google::cloud::rest_internal::RestContext;
 using ::google::cloud::rest_internal::RestRequest;
 using ::google::cloud::rest_internal::RestResponse;
 using ::google::cloud::testing_util::MockRestClient;
@@ -48,7 +49,7 @@ internal::ErrorContext MakeTestErrorContext() {
 }
 
 std::unique_ptr<RestResponse> MakeMockResponseSuccess(std::string contents) {
-  auto response = absl::make_unique<MockRestResponse>();
+  auto response = std::make_unique<MockRestResponse>();
   EXPECT_CALL(*response, StatusCode)
       .WillRepeatedly(Return(HttpStatusCode::kOk));
   EXPECT_CALL(std::move(*response), ExtractPayload)
@@ -80,7 +81,7 @@ auto constexpr kErrorPayload = R"""({
 })""";
 
 std::unique_ptr<RestResponse> MakeMockResponseError() {
-  auto response = absl::make_unique<MockRestResponse>();
+  auto response = std::make_unique<MockRestResponse>();
   EXPECT_CALL(*response, StatusCode)
       .WillRepeatedly(Return(HttpStatusCode::kNotFound));
   EXPECT_CALL(std::move(*response), ExtractPayload)
@@ -97,9 +98,9 @@ TEST(ExternalAccountTokenSource, WorkingPlainResponse) {
   auto const token = std::string{"a-test-only-token"};
   MockClientFactory client_factory;
   EXPECT_CALL(client_factory, Call).WillOnce([&]() {
-    auto mock = absl::make_unique<MockRestClient>();
+    auto mock = std::make_unique<MockRestClient>();
     EXPECT_CALL(*mock, Get)
-        .WillOnce([test_url, token](RestRequest const& request) {
+        .WillOnce([test_url, token](RestContext&, RestRequest const& request) {
           EXPECT_EQ(request.path(), test_url);
           return MakeMockResponseSuccess(token);
         });
@@ -120,9 +121,9 @@ TEST(ExternalAccountTokenSource, WorkingPlainResponseWithHeaders) {
   auto const token = std::string{"a-test-only-token"};
   MockClientFactory client_factory;
   EXPECT_CALL(client_factory, Call).WillOnce([&]() {
-    auto mock = absl::make_unique<MockRestClient>();
+    auto mock = std::make_unique<MockRestClient>();
     EXPECT_CALL(*mock, Get)
-        .WillOnce([test_url, token](RestRequest const& request) {
+        .WillOnce([test_url, token](RestContext&, RestRequest const& request) {
           EXPECT_EQ(request.path(), test_url);
           EXPECT_THAT(
               request.headers(),
@@ -155,12 +156,13 @@ TEST(ExternalAccountTokenSource, WorkingJsonResponse) {
       nlohmann::json{{"unusedField", "unused"}, {"subjectToken", token}}.dump();
   MockClientFactory client_factory;
   EXPECT_CALL(client_factory, Call).WillOnce([&]() {
-    auto mock = absl::make_unique<MockRestClient>();
+    auto mock = std::make_unique<MockRestClient>();
     EXPECT_CALL(*mock, Get)
-        .WillOnce([test_url, contents](RestRequest const& request) {
-          EXPECT_EQ(request.path(), test_url);
-          return MakeMockResponseSuccess(contents);
-        });
+        .WillOnce(
+            [test_url, contents](RestContext&, RestRequest const& request) {
+              EXPECT_EQ(request.path(), test_url);
+              return MakeMockResponseSuccess(contents);
+            });
     return mock;
   });
 
@@ -248,11 +250,12 @@ TEST(ExternalAccountTokenSource, ErrorInPlainResponse) {
   auto const test_url = std::string{"https://169.254.169.254/subject/token"};
   MockClientFactory client_factory;
   EXPECT_CALL(client_factory, Call).WillOnce([&]() {
-    auto mock = absl::make_unique<MockRestClient>();
-    EXPECT_CALL(*mock, Get).WillOnce([test_url](RestRequest const& request) {
-      EXPECT_EQ(request.path(), test_url);
-      return MakeMockResponseError();
-    });
+    auto mock = std::make_unique<MockRestClient>();
+    EXPECT_CALL(*mock, Get)
+        .WillOnce([test_url](RestContext&, RestRequest const& request) {
+          EXPECT_EQ(request.path(), test_url);
+          return MakeMockResponseError();
+        });
     return mock;
   });
 
@@ -279,11 +282,12 @@ TEST(ExternalAccountTokenSource, ErrorInJsonResponse) {
   auto const test_url = std::string{"https://169.254.169.254/subject/token"};
   MockClientFactory client_factory;
   EXPECT_CALL(client_factory, Call).WillOnce([&]() {
-    auto mock = absl::make_unique<MockRestClient>();
-    EXPECT_CALL(*mock, Get).WillOnce([test_url](RestRequest const& request) {
-      EXPECT_EQ(request.path(), test_url);
-      return MakeMockResponseError();
-    });
+    auto mock = std::make_unique<MockRestClient>();
+    EXPECT_CALL(*mock, Get)
+        .WillOnce([test_url](RestContext&, RestRequest const& request) {
+          EXPECT_EQ(request.path(), test_url);
+          return MakeMockResponseError();
+        });
     return mock;
   });
 
@@ -316,12 +320,13 @@ TEST(ExternalAccountTokenSource, JsonResponseIsNotJson) {
   auto const contents = std::string{"not-a-json-object"};
   MockClientFactory client_factory;
   EXPECT_CALL(client_factory, Call).WillOnce([&]() {
-    auto mock = absl::make_unique<MockRestClient>();
+    auto mock = std::make_unique<MockRestClient>();
     EXPECT_CALL(*mock, Get)
-        .WillOnce([test_url, contents](RestRequest const& request) {
-          EXPECT_EQ(request.path(), test_url);
-          return MakeMockResponseSuccess(contents);
-        });
+        .WillOnce(
+            [test_url, contents](RestContext&, RestRequest const& request) {
+              EXPECT_EQ(request.path(), test_url);
+              return MakeMockResponseSuccess(contents);
+            });
     return mock;
   });
 
@@ -353,12 +358,13 @@ TEST(ExternalAccountTokenSource, JsonResponseIsNotJsonObject) {
       nlohmann::json{{"array0", "array1", "array2", "array3"}}.dump();
   MockClientFactory client_factory;
   EXPECT_CALL(client_factory, Call).WillOnce([&]() {
-    auto mock = absl::make_unique<MockRestClient>();
+    auto mock = std::make_unique<MockRestClient>();
     EXPECT_CALL(*mock, Get)
-        .WillOnce([test_url, contents](RestRequest const& request) {
-          EXPECT_EQ(request.path(), test_url);
-          return MakeMockResponseSuccess(contents);
-        });
+        .WillOnce(
+            [test_url, contents](RestContext&, RestRequest const& request) {
+              EXPECT_EQ(request.path(), test_url);
+              return MakeMockResponseSuccess(contents);
+            });
     return mock;
   });
 
@@ -390,12 +396,13 @@ TEST(ExternalAccountTokenSource, JsonResponseMissingField) {
       nlohmann::json{{"wrongName", token}, {"unusedField", "unused"}}.dump();
   MockClientFactory client_factory;
   EXPECT_CALL(client_factory, Call).WillOnce([&]() {
-    auto mock = absl::make_unique<MockRestClient>();
+    auto mock = std::make_unique<MockRestClient>();
     EXPECT_CALL(*mock, Get)
-        .WillOnce([test_url, contents](RestRequest const& request) {
-          EXPECT_EQ(request.path(), test_url);
-          return MakeMockResponseSuccess(contents);
-        });
+        .WillOnce(
+            [test_url, contents](RestContext&, RestRequest const& request) {
+              EXPECT_EQ(request.path(), test_url);
+              return MakeMockResponseSuccess(contents);
+            });
     return mock;
   });
 
@@ -427,12 +434,13 @@ TEST(ExternalAccountTokenSource, JsonResponseInvalidField) {
       nlohmann::json{{"unusedField", "unused"}, {"fieldName", false}}.dump();
   MockClientFactory client_factory;
   EXPECT_CALL(client_factory, Call).WillOnce([&]() {
-    auto mock = absl::make_unique<MockRestClient>();
+    auto mock = std::make_unique<MockRestClient>();
     EXPECT_CALL(*mock, Get)
-        .WillOnce([test_url, contents](RestRequest const& request) {
-          EXPECT_EQ(request.path(), test_url);
-          return MakeMockResponseSuccess(contents);
-        });
+        .WillOnce(
+            [test_url, contents](RestContext&, RestRequest const& request) {
+              EXPECT_EQ(request.path(), test_url);
+              return MakeMockResponseSuccess(contents);
+            });
     return mock;
   });
 

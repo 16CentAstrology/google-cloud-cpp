@@ -1,0 +1,56 @@
+/*!
+
+@mainpage AlloyDB API C++ Client Library
+
+An idiomatic C++ client library for the [AlloyDB API][cloud-service-docs].
+AlloyDB for PostgreSQL is an open source-compatible database service that
+provides a powerful option for migrating, modernizing, or building
+commercial-grade applications. It offers full compatibility with standard
+PostgreSQL, and is more than 4x faster for transactional workloads and up to
+100x faster for analytical queries than standard PostgreSQL in our performance
+tests. AlloyDB for PostgreSQL offers a 99.99 percent availability SLA inclusive
+of maintenance.
+
+AlloyDB is optimized for the most demanding use cases, allowing you to build new
+applications that require high transaction throughput, large database sizes, or
+multiple read resources; scale existing PostgreSQL workloads with no application
+changes; and modernize legacy proprietary databases.
+
+While this library is **GA**, please note that the Google Cloud C++ client
+libraries do **not** follow [Semantic Versioning](https://semver.org/).
+
+@tableofcontents{HTML:2}
+
+## Quickstart
+
+The following shows the code that you'll run in the
+`google/cloud/alloydb/quickstart/` directory,
+which should give you a taste of the AlloyDB API C++ client library API.
+
+@snippet quickstart.cc all
+
+## Main classes
+
+<!-- inject-client-list-start -->
+The main class in this library is
+[`alloydb_v1::AlloyDBAdminClient`](@ref google::cloud::alloydb_v1::AlloyDBAdminClient). All RPCs are exposed
+as member functions of this class. Other classes provide helpers, configuration
+parameters, and infrastructure to mock
+[`alloydb_v1::AlloyDBAdminClient`](@ref google::cloud::alloydb_v1::AlloyDBAdminClient) when testing your
+application.
+<!-- inject-client-list-end -->
+
+## More Information
+
+- @ref common-error-handling - describes how the library reports errors.
+- @ref alloydb-override-endpoint - describes how to override the default
+  endpoint.
+- @ref alloydb-override-authentication - describes how to change the
+  authentication credentials used by the library.
+- @ref alloydb-override-retry - describes how to change the default retry
+  policies.
+- @ref alloydb-env - describes environment variables that can configure the behavior of the library.
+
+[cloud-service-docs]: https://cloud.google.com/alloydb
+
+*/

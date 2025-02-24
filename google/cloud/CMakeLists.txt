@@ -14,14 +14,28 @@
 # limitations under the License.
 # ~~~
 
+if (GOOGLE_CLOUD_CPP_USE_INSTALLED_COMMON)
+    return()
+endif ()
+
 set(DOXYGEN_PROJECT_NAME "Google Cloud C++ Client")
 set(DOXYGEN_PROJECT_BRIEF "C++ Client Library for Google Cloud Platform")
 set(DOXYGEN_PROJECT_NUMBER "${PROJECT_VERSION}")
+set(DOXYGEN_EXAMPLE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/samples")
 set(DOXYGEN_EXCLUDE_SYMBOLS "internal" "testing_util" "examples")
 
-# Creates the proto headers needed by doxygen.
-set(GOOGLE_CLOUD_CPP_DOXYGEN_DEPS google-cloud-cpp::rpc_status_protos
-                                  google-cloud-cpp::bigtable_protos)
+# We cannot recurse from the google/cloud directory, because it will traverse
+# all of the libraries. So we turn off recursion and manually provide the
+# subdirectories to be traversed.
+include(GoogleCloudCppDoxygen)
+google_cloud_cpp_doxygen_targets_impl(
+    "cloud"
+    INPUTS
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/mocks"
+    "${CMAKE_CURRENT_SOURCE_DIR}/doc"
+    DEPENDS
+    google-cloud-cpp::rpc_status_protos)
 
 include(GoogleCloudCppCommon)
 include(CreateBazelConfig)
@@ -52,4 +66,10 @@ if (GOOGLE_CLOUD_CPP_ENABLE_REST AND GOOGLE_CLOUD_CPP_ENABLE_GRPC)
     include(
         "${CMAKE_CURRENT_SOURCE_DIR}/google_cloud_cpp_rest_protobuf_internal.cmake"
     )
+endif ()
+
+if (universe_domain IN_LIST GOOGLE_CLOUD_CPP_ENABLE)
+    include(
+        "${CMAKE_CURRENT_SOURCE_DIR}/google_cloud_cpp_universe_domain.cmake")
+    add_subdirectory(universe_domain)
 endif ()

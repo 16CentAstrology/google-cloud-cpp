@@ -20,6 +20,8 @@
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
 #include <regex>
+#include <string>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -29,7 +31,10 @@ namespace {
 
 using ::google::cloud::storage::testing::CountMatchingEntities;
 using ::google::cloud::testing_util::IsOk;
+using ::testing::AllOf;
+using ::testing::Contains;
 using ::testing::Not;
+using ::testing::ResultOf;
 
 class ObjectRewriteIntegrationTest
     : public google::cloud::storage::testing::StorageIntegrationTest {
@@ -46,15 +51,13 @@ class ObjectRewriteIntegrationTest
 };
 
 TEST_F(ObjectRewriteIntegrationTest, Copy) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto source_object_name = MakeRandomObjectName();
   auto destination_object_name = MakeRandomObjectName();
 
   std::string expected = LoremIpsum();
 
-  StatusOr<ObjectMetadata> source_meta = client->InsertObject(
+  StatusOr<ObjectMetadata> source_meta = client.InsertObject(
       bucket_name_, source_object_name, expected, IfGenerationMatch(0));
   ASSERT_STATUS_OK(source_meta);
   ScheduleForDelete(*source_meta);
@@ -62,7 +65,7 @@ TEST_F(ObjectRewriteIntegrationTest, Copy) {
   EXPECT_EQ(source_object_name, source_meta->name());
   EXPECT_EQ(bucket_name_, source_meta->bucket());
 
-  StatusOr<ObjectMetadata> meta = client->CopyObject(
+  StatusOr<ObjectMetadata> meta = client.CopyObject(
       bucket_name_, source_object_name, bucket_name_, destination_object_name,
       WithObjectMetadata(ObjectMetadata().set_content_type("text/plain")));
   ASSERT_STATUS_OK(meta);
@@ -71,55 +74,60 @@ TEST_F(ObjectRewriteIntegrationTest, Copy) {
   EXPECT_EQ(bucket_name_, meta->bucket());
   EXPECT_EQ("text/plain", meta->content_type());
 
-  auto stream = client->ReadObject(bucket_name_, destination_object_name);
+  auto stream = client.ReadObject(bucket_name_, destination_object_name);
   std::string actual(std::istreambuf_iterator<char>{stream}, {});
   EXPECT_EQ(expected, actual);
 }
 
 TEST_F(ObjectRewriteIntegrationTest, CopyPredefinedAclAuthenticatedRead) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  // TODO(#14385) - the emulator does not support this feature for gRPC.
+  if (UsingEmulator() && UsingGrpc()) GTEST_SKIP();
 
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
   auto copy_name = MakeRandomObjectName();
 
-  StatusOr<ObjectMetadata> original = client->InsertObject(
+  StatusOr<ObjectMetadata> original = client.InsertObject(
       bucket_name_, object_name, LoremIpsum(), IfGenerationMatch(0));
   ASSERT_STATUS_OK(original);
   ScheduleForDelete(*original);
 
-  StatusOr<ObjectMetadata> meta = client->CopyObject(
+  StatusOr<ObjectMetadata> meta = client.CopyObject(
       bucket_name_, object_name, bucket_name_, copy_name, IfGenerationMatch(0),
       DestinationPredefinedAcl::AuthenticatedRead(), Projection::Full());
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
 
-  EXPECT_LT(0, CountMatchingEntities(meta->acl(),
-                                     ObjectAccessControl()
-                                         .set_entity("allAuthenticatedUsers")
-                                         .set_role("READER")))
-      << *meta;
+  EXPECT_THAT(
+      meta->acl(),
+      Contains(
+          AllOf(ResultOf(
+                    "entity is",
+                    [](ObjectAccessControl const& acl) { return acl.entity(); },
+                    "allAuthenticatedUsers"),
+                ResultOf(
+                    "role is",
+                    [](ObjectAccessControl const& acl) { return acl.role(); },
+                    "READER"))));
 }
 
 TEST_F(ObjectRewriteIntegrationTest, CopyPredefinedAclBucketOwnerFullControl) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
   auto copy_name = MakeRandomObjectName();
 
   StatusOr<BucketMetadata> bucket =
-      client->GetBucketMetadata(bucket_name_, Projection::Full());
+      client.GetBucketMetadata(bucket_name_, Projection::Full());
   ASSERT_STATUS_OK(bucket);
   ASSERT_TRUE(bucket->has_owner());
   std::string owner = bucket->owner().entity;
 
-  StatusOr<ObjectMetadata> original = client->InsertObject(
+  StatusOr<ObjectMetadata> original = client.InsertObject(
       bucket_name_, object_name, LoremIpsum(), IfGenerationMatch(0));
   ASSERT_STATUS_OK(original);
   ScheduleForDelete(*original);
 
-  StatusOr<ObjectMetadata> meta = client->CopyObject(
+  StatusOr<ObjectMetadata> meta = client.CopyObject(
       bucket_name_, object_name, bucket_name_, copy_name, IfGenerationMatch(0),
       DestinationPredefinedAcl::BucketOwnerFullControl(), Projection::Full());
   ASSERT_STATUS_OK(meta);
@@ -131,116 +139,144 @@ TEST_F(ObjectRewriteIntegrationTest, CopyPredefinedAclBucketOwnerFullControl) {
 }
 
 TEST_F(ObjectRewriteIntegrationTest, CopyPredefinedAclBucketOwnerRead) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  // TODO(#14385) - the emulator does not support this feature for gRPC.
+  if (UsingEmulator() && UsingGrpc()) GTEST_SKIP();
 
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
   auto copy_name = MakeRandomObjectName();
 
   StatusOr<BucketMetadata> bucket =
-      client->GetBucketMetadata(bucket_name_, Projection::Full());
+      client.GetBucketMetadata(bucket_name_, Projection::Full());
   ASSERT_STATUS_OK(bucket);
   ASSERT_TRUE(bucket->has_owner());
   std::string owner = bucket->owner().entity;
 
-  StatusOr<ObjectMetadata> original = client->InsertObject(
+  StatusOr<ObjectMetadata> original = client.InsertObject(
       bucket_name_, object_name, LoremIpsum(), IfGenerationMatch(0));
   ASSERT_STATUS_OK(original);
   ScheduleForDelete(*original);
 
-  StatusOr<ObjectMetadata> meta = client->CopyObject(
+  StatusOr<ObjectMetadata> meta = client.CopyObject(
       bucket_name_, object_name, bucket_name_, copy_name, IfGenerationMatch(0),
       DestinationPredefinedAcl::BucketOwnerRead(), Projection::Full());
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
-  EXPECT_LT(0, CountMatchingEntities(
-                   meta->acl(),
-                   ObjectAccessControl().set_entity(owner).set_role("READER")))
-      << *meta;
+
+  EXPECT_THAT(
+      meta->acl(),
+      Contains(
+          AllOf(ResultOf(
+                    "entity is",
+                    [](ObjectAccessControl const& acl) { return acl.entity(); },
+                    owner),
+                ResultOf(
+                    "role is",
+                    [](ObjectAccessControl const& acl) { return acl.role(); },
+                    "READER"))));
 }
 
 TEST_F(ObjectRewriteIntegrationTest, CopyPredefinedAclPrivate) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
   auto copy_name = MakeRandomObjectName();
 
-  StatusOr<ObjectMetadata> original = client->InsertObject(
+  StatusOr<ObjectMetadata> original = client.InsertObject(
       bucket_name_, object_name, LoremIpsum(), IfGenerationMatch(0));
   ASSERT_STATUS_OK(original);
   ScheduleForDelete(*original);
 
-  StatusOr<ObjectMetadata> meta = client->CopyObject(
+  StatusOr<ObjectMetadata> meta = client.CopyObject(
       bucket_name_, object_name, bucket_name_, copy_name, IfGenerationMatch(0),
       DestinationPredefinedAcl::Private(), Projection::Full());
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
   ASSERT_TRUE(meta->has_owner());
-  EXPECT_LT(0, CountMatchingEntities(meta->acl(),
-                                     ObjectAccessControl()
-                                         .set_entity(meta->owner().entity)
-                                         .set_role("OWNER")))
-      << *meta;
+
+  EXPECT_THAT(
+      meta->acl(),
+      Contains(
+          AllOf(ResultOf(
+                    "entity is",
+                    [](ObjectAccessControl const& acl) { return acl.entity(); },
+                    meta->owner().entity),
+                ResultOf(
+                    "role is",
+                    [](ObjectAccessControl const& acl) { return acl.role(); },
+                    "OWNER"))));
 }
 
 TEST_F(ObjectRewriteIntegrationTest, CopyPredefinedAclProjectPrivate) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  // TODO(#14385) - the emulator does not support this feature for gRPC.
+  if (UsingEmulator() && UsingGrpc()) GTEST_SKIP();
 
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
   auto copy_name = MakeRandomObjectName();
 
-  StatusOr<ObjectMetadata> original = client->InsertObject(
+  StatusOr<ObjectMetadata> original = client.InsertObject(
       bucket_name_, object_name, LoremIpsum(), IfGenerationMatch(0));
   ASSERT_STATUS_OK(original);
   ScheduleForDelete(*original);
 
-  StatusOr<ObjectMetadata> meta = client->CopyObject(
+  StatusOr<ObjectMetadata> meta = client.CopyObject(
       bucket_name_, object_name, bucket_name_, copy_name, IfGenerationMatch(0),
       DestinationPredefinedAcl::ProjectPrivate(), Projection::Full());
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
   ASSERT_TRUE(meta->has_owner());
-  EXPECT_LT(0, CountMatchingEntities(meta->acl(),
-                                     ObjectAccessControl()
-                                         .set_entity(meta->owner().entity)
-                                         .set_role("OWNER")))
-      << *meta;
+
+  EXPECT_THAT(
+      meta->acl(),
+      Contains(
+          AllOf(ResultOf(
+                    "entity is",
+                    [](ObjectAccessControl const& acl) { return acl.entity(); },
+                    meta->owner().entity),
+                ResultOf(
+                    "role is",
+                    [](ObjectAccessControl const& acl) { return acl.role(); },
+                    "OWNER"))));
 }
 
 TEST_F(ObjectRewriteIntegrationTest, CopyPredefinedAclPublicRead) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  // TODO(#14385) - the emulator does not support this feature for gRPC.
+  if (UsingEmulator() && UsingGrpc()) GTEST_SKIP();
 
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
   auto copy_name = MakeRandomObjectName();
 
-  StatusOr<ObjectMetadata> original = client->InsertObject(
+  StatusOr<ObjectMetadata> original = client.InsertObject(
       bucket_name_, object_name, LoremIpsum(), IfGenerationMatch(0));
   ASSERT_STATUS_OK(original);
   ScheduleForDelete(*original);
 
-  StatusOr<ObjectMetadata> meta = client->CopyObject(
+  StatusOr<ObjectMetadata> meta = client.CopyObject(
       bucket_name_, object_name, bucket_name_, copy_name, IfGenerationMatch(0),
       DestinationPredefinedAcl::PublicRead(), Projection::Full());
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
-  EXPECT_LT(
-      0, CountMatchingEntities(
-             meta->acl(),
-             ObjectAccessControl().set_entity("allUsers").set_role("READER")))
-      << *meta;
+
+  EXPECT_THAT(
+      meta->acl(),
+      Contains(
+          AllOf(ResultOf(
+                    "entity is",
+                    [](ObjectAccessControl const& acl) { return acl.entity(); },
+                    "allUsers"),
+                ResultOf(
+                    "role is",
+                    [](ObjectAccessControl const& acl) { return acl.role(); },
+                    "READER"))));
 }
 
 TEST_F(ObjectRewriteIntegrationTest, ComposeSimple) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
 
   // Create the object, but only if it does not exist already.
-  StatusOr<ObjectMetadata> meta = client->InsertObject(
+  StatusOr<ObjectMetadata> meta = client.InsertObject(
       bucket_name_, object_name, LoremIpsum(), IfGenerationMatch(0));
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
@@ -249,7 +285,7 @@ TEST_F(ObjectRewriteIntegrationTest, ComposeSimple) {
   auto composed_object_name = MakeRandomObjectName();
   std::vector<ComposeSourceObject> source_objects = {{object_name, {}, {}},
                                                      {object_name, {}, {}}};
-  StatusOr<ObjectMetadata> composed_meta = client->ComposeObject(
+  StatusOr<ObjectMetadata> composed_meta = client.ComposeObject(
       bucket_name_, source_objects, composed_object_name,
       WithObjectMetadata(ObjectMetadata().set_content_type("plain/text")));
   ASSERT_STATUS_OK(composed_meta);
@@ -258,9 +294,10 @@ TEST_F(ObjectRewriteIntegrationTest, ComposeSimple) {
 }
 
 TEST_F(ObjectRewriteIntegrationTest, ComposedUsingEncryptedObject) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  // TODO(#14385) - the emulator does not support this feature for gRPC.
+  if (UsingEmulator() && UsingGrpc()) GTEST_SKIP();
 
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
 
   std::string content = LoremIpsum();
@@ -268,8 +305,8 @@ TEST_F(ObjectRewriteIntegrationTest, ComposedUsingEncryptedObject) {
 
   // Create the object, but only if it does not exist already.
   StatusOr<ObjectMetadata> meta =
-      client->InsertObject(bucket_name_, object_name, content,
-                           IfGenerationMatch(0), EncryptionKey(key));
+      client.InsertObject(bucket_name_, object_name, content,
+                          IfGenerationMatch(0), EncryptionKey(key));
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
 
@@ -281,7 +318,7 @@ TEST_F(ObjectRewriteIntegrationTest, ComposedUsingEncryptedObject) {
   auto composed_object_name = MakeRandomObjectName();
   std::vector<ComposeSourceObject> source_objects = {{object_name, {}, {}},
                                                      {object_name, {}, {}}};
-  StatusOr<ObjectMetadata> composed_meta = client->ComposeObject(
+  StatusOr<ObjectMetadata> composed_meta = client.ComposeObject(
       bucket_name_, source_objects, composed_object_name, EncryptionKey(key));
   ASSERT_STATUS_OK(composed_meta);
   ScheduleForDelete(*composed_meta);
@@ -290,20 +327,18 @@ TEST_F(ObjectRewriteIntegrationTest, ComposedUsingEncryptedObject) {
 }
 
 TEST_F(ObjectRewriteIntegrationTest, RewriteSimple) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto source_name = MakeRandomObjectName();
 
   // Create the object, but only if it does not exist already.
-  StatusOr<ObjectMetadata> source_meta = client->InsertObject(
+  StatusOr<ObjectMetadata> source_meta = client.InsertObject(
       bucket_name_, source_name, LoremIpsum(), IfGenerationMatch(0));
   ASSERT_STATUS_OK(source_meta);
   ScheduleForDelete(*source_meta);
 
   // Rewrite object into a new object.
   auto object_name = MakeRandomObjectName();
-  StatusOr<ObjectMetadata> rewritten_meta = client->RewriteObjectBlocking(
+  StatusOr<ObjectMetadata> rewritten_meta = client.RewriteObjectBlocking(
       bucket_name_, source_name, bucket_name_, object_name);
   ASSERT_STATUS_OK(rewritten_meta);
   ScheduleForDelete(*rewritten_meta);
@@ -313,23 +348,24 @@ TEST_F(ObjectRewriteIntegrationTest, RewriteSimple) {
 }
 
 TEST_F(ObjectRewriteIntegrationTest, RewriteEncrypted) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  // TODO(#14385) - the emulator does not support this feature for gRPC.
+  if (UsingEmulator() && UsingGrpc()) GTEST_SKIP();
 
+  auto client = MakeIntegrationTestClient();
   auto source_name = MakeRandomObjectName();
 
   // Create the object, but only if it does not exist already.
   EncryptionKeyData source_key = MakeEncryptionKeyData();
   StatusOr<ObjectMetadata> source_meta =
-      client->InsertObject(bucket_name_, source_name, LoremIpsum(),
-                           IfGenerationMatch(0), EncryptionKey(source_key));
+      client.InsertObject(bucket_name_, source_name, LoremIpsum(),
+                          IfGenerationMatch(0), EncryptionKey(source_key));
   ASSERT_STATUS_OK(source_meta);
   ScheduleForDelete(*source_meta);
 
   // Compose new of object using previously created object
   auto object_name = MakeRandomObjectName();
   EncryptionKeyData dest_key = MakeEncryptionKeyData();
-  ObjectRewriter rewriter = client->RewriteObject(
+  ObjectRewriter rewriter = client.RewriteObject(
       bucket_name_, source_name, bucket_name_, object_name,
       SourceEncryptionKey(source_key), EncryptionKey(dest_key));
 
@@ -343,9 +379,7 @@ TEST_F(ObjectRewriteIntegrationTest, RewriteEncrypted) {
 
 TEST_F(ObjectRewriteIntegrationTest, RewriteLarge) {
   // The emulator always requires multiple iterations to copy this object.
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto source_name = MakeRandomObjectName();
 
   std::string large_text;
@@ -358,22 +392,24 @@ TEST_F(ObjectRewriteIntegrationTest, RewriteLarge) {
     large_text += line + "\n";
   }
 
-  StatusOr<ObjectMetadata> source_meta = client->InsertObject(
+  StatusOr<ObjectMetadata> source_meta = client.InsertObject(
       bucket_name_, source_name, large_text, IfGenerationMatch(0));
   ASSERT_STATUS_OK(source_meta);
   ScheduleForDelete(*source_meta);
 
   // Rewrite object into a new object.
   auto object_name = MakeRandomObjectName();
-  ObjectRewriter writer = client->RewriteObject(bucket_name_, source_name,
-                                                bucket_name_, object_name);
+  ObjectRewriter writer = client.RewriteObject(bucket_name_, source_name,
+                                               bucket_name_, object_name);
 
   StatusOr<ObjectMetadata> rewritten_meta =
       writer.ResultWithProgressCallback([](StatusOr<RewriteProgress> const& p) {
         ASSERT_STATUS_OK(p);
-        EXPECT_TRUE((p->total_bytes_rewritten < p->object_size) xor p->done)
-            << "p.done=" << p->done << ", p.object_size=" << p->object_size
-            << ", p.total_bytes_rewritten=" << p->total_bytes_rewritten;
+        if (!p->done) {
+          EXPECT_LT(p->total_bytes_rewritten, p->object_size);
+        } else {
+          EXPECT_GE(p->total_bytes_rewritten, p->object_size);
+        }
       });
   ASSERT_STATUS_OK(rewritten_meta);
   ScheduleForDelete(*rewritten_meta);
@@ -383,22 +419,18 @@ TEST_F(ObjectRewriteIntegrationTest, RewriteLarge) {
 }
 
 TEST_F(ObjectRewriteIntegrationTest, CopyFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto source_object_name = MakeRandomObjectName();
   auto destination_object_name = MakeRandomObjectName();
 
   // This operation should fail because the source object does not exist.
-  auto meta = client->CopyObject(bucket_name_, source_object_name, bucket_name_,
-                                 destination_object_name);
+  auto meta = client.CopyObject(bucket_name_, source_object_name, bucket_name_,
+                                destination_object_name);
   EXPECT_THAT(meta, Not(IsOk())) << "value=" << meta.value();
 }
 
 TEST_F(ObjectRewriteIntegrationTest, ComposeFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
   auto composed_object_name = MakeRandomObjectName();
   std::vector<ComposeSourceObject> source_objects = {{object_name, {}, {}},
@@ -406,19 +438,17 @@ TEST_F(ObjectRewriteIntegrationTest, ComposeFailure) {
 
   // This operation should fail because the source object does not exist.
   auto meta =
-      client->ComposeObject(bucket_name_, source_objects, composed_object_name);
+      client.ComposeObject(bucket_name_, source_objects, composed_object_name);
   EXPECT_THAT(meta, Not(IsOk())) << "value=" << meta.value();
 }
 
 TEST_F(ObjectRewriteIntegrationTest, RewriteFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto source_object_name = MakeRandomObjectName();
   auto destination_object_name = MakeRandomObjectName();
 
   // This operation should fail because the source object does not exist.
-  StatusOr<ObjectMetadata> metadata = client->RewriteObjectBlocking(
+  StatusOr<ObjectMetadata> metadata = client.RewriteObjectBlocking(
       bucket_name_, source_object_name, bucket_name_, destination_object_name);
   EXPECT_THAT(metadata, Not(IsOk()));
 }

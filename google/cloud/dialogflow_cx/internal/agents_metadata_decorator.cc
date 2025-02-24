@@ -17,125 +17,232 @@
 // source: google/cloud/dialogflow/cx/v3/agent.proto
 
 #include "google/cloud/dialogflow_cx/internal/agents_metadata_decorator.h"
-#include "google/cloud/common_options.h"
+#include "google/cloud/grpc_options.h"
+#include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/api_client_header.h"
+#include "google/cloud/internal/url_encode.h"
 #include "google/cloud/status_or.h"
 #include <google/cloud/dialogflow/cx/v3/agent.grpc.pb.h>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
 namespace dialogflow_cx_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
-AgentsMetadata::AgentsMetadata(std::shared_ptr<AgentsStub> child)
+AgentsMetadata::AgentsMetadata(
+    std::shared_ptr<AgentsStub> child,
+    std::multimap<std::string, std::string> fixed_metadata,
+    std::string api_client_header)
     : child_(std::move(child)),
+      fixed_metadata_(std::move(fixed_metadata)),
       api_client_header_(
-          google::cloud::internal::ApiClientHeader("generator")) {}
+          api_client_header.empty()
+              ? google::cloud::internal::GeneratedLibClientHeader()
+              : std::move(api_client_header)) {}
 
 StatusOr<google::cloud::dialogflow::cx::v3::ListAgentsResponse>
 AgentsMetadata::ListAgents(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::ListAgentsRequest const& request) {
-  SetMetadata(context, "parent=" + request.parent());
-  return child_->ListAgents(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->ListAgents(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::cx::v3::Agent> AgentsMetadata::GetAgent(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::GetAgentRequest const& request) {
-  SetMetadata(context, "name=" + request.name());
-  return child_->GetAgent(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetAgent(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::cx::v3::Agent> AgentsMetadata::CreateAgent(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::CreateAgentRequest const& request) {
-  SetMetadata(context, "parent=" + request.parent());
-  return child_->CreateAgent(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->CreateAgent(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::cx::v3::Agent> AgentsMetadata::UpdateAgent(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::UpdateAgentRequest const& request) {
-  SetMetadata(context, "agent.name=" + request.agent().name());
-  return child_->UpdateAgent(context, request);
+  SetMetadata(
+      context, options,
+      absl::StrCat("agent.name=", internal::UrlEncode(request.agent().name())));
+  return child_->UpdateAgent(context, options, request);
 }
 
 Status AgentsMetadata::DeleteAgent(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::DeleteAgentRequest const& request) {
-  SetMetadata(context, "name=" + request.name());
-  return child_->DeleteAgent(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->DeleteAgent(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 AgentsMetadata::AsyncExportAgent(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::dialogflow::cx::v3::ExportAgentRequest const& request) {
-  SetMetadata(*context, "name=" + request.name());
-  return child_->AsyncExportAgent(cq, std::move(context), request);
+  SetMetadata(*context, *options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->AsyncExportAgent(cq, std::move(context), std::move(options),
+                                  request);
+}
+
+StatusOr<google::longrunning::Operation> AgentsMetadata::ExportAgent(
+    grpc::ClientContext& context, Options options,
+    google::cloud::dialogflow::cx::v3::ExportAgentRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->ExportAgent(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 AgentsMetadata::AsyncRestoreAgent(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::dialogflow::cx::v3::RestoreAgentRequest const& request) {
-  SetMetadata(*context, "name=" + request.name());
-  return child_->AsyncRestoreAgent(cq, std::move(context), request);
+  SetMetadata(*context, *options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->AsyncRestoreAgent(cq, std::move(context), std::move(options),
+                                   request);
+}
+
+StatusOr<google::longrunning::Operation> AgentsMetadata::RestoreAgent(
+    grpc::ClientContext& context, Options options,
+    google::cloud::dialogflow::cx::v3::RestoreAgentRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->RestoreAgent(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::cx::v3::AgentValidationResult>
 AgentsMetadata::ValidateAgent(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::ValidateAgentRequest const& request) {
-  SetMetadata(context, "name=" + request.name());
-  return child_->ValidateAgent(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->ValidateAgent(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::cx::v3::AgentValidationResult>
 AgentsMetadata::GetAgentValidationResult(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::GetAgentValidationResultRequest const&
         request) {
-  SetMetadata(context, "name=" + request.name());
-  return child_->GetAgentValidationResult(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetAgentValidationResult(context, options, request);
+}
+
+StatusOr<google::cloud::dialogflow::cx::v3::GenerativeSettings>
+AgentsMetadata::GetGenerativeSettings(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::dialogflow::cx::v3::GetGenerativeSettingsRequest const&
+        request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetGenerativeSettings(context, options, request);
+}
+
+StatusOr<google::cloud::dialogflow::cx::v3::GenerativeSettings>
+AgentsMetadata::UpdateGenerativeSettings(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::dialogflow::cx::v3::UpdateGenerativeSettingsRequest const&
+        request) {
+  SetMetadata(
+      context, options,
+      absl::StrCat("generative_settings.name=",
+                   internal::UrlEncode(request.generative_settings().name())));
+  return child_->UpdateGenerativeSettings(context, options, request);
+}
+
+StatusOr<google::cloud::location::ListLocationsResponse>
+AgentsMetadata::ListLocations(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::ListLocationsRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->ListLocations(context, options, request);
+}
+
+StatusOr<google::cloud::location::Location> AgentsMetadata::GetLocation(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::GetLocationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetLocation(context, options, request);
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+AgentsMetadata::ListOperations(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::ListOperationsRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->ListOperations(context, options, request);
+}
+
+StatusOr<google::longrunning::Operation> AgentsMetadata::GetOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::GetOperationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetOperation(context, options, request);
+}
+
+Status AgentsMetadata::CancelOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::CancelOperationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->CancelOperation(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 AgentsMetadata::AsyncGetOperation(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::longrunning::GetOperationRequest const& request) {
-  SetMetadata(*context, "name=" + request.name());
-  return child_->AsyncGetOperation(cq, std::move(context), request);
+  SetMetadata(*context, *options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->AsyncGetOperation(cq, std::move(context), std::move(options),
+                                   request);
 }
 
 future<Status> AgentsMetadata::AsyncCancelOperation(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::longrunning::CancelOperationRequest const& request) {
-  SetMetadata(*context, "name=" + request.name());
-  return child_->AsyncCancelOperation(cq, std::move(context), request);
+  SetMetadata(*context, *options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->AsyncCancelOperation(cq, std::move(context),
+                                      std::move(options), request);
 }
 
 void AgentsMetadata::SetMetadata(grpc::ClientContext& context,
+                                 Options const& options,
                                  std::string const& request_params) {
   context.AddMetadata("x-goog-request-params", request_params);
-  SetMetadata(context);
+  SetMetadata(context, options);
 }
 
-void AgentsMetadata::SetMetadata(grpc::ClientContext& context) {
-  context.AddMetadata("x-goog-api-client", api_client_header_);
-  auto const& options = internal::CurrentOptions();
-  if (options.has<UserProjectOption>()) {
-    context.AddMetadata("x-goog-user-project",
-                        options.get<UserProjectOption>());
-  }
-  auto const& authority = options.get<AuthorityOption>();
-  if (!authority.empty()) context.set_authority(authority);
+void AgentsMetadata::SetMetadata(grpc::ClientContext& context,
+                                 Options const& options) {
+  google::cloud::internal::SetMetadata(context, options, fixed_metadata_,
+                                       api_client_header_);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

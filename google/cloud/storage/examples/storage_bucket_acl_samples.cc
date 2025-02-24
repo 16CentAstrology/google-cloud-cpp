@@ -17,7 +17,12 @@
 #include "google/cloud/internal/getenv.h"
 #include <functional>
 #include <iostream>
+#include <random>
+#include <stdexcept>
+#include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -30,7 +35,7 @@ void ListBucketAcl(google::cloud::storage::Client client,
     StatusOr<std::vector<gcs::BucketAccessControl>> items =
         client.ListBucketAcl(bucket_name);
 
-    if (!items) throw std::runtime_error(items.status().message());
+    if (!items) throw std::move(items).status();
     std::cout << "ACLs for bucket=" << bucket_name << "\n";
     for (gcs::BucketAccessControl const& acl : *items) {
       std::cout << acl.role() << ":" << acl.entity() << "\n";
@@ -50,7 +55,7 @@ void CreateBucketAcl(google::cloud::storage::Client client,
     StatusOr<gcs::BucketAccessControl> bucket_acl =
         client.CreateBucketAcl(bucket_name, entity, role);
 
-    if (!bucket_acl) throw std::runtime_error(bucket_acl.status().message());
+    if (!bucket_acl) throw std::move(bucket_acl).status();
     std::cout << "Role " << bucket_acl->role() << " granted to "
               << bucket_acl->entity() << " on bucket " << bucket_acl->bucket()
               << "\n"
@@ -86,7 +91,7 @@ void GetBucketAcl(google::cloud::storage::Client client,
     StatusOr<gcs::BucketAccessControl> acl =
         client.GetBucketAcl(bucket_name, entity);
 
-    if (!acl) throw std::runtime_error(acl.status().message());
+    if (!acl) throw std::move(acl).status();
     std::cout << "ACL entry for " << acl->entity() << " in bucket "
               << acl->bucket() << " is " << *acl << "\n";
   }
@@ -107,7 +112,7 @@ void UpdateBucketAcl(google::cloud::storage::Client client,
     StatusOr<gcs::BucketAccessControl> updated_acl =
         client.UpdateBucketAcl(bucket_name, desired_acl);
 
-    if (!updated_acl) throw std::runtime_error(updated_acl.status().message());
+    if (!updated_acl) throw std::move(updated_acl).status();
     std::cout << "Bucket ACL updated. The ACL entry for "
               << updated_acl->entity() << " in bucket " << updated_acl->bucket()
               << " is " << *updated_acl << "\n";
@@ -125,10 +130,7 @@ void PatchBucketAcl(google::cloud::storage::Client client,
      std::string const& entity, std::string const& role) {
     StatusOr<gcs::BucketAccessControl> original_acl =
         client.GetBucketAcl(bucket_name, entity);
-
-    if (!original_acl) {
-      throw std::runtime_error(original_acl.status().message());
-    }
+    if (!original_acl) throw std::move(original_acl).status();
 
     auto new_acl = *original_acl;
     new_acl.set_role(role);
@@ -136,7 +138,7 @@ void PatchBucketAcl(google::cloud::storage::Client client,
     StatusOr<gcs::BucketAccessControl> patched_acl =
         client.PatchBucketAcl(bucket_name, entity, *original_acl, new_acl);
 
-    if (!patched_acl) throw std::runtime_error(patched_acl.status().message());
+    if (!patched_acl) throw std::move(patched_acl).status();
     std::cout << "ACL entry for " << patched_acl->entity() << " in bucket "
               << patched_acl->bucket() << " is now " << *patched_acl << "\n";
   }
@@ -155,7 +157,7 @@ void PatchBucketAclNoRead(google::cloud::storage::Client client,
         bucket_name, entity,
         gcs::BucketAccessControlPatchBuilder().set_role(role));
 
-    if (!patched_acl) throw std::runtime_error(patched_acl.status().message());
+    if (!patched_acl) throw std::move(patched_acl).status();
     std::cout << "ACL entry for " << patched_acl->entity() << " in bucket "
               << patched_acl->bucket() << " is now " << *patched_acl << "\n";
   }
@@ -174,8 +176,7 @@ void AddBucketOwner(google::cloud::storage::Client client,
         client.PatchBucketAcl(bucket_name, entity,
                               gcs::BucketAccessControlPatchBuilder().set_role(
                                   gcs::BucketAccessControl::ROLE_OWNER()));
-
-    if (!patched_acl) throw std::runtime_error(patched_acl.status().message());
+    if (!patched_acl) throw std::move(patched_acl).status();
     std::cout << "ACL entry for " << patched_acl->entity() << " in bucket "
               << patched_acl->bucket() << " is now " << *patched_acl << "\n";
   }
@@ -192,10 +193,7 @@ void RemoveBucketOwner(google::cloud::storage::Client client,
      std::string const& entity) {
     StatusOr<gcs::BucketMetadata> original_metadata =
         client.GetBucketMetadata(bucket_name, gcs::Projection::Full());
-
-    if (!original_metadata) {
-      throw std::runtime_error(original_metadata.status().message());
-    }
+    if (!original_metadata) throw std::move(original_metadata).status();
 
     std::vector<gcs::BucketAccessControl> original_acl =
         original_metadata->acl();
@@ -246,7 +244,8 @@ void RunAll(std::vector<std::string> const& argv) {
   std::cout << "\nCreating bucket to run the example (" << bucket_name << ")"
             << std::endl;
   (void)client
-      .CreateBucketForProject(bucket_name, project_id, gcs::BucketMetadata{})
+      .CreateBucketForProject(bucket_name, project_id, gcs::BucketMetadata{},
+                              examples::CreateBucketOptions())
       .value();
   // In GCS a single project cannot create or delete buckets more often than
   // once every two seconds. We will pause until that time before deleting the

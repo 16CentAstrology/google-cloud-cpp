@@ -17,7 +17,6 @@
 #include "google/cloud/testing_util/scoped_log.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include "google/cloud/tracing_options.h"
-#include "absl/memory/memory.h"
 #include <google/protobuf/duration.pb.h>
 #include <google/protobuf/timestamp.pb.h>
 #include <gmock/gmock.h>
@@ -45,7 +44,7 @@ class MockStreamingWriteRpc
   MOCK_METHOD(bool, Write, (RequestType const&, grpc::WriteOptions),
               (override));
   MOCK_METHOD(StatusOr<ResponseType>, Close, (), (override));
-  MOCK_METHOD(StreamingRpcMetadata, GetRequestMetadata, (), (const, override));
+  MOCK_METHOD(RpcMetadata, GetRequestMetadata, (), (const, override));
 };
 
 class StreamingWriteRpcLoggingTest : public ::testing::Test {
@@ -59,7 +58,7 @@ using TestedStream = StreamingWriteRpcLogging<google::protobuf::Timestamp,
                                               google::protobuf::Duration>;
 
 TEST_F(StreamingWriteRpcLoggingTest, Cancel) {
-  auto mock = absl::make_unique<MockStream>();
+  auto mock = std::make_unique<MockStream>();
   EXPECT_CALL(*mock, Cancel).Times(1);
   TestedStream stream(std::move(mock), TracingOptions{}, "test-id");
   stream.Cancel();
@@ -68,12 +67,12 @@ TEST_F(StreamingWriteRpcLoggingTest, Cancel) {
 }
 
 TEST_F(StreamingWriteRpcLoggingTest, Write) {
-  auto mock = absl::make_unique<MockStream>();
+  auto mock = std::make_unique<MockStream>();
   EXPECT_CALL(*mock, Write).WillOnce(Return(true));
   TestedStream stream(std::move(mock), TracingOptions{}, "test-id");
   google::protobuf::Timestamp request;
   request.set_seconds(123456);
-  stream.Write(request, grpc::WriteOptions{});
+  EXPECT_TRUE(stream.Write(request, grpc::WriteOptions{}));
   auto const lines = log_.ExtractLines();
   EXPECT_THAT(lines, Contains(AllOf(HasSubstr("Write"), HasSubstr("test-id"),
                                     HasSubstr("1970-01-02T10:17:36Z"))));
@@ -82,7 +81,7 @@ TEST_F(StreamingWriteRpcLoggingTest, Write) {
 }
 
 TEST_F(StreamingWriteRpcLoggingTest, CloseWithSuccess) {
-  auto mock = absl::make_unique<MockStream>();
+  auto mock = std::make_unique<MockStream>();
   google::protobuf::Duration d;
   d.set_seconds(123456);
   EXPECT_CALL(*mock, Close).WillOnce(Return(make_status_or(d)));
@@ -98,7 +97,7 @@ TEST_F(StreamingWriteRpcLoggingTest, CloseWithSuccess) {
 }
 
 TEST_F(StreamingWriteRpcLoggingTest, CloseWithError) {
-  auto mock = absl::make_unique<MockStream>();
+  auto mock = std::make_unique<MockStream>();
   EXPECT_CALL(*mock, Close)
       .WillOnce(Return(StatusOr<google::protobuf::Duration>(
           Status{StatusCode::kUnavailable, "try-again"})));
@@ -114,12 +113,12 @@ TEST_F(StreamingWriteRpcLoggingTest, CloseWithError) {
 }
 
 TEST_F(StreamingWriteRpcLoggingTest, GetRequestMetadata) {
-  auto mock = absl::make_unique<MockStream>();
+  auto mock = std::make_unique<MockStream>();
   EXPECT_CALL(*mock, GetRequestMetadata).WillOnce([] {
-    return StreamingRpcMetadata({{":test-only", "value"}});
+    return RpcMetadata{{{":test-only", "value"}}, {}};
   });
   TestedStream stream(std::move(mock), TracingOptions{}, "test-id");
-  EXPECT_THAT(stream.GetRequestMetadata(),
+  EXPECT_THAT(stream.GetRequestMetadata().headers,
               Contains(Pair(":test-only", "value")));
   EXPECT_THAT(log_.ExtractLines(),
               Contains(AllOf(HasSubstr("GetRequestMetadata(test-id)"),

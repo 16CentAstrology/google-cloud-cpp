@@ -17,7 +17,6 @@
 // source: google/cloud/dialogflow/cx/v3/transition_route_group.proto
 
 #include "google/cloud/dialogflow_cx/transition_route_groups_connection_idempotency_policy.h"
-#include "absl/memory/memory.h"
 #include <memory>
 
 namespace google {
@@ -32,7 +31,7 @@ TransitionRouteGroupsConnectionIdempotencyPolicy::
 
 std::unique_ptr<TransitionRouteGroupsConnectionIdempotencyPolicy>
 TransitionRouteGroupsConnectionIdempotencyPolicy::clone() const {
-  return absl::make_unique<TransitionRouteGroupsConnectionIdempotencyPolicy>(
+  return std::make_unique<TransitionRouteGroupsConnectionIdempotencyPolicy>(
       *this);
 }
 
@@ -70,9 +69,34 @@ TransitionRouteGroupsConnectionIdempotencyPolicy::DeleteTransitionRouteGroup(
   return Idempotency::kNonIdempotent;
 }
 
+Idempotency TransitionRouteGroupsConnectionIdempotencyPolicy::ListLocations(
+    google::cloud::location::ListLocationsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency TransitionRouteGroupsConnectionIdempotencyPolicy::GetLocation(
+    google::cloud::location::GetLocationRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency TransitionRouteGroupsConnectionIdempotencyPolicy::ListOperations(
+    google::longrunning::ListOperationsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency TransitionRouteGroupsConnectionIdempotencyPolicy::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency TransitionRouteGroupsConnectionIdempotencyPolicy::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
 std::unique_ptr<TransitionRouteGroupsConnectionIdempotencyPolicy>
 MakeDefaultTransitionRouteGroupsConnectionIdempotencyPolicy() {
-  return absl::make_unique<TransitionRouteGroupsConnectionIdempotencyPolicy>();
+  return std::make_unique<TransitionRouteGroupsConnectionIdempotencyPolicy>();
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

@@ -81,8 +81,8 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * This class uses `StatusOr<T>` to report errors. When an operation fails to
  * perform its work the returned `StatusOr<T>` contains the error details. If
  * the `ok()` member function in the `StatusOr<T>` returns `true` then it
- * contains the expected result. Please consult the
- * [`StatusOr<T>` documentation](#google::cloud::v0::StatusOr) for more details.
+ * contains the expected result. For more information, see the
+ * [Error Handling Guide](#spanner-error-handling).
  *
  * @code
  * namespace spanner = ::google::cloud::spanner;
@@ -134,35 +134,25 @@ class Client {
       : conn_(std::move(conn)),
         opts_(internal::MergeOptions(std::move(opts), conn_->options())) {}
 
-  /// @name Backwards compatibility for `ClientOptions`.
-  ///@{
-  explicit Client(std::shared_ptr<Connection> conn, ClientOptions const& opts)
-      : Client(std::move(conn), Options(opts)) {}
-  explicit Client(std::shared_ptr<Connection> conn,
-                  std::initializer_list<internal::NonConstructible>)
-      : Client(std::move(conn)) {}
-  ///@}
-
   /// No default construction.
   Client() = delete;
 
-  //@{
-  // @name Copy and move support
+  ///@{
+  /// @name Copy and move support
   Client(Client const&) = default;
   Client& operator=(Client const&) = default;
   Client(Client&&) = default;
   Client& operator=(Client&&) = default;
-  //@}
+  ///@}
 
-  //@{
-  // @name Equality
+  ///@{
+  /// @name Equality
   friend bool operator==(Client const& a, Client const& b) {
     return a.conn_ == b.conn_;
   }
   friend bool operator!=(Client const& a, Client const& b) { return !(a == b); }
-  //@}
+  ///@}
 
-  //@{
   /**
    * Reads rows from the database using key lookups and scans, as a simple
    * key/value style alternative to `ExecuteQuery()`.
@@ -172,6 +162,12 @@ class Client {
    * or neither, in which case a single-use transaction with default options
    * is used.
    *
+   * @note No individual row in the `ReadResult` can exceed 100 MiB, and no
+   *     column value can exceed 10 MiB.
+   *
+   * @par Example
+   * @snippet samples.cc read-data
+   *
    * @param table The name of the table in the database to be read.
    * @param keys Identifies the rows to be yielded. If `read_options.index_name`
    *     is set, names keys in that index; otherwise names keys in the primary
@@ -180,12 +176,6 @@ class Client {
    * @param columns The columns of `table` to be returned for each row matching
    *     this request.
    * @param opts `Options` used for this request.
-   *
-   * @par Example
-   * @snippet samples.cc read-data
-   *
-   * @note No individual row in the `ReadResult` can exceed 100 MiB, and no
-   *     column value can exceed 10 MiB.
    */
   RowStream Read(std::string table, KeySet keys,
                  std::vector<std::string> columns, Options opts = {});
@@ -194,7 +184,7 @@ class Client {
    * @copydoc Read
    *
    * @param transaction_options Execute this read in a single-use transaction
-   * with these options.
+   *     with these options.
    */
   RowStream Read(Transaction::SingleUseOptions transaction_options,
                  std::string table, KeySet keys,
@@ -207,62 +197,19 @@ class Client {
    */
   RowStream Read(Transaction transaction, std::string table, KeySet keys,
                  std::vector<std::string> columns, Options opts = {});
-  //@}
-
-  /// @name Backwards compatibility for `ReadOptions`.
-  ///@{
-  RowStream Read(std::string table, KeySet keys,
-                 std::vector<std::string> columns,
-                 ReadOptions const& read_options) {
-    return Read(std::move(table), std::move(keys), std::move(columns),
-                ToOptions(read_options));
-  }
-  RowStream Read(std::string table, KeySet keys,
-                 std::vector<std::string> columns,
-                 std::initializer_list<internal::NonConstructible>) {
-    return Read(std::move(table), std::move(keys), std::move(columns));
-  }
-  RowStream Read(Transaction::SingleUseOptions transaction_options,
-                 std::string table, KeySet keys,
-                 std::vector<std::string> columns,
-                 ReadOptions const& read_options) {
-    return Read(std::move(transaction_options), std::move(table),
-                std::move(keys), std::move(columns), ToOptions(read_options));
-  }
-  RowStream Read(Transaction::SingleUseOptions transaction_options,
-                 std::string table, KeySet keys,
-                 std::vector<std::string> columns,
-                 std::initializer_list<internal::NonConstructible>) {
-    return Read(std::move(transaction_options), std::move(table),
-                std::move(keys), std::move(columns));
-  }
-  RowStream Read(Transaction transaction, std::string table, KeySet keys,
-                 std::vector<std::string> columns,
-                 ReadOptions const& read_options) {
-    return Read(std::move(transaction), std::move(table), std::move(keys),
-                std::move(columns), ToOptions(read_options));
-  }
-  RowStream Read(Transaction transaction, std::string table, KeySet keys,
-                 std::vector<std::string> columns,
-                 std::initializer_list<internal::NonConstructible>) {
-    return Read(std::move(transaction), std::move(table), std::move(keys),
-                std::move(columns));
-  }
-  ///@}
 
   /**
    * Reads rows from a subset of rows in a database. Requires a prior call
    * to `PartitionRead` to obtain the partition information; see the
    * documentation of that method for full details.
-   *
-   * @param partition A `ReadPartition`, obtained by calling `PartitionRead`.
-   * @param opts `Options` used for this request.
-   *
    * @note No individual row in the `ReadResult` can exceed 100 MiB, and no
    *     column value can exceed 10 MiB.
    *
    * @par Example
    * @snippet samples.cc read-read-partition
+   *
+   * @param partition A `ReadPartition`, obtained by calling `PartitionRead`.
+   * @param opts `Options` used for this request.
    */
   RowStream Read(ReadPartition const& partition, Options opts = {});
 
@@ -280,6 +227,9 @@ class Client {
    * any of these happen, it is not possible to resume the read, and the whole
    * operation must be restarted from the beginning.
    *
+   * @par Example
+   * @snippet samples.cc partition-read
+   *
    * @param transaction The transaction to execute the operation in.
    *     **Must** be a read-only snapshot transaction.
    * @param table The name of the table in the database to be read.
@@ -293,45 +243,14 @@ class Client {
    *
    * @return A `StatusOr` containing a vector of `ReadPartition` or error
    *     status on failure.
-   *
-   * @par Example
-   * @snippet samples.cc partition-read
    */
   StatusOr<std::vector<ReadPartition>> PartitionRead(
       Transaction transaction, std::string table, KeySet keys,
       std::vector<std::string> columns, Options opts = {});
 
-  /// @name Backwards compatibility for `ReadOptions` and `PartitionOptions`.
-  ///@{
-  StatusOr<std::vector<ReadPartition>> PartitionRead(
-      Transaction transaction, std::string table, KeySet keys,
-      std::vector<std::string> columns, ReadOptions const& read_options,
-      PartitionOptions const& partition_options) {
-    return PartitionRead(std::move(transaction), std::move(table),
-                         std::move(keys), std::move(columns),
-                         internal::MergeOptions(ToOptions(read_options),
-                                                ToOptions(partition_options)));
-  }
-  StatusOr<std::vector<ReadPartition>> PartitionRead(
-      Transaction transaction, std::string table, KeySet keys,
-      std::vector<std::string> columns,
-      std::initializer_list<internal::NonConstructible>) {
-    return PartitionRead(std::move(transaction), std::move(table),
-                         std::move(keys), std::move(columns));
-  }
-  ///@}
-
-  //@{
   /**
-   * Executes a SQL query.
-   *
-   * Operations inside read-write transactions might return `ABORTED`. If this
-   * occurs, the application should restart the transaction from the beginning.
-   *
-   * Callers can optionally supply a `Transaction` or
-   * `Transaction::SingleUseOptions` used to create a single-use transaction -
-   * or neither, in which case a single-use transaction with default options
-   * is used.
+   * Executes a SQL query in a single-use transaction created with the
+   * default options.
    *
    * `SELECT * ...` queries are supported, but there's no guarantee about the
    * order, nor number, of returned columns. Therefore, the caller must look up
@@ -341,41 +260,56 @@ class Client {
    * returned/ignored, and the column order is known. This enables more
    * efficient and simpler code.
    *
-   * Can also execute a DML statement with a returning clause in a read/write
-   * transaction.
+   * @note No individual row in the `RowStream` can exceed 100 MiB, and no
+   *     column value can exceed 10 MiB.
    *
-   * @par Example with explicitly selected columns.
+   * @par Example
+   * Query with explicitly selected columns.
    * @snippet samples.cc spanner-query-data
    *
-   * @par Example using `SELECT *`.
+   * @par Example
+   * Using `SELECT *`.
    * @snippet samples.cc spanner-query-data-select-star
-   *
-   * @par Example using a DML statement with `THEN RETURN`.
-   * @snippet samples.cc spanner-update-dml-returning
    *
    * @param statement The SQL statement to execute.
    * @param opts (optional) The `Options` to use for this call. If given,
    *     these will take precedence over the options set at the client and
    *     environment levels.
-   *
-   * @note No individual row in the `RowStream` can exceed 100 MiB, and no
-   *     column value can exceed 10 MiB.
    */
   RowStream ExecuteQuery(SqlStatement statement, Options opts = {});
 
   /**
-   * @copydoc ExecuteQuery(SqlStatement, Options)
+   * Executes a SQL query in a single-use transaction created with the
+   * @p transaction_options.
    *
    * @param transaction_options Execute this query in a single-use transaction
    *     with these options.
+   * @param statement The SQL statement to execute.
+   * @param opts (optional) The `Options` to use for this call. If given,
+   *     these will take precedence over the options set at the client and
+   *     environment levels.
    */
   RowStream ExecuteQuery(Transaction::SingleUseOptions transaction_options,
                          SqlStatement statement, Options opts = {});
 
   /**
-   * @copydoc ExecuteQuery(SqlStatement, Options)
+   * Executes a SQL query in an existing transaction.
+   *
+   * Operations inside read-write transactions might return `ABORTED`. If this
+   * occurs, the application should restart the transaction from the beginning.
+   *
+   * Can execute a DML statement with a returning clause in a read/write
+   * transaction.
+   *
+   * @par Example
+   * Using a DML statement with `THEN RETURN`.
+   * @snippet samples.cc spanner-update-dml-returning
    *
    * @param transaction Execute this query as part of an existing transaction.
+   * @param statement The SQL statement to execute.
+   * @param opts (optional) The `Options` to use for this call. If given,
+   *     these will take precedence over the options set at the client and
+   *     environment levels.
    */
   RowStream ExecuteQuery(Transaction transaction, SqlStatement statement,
                          Options opts = {});
@@ -385,59 +319,19 @@ class Client {
    * call to `PartitionQuery` to obtain the partition information; see the
    * documentation of that method for full details.
    *
-   * @param partition A `QueryPartition`, obtained by calling `PartitionQuery`.
-   * @param opts (optional) The `Options` to use for this call. If given,
-   *     these will take precedence over the options set at the client and
-   *     environment levels.
-   *
    * @note No individual row in the `RowStream` can exceed 100 MiB, and no
    *     column value can exceed 10 MiB.
    *
    * @par Example
    * @snippet samples.cc execute-sql-query-partition
+   *
+   * @param partition A `QueryPartition`, obtained by calling `PartitionQuery`.
+   * @param opts (optional) The `Options` to use for this call. If given,
+   *     these will take precedence over the options set at the client and
+   *     environment levels.
    */
   RowStream ExecuteQuery(QueryPartition const& partition, Options opts = {});
-  //@}
 
-  /// @name Backwards compatibility for `QueryOptions`.
-  ///@{
-  RowStream ExecuteQuery(SqlStatement statement, QueryOptions const& opts) {
-    return ExecuteQuery(std::move(statement), Options(opts));
-  }
-  RowStream ExecuteQuery(SqlStatement statement,
-                         std::initializer_list<internal::NonConstructible>) {
-    return ExecuteQuery(std::move(statement));
-  }
-  RowStream ExecuteQuery(Transaction::SingleUseOptions transaction_options,
-                         SqlStatement statement, QueryOptions const& opts) {
-    return ExecuteQuery(std::move(transaction_options), std::move(statement),
-                        Options(opts));
-  }
-  RowStream ExecuteQuery(Transaction::SingleUseOptions transaction_options,
-                         SqlStatement statement,
-                         std::initializer_list<internal::NonConstructible>) {
-    return ExecuteQuery(std::move(transaction_options), std::move(statement));
-  }
-  RowStream ExecuteQuery(Transaction transaction, SqlStatement statement,
-                         QueryOptions const& opts) {
-    return ExecuteQuery(std::move(transaction), std::move(statement),
-                        Options(opts));
-  }
-  RowStream ExecuteQuery(Transaction transaction, SqlStatement statement,
-                         std::initializer_list<internal::NonConstructible>) {
-    return ExecuteQuery(std::move(transaction), std::move(statement));
-  }
-  RowStream ExecuteQuery(QueryPartition const& partition,
-                         QueryOptions const& opts) {
-    return ExecuteQuery(partition, Options(opts));
-  }
-  RowStream ExecuteQuery(QueryPartition const& partition,
-                         std::initializer_list<internal::NonConstructible>) {
-    return ExecuteQuery(partition);
-  }
-  ///@}
-
-  //@{
   /**
    * Profiles a SQL query.
    *
@@ -455,16 +349,17 @@ class Client {
    * @note Callers must consume all rows from the result before execution
    *     statistics and `ExecutionPlan` are available.
    *
-   * @param statement The SQL statement to execute.
-   * @param opts (optional) The `Options` to use for this call. If given,
-   *     these will take precedence over the options set at the client and
-   *     environment levels.
-   *
    * @note No individual row in the `ProfileQueryResult` can exceed 100 MiB, and
    *     no column value can exceed 10 MiB.
    *
    * @par Example
    * @snippet samples.cc profile-query
+   *
+   * @param statement The SQL statement to execute.
+   * @param opts (optional) The `Options` to use for this call. If given,
+   *     these will take precedence over the options set at the client and
+   *     environment levels.
+   *
    */
   ProfileQueryResult ProfileQuery(SqlStatement statement, Options opts = {});
 
@@ -485,42 +380,6 @@ class Client {
    */
   ProfileQueryResult ProfileQuery(Transaction transaction,
                                   SqlStatement statement, Options opts = {});
-  //@}
-
-  /// @name Backwards compatibility for `QueryOptions`.
-  ///@{
-  ProfileQueryResult ProfileQuery(SqlStatement statement,
-                                  QueryOptions const& opts) {
-    return ProfileQuery(std::move(statement), Options(opts));
-  }
-  ProfileQueryResult ProfileQuery(
-      SqlStatement statement,
-      std::initializer_list<internal::NonConstructible>) {
-    return ProfileQuery(std::move(statement));
-  }
-  ProfileQueryResult ProfileQuery(
-      Transaction::SingleUseOptions transaction_options, SqlStatement statement,
-      QueryOptions const& opts) {
-    return ProfileQuery(std::move(transaction_options), std::move(statement),
-                        Options(opts));
-  }
-  ProfileQueryResult ProfileQuery(
-      Transaction::SingleUseOptions transaction_options, SqlStatement statement,
-      std::initializer_list<internal::NonConstructible>) {
-    return ProfileQuery(std::move(transaction_options), std::move(statement));
-  }
-  ProfileQueryResult ProfileQuery(Transaction transaction,
-                                  SqlStatement statement,
-                                  QueryOptions const& opts) {
-    return ProfileQuery(std::move(transaction), std::move(statement),
-                        Options(opts));
-  }
-  ProfileQueryResult ProfileQuery(
-      Transaction transaction, SqlStatement statement,
-      std::initializer_list<internal::NonConstructible>) {
-    return ProfileQuery(std::move(transaction), std::move(statement));
-  }
-  ///@}
 
   /**
    * Creates a set of partitions that can be used to execute a query
@@ -532,6 +391,9 @@ class Client {
    * any of these happen, it is not possible to resume the query, and the whole
    * operation must be restarted from the beginning.
    *
+   * @par Example
+   * @snippet samples.cc partition-query
+   *
    * @param transaction The transaction to execute the operation in.
    *     **Must** be a read-only snapshot transaction.
    * @param statement The SQL statement to execute.
@@ -539,28 +401,10 @@ class Client {
    *
    * @return A `StatusOr` containing a vector of `QueryPartition`s or error
    *     status on failure.
-   *
-   * @par Example
-   * @snippet samples.cc partition-query
    */
   StatusOr<std::vector<QueryPartition>> PartitionQuery(
       Transaction transaction, SqlStatement statement,
       Options opts = Options{});
-
-  /// @name Backwards compatibility for `PartitionOptions`.
-  ///@{
-  StatusOr<std::vector<QueryPartition>> PartitionQuery(
-      Transaction transaction, SqlStatement statement,
-      PartitionOptions const& partition_options) {
-    return PartitionQuery(std::move(transaction), std::move(statement),
-                          ToOptions(partition_options));
-  }
-  StatusOr<std::vector<QueryPartition>> PartitionQuery(
-      Transaction transaction, SqlStatement statement,
-      std::initializer_list<internal::NonConstructible>) {
-    return PartitionQuery(std::move(transaction), std::move(statement));
-  }
-  ///@}
 
   /**
    * Executes a SQL DML statement.
@@ -570,32 +414,17 @@ class Client {
    *
    * @note Single-use transactions are not supported with DML statements.
    *
+   * @par Example
+   * @snippet samples.cc execute-dml
+   *
    * @param transaction Execute this query as part of an existing transaction.
    * @param statement The SQL statement to execute.
    * @param opts (optional) The `Options` to use for this call. If given,
    *     these will take precedence over the options set at the client and
    *     environment levels.
-   *
-   * @par Example
-   * @snippet samples.cc execute-dml
    */
   StatusOr<DmlResult> ExecuteDml(Transaction transaction,
                                  SqlStatement statement, Options opts = {});
-
-  /// @name Backwards compatibility for `QueryOptions`.
-  ///@{
-  StatusOr<DmlResult> ExecuteDml(Transaction transaction,
-                                 SqlStatement statement,
-                                 QueryOptions const& opts) {
-    return ExecuteDml(std::move(transaction), std::move(statement),
-                      Options(opts));
-  }
-  StatusOr<DmlResult> ExecuteDml(
-      Transaction transaction, SqlStatement statement,
-      std::initializer_list<internal::NonConstructible>) {
-    return ExecuteDml(std::move(transaction), std::move(statement));
-  }
-  ///@}
 
   /**
    * Profiles a SQL DML statement.
@@ -608,33 +437,18 @@ class Client {
    *
    * @note Single-use transactions are not supported with DML statements.
    *
+   * @par Example
+   * @snippet samples.cc profile-dml
+   *
    * @param transaction Execute this query as part of an existing transaction.
    * @param statement The SQL statement to execute.
    * @param opts (optional) The `Options` to use for this call. If given,
    *     these will take precedence over the options set at the client and
    *     environment levels.
-   *
-   * @par Example:
-   * @snippet samples.cc profile-dml
    */
   StatusOr<ProfileDmlResult> ProfileDml(Transaction transaction,
                                         SqlStatement statement,
                                         Options opts = {});
-
-  /// @name Backwards compatibility for `QueryOptions`.
-  ///@{
-  StatusOr<ProfileDmlResult> ProfileDml(Transaction transaction,
-                                        SqlStatement statement,
-                                        QueryOptions const& opts) {
-    return ProfileDml(std::move(transaction), std::move(statement),
-                      Options(opts));
-  }
-  StatusOr<ProfileDmlResult> ProfileDml(
-      Transaction transaction, SqlStatement statement,
-      std::initializer_list<internal::NonConstructible>) {
-    return ProfileDml(std::move(transaction), std::move(statement));
-  }
-  ///@}
 
   /**
    * Analyzes the execution plan of a SQL statement.
@@ -647,32 +461,17 @@ class Client {
    *
    * @note Single-use transactions are not supported with DML statements.
    *
+   * @par Example
+   * @snippet samples.cc analyze-query
+   *
    * @param transaction Execute this query as part of an existing transaction.
    * @param statement The SQL statement to execute.
    * @param opts (optional) The `Options` to use for this call. If given,
    *     these will take precedence over the options set at the client and
    *     environment levels.
-   *
-   * @par Example:
-   * @snippet samples.cc analyze-query
    */
   StatusOr<ExecutionPlan> AnalyzeSql(Transaction transaction,
                                      SqlStatement statement, Options opts = {});
-
-  /// @name Backwards compatibility for `QueryOptions`.
-  ///@{
-  StatusOr<ExecutionPlan> AnalyzeSql(Transaction transaction,
-                                     SqlStatement statement,
-                                     QueryOptions const& opts) {
-    return AnalyzeSql(std::move(transaction), std::move(statement),
-                      Options(opts));
-  }
-  StatusOr<ExecutionPlan> AnalyzeSql(
-      Transaction transaction, SqlStatement statement,
-      std::initializer_list<internal::NonConstructible>) {
-    return AnalyzeSql(std::move(transaction), std::move(statement));
-  }
-  ///@}
 
   /**
    * Executes a batch of SQL DML statements. This method allows many statements
@@ -690,6 +489,9 @@ class Client {
    *     all the statements were executed successfully. For that, you need to
    *     inspect the `BatchDmlResult::status` field.
    *
+   * @par Example
+   * @snippet samples.cc execute-batch-dml
+   *
    * @param transaction The read-write transaction to execute the operation in.
    * @param statements The list of statements to execute in this batch.
    *     Statements are executed serially, such that the effects of statement i
@@ -699,9 +501,6 @@ class Client {
    * @param opts (optional) The options to use for this call.  Expected options
    *     are any of the types in the following option lists.
    *       - `google::cloud::RequestOptionList`
-   *
-   * @par Example
-   * @snippet samples.cc execute-batch-dml
    */
   StatusOr<BatchDmlResult> ExecuteBatchDml(Transaction transaction,
                                            std::vector<SqlStatement> statements,
@@ -732,6 +531,9 @@ class Client {
    * the transaction is no longer usable (e.g., it was aborted). Otherwise
    * the transaction will be leaked.
    *
+   * @par Example
+   * @snippet samples.cc commit-with-policies
+   *
    * @param mutator the function called to create mutations
    * @param rerun_policy controls for how long (or how many times) the mutator
    *     will be rerun after the transaction aborts.
@@ -746,85 +548,37 @@ class Client {
    *     the transaction). However, a `RuntimeStatusError` exception is
    *     instead consumed and converted into a `mutator` return value of the
    *     enclosed `Status`.
-   *
-   * @par Example
-   * @snippet samples.cc commit-with-policies
    */
   StatusOr<CommitResult> Commit(
       std::function<StatusOr<Mutations>(Transaction)> const& mutator,
       std::unique_ptr<TransactionRerunPolicy> rerun_policy,
       std::unique_ptr<BackoffPolicy> backoff_policy, Options opts = {});
 
-  /// @name Backwards compatibility for `CommitOptions`.
-  ///@{
-  StatusOr<CommitResult> Commit(
-      std::function<StatusOr<Mutations>(Transaction)> const& mutator,
-      std::unique_ptr<TransactionRerunPolicy> rerun_policy,
-      std::unique_ptr<BackoffPolicy> backoff_policy,
-      CommitOptions const& commit_options) {
-    return Commit(mutator, std::move(rerun_policy), std::move(backoff_policy),
-                  Options(commit_options));
-  }
-  StatusOr<CommitResult> Commit(
-      std::function<StatusOr<Mutations>(Transaction)> const& mutator,
-      std::unique_ptr<TransactionRerunPolicy> rerun_policy,
-      std::unique_ptr<BackoffPolicy> backoff_policy,
-      std::initializer_list<internal::NonConstructible>) {
-    return Commit(mutator, std::move(rerun_policy), std::move(backoff_policy));
-  }
-  ///@}
-
   /**
    * Commits a read-write transaction.
    *
    * Same as above, but uses the default rerun and backoff policies.
    *
-   * @param mutator the function called to create mutations
-   * @param opts (optional) The options to use for this call.
-   *
    * @par Example
    * @snippet samples.cc commit-with-mutator
+   *
+   * @param mutator the function called to create mutations
+   * @param opts (optional) The options to use for this call.
    */
   StatusOr<CommitResult> Commit(
       std::function<StatusOr<Mutations>(Transaction)> const& mutator,
       Options opts = {});
 
-  /// @name Backwards compatibility for `CommitOptions`.
-  ///@{
-  StatusOr<CommitResult> Commit(
-      std::function<StatusOr<Mutations>(Transaction)> const& mutator,
-      CommitOptions const& commit_options) {
-    return Commit(mutator, Options(commit_options));
-  }
-  StatusOr<CommitResult> Commit(
-      std::function<StatusOr<Mutations>(Transaction)> const& mutator,
-      std::initializer_list<internal::NonConstructible>) {
-    return Commit(mutator);
-  }
-  ///@}
-
   /**
    * Commits the @p mutations, using the @p options, atomically in order.
    *
-   * This function uses the re-run loop described above with the default
-   * policies.
-   *
    * @par Example
    * @snippet samples.cc commit-with-mutations
+   *
+   * This function uses the re-run loop described above with the default
+   * policies.
    */
   StatusOr<CommitResult> Commit(Mutations mutations, Options opts = {});
-
-  /// @name Backwards compatibility for `CommitOptions`.
-  ///@{
-  StatusOr<CommitResult> Commit(Mutations mutations,
-                                CommitOptions const& commit_options) {
-    return Commit(std::move(mutations), Options(commit_options));
-  }
-  StatusOr<CommitResult> Commit(
-      Mutations mutations, std::initializer_list<internal::NonConstructible>) {
-    return Commit(std::move(mutations));
-  }
-  ///@}
 
   /**
    * Commits a read-write transaction.
@@ -837,15 +591,15 @@ class Client {
    * transaction so that the new attempt has a slightly better chance of
    * success).
    *
+   * @warning It is an error to call `Commit` with a read-only transaction.
+   *
    * @note Prefer the previous `Commit` overloads if you want to simply reapply
    *     mutations after a `kAborted` error.
    *
-   * @warning It is an error to call `Commit` with a read-only transaction.
-   *
    * @param transaction The transaction to commit.
    * @param mutations The mutations to be executed when this transaction
-   *     commits. All mutations are applied atomically, in the order they appear
-   *     in this list.
+   *     commits. All mutations are applied atomically, in the order they
+   *     appear in this list.
    * @param opts (optional) The options to use for this call.
    *
    * @return A `StatusOr` containing the result of the commit or error status
@@ -854,19 +608,73 @@ class Client {
   StatusOr<CommitResult> Commit(Transaction transaction, Mutations mutations,
                                 Options opts = {});
 
-  /// @name Backwards compatibility for `CommitOptions`.
-  ///@{
-  StatusOr<CommitResult> Commit(Transaction transaction, Mutations mutations,
-                                CommitOptions const& commit_options) {
-    return Commit(std::move(transaction), std::move(mutations),
-                  Options(commit_options));
-  }
-  StatusOr<CommitResult> Commit(
-      Transaction transaction, Mutations mutations,
-      std::initializer_list<internal::NonConstructible>) {
-    return Commit(std::move(transaction), std::move(mutations));
-  }
-  ///@}
+  /**
+   * Commits a write transaction with at-least-once semantics.
+   *
+   * Apply the given mutations atomically, using a single RPC, and therefore
+   * without replay protection.  That is, it is possible that the mutations
+   * will be applied more than once. If the mutations are not idempotent, this
+   * may lead to a failure (for example, an insert may fail with "already
+   * exists" even though the row did not exist before the call was made).
+   * Accordingly, this call may only be appropriate for idempotent, latency-
+   * sensitive and/or high-throughput blind writing.
+   *
+   * @note Prefer the `Commit` overloads if you want exactly-once semantics
+   *     or want to reapply mutations after a `kAborted` error.
+   *
+   * @par Example
+   * @snippet samples.cc commit-at-least-once
+   *
+   * @param transaction_options Execute the commit in a temporary transaction
+   *     with these options.
+   * @param mutations The mutations to be executed when this transaction
+   *     commits. All mutations are applied atomically, in the order they
+   *     appear in this list.
+   * @param opts (optional) The options to use for this call.
+   *
+   * @return A `StatusOr` containing the result of the commit or error status
+   *     on failure.
+   */
+  StatusOr<CommitResult> CommitAtLeastOnce(
+      Transaction::ReadWriteOptions transaction_options, Mutations mutations,
+      Options opts = {});
+
+  /**
+   * Commits the mutation groups, batched efficiently into transactions with
+   * at-least-once semantics, using a single RPC.
+   *
+   * All mutations within a group are committed atomically. There is no
+   * atomicity or ordering between groups however, so all groups must be
+   * independent of each other.
+   *
+   * Partial failure is possible. That is, some groups can commit successfully
+   * while others fail. The results of individual batches are returned via the
+   * response stream as their transactions complete.
+   *
+   * Mutation groups are not replay protected. That is, it is possible that
+   * each mutation group may be applied more than once. If the mutations are
+   * not idempotent, this may lead to a failure. For example, replays of an
+   * insert mutation might produce an "already exists" error, or, if you use
+   * generated or commit-timestamp-based keys, might result in additional
+   * rows being added to the mutation's table. We recommend structuring your
+   * mutation groups to be idempotent to avoid this issue.
+   *
+   * @note Prefer the `Commit` overloads if you want exactly-once semantics
+   *     or want to automatically reapply mutations after a `kAborted` error.
+   *
+   * @par Example
+   * @snippet samples.cc commit-at-least-once-batched
+   *
+   * @param mutation_groups The mutation groups to be batched into temporary
+   *     transactions and committed.
+   * @param opts (optional) The options to use for this call. Expected options
+   *     include any of the following types:
+   *       - `google::cloud::spanner::RequestPriorityOption`
+   *       - `google::cloud::spanner::RequestTagOption`
+   *       - `google::cloud::spanner::TransactionTagOption`
+   */
+  BatchedCommitResultStream CommitAtLeastOnce(
+      std::vector<Mutations> mutation_groups, Options opts = {});
 
   /**
    * Rolls back a read-write transaction, releasing any locks it holds.
@@ -888,15 +696,15 @@ class Client {
   /**
    * Executes a Partitioned DML SQL query.
    *
+   * @par Example
+   * @snippet samples.cc execute-sql-partitioned
+   *
    * @param statement the SQL statement to execute. Please see the
    *     [spanner documentation][dml-partitioned] for the restrictions on the
    *     SQL statements supported by this function.
    * @param opts (optional) The `Options` to use for this call. If given,
    *     these will take precedence over the options set at the client and
    *     environment levels.
-   *
-   * @par Example
-   * @snippet samples.cc execute-sql-partitioned
    *
    * @see [Partitioned DML Transactions][txn-partitioned] for an overview of
    *     Partitioned DML transactions.
@@ -909,12 +717,424 @@ class Client {
   StatusOr<PartitionedDmlResult> ExecutePartitionedDml(SqlStatement statement,
                                                        Options opts = {});
 
-  /// @name Backwards compatibility for `QueryOptions`.
   ///@{
+  /// @name Backwards compatibility for ClientOptions.
+  explicit Client(std::shared_ptr<Connection> conn, ClientOptions const& opts)
+      : Client(std::move(conn), Options(opts)) {}
+  explicit Client(std::shared_ptr<Connection> conn,
+                  std::initializer_list<internal::NonConstructible>)
+      : Client(std::move(conn)) {}
+  ///@}
+
+  ///@{
+  /// @name Backwards compatibility for ReadOptions.
+  /**
+   * @copybrief Read(std::string,KeySet,std::vector<std::string>,Options)
+   * @see Read(std::string,KeySet,std::vector<std::string>,Options)
+   */
+  RowStream Read(std::string table, KeySet keys,
+                 std::vector<std::string> columns,
+                 ReadOptions const& read_options) {
+    return Read(std::move(table), std::move(keys), std::move(columns),
+                ToOptions(read_options));
+  }
+  /**
+   * @copybrief Read(std::string,KeySet,std::vector<std::string>,Options)
+   * @see Read(std::string,KeySet,std::vector<std::string>,Options)
+   */
+  RowStream Read(std::string table, KeySet keys,
+                 std::vector<std::string> columns,
+                 std::initializer_list<internal::NonConstructible>) {
+    return Read(std::move(table), std::move(keys), std::move(columns));
+  }
+  /**
+   * @copybrief Read(Transaction::SingleUseOptions,std::string,KeySet,std::vector<std::string>,Options)
+   * @see Read(Transaction::SingleUseOptions,std::string,KeySet,std::vector<std::string>,Options)
+   */
+  RowStream Read(Transaction::SingleUseOptions transaction_options,
+                 std::string table, KeySet keys,
+                 std::vector<std::string> columns,
+                 ReadOptions const& read_options) {
+    return Read(std::move(transaction_options), std::move(table),
+                std::move(keys), std::move(columns), ToOptions(read_options));
+  }
+  /**
+   * @copybrief Read(Transaction::SingleUseOptions,std::string,KeySet,std::vector<std::string>,Options)
+   * @see Read(Transaction::SingleUseOptions,std::string,KeySet,std::vector<std::string>,Options)
+   */
+  RowStream Read(Transaction::SingleUseOptions transaction_options,
+                 std::string table, KeySet keys,
+                 std::vector<std::string> columns,
+                 std::initializer_list<internal::NonConstructible>) {
+    return Read(std::move(transaction_options), std::move(table),
+                std::move(keys), std::move(columns));
+  }
+  /**
+   * @copybrief Read(Transaction,std::string,KeySet,std::vector<std::string>,Options)
+   * @see Read(Transaction,std::string,KeySet,std::vector<std::string>,Options)
+   */
+  RowStream Read(Transaction transaction, std::string table, KeySet keys,
+                 std::vector<std::string> columns,
+                 ReadOptions const& read_options) {
+    return Read(std::move(transaction), std::move(table), std::move(keys),
+                std::move(columns), ToOptions(read_options));
+  }
+  /**
+   * @copybrief Read(Transaction,std::string,KeySet,std::vector<std::string>,Options)
+   * @see Read(Transaction,std::string,KeySet,std::vector<std::string>,Options)
+   */
+  RowStream Read(Transaction transaction, std::string table, KeySet keys,
+                 std::vector<std::string> columns,
+                 std::initializer_list<internal::NonConstructible>) {
+    return Read(std::move(transaction), std::move(table), std::move(keys),
+                std::move(columns));
+  }
+  ///@}
+
+  ///@{
+  /// @name Backwards compatibility for ReadOptions and PartitionOptions.
+  /**
+   * @copybrief PartitionRead(Transaction,std::string,KeySet,std::vector<std::string>,Options)
+   * @see PartitionRead(Transaction,std::string,KeySet,std::vector<std::string>,Options)
+   */
+  StatusOr<std::vector<ReadPartition>> PartitionRead(
+      Transaction transaction, std::string table, KeySet keys,
+      std::vector<std::string> columns, ReadOptions const& read_options,
+      PartitionOptions const& partition_options) {
+    return PartitionRead(std::move(transaction), std::move(table),
+                         std::move(keys), std::move(columns),
+                         internal::MergeOptions(ToOptions(read_options),
+                                                ToOptions(partition_options)));
+  }
+  /**
+   * @copybrief PartitionRead(Transaction,std::string,KeySet,std::vector<std::string>,Options)
+   * @see PartitionRead(Transaction,std::string,KeySet,std::vector<std::string>,Options)
+   */
+  StatusOr<std::vector<ReadPartition>> PartitionRead(
+      Transaction transaction, std::string table, KeySet keys,
+      std::vector<std::string> columns,
+      std::initializer_list<internal::NonConstructible>) {
+    return PartitionRead(std::move(transaction), std::move(table),
+                         std::move(keys), std::move(columns));
+  }
+  ///@}
+
+  ///@{
+  /// @name Backwards compatibility for QueryOptions.
+  /**
+   * @copybrief ExecuteQuery(SqlStatement,Options)
+   * @see ExecuteQuery(SqlStatement,Options)
+   */
+  RowStream ExecuteQuery(SqlStatement statement, QueryOptions const& opts) {
+    return ExecuteQuery(std::move(statement), Options(opts));
+  }
+  /**
+   * @copybrief ExecuteQuery(SqlStatement,Options)
+   * @see ExecuteQuery(SqlStatement,Options)
+   */
+  RowStream ExecuteQuery(SqlStatement statement,
+                         std::initializer_list<internal::NonConstructible>) {
+    return ExecuteQuery(std::move(statement));
+  }
+  /**
+   * @copybrief ExecuteQuery(Transaction::SingleUseOptions,SqlStatement,Options)
+   * @see ExecuteQuery(Transaction::SingleUseOptions,SqlStatement,Options)
+   */
+  RowStream ExecuteQuery(Transaction::SingleUseOptions transaction_options,
+                         SqlStatement statement, QueryOptions const& opts) {
+    return ExecuteQuery(std::move(transaction_options), std::move(statement),
+                        Options(opts));
+  }
+  /**
+   * @copybrief ExecuteQuery(Transaction::SingleUseOptions,SqlStatement,Options)
+   * @see ExecuteQuery(Transaction::SingleUseOptions,SqlStatement,Options)
+   */
+  RowStream ExecuteQuery(Transaction::SingleUseOptions transaction_options,
+                         SqlStatement statement,
+                         std::initializer_list<internal::NonConstructible>) {
+    return ExecuteQuery(std::move(transaction_options), std::move(statement));
+  }
+  /**
+   * @copybrief ExecuteQuery(Transaction,SqlStatement,Options)
+   * @see ExecuteQuery(Transaction,SqlStatement,Options)
+   */
+  RowStream ExecuteQuery(Transaction transaction, SqlStatement statement,
+                         QueryOptions const& opts) {
+    return ExecuteQuery(std::move(transaction), std::move(statement),
+                        Options(opts));
+  }
+  /**
+   * @copybrief ExecuteQuery(Transaction,SqlStatement,Options)
+   * @see ExecuteQuery(Transaction,SqlStatement,Options)
+   */
+  RowStream ExecuteQuery(Transaction transaction, SqlStatement statement,
+                         std::initializer_list<internal::NonConstructible>) {
+    return ExecuteQuery(std::move(transaction), std::move(statement));
+  }
+  /**
+   * @copybrief ExecuteQuery(QueryPartition const&,Options)
+   * @see ExecuteQuery(QueryPartition const&,Options)
+   */
+  RowStream ExecuteQuery(QueryPartition const& partition,
+                         QueryOptions const& opts) {
+    return ExecuteQuery(partition, Options(opts));
+  }
+  /**
+   * @copybrief ExecuteQuery(QueryPartition const&,Options)
+   * @see ExecuteQuery(QueryPartition const&,Options)
+   */
+  RowStream ExecuteQuery(QueryPartition const& partition,
+                         std::initializer_list<internal::NonConstructible>) {
+    return ExecuteQuery(partition);
+  }
+  ///@}
+
+  ///@{
+  /// @name Backwards compatibility for QueryOptions.
+  /**
+   * @copybrief ProfileQuery(SqlStatement,Options)
+   * @see ProfileQuery(SqlStatement,Options)
+   */
+  ProfileQueryResult ProfileQuery(SqlStatement statement,
+                                  QueryOptions const& opts) {
+    return ProfileQuery(std::move(statement), Options(opts));
+  }
+  /**
+   * @copybrief ProfileQuery(SqlStatement,Options)
+   * @see ProfileQuery(SqlStatement,Options)
+   */
+  ProfileQueryResult ProfileQuery(
+      SqlStatement statement,
+      std::initializer_list<internal::NonConstructible>) {
+    return ProfileQuery(std::move(statement));
+  }
+  /**
+   * @copybrief ProfileQuery(Transaction::SingleUseOptions,SqlStatement,Options)
+   * @see ProfileQuery(Transaction::SingleUseOptions,SqlStatement,Options)
+   */
+  ProfileQueryResult ProfileQuery(
+      Transaction::SingleUseOptions transaction_options, SqlStatement statement,
+      QueryOptions const& opts) {
+    return ProfileQuery(std::move(transaction_options), std::move(statement),
+                        Options(opts));
+  }
+  /**
+   * @copybrief ProfileQuery(Transaction::SingleUseOptions,SqlStatement,Options)
+   * @see ProfileQuery(Transaction::SingleUseOptions,SqlStatement,Options)
+   */
+  ProfileQueryResult ProfileQuery(
+      Transaction::SingleUseOptions transaction_options, SqlStatement statement,
+      std::initializer_list<internal::NonConstructible>) {
+    return ProfileQuery(std::move(transaction_options), std::move(statement));
+  }
+  /**
+   * @copybrief ProfileQuery(Transaction,SqlStatement,Options)
+   * @see ProfileQuery(Transaction,SqlStatement,Options)
+   */
+  ProfileQueryResult ProfileQuery(Transaction transaction,
+                                  SqlStatement statement,
+                                  QueryOptions const& opts) {
+    return ProfileQuery(std::move(transaction), std::move(statement),
+                        Options(opts));
+  }
+  /**
+   * @copybrief ProfileQuery(Transaction,SqlStatement,Options)
+   * @see ProfileQuery(Transaction,SqlStatement,Options)
+   */
+  ProfileQueryResult ProfileQuery(
+      Transaction transaction, SqlStatement statement,
+      std::initializer_list<internal::NonConstructible>) {
+    return ProfileQuery(std::move(transaction), std::move(statement));
+  }
+  ///@}
+
+  ///@{
+  /// @name Backwards compatibility for PartitionOptions.
+  /**
+   * @copybrief PartitionQuery(Transaction,SqlStatement,Options)
+   * @see PartitionQuery(Transaction,SqlStatement,Options)
+   */
+  StatusOr<std::vector<QueryPartition>> PartitionQuery(
+      Transaction transaction, SqlStatement statement,
+      PartitionOptions const& partition_options) {
+    return PartitionQuery(std::move(transaction), std::move(statement),
+                          ToOptions(partition_options));
+  }
+  /**
+   * @copybrief PartitionQuery(Transaction,SqlStatement,Options)
+   * @see PartitionQuery(Transaction,SqlStatement,Options)
+   */
+  StatusOr<std::vector<QueryPartition>> PartitionQuery(
+      Transaction transaction, SqlStatement statement,
+      std::initializer_list<internal::NonConstructible>) {
+    return PartitionQuery(std::move(transaction), std::move(statement));
+  }
+  ///@}
+
+  ///@{
+  /// @name Backwards compatibility for QueryOptions.
+  /**
+   * @copybrief ExecuteDml(Transaction,SqlStatement,Options)
+   * @see ExecuteDml(Transaction,SqlStatement,Options)
+   */
+  StatusOr<DmlResult> ExecuteDml(Transaction transaction,
+                                 SqlStatement statement,
+                                 QueryOptions const& opts) {
+    return ExecuteDml(std::move(transaction), std::move(statement),
+                      Options(opts));
+  }
+  /**
+   * @copybrief ExecuteDml(Transaction,SqlStatement,Options)
+   * @see ExecuteDml(Transaction,SqlStatement,Options)
+   */
+  StatusOr<DmlResult> ExecuteDml(
+      Transaction transaction, SqlStatement statement,
+      std::initializer_list<internal::NonConstructible>) {
+    return ExecuteDml(std::move(transaction), std::move(statement));
+  }
+  ///@}
+
+  ///@{
+  /// @name Backwards compatibility for QueryOptions.
+  StatusOr<ProfileDmlResult> ProfileDml(Transaction transaction,
+                                        SqlStatement statement,
+                                        QueryOptions const& opts) {
+    return ProfileDml(std::move(transaction), std::move(statement),
+                      Options(opts));
+  }
+  StatusOr<ProfileDmlResult> ProfileDml(
+      Transaction transaction, SqlStatement statement,
+      std::initializer_list<internal::NonConstructible>) {
+    return ProfileDml(std::move(transaction), std::move(statement));
+  }
+  ///@}
+
+  ///@{
+  /// @name Backwards compatibility for QueryOptions.
+  /**
+   * @copybrief AnalyzeSql(Transaction,SqlStatement,Options)
+   * @see AnalyzeSql(Transaction,SqlStatement,Options)
+   */
+  StatusOr<ExecutionPlan> AnalyzeSql(Transaction transaction,
+                                     SqlStatement statement,
+                                     QueryOptions const& opts) {
+    return AnalyzeSql(std::move(transaction), std::move(statement),
+                      Options(opts));
+  }
+  /**
+   * @copybrief AnalyzeSql(Transaction,SqlStatement,Options)
+   * @see AnalyzeSql(Transaction,SqlStatement,Options)
+   */
+  StatusOr<ExecutionPlan> AnalyzeSql(
+      Transaction transaction, SqlStatement statement,
+      std::initializer_list<internal::NonConstructible>) {
+    return AnalyzeSql(std::move(transaction), std::move(statement));
+  }
+  ///@}
+
+  ///@{
+  /// @name Backwards compatibility for CommitOptions.
+  /**
+   * @copybrief Commit(std::function<StatusOr<Mutations>(Transaction)> const&,std::unique_ptr<TransactionRerunPolicy>,std::unique_ptr<BackoffPolicy>,Options)
+   * @see Commit(std::function<StatusOr<Mutations>(Transaction)> const&,std::unique_ptr<TransactionRerunPolicy>,std::unique_ptr<BackoffPolicy>,Options)
+   */
+  StatusOr<CommitResult> Commit(
+      std::function<StatusOr<Mutations>(Transaction)> const& mutator,
+      std::unique_ptr<TransactionRerunPolicy> rerun_policy,
+      std::unique_ptr<BackoffPolicy> backoff_policy,
+      CommitOptions const& commit_options) {
+    return Commit(mutator, std::move(rerun_policy), std::move(backoff_policy),
+                  Options(commit_options));
+  }
+  /**
+   * @copybrief Commit(std::function<StatusOr<Mutations>(Transaction)> const&,std::unique_ptr<TransactionRerunPolicy>,std::unique_ptr<BackoffPolicy>,Options)
+   * @see Commit(std::function<StatusOr<Mutations>(Transaction)> const&,std::unique_ptr<TransactionRerunPolicy>,std::unique_ptr<BackoffPolicy>,Options)
+   */
+  StatusOr<CommitResult> Commit(
+      std::function<StatusOr<Mutations>(Transaction)> const& mutator,
+      std::unique_ptr<TransactionRerunPolicy> rerun_policy,
+      std::unique_ptr<BackoffPolicy> backoff_policy,
+      std::initializer_list<internal::NonConstructible>) {
+    return Commit(mutator, std::move(rerun_policy), std::move(backoff_policy));
+  }
+  ///@}
+
+  ///@{
+  /// @name Backwards compatibility for CommitOptions.
+  /**
+   * @copybrief Commit(std::function<StatusOr<Mutations>(Transaction)> const&,Options)
+   */
+  StatusOr<CommitResult> Commit(
+      std::function<StatusOr<Mutations>(Transaction)> const& mutator,
+      CommitOptions const& commit_options) {
+    return Commit(mutator, Options(commit_options));
+  }
+  /**
+   * @see Commit(std::function<StatusOr<Mutations>(Transaction)> const&,Options)
+   */
+  StatusOr<CommitResult> Commit(
+      std::function<StatusOr<Mutations>(Transaction)> const& mutator,
+      std::initializer_list<internal::NonConstructible>) {
+    return Commit(mutator);
+  }
+  ///@}
+
+  ///@{
+  /// @name Backwards compatibility for CommitOptions.
+  /**
+   * @copybrief Commit(Mutations,Options)
+   * @see Commit(Mutations,Options)
+   */
+  StatusOr<CommitResult> Commit(Mutations mutations,
+                                CommitOptions const& commit_options) {
+    return Commit(std::move(mutations), Options(commit_options));
+  }
+  /**
+   * @copybrief Commit(Mutations,Options)
+   * @see Commit(Mutations,Options)
+   */
+  StatusOr<CommitResult> Commit(
+      Mutations mutations, std::initializer_list<internal::NonConstructible>) {
+    return Commit(std::move(mutations));
+  }
+  ///@}
+
+  ///@{
+  /// @name Backwards compatibility for CommitOptions.
+  /**
+   * @copybrief Commit(Transaction,Mutations,Options)
+   * @see Commit(Transaction,Mutations,Options)
+   */
+  StatusOr<CommitResult> Commit(Transaction transaction, Mutations mutations,
+                                CommitOptions const& commit_options) {
+    return Commit(std::move(transaction), std::move(mutations),
+                  Options(commit_options));
+  }
+  /**
+   * @copybrief Commit(Transaction,Mutations,Options)
+   * @see Commit(Transaction,Mutations,Options)
+   */
+  StatusOr<CommitResult> Commit(
+      Transaction transaction, Mutations mutations,
+      std::initializer_list<internal::NonConstructible>) {
+    return Commit(std::move(transaction), std::move(mutations));
+  }
+  ///@}
+
+  ///@{
+  /// @name Backwards compatibility for QueryOptions.
+  /**
+   * @copybrief ExecutePartitionedDml(SqlStatement,Options)
+   * @see ExecutePartitionedDml(SqlStatement,Options)
+   */
   StatusOr<PartitionedDmlResult> ExecutePartitionedDml(
       SqlStatement statement, QueryOptions const& opts) {
     return ExecutePartitionedDml(std::move(statement), Options(opts));
   }
+  /**
+   * @copybrief ExecutePartitionedDml(SqlStatement,Options)
+   * @see ExecutePartitionedDml(SqlStatement,Options)
+   */
   StatusOr<PartitionedDmlResult> ExecutePartitionedDml(
       SqlStatement statement,
       std::initializer_list<internal::NonConstructible>) {
@@ -982,14 +1202,14 @@ std::shared_ptr<Connection> MakeConnection(
  * @deprecated Please use the `MakeConnection()` overload that accepts
  *     `google::cloud::Options` instead.
  *
+ * @par Example
+ * @snippet samples.cc custom-retry-policy
+ *
  * @param retry_policy override the default `RetryPolicy`, controls how long
  *     the returned `Connection` object retries requests on transient
  *     failures.
  * @param backoff_policy override the default `BackoffPolicy`, controls how
  *     long the `Connection` object waits before retrying a failed request.
- *
- * @par Example
- * @snippet samples.cc custom-retry-policy
  */
 std::shared_ptr<Connection> MakeConnection(
     Database const& db, ConnectionOptions const& connection_options,

@@ -21,21 +21,17 @@ if (NOT BUILD_TESTING)
     return()
 endif ()
 
-# Sometimes (this happens often with vcpkg) protobuf is installed in a non-
-# standard directory. We need to find out where, and then add that directory to
-# the search path for protos.
-find_path(PROTO_INCLUDE_DIR google/protobuf/descriptor.proto)
-if (PROTO_INCLUDE_DIR)
-    list(INSERT PROTOBUF_IMPORT_DIRS 0 "${PROTO_INCLUDE_DIR}")
-endif ()
-
 include(CompileProtos)
+google_cloud_cpp_find_proto_include_dir(PROTO_INCLUDE_DIR)
 
 google_cloud_cpp_grpcpp_library(
     google_cloud_cpp_generator_golden_protos
     ${PROJECT_SOURCE_DIR}/generator/integration_tests/backup.proto
     ${PROJECT_SOURCE_DIR}/generator/integration_tests/common.proto
     ${PROJECT_SOURCE_DIR}/generator/integration_tests/test.proto
+    ${PROJECT_SOURCE_DIR}/generator/integration_tests/test2.proto
+    ${PROJECT_SOURCE_DIR}/generator/integration_tests/test_request_id.proto
+    ${PROJECT_SOURCE_DIR}/generator/integration_tests/test_deprecated.proto
     PROTO_PATH_DIRECTORIES
     ${PROTO_INCLUDE_DIR}
     ${PROJECT_SOURCE_DIR}
@@ -45,6 +41,7 @@ target_link_libraries(
     PUBLIC google-cloud-cpp::api_annotations_protos
            google-cloud-cpp::api_client_protos
            google-cloud-cpp::api_field_behavior_protos
+           google-cloud-cpp::api_field_info_protos
            google-cloud-cpp::api_resource_protos
            google-cloud-cpp::api_routing_protos
            google-cloud-cpp::iam_v1_iam_policy_protos
@@ -60,9 +57,9 @@ file(
     "golden/*.h"
     "golden/mocks/*.h"
     "golden/v1/*.h"
-    "golden/v1/*.cc"
     "golden/v1/internal/*.h"
-    "golden/v1/internal/*.cc"
+    "golden/v1/internal/*_sources.cc"
+    "golden/v1/internal/streaming.cc"
     "golden/v1/mocks/*.h")
 list(SORT google_cloud_cpp_generator_golden_files)
 
@@ -97,51 +94,19 @@ find_package(GTest CONFIG REQUIRED)
 
 add_library(
     google_cloud_cpp_generator_golden_testing # cmake-format: sort
-    tests/mock_golden_kitchen_sink_stub.h tests/mock_golden_thing_admin_stub.h)
+    tests/mock_golden_kitchen_sink_stub.h tests/mock_golden_thing_admin_stub.h
+    tests/mock_request_id_stub.h)
 target_link_libraries(
     google_cloud_cpp_generator_golden_testing
-    PUBLIC google_cloud_cpp_testing google_cloud_cpp_generator_golden
-           GTest::gmock_main GTest::gmock GTest::gtest)
+    PUBLIC google_cloud_cpp_testing google_cloud_cpp_mocks
+           google_cloud_cpp_generator_golden GTest::gmock_main GTest::gmock
+           GTest::gtest)
 
-set(google_cloud_cpp_generator_golden_tests
-    # cmake-format: sort
-    tests/forwarding_headers_test.cc
-    tests/golden_kitchen_sink_auth_decorator_test.cc
-    tests/golden_kitchen_sink_client_test.cc
-    tests/golden_kitchen_sink_connection_test.cc
-    tests/golden_kitchen_sink_idempotency_policy_test.cc
-    tests/golden_kitchen_sink_logging_decorator_test.cc
-    tests/golden_kitchen_sink_metadata_decorator_test.cc
-    tests/golden_kitchen_sink_option_defaults_test.cc
-    tests/golden_kitchen_sink_rest_logging_decorator_test.cc
-    tests/golden_kitchen_sink_rest_metadata_decorator_test.cc
-    tests/golden_kitchen_sink_rest_stub_factory_test.cc
-    tests/golden_kitchen_sink_rest_stub_test.cc
-    tests/golden_kitchen_sink_round_robin_decorator_test.cc
-    tests/golden_kitchen_sink_stub_factory_test.cc
-    tests/golden_kitchen_sink_stub_test.cc
-    tests/golden_thing_admin_auth_decorator_test.cc
-    tests/golden_thing_admin_client_test.cc
-    tests/golden_thing_admin_connection_test.cc
-    tests/golden_thing_admin_idempotency_policy_test.cc
-    tests/golden_thing_admin_logging_decorator_test.cc
-    tests/golden_thing_admin_metadata_decorator_test.cc
-    tests/golden_thing_admin_option_defaults_test.cc
-    tests/golden_thing_admin_rest_logging_decorator_test.cc
-    tests/golden_thing_admin_rest_metadata_decorator_test.cc
-    tests/golden_thing_admin_rest_stub_factory_test.cc
-    tests/golden_thing_admin_rest_stub_test.cc
-    tests/golden_thing_admin_round_robin_decorator_test.cc
-    tests/golden_thing_admin_stub_factory_test.cc
-    tests/golden_thing_admin_stub_test.cc
-    tests/plumbing_test.cc)
-
-# Export the list of unit tests to a .bzl file so we do not need to maintain the
-# list in two places.
-export_list_to_bazel("google_cloud_cpp_generator_golden_tests.bzl"
-                     "google_cloud_cpp_generator_golden_tests" YEAR "2020")
-
-foreach (fname ${google_cloud_cpp_generator_golden_tests})
+file(
+    GLOB tests_cc
+    RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
+    "tests/*.cc")
+foreach (fname ${tests_cc})
     google_cloud_cpp_add_executable(target "generator_golden" "${fname}")
     target_link_libraries(
         ${target}
@@ -154,18 +119,11 @@ foreach (fname ${google_cloud_cpp_generator_golden_tests})
                 GTest::gtest
                 protobuf::libprotoc)
     google_cloud_cpp_add_common_options(${target})
-
-    # With googletest it is relatively easy to exceed the default number of
-    # sections (~65,000) in a single .obj file. Add the /bigobj option to all
-    # the tests, even if it is not needed.
-    if (MSVC)
-        target_compile_options(${target} PRIVATE "/bigobj")
-    endif ()
     add_test(NAME ${target} COMMAND ${target})
 endforeach ()
 
 file(
-    GLOB
+    GLOB samples_cc
     RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
     "golden/v1/samples/*.cc")
 foreach (fname IN LISTS samples_cc)
@@ -178,4 +136,17 @@ foreach (fname IN LISTS samples_cc)
     google_cloud_cpp_add_common_options(${target})
     add_test(NAME ${target} COMMAND ${target})
     set_tests_properties("${target}" PROPERTIES LABELS "integration-test")
+endforeach ()
+
+include(FindBenchmarkWithWorkarounds)
+file(
+    GLOB benchmarks_cc
+    RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
+    "benchmarks/*.cc")
+foreach (fname IN LISTS benchmarks_cc)
+    google_cloud_cpp_add_executable(target "generator" "${fname}")
+    add_test(NAME ${target} COMMAND ${target})
+    target_link_libraries(${target} PRIVATE google_cloud_cpp_generator_golden
+                                            benchmark::benchmark_main)
+    google_cloud_cpp_add_common_options(${target})
 endforeach ()

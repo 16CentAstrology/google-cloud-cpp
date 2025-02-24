@@ -16,8 +16,9 @@
 #include "google/cloud/spanner/benchmarks/benchmarks_config.h"
 #include "google/cloud/spanner/client.h"
 #include "google/cloud/spanner/internal/defaults.h"
+#include "google/cloud/spanner/internal/route_to_leader.h"
 #include "google/cloud/spanner/internal/session_pool.h"
-#include "google/cloud/spanner/internal/spanner_stub.h"
+#include "google/cloud/spanner/internal/spanner_stub_factory.h"
 #include "google/cloud/spanner/testing/pick_random_instance.h"
 #include "google/cloud/spanner/testing/random_database_name.h"
 #include "google/cloud/grpc_error_delegate.h"
@@ -27,7 +28,6 @@
 #include "google/cloud/internal/random.h"
 #include "google/cloud/internal/unified_grpc_credentials.h"
 #include "google/cloud/testing_util/timer.h"
-#include "absl/memory/memory.h"
 #include "absl/time/civil_time.h"
 #include <google/spanner/v1/result_set.pb.h>
 #include <grpcpp/grpcpp.h>
@@ -459,6 +459,8 @@ class BasicExperiment : public Experiment {
   }
 
  protected:
+  // Note that by bypassing the Client layer we are not instantiating
+  // an `OptionsSpan`, so `CurrentOptions()` will be empty if called.
   virtual std::vector<RowCpuSample> ViaStub(
       Config const& config, int thread_count, int channel_count,
       spanner::Database const& database,
@@ -540,9 +542,11 @@ class ReadExperiment : public BasicExperiment<Traits> {
       Status last_status;
       for (int i = 0; i != 10; ++i) {
         grpc::ClientContext context;
+        spanner_internal::RouteToLeader(context);  // always for CreateSession
         google::spanner::v1::CreateSessionRequest request{};
         request.set_database(database.FullName());
-        auto response = stub->CreateSession(context, request);
+        auto response =
+            stub->CreateSession(context, google::cloud::Options{}, request);
         if (response) return response->name();
         last_status = response.status();
       }
@@ -586,15 +590,25 @@ class ReadExperiment : public BasicExperiment<Traits> {
       int row_count = 0;
       google::spanner::v1::PartialResultSet result;
       std::vector<google::protobuf::Value> row;
-      grpc::ClientContext context;
-      auto stream = stub->StreamingRead(context, request);
-      for (bool success = stream->Read(&result); success;
-           success = stream->Read(&result)) {
+      row.resize(columns.size());
+      auto stream = stub->StreamingRead(std::make_shared<grpc::ClientContext>(),
+                                        google::cloud::Options{}, request);
+      for (;;) {
+        auto read = stream->Read();
+        if (absl::holds_alternative<Status>(read)) {
+          auto status = absl::get<Status>(std::move(read));
+          auto const usage = timer.Sample();
+          samples.push_back(RowCpuSample{channel_count, thread_count, true,
+                                         row_count, usage.elapsed_time,
+                                         usage.cpu_time, std::move(status)});
+          break;
+        }
+        auto result =
+            absl::get<google::spanner::v1::PartialResultSet>(std::move(read));
         if (result.chunked_value()) {
           // We do not handle chunked values in the benchmark.
           continue;
         }
-        row.resize(columns.size());
         std::size_t index = 0;
         for (auto& value : *result.mutable_values()) {
           row[index] = std::move(value);
@@ -604,11 +618,6 @@ class ReadExperiment : public BasicExperiment<Traits> {
           }
         }
       }
-      auto final = stream->Finish();
-      auto const usage = timer.Sample();
-      samples.push_back(RowCpuSample{
-          channel_count, thread_count, true, row_count, usage.elapsed_time,
-          usage.cpu_time, google::cloud::MakeStatusFromRpcError(final)});
     }
     return samples;
   }
@@ -679,9 +688,11 @@ class SelectExperiment : public BasicExperiment<Traits> {
       Status last_status;
       for (int i = 0; i != ExperimentImpl<Traits>::kColumnCount; ++i) {
         grpc::ClientContext context;
+        spanner_internal::RouteToLeader(context);  // always for CreateSession
         google::spanner::v1::CreateSessionRequest request{};
         request.set_database(database.FullName());
-        auto response = stub->CreateSession(context, request);
+        auto response =
+            stub->CreateSession(context, google::cloud::Options{}, request);
         if (response) return response->name();
         last_status = response.status();
       }
@@ -729,15 +740,26 @@ class SelectExperiment : public BasicExperiment<Traits> {
       int row_count = 0;
       google::spanner::v1::PartialResultSet result;
       std::vector<google::protobuf::Value> row;
-      grpc::ClientContext context;
-      auto stream = stub->ExecuteStreamingSql(context, request);
-      for (bool success = stream->Read(&result); success;
-           success = stream->Read(&result)) {
+      row.resize(ExperimentImpl<Traits>::kColumnCount);
+      auto stream =
+          stub->ExecuteStreamingSql(std::make_shared<grpc::ClientContext>(),
+                                    google::cloud::Options{}, request);
+      for (;;) {
+        auto read = stream->Read();
+        if (absl::holds_alternative<Status>(read)) {
+          auto status = absl::get<Status>(std::move(read));
+          auto const usage = timer.Sample();
+          samples.push_back(RowCpuSample{channel_count, thread_count, true,
+                                         row_count, usage.elapsed_time,
+                                         usage.cpu_time, std::move(status)});
+          break;
+        }
+        auto result =
+            absl::get<google::spanner::v1::PartialResultSet>(std::move(read));
         if (result.chunked_value()) {
           // We do not handle chunked values in the benchmark.
           continue;
         }
-        row.resize(ExperimentImpl<Traits>::kColumnCount);
         std::size_t index = 0;
         for (auto& value : *result.mutable_values()) {
           row[index] = std::move(value);
@@ -747,11 +769,6 @@ class SelectExperiment : public BasicExperiment<Traits> {
           }
         }
       }
-      auto final = stream->Finish();
-      auto const usage = timer.Sample();
-      samples.push_back(RowCpuSample{
-          channel_count, thread_count, true, row_count, usage.elapsed_time,
-          usage.cpu_time, google::cloud::MakeStatusFromRpcError(final)});
     }
     return samples;
   }
@@ -838,9 +855,11 @@ class UpdateExperiment : public BasicExperiment<Traits> {
       Status last_status;
       for (int i = 0; i != 10; ++i) {
         grpc::ClientContext context;
+        spanner_internal::RouteToLeader(context);  // always for CreateSession
         google::spanner::v1::CreateSessionRequest request{};
         request.set_database(database.FullName());
-        auto response = stub->CreateSession(context, request);
+        auto response =
+            stub->CreateSession(context, google::cloud::Options{}, request);
         if (response) return response->name();
         last_status = response.status();
       }
@@ -900,7 +919,8 @@ class UpdateExperiment : public BasicExperiment<Traits> {
       google::cloud::Status status;
       {
         grpc::ClientContext context;
-        auto response = stub->ExecuteSql(context, request);
+        auto response =
+            stub->ExecuteSql(context, google::cloud::Options{}, request);
         if (response) {
           row_count =
               static_cast<int>(response->stats().row_count_lower_bound());
@@ -915,7 +935,8 @@ class UpdateExperiment : public BasicExperiment<Traits> {
         google::spanner::v1::CommitRequest commit_request;
         commit_request.set_session(*session);
         commit_request.set_transaction_id(transaction_id);
-        auto response = stub->Commit(context, commit_request);
+        auto response =
+            stub->Commit(context, google::cloud::Options{}, commit_request);
         if (!response) status = std::move(response).status();
       }
 
@@ -1023,9 +1044,11 @@ class MutationExperiment : public BasicExperiment<Traits> {
       Status last_status;
       for (int i = 0; i != 10; ++i) {
         grpc::ClientContext context;
+        spanner_internal::RouteToLeader(context);  // always for CreateSession
         google::spanner::v1::CreateSessionRequest request{};
         request.set_database(database.FullName());
-        auto response = stub->CreateSession(context, request);
+        auto response =
+            stub->CreateSession(context, google::cloud::Options{}, request);
         if (response) return response->name();
         last_status = response.status();
       }
@@ -1086,7 +1109,8 @@ class MutationExperiment : public BasicExperiment<Traits> {
         *row.add_values() =
             spanner_internal::ToProto(spanner::Value(std::move(v))).second;
       }
-      auto response = stub->Commit(context, commit_request);
+      auto response =
+          stub->Commit(context, google::cloud::Options{}, commit_request);
 
       auto const usage = timer.Sample();
       samples.push_back(RowCpuSample{
@@ -1218,30 +1242,30 @@ class RunAllExperiment : public Experiment {
 template <typename Trait>
 ExperimentFactory MakeReadFactory() {
   using G = ::google::cloud::internal::DefaultPRNG;
-  return [](G g) { return absl::make_unique<ReadExperiment<Trait>>(g); };
+  return [](G g) { return std::make_unique<ReadExperiment<Trait>>(g); };
 }
 
 template <typename Trait>
 ExperimentFactory MakeSelectFactory() {
   using G = ::google::cloud::internal::DefaultPRNG;
-  return [](G g) { return absl::make_unique<SelectExperiment<Trait>>(g); };
+  return [](G g) { return std::make_unique<SelectExperiment<Trait>>(g); };
 }
 
 template <typename Trait>
 ExperimentFactory MakeUpdateFactory() {
   using G = ::google::cloud::internal::DefaultPRNG;
-  return [](G g) { return absl::make_unique<UpdateExperiment<Trait>>(g); };
+  return [](G g) { return std::make_unique<UpdateExperiment<Trait>>(g); };
 }
 
 template <typename Trait>
 ExperimentFactory MakeMutationFactory() {
   using G = ::google::cloud::internal::DefaultPRNG;
-  return [](G g) { return absl::make_unique<MutationExperiment<Trait>>(g); };
+  return [](G g) { return std::make_unique<MutationExperiment<Trait>>(g); };
 }
 
 std::map<std::string, ExperimentFactory> AvailableExperiments() {
   auto make_run_all = [](google::cloud::internal::DefaultPRNG g) {
-    return absl::make_unique<RunAllExperiment>(g);
+    return std::make_unique<RunAllExperiment>(g);
   };
 
   return {

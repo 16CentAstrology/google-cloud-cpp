@@ -31,80 +31,115 @@ class MockGoldenThingAdminRestStub
   MOCK_METHOD(
       StatusOr<::google::test::admin::database::v1::ListDatabasesResponse>,
       ListDatabases,
-      (google::cloud::rest_internal::RestContext&,
+      (google::cloud::rest_internal::RestContext&, Options const&,
        ::google::test::admin::database::v1::ListDatabasesRequest const&),
       (override));
   MOCK_METHOD(
-      StatusOr<::google::longrunning::Operation>, CreateDatabase,
-      (google::cloud::rest_internal::RestContext&,
+      future<StatusOr<::google::longrunning::Operation>>, AsyncCreateDatabase,
+      (google::cloud::CompletionQueue & cq,
+       std::unique_ptr<google::cloud::rest_internal::RestContext>,
+       google::cloud::internal::ImmutableOptions,
        ::google::test::admin::database::v1::CreateDatabaseRequest const&),
+      (override));
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, CreateDatabase,
+      (google::cloud::rest_internal::RestContext & rest_context,
+       Options const& options,
+       google::test::admin::database::v1::CreateDatabaseRequest const& request),
       (override));
   MOCK_METHOD(StatusOr<::google::test::admin::database::v1::Database>,
               GetDatabase,
-              (google::cloud::rest_internal::RestContext&,
+              (google::cloud::rest_internal::RestContext&, Options const&,
                ::google::test::admin::database::v1::GetDatabaseRequest const&),
               (override));
   MOCK_METHOD(
-      StatusOr<::google::longrunning::Operation>, UpdateDatabaseDdl,
-      (google::cloud::rest_internal::RestContext&,
+      future<StatusOr<::google::longrunning::Operation>>,
+      AsyncUpdateDatabaseDdl,
+      (google::cloud::CompletionQueue & cq,
+       std::unique_ptr<google::cloud::rest_internal::RestContext>,
+       google::cloud::internal::ImmutableOptions,
        ::google::test::admin::database::v1::UpdateDatabaseDdlRequest const&),
       (override));
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, UpdateDatabaseDdl,
+      (google::cloud::rest_internal::RestContext & rest_context,
+       Options const& options,
+       google::test::admin::database::v1::UpdateDatabaseDdlRequest const&
+           request),
+      (override));
   MOCK_METHOD(Status, DropDatabase,
-              (google::cloud::rest_internal::RestContext&,
+              (google::cloud::rest_internal::RestContext&, Options const&,
                ::google::test::admin::database::v1::DropDatabaseRequest const&),
               (override));
   MOCK_METHOD(
       StatusOr<::google::test::admin::database::v1::GetDatabaseDdlResponse>,
       GetDatabaseDdl,
-      (google::cloud::rest_internal::RestContext&,
+      (google::cloud::rest_internal::RestContext&, Options const&,
        ::google::test::admin::database::v1::GetDatabaseDdlRequest const&),
       (override));
   MOCK_METHOD(StatusOr<::google::iam::v1::Policy>, SetIamPolicy,
-              (google::cloud::rest_internal::RestContext&,
+              (google::cloud::rest_internal::RestContext&, Options const&,
                ::google::iam::v1::SetIamPolicyRequest const&),
               (override));
   MOCK_METHOD(StatusOr<::google::iam::v1::Policy>, GetIamPolicy,
-              (google::cloud::rest_internal::RestContext&,
+              (google::cloud::rest_internal::RestContext&, Options const&,
                ::google::iam::v1::GetIamPolicyRequest const&),
               (override));
   MOCK_METHOD(StatusOr<::google::iam::v1::TestIamPermissionsResponse>,
               TestIamPermissions,
-              (google::cloud::rest_internal::RestContext&,
+              (google::cloud::rest_internal::RestContext&, Options const&,
                ::google::iam::v1::TestIamPermissionsRequest const&),
               (override));
-  MOCK_METHOD(StatusOr<::google::longrunning::Operation>, CreateBackup,
-              (google::cloud::rest_internal::RestContext&,
+  MOCK_METHOD(future<StatusOr<::google::longrunning::Operation>>,
+              AsyncCreateBackup,
+              (google::cloud::CompletionQueue & cq,
+               std::unique_ptr<google::cloud::rest_internal::RestContext>,
+               google::cloud::internal::ImmutableOptions,
                ::google::test::admin::database::v1::CreateBackupRequest const&),
               (override));
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, CreateBackup,
+      (google::cloud::rest_internal::RestContext & rest_context,
+       Options const& options,
+       google::test::admin::database::v1::CreateBackupRequest const& request),
+      (override));
   MOCK_METHOD(StatusOr<::google::test::admin::database::v1::Backup>, GetBackup,
-              (google::cloud::rest_internal::RestContext&,
+              (google::cloud::rest_internal::RestContext&, Options const&,
                ::google::test::admin::database::v1::GetBackupRequest const&),
               (override));
   MOCK_METHOD(StatusOr<::google::test::admin::database::v1::Backup>,
               UpdateBackup,
-              (google::cloud::rest_internal::RestContext&,
+              (google::cloud::rest_internal::RestContext&, Options const&,
                ::google::test::admin::database::v1::UpdateBackupRequest const&),
               (override));
   MOCK_METHOD(Status, DeleteBackup,
-              (google::cloud::rest_internal::RestContext&,
+              (google::cloud::rest_internal::RestContext&, Options const&,
                ::google::test::admin::database::v1::DeleteBackupRequest const&),
               (override));
   MOCK_METHOD(
       StatusOr<::google::test::admin::database::v1::ListBackupsResponse>,
       ListBackups,
-      (google::cloud::rest_internal::RestContext&,
+      (google::cloud::rest_internal::RestContext&, Options const&,
        ::google::test::admin::database::v1::ListBackupsRequest const&),
       (override));
   MOCK_METHOD(
-      StatusOr<::google::longrunning::Operation>, RestoreDatabase,
-      (google::cloud::rest_internal::RestContext&,
+      future<StatusOr<::google::longrunning::Operation>>, AsyncRestoreDatabase,
+      (google::cloud::CompletionQueue & cq,
+       std::unique_ptr<google::cloud::rest_internal::RestContext>,
+       google::cloud::internal::ImmutableOptions,
        ::google::test::admin::database::v1::RestoreDatabaseRequest const&),
       (override));
+  MOCK_METHOD(StatusOr<google::longrunning::Operation>, RestoreDatabase,
+              (google::cloud::rest_internal::RestContext & rest_context,
+               Options const& options,
+               google::test::admin::database::v1::RestoreDatabaseRequest const&
+                   request),
+              (override));
   MOCK_METHOD(
       StatusOr<
           ::google::test::admin::database::v1::ListDatabaseOperationsResponse>,
       ListDatabaseOperations,
-      (google::cloud::rest_internal::RestContext&,
+      (google::cloud::rest_internal::RestContext&, Options const&,
        ::google::test::admin::database::v1::ListDatabaseOperationsRequest const&
            request),
       (override));
@@ -112,9 +147,51 @@ class MockGoldenThingAdminRestStub
       StatusOr<
           ::google::test::admin::database::v1::ListBackupOperationsResponse>,
       ListBackupOperations,
-      (google::cloud::rest_internal::RestContext&,
+      (google::cloud::rest_internal::RestContext&, Options const&,
        ::google::test::admin::database::v1::ListBackupOperationsRequest const&),
       (override));
+  MOCK_METHOD(
+      future<StatusOr<google::test::admin::database::v1::Database>>,
+      AsyncGetDatabase,
+      (google::cloud::CompletionQueue & cq,
+       std::unique_ptr<google::cloud::rest_internal::RestContext>,
+       google::cloud::internal::ImmutableOptions,
+       google::test::admin::database::v1::GetDatabaseRequest const& request),
+      (override));
+
+  MOCK_METHOD(
+      future<Status>, AsyncDropDatabase,
+      (google::cloud::CompletionQueue & cq,
+       std::unique_ptr<google::cloud::rest_internal::RestContext>,
+       google::cloud::internal::ImmutableOptions,
+       google::test::admin::database::v1::DropDatabaseRequest const& request),
+      (override));
+
+  MOCK_METHOD(future<StatusOr<google::longrunning::Operation>>,
+              AsyncGetOperation,
+              (google::cloud::CompletionQueue & cq,
+               std::unique_ptr<google::cloud::rest_internal::RestContext>,
+               google::cloud::internal::ImmutableOptions,
+               google::longrunning::GetOperationRequest const& request),
+              (override));
+
+  MOCK_METHOD(future<Status>, AsyncCancelOperation,
+              (google::cloud::CompletionQueue & cq,
+               std::unique_ptr<google::cloud::rest_internal::RestContext>,
+               google::cloud::internal::ImmutableOptions,
+               google::longrunning::CancelOperationRequest const& request),
+              (override));
+
+  MOCK_METHOD(StatusOr<::google::cloud::location::Location>, GetLocation,
+              (google::cloud::rest_internal::RestContext&, Options const&,
+               ::google::cloud::location::GetLocationRequest const&),
+              (override));
+
+  MOCK_METHOD(StatusOr<google::longrunning::ListOperationsResponse>,
+              ListOperations,
+              (google::cloud::rest_internal::RestContext&, Options const&,
+               ::google::longrunning::ListOperationsRequest const&),
+              (override));
 };
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

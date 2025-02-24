@@ -13,11 +13,10 @@
 // limitations under the License.
 
 #include "generator/integration_tests/golden/v1/internal/golden_kitchen_sink_rest_logging_decorator.h"
+#include "generator/integration_tests/tests/mock_golden_kitchen_sink_rest_stub.h"
 #include "google/cloud/internal/rest_context.h"
 #include "google/cloud/testing_util/scoped_log.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
-#include "generator/integration_tests/tests/mock_golden_kitchen_sink_rest_stub.h"
 #include <gmock/gmock.h>
 #include <memory>
 
@@ -43,7 +42,8 @@ TEST(LoggingDecoratorRestTest, GenerateAccessToken) {
   GoldenKitchenSinkRestLogging stub(mock, TracingOptions{}, {});
   rest_internal::RestContext context;
   auto status = stub.GenerateAccessToken(
-      context, google::test::admin::database::v1::GenerateAccessTokenRequest());
+      context, Options{},
+      google::test::admin::database::v1::GenerateAccessTokenRequest());
   EXPECT_STATUS_OK(status);
 
   auto const log_lines = log.ExtractLines();
@@ -57,7 +57,8 @@ TEST(LoggingDecoratorRestTest, GenerateAccessTokenError) {
   GoldenKitchenSinkRestLogging stub(mock, TracingOptions{}, {});
   rest_internal::RestContext context;
   auto status = stub.GenerateAccessToken(
-      context, google::test::admin::database::v1::GenerateAccessTokenRequest());
+      context, Options{},
+      google::test::admin::database::v1::GenerateAccessTokenRequest());
   EXPECT_EQ(TransientError(), status.status());
 
   auto const log_lines = log.ExtractLines();
@@ -73,7 +74,8 @@ TEST(LoggingDecoratorRestTest, GenerateIdToken) {
   GoldenKitchenSinkRestLogging stub(mock, TracingOptions{}, {});
   rest_internal::RestContext context;
   auto status = stub.GenerateIdToken(
-      context, google::test::admin::database::v1::GenerateIdTokenRequest());
+      context, Options{},
+      google::test::admin::database::v1::GenerateIdTokenRequest());
   EXPECT_STATUS_OK(status);
 
   auto const log_lines = log.ExtractLines();
@@ -87,7 +89,8 @@ TEST(LoggingDecoratorRestTest, GenerateIdTokenError) {
   GoldenKitchenSinkRestLogging stub(mock, TracingOptions{}, {});
   rest_internal::RestContext context;
   auto status = stub.GenerateIdToken(
-      context, google::test::admin::database::v1::GenerateIdTokenRequest());
+      context, Options{},
+      google::test::admin::database::v1::GenerateIdTokenRequest());
   EXPECT_EQ(TransientError(), status.status());
 
   auto const log_lines = log.ExtractLines();
@@ -103,7 +106,8 @@ TEST(LoggingDecoratorRestTest, WriteLogEntries) {
   GoldenKitchenSinkRestLogging stub(mock, TracingOptions{}, {});
   rest_internal::RestContext context;
   auto status = stub.WriteLogEntries(
-      context, google::test::admin::database::v1::WriteLogEntriesRequest());
+      context, Options{},
+      google::test::admin::database::v1::WriteLogEntriesRequest());
   EXPECT_STATUS_OK(status);
 
   auto const log_lines = log.ExtractLines();
@@ -117,7 +121,8 @@ TEST(LoggingDecoratorRestTest, WriteLogEntriesError) {
   GoldenKitchenSinkRestLogging stub(mock, TracingOptions{}, {});
   rest_internal::RestContext context;
   auto status = stub.WriteLogEntries(
-      context, google::test::admin::database::v1::WriteLogEntriesRequest());
+      context, Options{},
+      google::test::admin::database::v1::WriteLogEntriesRequest());
   EXPECT_EQ(TransientError(), status.status());
 
   auto const log_lines = log.ExtractLines();
@@ -133,7 +138,7 @@ TEST(LoggingDecoratorRestTest, ListLogs) {
   GoldenKitchenSinkRestLogging stub(mock, TracingOptions{}, {});
   rest_internal::RestContext context;
   auto status = stub.ListLogs(
-      context, google::test::admin::database::v1::ListLogsRequest());
+      context, Options{}, google::test::admin::database::v1::ListLogsRequest());
   EXPECT_STATUS_OK(status);
 
   auto const log_lines = log.ExtractLines();
@@ -147,7 +152,7 @@ TEST(LoggingDecoratorRestTest, ListLogsError) {
   GoldenKitchenSinkRestLogging stub(mock, TracingOptions{}, {});
   rest_internal::RestContext context;
   auto status = stub.ListLogs(
-      context, google::test::admin::database::v1::ListLogsRequest());
+      context, Options{}, google::test::admin::database::v1::ListLogsRequest());
   EXPECT_EQ(TransientError(), status.status());
 
   auto const log_lines = log.ExtractLines();
@@ -163,7 +168,7 @@ TEST(LoggingDecoratorRestTest, ListServiceAccountKeys) {
   GoldenKitchenSinkRestLogging stub(mock, TracingOptions{}, {});
   rest_internal::RestContext context;
   auto status = stub.ListServiceAccountKeys(
-      context,
+      context, Options{},
       google::test::admin::database::v1::ListServiceAccountKeysRequest());
   EXPECT_STATUS_OK(status);
 
@@ -178,7 +183,7 @@ TEST(LoggingDecoratorRestTest, ListServiceAccountKeysError) {
   GoldenKitchenSinkRestLogging stub(mock, TracingOptions{}, {});
   rest_internal::RestContext context;
   auto status = stub.ListServiceAccountKeys(
-      context,
+      context, Options{},
       google::test::admin::database::v1::ListServiceAccountKeysRequest());
   EXPECT_EQ(TransientError(), status.status());
 
@@ -193,7 +198,7 @@ TEST(LoggingDecoratorRestTest, DoNothing) {
   EXPECT_CALL(*mock, DoNothing).WillOnce(Return(Status{}));
   GoldenKitchenSinkRestLogging stub(mock, TracingOptions{}, {});
   rest_internal::RestContext context;
-  auto status = stub.DoNothing(context, google::protobuf::Empty());
+  auto status = stub.DoNothing(context, Options{}, google::protobuf::Empty());
   EXPECT_STATUS_OK(status);
 
   auto const log_lines = log.ExtractLines();
@@ -206,7 +211,7 @@ TEST(LoggingDecoratorRestTest, DoNothingError) {
   EXPECT_CALL(*mock, DoNothing).WillOnce(Return(TransientError()));
   GoldenKitchenSinkRestLogging stub(mock, TracingOptions{}, {});
   rest_internal::RestContext context;
-  auto status = stub.DoNothing(context, google::protobuf::Empty());
+  auto status = stub.DoNothing(context, Options{}, google::protobuf::Empty());
   EXPECT_EQ(TransientError(), status);
 
   auto const log_lines = log.ExtractLines();
@@ -221,7 +226,8 @@ TEST(LoggingDecoratorRestTest, ExplicitRouting1) {
   GoldenKitchenSinkRestLogging stub(mock, TracingOptions{}, {});
   rest_internal::RestContext context;
   auto status = stub.ExplicitRouting1(
-      context, google::test::admin::database::v1::ExplicitRoutingRequest());
+      context, Options{},
+      google::test::admin::database::v1::ExplicitRoutingRequest());
   EXPECT_STATUS_OK(status);
 
   auto const log_lines = log.ExtractLines();
@@ -235,7 +241,8 @@ TEST(LoggingDecoratorRestTest, ExplicitRouting1Error) {
   GoldenKitchenSinkRestLogging stub(mock, TracingOptions{}, {});
   rest_internal::RestContext context;
   auto status = stub.ExplicitRouting1(
-      context, google::test::admin::database::v1::ExplicitRoutingRequest());
+      context, Options{},
+      google::test::admin::database::v1::ExplicitRoutingRequest());
   EXPECT_EQ(TransientError(), status);
 
   auto const log_lines = log.ExtractLines();
@@ -250,7 +257,8 @@ TEST(LoggingDecoratorRestTest, ExplicitRouting2) {
   GoldenKitchenSinkRestLogging stub(mock, TracingOptions{}, {});
   rest_internal::RestContext context;
   auto status = stub.ExplicitRouting2(
-      context, google::test::admin::database::v1::ExplicitRoutingRequest());
+      context, Options{},
+      google::test::admin::database::v1::ExplicitRoutingRequest());
   EXPECT_STATUS_OK(status);
 
   auto const log_lines = log.ExtractLines();
@@ -264,7 +272,8 @@ TEST(LoggingDecoratorRestTest, ExplicitRouting2Error) {
   GoldenKitchenSinkRestLogging stub(mock, TracingOptions{}, {});
   rest_internal::RestContext context;
   auto status = stub.ExplicitRouting2(
-      context, google::test::admin::database::v1::ExplicitRoutingRequest());
+      context, Options{},
+      google::test::admin::database::v1::ExplicitRoutingRequest());
   EXPECT_EQ(TransientError(), status);
 
   auto const log_lines = log.ExtractLines();

@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/grpc_options.h"
-#include "google/cloud/testing_util/mock_backoff_policy.h"
-#include "google/cloud/testing_util/status_matchers.h"
 #include "generator/integration_tests/golden/v1/golden_thing_admin_client.h"
 #include "generator/integration_tests/golden/v1/golden_thing_admin_options.h"
 #include "generator/integration_tests/golden/v1/internal/golden_thing_admin_connection_impl.h"
 #include "generator/integration_tests/golden/v1/internal/golden_thing_admin_option_defaults.h"
 #include "generator/integration_tests/tests/mock_golden_thing_admin_stub.h"
+#include "google/cloud/grpc_options.h"
+#include "google/cloud/testing_util/mock_backoff_policy.h"
+#include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
 #include <memory>
 
@@ -36,10 +36,11 @@ using ms = std::chrono::milliseconds;
 
 class MockRetryPolicy : public GoldenThingAdminRetryPolicy {
  public:
-  MOCK_METHOD(std::unique_ptr<TraitBasedRetryPolicy>, clone, (),
-              (const, override));
+  MOCK_METHOD(bool, OnFailure, (Status const&), (override));
   MOCK_METHOD(bool, IsExhausted, (), (const, override));
-  MOCK_METHOD(void, OnFailureImpl, (), (override));
+  MOCK_METHOD(bool, IsPermanentFailure, (Status const&), (const, override));
+  MOCK_METHOD(std::unique_ptr<GoldenThingAdminRetryPolicy>, clone, (),
+              (const, override));
 };
 
 TEST(PlumbingTest, RetryLoopUsesPerCallPolicies) {
@@ -50,18 +51,20 @@ TEST(PlumbingTest, RetryLoopUsesPerCallPolicies) {
                           .set<GoldenThingAdminBackoffPolicyOption>(call_b);
 
   EXPECT_CALL(*call_r, clone).WillOnce([] {
-    auto clone = absl::make_unique<MockRetryPolicy>();
+    auto clone = std::make_unique<MockRetryPolicy>();
     // We will just say the policy is never exhausted, and use a permanent error
     // to break out of the loop.
     EXPECT_CALL(*clone, IsExhausted)
         .Times(AtLeast(1))
         .WillRepeatedly(Return(false));
-    EXPECT_CALL(*clone, OnFailureImpl);
+    EXPECT_CALL(*clone, OnFailure)
+        .WillOnce(Return(true))
+        .WillOnce(Return(false));
     return clone;
   });
 
   EXPECT_CALL(*call_b, clone).WillOnce([] {
-    auto clone = absl::make_unique<MockBackoffPolicy>();
+    auto clone = std::make_unique<MockBackoffPolicy>();
     EXPECT_CALL(*clone, OnCompletion).WillOnce(Return(ms(0)));
     return clone;
   });
@@ -94,29 +97,24 @@ TEST(PlumbingTest, PollingLoopUsesPerCallPolicies) {
       Options{}.set<GoldenThingAdminPollingPolicyOption>(call_p);
 
   EXPECT_CALL(*call_p, clone).WillOnce([] {
-    auto clone = absl::make_unique<MockPollingPolicy>();
+    auto clone = std::make_unique<MockPollingPolicy>();
     EXPECT_CALL(*clone, WaitPeriod).WillOnce(Return(ms(0)));
     return clone;
   });
 
   auto stub = std::make_shared<golden_v1_internal::MockGoldenThingAdminStub>();
-  EXPECT_CALL(*stub, AsyncCreateDatabase)
-      .WillOnce([](CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
-                   ::google::test::admin::database::v1::
-                       CreateDatabaseRequest const&) {
-        google::longrunning::Operation op;
-        op.set_name("test-operation-name");
-        op.set_done(false);
-        return make_ready_future(make_status_or(op));
-      });
-  EXPECT_CALL(*stub, AsyncGetOperation)
-      .WillOnce([](CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
-                   google::longrunning::GetOperationRequest const&) {
-        google::longrunning::Operation op;
-        op.set_name("test-operation-name");
-        op.set_done(true);
-        return make_ready_future(make_status_or(op));
-      });
+  EXPECT_CALL(*stub, AsyncCreateDatabase).WillOnce([] {
+    google::longrunning::Operation op;
+    op.set_name("test-operation-name");
+    op.set_done(false);
+    return make_ready_future(make_status_or(op));
+  });
+  EXPECT_CALL(*stub, AsyncGetOperation).WillOnce([] {
+    google::longrunning::Operation op;
+    op.set_name("test-operation-name");
+    op.set_done(true);
+    return make_ready_future(make_status_or(op));
+  });
 
   auto options = golden_v1_internal::GoldenThingAdminDefaultOptions({});
   auto background = internal::MakeBackgroundThreadsFactory(options)();
@@ -125,7 +123,9 @@ TEST(PlumbingTest, PollingLoopUsesPerCallPolicies) {
           std::move(background), std::move(stub), std::move(options));
   auto client = GoldenThingAdminClient(std::move(conn));
 
-  (void)client.CreateDatabase({}, std::move(call_options));
+  (void)client.CreateDatabase(
+      google::test::admin::database::v1::CreateDatabaseRequest{},
+      std::move(call_options));
 }
 
 }  // namespace

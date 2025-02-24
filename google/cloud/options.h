@@ -18,11 +18,13 @@
 #include "google/cloud/internal/type_list.h"
 #include "google/cloud/version.h"
 #include "absl/base/attributes.h"
-#include "absl/memory/memory.h"
+#include "absl/types/optional.h"
+#include <memory>
 #include <set>
 #include <typeindex>
 #include <typeinfo>
 #include <unordered_map>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -35,6 +37,10 @@ void CheckExpectedOptionsImpl(std::set<std::type_index> const&, Options const&,
                               char const*);
 // TODO(#8800) - Remove when bigtable::Table no longer uses bigtable::DataClient
 bool IsEmpty(Options const&);
+template <typename T>
+absl::optional<typename T::Type> ExtractOption(Options&);
+template <typename T>
+absl::optional<typename T::Type> FetchOption(Options const&);
 template <typename T>
 inline T const& DefaultValue() {
   static auto const* const kDefaultValue = new T{};
@@ -105,8 +111,38 @@ class Options {
     std::swap(m_, tmp.m_);
     return *this;
   }
-  Options(Options&&) = default;
-  Options& operator=(Options&&) = default;
+  Options(Options&& rhs) noexcept = default;
+
+  // Older versions of GCC (or maybe libstdc++) crash with the default move
+  // assignment:
+  //     https://godbolt.org/z/j4EKjdrv4
+  // I suspect this is the problem addressed by:
+  //     https://github.com/gcc-mirror/gcc/commit/c2fb0a1a2e7a0fb15cf3cf876f621902ccd273f0
+  Options& operator=(Options&& rhs) noexcept {
+    Options tmp(std::move(rhs));
+    std::swap(m_, tmp.m_);
+    return *this;
+  }
+
+  /**
+   * Sets option `T` to the value @p v and returns a reference to `*this`.
+   *
+   * @code
+   * struct FooOption {
+   *   using Type = int;
+   * };
+   * auto opts = Options{};
+   * opts.set<FooOption>(123);
+   * @endcode
+   *
+   * @tparam T the option type
+   * @param v the value to set the option T
+   */
+  template <typename T>
+  Options& set(ValueTypeT<T> v) & {
+    m_[typeid(T)] = std::make_unique<Data<T>>(std::move(v));
+    return *this;
+  }
 
   /**
    * Sets option `T` to the value @p v and returns a reference to `*this`.
@@ -122,9 +158,9 @@ class Options {
    * @param v the value to set the option T
    */
   template <typename T>
-  Options& set(ValueTypeT<T> v) {
-    m_[typeid(T)] = absl::make_unique<Data<T>>(std::move(v));
-    return *this;
+  Options&& set(ValueTypeT<T> v) && {
+    set<T>(std::move(v));
+    return std::move(*this);
   }
 
   /**
@@ -174,8 +210,7 @@ class Options {
   ValueTypeT<T> const& get() const {
     auto const it = m_.find(typeid(T));
     if (it == m_.end()) return internal::DefaultValue<ValueTypeT<T>>();
-    auto const* value = it->second->data_address();
-    return *reinterpret_cast<ValueTypeT<T> const*>(value);
+    return *reinterpret_cast<ValueTypeT<T> const*>(it->second->data_address());
   }
 
   /**
@@ -202,11 +237,10 @@ class Options {
   ValueTypeT<T>& lookup(ValueTypeT<T> value = {}) {
     auto p = m_.find(typeid(T));
     if (p == m_.end()) {
-      p = m_.emplace(typeid(T), absl::make_unique<Data<T>>(std::move(value)))
+      p = m_.emplace(typeid(T), std::make_unique<Data<T>>(std::move(value)))
               .first;
     }
-    auto* v = p->second->data_address();
-    return *reinterpret_cast<ValueTypeT<T>*>(v);
+    return *reinterpret_cast<ValueTypeT<T>*>(p->second->data_address());
   }
 
  private:
@@ -214,6 +248,10 @@ class Options {
   friend void internal::CheckExpectedOptionsImpl(
       std::set<std::type_index> const&, Options const&, char const*);
   friend bool internal::IsEmpty(Options const&);
+  template <typename T>
+  friend absl::optional<typename T::Type> internal::ExtractOption(Options&);
+  template <typename T>
+  friend absl::optional<typename T::Type> internal::FetchOption(Options const&);
 
   // The type-erased data holder of all the option values.
   class DataHolder {
@@ -234,7 +272,7 @@ class Options {
     void const* data_address() const override { return &value_; }
     void* data_address() override { return &value_; }
     std::unique_ptr<DataHolder> clone() const override {
-      return absl::make_unique<Data<T>>(*this);
+      return std::make_unique<Data<T>>(*this);
     }
 
    private:
@@ -321,9 +359,60 @@ void CheckExpectedOptions(Options const& opts, char const* caller) {
 Options MergeOptions(Options preferred, Options alternatives);
 
 /**
+ * Extracts and returns the value for `T` from @p opts, or nullopt if `T` was
+ * not set.  This is intended for code paths that want to consume an option,
+ * for example, a client call that passes the option's value via conventional
+ * mechanisms, rather than through an OptionsSpan.
+ */
+template <typename T>
+absl::optional<typename T::Type> ExtractOption(Options& opts) {
+  // Use std::unordered_map::extract() when minimum language version >= C++17.
+  auto const it = opts.m_.find(typeid(T));
+  if (it == opts.m_.end()) return absl::nullopt;
+  auto dh = std::move(it->second);
+  opts.m_.erase(it);
+  return std::move(*reinterpret_cast<typename T::Type*>(dh->data_address()));
+}
+
+/**
+ * Returns the value for `T` from @p opts, or nullopt if `T` was
+ * not set.  This is intended for code paths that do not want to consume an
+ * option, but still want to know if the option was set or not, along with its
+ * value.
+ */
+template <typename T>
+absl::optional<typename T::Type> FetchOption(Options const& opts) {
+  auto const it = opts.m_.find(typeid(T));
+  if (it == opts.m_.end()) return absl::nullopt;
+  return *reinterpret_cast<typename T::Type const*>(it->second->data_address());
+}
+
+/**
+ * Represents immutable options.
+ *
+ * After we create the initial set of Options for an RPC the options do not
+ * change during the lifetime of the RPC.  For streaming RPCs we may need to
+ * create multiple `OptionsSpan` objects (see below) with these same options.
+ * We can optimize the implementation if the immutable options are represented
+ * by a shared pointer.
+ */
+using ImmutableOptions = std::shared_ptr<Options const>;
+
+/// Creates a new set of immutable options from an existing set of options.
+inline ImmutableOptions MakeImmutableOptions(Options o) {
+  return std::make_shared<Options const>(std::move(o));
+}
+
+/**
  * The prevailing options for the current operation.
  */
 Options const& CurrentOptions();
+
+/**
+ * Save the current options. Typically used to install them in a future
+ * `OptionsSpan` in a different thread.
+ */
+ImmutableOptions SaveCurrentOptions();
 
 /**
  * RAII object to set/restore the prevailing options for the enclosing scope.
@@ -348,6 +437,7 @@ Options const& CurrentOptions();
 class ABSL_MUST_USE_RESULT OptionsSpan {
  public:
   explicit OptionsSpan(Options opts);
+  explicit OptionsSpan(ImmutableOptions opts);
 
   // `OptionsSpan` should not be copied/moved.
   OptionsSpan(OptionsSpan const&) = delete;
@@ -362,7 +452,7 @@ class ABSL_MUST_USE_RESULT OptionsSpan {
   ~OptionsSpan();
 
  private:
-  Options opts_;
+  ImmutableOptions opts_;
 };
 
 }  // namespace internal

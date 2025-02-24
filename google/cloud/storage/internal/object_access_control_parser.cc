@@ -16,6 +16,8 @@
 #include "google/cloud/storage/internal/access_control_common_parser.h"
 #include "google/cloud/storage/internal/metadata_parser.h"
 #include <nlohmann/json.hpp>
+#include <string>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -24,8 +26,7 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace internal {
 StatusOr<ObjectAccessControl> ObjectAccessControlParser::FromJson(
     nlohmann::json const& json) {
-  if (!json.is_object()) return Status(StatusCode::kInvalidArgument, __func__);
-
+  if (!json.is_object()) return NotJsonObject(json, GCP_ERROR_INFO());
   ObjectAccessControl result;
   result.set_bucket(json.value("bucket", ""));
   result.set_object(json.value("object", ""));
