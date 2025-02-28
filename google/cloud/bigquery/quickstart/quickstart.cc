@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! [START bigquerystorage_quickstart]
-#include "google/cloud/bigquery/bigquery_read_client.h"
+//! [START bigquerystorage_quickstart] [all]
+#include "google/cloud/bigquery/storage/v1/bigquery_read_client.h"
 #include <iostream>
 
 namespace {
@@ -39,11 +39,11 @@ int main(int argc, char* argv[]) try {
   std::string const table_name = argv[2];
 
   // Create a namespace alias to make the code easier to read.
-  namespace bigquery = ::google::cloud::bigquery;
+  namespace bigquery_storage = ::google::cloud::bigquery_storage_v1;
   constexpr int kMaxReadStreams = 1;
   // Create the ReadSession.
-  auto client =
-      bigquery::BigQueryReadClient(bigquery::MakeBigQueryReadConnection());
+  auto client = bigquery_storage::BigQueryReadClient(
+      bigquery_storage::MakeBigQueryReadConnection());
   ::google::cloud::bigquery::storage::v1::ReadSession read_session;
   read_session.set_data_format(
       google::cloud::bigquery::storage::v1::DataFormat::AVRO);
@@ -70,4 +70,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
-//! [END bigquerystorage_quickstart]
+//! [END bigquerystorage_quickstart] [all]

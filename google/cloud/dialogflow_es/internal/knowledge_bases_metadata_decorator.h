@@ -20,7 +20,9 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_DIALOGFLOW_ES_INTERNAL_KNOWLEDGE_BASES_METADATA_DECORATOR_H
 
 #include "google/cloud/dialogflow_es/internal/knowledge_bases_stub.h"
+#include "google/cloud/options.h"
 #include "google/cloud/version.h"
+#include <map>
 #include <memory>
 #include <string>
 
@@ -32,40 +34,63 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 class KnowledgeBasesMetadata : public KnowledgeBasesStub {
  public:
   ~KnowledgeBasesMetadata() override = default;
-  explicit KnowledgeBasesMetadata(std::shared_ptr<KnowledgeBasesStub> child);
+  KnowledgeBasesMetadata(std::shared_ptr<KnowledgeBasesStub> child,
+                         std::multimap<std::string, std::string> fixed_metadata,
+                         std::string api_client_header = "");
 
   StatusOr<google::cloud::dialogflow::v2::ListKnowledgeBasesResponse>
   ListKnowledgeBases(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::ListKnowledgeBasesRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::v2::KnowledgeBase> GetKnowledgeBase(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::GetKnowledgeBaseRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::v2::KnowledgeBase> CreateKnowledgeBase(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::CreateKnowledgeBaseRequest const& request)
       override;
 
   Status DeleteKnowledgeBase(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::DeleteKnowledgeBaseRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::v2::KnowledgeBase> UpdateKnowledgeBase(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::UpdateKnowledgeBaseRequest const& request)
       override;
 
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  void SetMetadata(grpc::ClientContext& context,
+  void SetMetadata(grpc::ClientContext& context, Options const& options,
                    std::string const& request_params);
-  void SetMetadata(grpc::ClientContext& context);
+  void SetMetadata(grpc::ClientContext& context, Options const& options);
 
   std::shared_ptr<KnowledgeBasesStub> child_;
+  std::multimap<std::string, std::string> fixed_metadata_;
   std::string api_client_header_;
 };
 

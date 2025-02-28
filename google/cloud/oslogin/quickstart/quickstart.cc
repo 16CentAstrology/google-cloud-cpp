@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/oslogin/os_login_client.h"
+//! [all]
+#include "google/cloud/oslogin/v1/os_login_client.h"
 #include <iostream>
 #include <string>
 
@@ -22,7 +23,7 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace oslogin = ::google::cloud::oslogin;
+  namespace oslogin = ::google::cloud::oslogin_v1;
   auto client =
       oslogin::OsLoginServiceClient(oslogin::MakeOsLoginServiceConnection());
 
@@ -36,3 +37,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

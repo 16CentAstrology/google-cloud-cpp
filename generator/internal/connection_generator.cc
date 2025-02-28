@@ -13,11 +13,13 @@
 // limitations under the License.
 
 #include "generator/internal/connection_generator.h"
-#include "absl/memory/memory.h"
 #include "generator/internal/codegen_utils.h"
 #include "generator/internal/descriptor_utils.h"
+#include "generator/internal/longrunning.h"
+#include "generator/internal/pagination.h"
 #include "generator/internal/predicate_utils.h"
 #include "generator/internal/printer.h"
+#include "absl/strings/str_split.h"
 #include <google/protobuf/descriptor.h>
 
 namespace google {
@@ -28,10 +30,12 @@ ConnectionGenerator::ConnectionGenerator(
     google::protobuf::ServiceDescriptor const* service_descriptor,
     VarsDictionary service_vars,
     std::map<std::string, VarsDictionary> service_method_vars,
-    google::protobuf::compiler::GeneratorContext* context)
+    google::protobuf::compiler::GeneratorContext* context,
+    std::vector<MixinMethod> const& mixin_methods)
     : ServiceCodeGenerator("connection_header_path", "connection_cc_path",
                            service_descriptor, std::move(service_vars),
-                           std::move(service_method_vars), context) {}
+                           std::move(service_method_vars), context,
+                           mixin_methods) {}
 
 Status ConnectionGenerator::GenerateHeader() {
   HeaderPrint(CopyrightLicenseFileHeader());
@@ -50,10 +54,13 @@ Status ConnectionGenerator::GenerateHeader() {
   // includes
   HeaderPrint("\n");
   HeaderLocalIncludes(
-      {vars("idempotency_policy_header_path"), vars("stub_header_path"),
-       vars("retry_traits_header_path"), "google/cloud/backoff_policy.h",
-       HasLongrunningMethod() ? "google/cloud/future.h" : "",
-       "google/cloud/options.h",
+      {vars("idempotency_policy_header_path"), vars("retry_traits_header_path"),
+       HasLongrunningMethod() ? "google/cloud/no_await_tag.h" : "",
+       IsExperimental() ? "google/cloud/experimental_tag.h" : "",
+       "google/cloud/backoff_policy.h",
+       HasLongrunningMethod() || HasAsyncMethod() ? "google/cloud/future.h"
+                                                  : "",
+       "google/cloud/internal/retry_policy_impl.h", "google/cloud/options.h",
        HasLongrunningMethod() ? "google/cloud/polling_policy.h" : "",
        "google/cloud/status_or.h",
        HasStreamingReadMethod() || HasPaginatedMethod()
@@ -64,9 +71,14 @@ Status ConnectionGenerator::GenerateHeader() {
            : "",
        IsExperimental() ? "google/cloud/experimental_tag.h" : "",
        "google/cloud/version.h"});
-  HeaderSystemIncludes(
-      {HasLongrunningMethod() ? "google/longrunning/operations.grpc.pb.h" : "",
-       "memory"});
+  std::vector<std::string> const additional_pb_header_paths =
+      absl::StrSplit(vars("additional_pb_header_paths"), absl::ByChar(','));
+  HeaderSystemIncludes(additional_pb_header_paths);
+  HeaderSystemIncludes({vars("proto_header_path"),
+                        HasGRPCLongrunningOperation()
+                            ? "google/longrunning/operations.grpc.pb.h"
+                            : "",
+                        "memory"});
   switch (endpoint_location_style) {
     case ServiceConfiguration::LOCATION_DEPENDENT:
     case ServiceConfiguration::LOCATION_DEPENDENT_COMPAT:
@@ -79,45 +91,125 @@ Status ConnectionGenerator::GenerateHeader() {
   auto result = HeaderOpenNamespaces();
   if (!result.ok()) return result;
 
-  HeaderPrint(  // clang-format off
-    "\n"
-    "using $retry_policy_name$ = ::google::cloud::internal::TraitBasedRetryPolicy<\n"
-    "    $product_internal_namespace$::$retry_traits_name$>;\n"
-    "\n"
-    "using $limited_time_retry_policy_name$ = ::google::cloud::internal::LimitedTimeRetryPolicy<\n"
-    "    $product_internal_namespace$::$retry_traits_name$>;\n"
-    "\n"
-    "using $limited_error_count_retry_policy_name$ =\n"
-    "    ::google::cloud::internal::LimitedErrorCountRetryPolicy<\n"
-    "        $product_internal_namespace$::$retry_traits_name$>;\n"
-                // clang-format on
-  );
+  HeaderPrint(R"""(
+/// The retry policy for `$connection_class_name$`.
+class $retry_policy_name$ : public ::google::cloud::RetryPolicy {
+ public:
+  /// Creates a new instance of the policy, reset to the initial state.
+  virtual std::unique_ptr<$retry_policy_name$> clone() const = 0;
+};
 
-  // TODO(#8234): This is a special case for backwards compatibility of the
-  //     streaming update function.
-  if (vars().at("service_name") == "BigQueryRead") {
-    // streaming updater functions
-    for (auto const& method : methods()) {
-      HeaderPrintMethod(
-          method,
-          {MethodPattern(
-              {// clang-format off
-     {"\n"
-      "GOOGLE_CLOUD_CPP_DEPRECATED(\n"
-      "    \"applications should not need this.\"\n"
-      "    \" Please file a bug at https://github.com/googleapis/google-cloud-cpp\"\n"
-      "    \" if you do.\")"
-      "void $service_name$$method_name$StreamingUpdater(\n"
-      "    $response_type$ const& response,\n"
-      "    $request_type$& request);\n"}
-       }, IsStreamingRead)},
-               // clang-format on
-          __FILE__, __LINE__);
-    }
+/**
+ * A retry policy for `$connection_class_name$` based on counting errors.
+ *
+ * This policy stops retrying if:
+ * - An RPC returns a non-transient error.
+ * - More than a prescribed number of transient failures is detected.
+ *$transient_errors_comment$
+ */
+class $limited_error_count_retry_policy_name$ : public $retry_policy_name$ {
+ public:
+  /**
+   * Create an instance that tolerates up to @p maximum_failures transient
+   * errors.
+   *
+   * @note Disable the retry loop by providing an instance of this policy with
+   *     @p maximum_failures == 0.
+   */
+  explicit $limited_error_count_retry_policy_name$(int maximum_failures)
+    : impl_(maximum_failures) {}
+
+  $limited_error_count_retry_policy_name$(
+      $limited_error_count_retry_policy_name$&& rhs) noexcept
+    : $limited_error_count_retry_policy_name$(rhs.maximum_failures()) {}
+  $limited_error_count_retry_policy_name$(
+      $limited_error_count_retry_policy_name$ const& rhs) noexcept
+    : $limited_error_count_retry_policy_name$(rhs.maximum_failures()) {}
+
+  int maximum_failures() const { return impl_.maximum_failures(); }
+
+  bool OnFailure(Status const& status) override {
+    return impl_.OnFailure(status);
+  }
+  bool IsExhausted() const override { return impl_.IsExhausted(); }
+  bool IsPermanentFailure(Status const& status) const override {
+    return impl_.IsPermanentFailure(status);
+  }
+  std::unique_ptr<$retry_policy_name$> clone() const override {
+    return std::make_unique<$limited_error_count_retry_policy_name$>(
+        maximum_failures());
   }
 
-  // Abstract interface Connection base class
-  HeaderPrint(R"""(
+  // This is provided only for backwards compatibility.
+  using BaseType = $retry_policy_name$;
+
+ private:
+  google::cloud::internal::LimitedErrorCountRetryPolicy<$product_internal_namespace$::$retry_traits_name$> impl_;
+};
+
+/**
+ * A retry policy for `$connection_class_name$` based on elapsed time.
+ *
+ * This policy stops retrying if:
+ * - An RPC returns a non-transient error.
+ * - The elapsed time in the retry loop exceeds a prescribed duration.
+ *$transient_errors_comment$
+ */
+class $limited_time_retry_policy_name$ : public $retry_policy_name$ {
+ public:
+  /**
+   * Constructor given a `std::chrono::duration<>` object.
+   *
+   * @tparam DurationRep a placeholder to match the `Rep` tparam for @p
+   *     duration's type. The semantics of this template parameter are
+   *     documented in `std::chrono::duration<>`. In brief, the underlying
+   *     arithmetic type used to store the number of ticks. For our purposes it
+   *     is simply a formal parameter.
+   * @tparam DurationPeriod a placeholder to match the `Period` tparam for @p
+   *     duration's type. The semantics of this template parameter are
+   *     documented in `std::chrono::duration<>`. In brief, the length of the
+   *     tick in seconds, expressed as a `std::ratio<>`. For our purposes it is
+   *     simply a formal parameter.
+   * @param maximum_duration the maximum time allowed before the policy expires.
+   *     While the application can express this time in any units they desire,
+   *     the class truncates to milliseconds.
+   *
+   * @see https://en.cppreference.com/w/cpp/chrono/duration for more information
+   *     about `std::chrono::duration`.
+   */
+  template <typename DurationRep, typename DurationPeriod>
+  explicit $limited_time_retry_policy_name$(
+      std::chrono::duration<DurationRep, DurationPeriod> maximum_duration)
+    : impl_(maximum_duration) {}
+
+  $limited_time_retry_policy_name$($limited_time_retry_policy_name$&& rhs) noexcept
+    : $limited_time_retry_policy_name$(rhs.maximum_duration()) {}
+  $limited_time_retry_policy_name$($limited_time_retry_policy_name$ const& rhs) noexcept
+    : $limited_time_retry_policy_name$(rhs.maximum_duration()) {}
+
+  std::chrono::milliseconds maximum_duration() const {
+    return impl_.maximum_duration();
+  }
+
+  bool OnFailure(Status const& status) override {
+    return impl_.OnFailure(status);
+  }
+  bool IsExhausted() const override { return impl_.IsExhausted(); }
+  bool IsPermanentFailure(Status const& status) const override {
+    return impl_.IsPermanentFailure(status);
+  }
+  std::unique_ptr<$retry_policy_name$> clone() const override {
+    return std::make_unique<$limited_time_retry_policy_name$>(
+        maximum_duration());
+  }
+
+  // This is provided only for backwards compatibility.
+  using BaseType = $retry_policy_name$;
+
+ private:
+  google::cloud::internal::LimitedTimeRetryPolicy<$product_internal_namespace$::$retry_traits_name$> impl_;
+};
+
 /**
  * The `$connection_class_name$` object for `$client_class_name$`.
  *
@@ -152,10 +244,8 @@ class $connection_class_name$ {
         method,
         {MethodPattern(
              {
-                 {IsResponseTypeEmpty,
-                  // clang-format off
-    "\n  virtual Status\n",
-    "\n  virtual StatusOr<$response_type$>\n"},
+                 {"\n  virtual $return_type$\n"},
+                 // clang-format off
    {"  $method_name$($request_type$ const& request);\n"}
                  // clang-format on
              },
@@ -167,7 +257,22 @@ class $connection_class_name$ {
                   // clang-format off
     "\n  virtual future<Status>\n",
     "\n  virtual future<StatusOr<$longrunning_deduced_response_type$>>\n"},
-   {"  $method_name$($request_type$ const& request);\n"}
+   {"  $method_name$($request_type$ const& request);\n\n"},
+                 // clang-format on
+                 {IsResponseTypeEmpty,
+                  // clang-format off
+      "  virtual Status\n",
+      "  virtual StatusOr<$longrunning_operation_type$>\n"},
+                 // clang-format on
+                 {"  $method_name$("
+                  "NoAwaitTag,"
+                  " $request_type$ const& request);\n\n"},
+                 {IsResponseTypeEmpty,
+                  // clang-format off
+      "  virtual future<Status>\n",
+      "  virtual future<StatusOr<$longrunning_deduced_response_type$>>\n"},
+     {"  $method_name$("
+                  " $longrunning_operation_type$ const& operation);\n"}
                  // clang-format on
              },
              All(IsNonStreaming, IsLongrunningOperation, Not(IsPaginated))),
@@ -197,10 +302,8 @@ class $connection_class_name$ {
         method,
         {MethodPattern(
             {
-                {IsResponseTypeEmpty,
-                 // clang-format off
-    "\n  virtual future<Status>\n",
-    "\n  virtual future<StatusOr<$response_type$>>\n"},
+                {"\n  virtual future<$return_type$>\n"},
+                // clang-format off
    {"  Async$method_name$($request_type$ const& request);\n"}
                 // clang-format on
             },
@@ -212,58 +315,8 @@ class $connection_class_name$ {
   // close abstract interface Connection base class
   HeaderPrint("};\n");
 
-  HeaderPrint(R"""(
-/**
- * A factory function to construct an object of type `$connection_class_name$`.
- *
- * The returned connection object should not be used directly; instead it
- * should be passed as an argument to the constructor of $client_class_name$.
- *
- * The optional @p options argument may be used to configure aspects of the
- * returned `$connection_class_name$`. Expected options are any of the types in
- * the following option lists:
- *
- * - `google::cloud::CommonOptionList`
- * - `google::cloud::GrpcOptionList`
- * - `google::cloud::UnifiedCredentialsOptionList`
- * - `google::cloud::$product_namespace$::$service_name$PolicyOptionList`
- *
- * @note Unexpected options will be ignored. To log unexpected options instead,
- *     set `GOOGLE_CLOUD_CPP_ENABLE_CLOG=yes` in the environment.
- *)""");
-  switch (endpoint_location_style) {
-    case ServiceConfiguration::LOCATION_DEPENDENT:
-    case ServiceConfiguration::LOCATION_DEPENDENT_COMPAT:
-      HeaderPrint(R"""(
- * @param location Sets the prefix for the default `EndpointOption` value.)""");
-      break;
-    default:
-      break;
-  }
-  HeaderPrint(R"""(
- * @param options (optional) Configure the `$connection_class_name$` created by
- * this function.
- */
-std::shared_ptr<$connection_class_name$> Make$connection_class_name$(
-)""");
-  HeaderPrint("    " + ConnectionFactoryFunctionArguments() + " = {});\n");
-
-  switch (endpoint_location_style) {
-    case ServiceConfiguration::LOCATION_DEPENDENT_COMPAT:
-      HeaderPrint(R"""(
-/**
- * A backwards-compatible version of the previous factory function.  Unless
- * the service also offers a global endpoint, the default value of the
- * `EndpointOption` may be useless, in which case it must be overridden.
- *
- * @deprecated Please use the `location` overload instead.
- */
-std::shared_ptr<$connection_class_name$> Make$connection_class_name$(
-    Options options = {});
-)""");
-      break;
-    default:
-      break;
+  if (HasGenerateGrpcTransport()) {
+    EmitFactoryFunctionDeclaration(endpoint_location_style);
   }
 
   HeaderCloseNamespaces();
@@ -286,26 +339,18 @@ Status ConnectionGenerator::GenerateCc() {
   CcPrint("\n");
   CcLocalIncludes(
       {vars("connection_header_path"), vars("options_header_path"),
-       vars("connection_impl_header_path"), vars("option_defaults_header_path"),
-       vars("stub_factory_header_path"), "google/cloud/background_threads.h",
-       "google/cloud/common_options.h", "google/cloud/credentials.h",
-       "google/cloud/grpc_options.h",
+       HasGenerateGrpcTransport() ? vars("connection_impl_header_path") : "",
+       vars("option_defaults_header_path"),
+       vars("tracing_connection_header_path"),
+       HasGenerateGrpcTransport() ? vars("stub_factory_header_path") : "",
+       "google/cloud/background_threads.h", "google/cloud/common_options.h",
+       "google/cloud/credentials.h", "google/cloud/grpc_options.h",
+       "google/cloud/internal/unified_grpc_credentials.h",
        HasPaginatedMethod() ? "google/cloud/internal/pagination_range.h" : ""});
-  CcSystemIncludes({"memory"});
+  CcSystemIncludes({"memory", "utility"});
 
   auto result = CcOpenNamespaces();
   if (!result.ok()) return result;
-
-  if (vars().at("service_name") == "BigQueryRead") {
-    CcPrint(R"""(
-void BigQueryReadReadRowsStreamingUpdater(
-    google::cloud::bigquery::storage::v1::ReadRowsResponse const& response,
-    google::cloud::bigquery::storage::v1::ReadRowsRequest& request) {
-  return bigquery_internal::BigQueryReadReadRowsStreamingUpdater(response,
-                                                                 request);
-}
-)""");
-  }
 
   CcPrint(R"""(
 $connection_class_name$::~$connection_class_name$() = default;
@@ -319,7 +364,7 @@ std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
     $request_type$,
     $response_type$>>
 $connection_class_name$::Async$method_name$() {
-  return absl::make_unique<
+  return std::make_unique<
       ::google::cloud::internal::AsyncStreamingReadWriteRpcError<
           $request_type$,
           $response_type$>>(
@@ -332,10 +377,8 @@ $connection_class_name$::Async$method_name$() {
         method,
         {MethodPattern(
              {
-                 {IsResponseTypeEmpty,
-                  // clang-format off
-    "\nStatus\n",
-    "\nStatusOr<$response_type$>\n"},
+                 {"\n$return_type$\n"},
+                 // clang-format off
    {"$connection_class_name$::$method_name$(\n"
     "    $request_type$ const&) {\n"
     "  return Status(StatusCode::kUnimplemented, \"not implemented\");\n"
@@ -359,6 +402,31 @@ $connection_class_name$::Async$method_name$() {
     "}\n"
     },
                  // clang-format on
+                 {"\n"},
+                 {IsResponseTypeEmpty,
+                  // clang-format off
+    "Status\n",
+    "StatusOr<$longrunning_operation_type$>\n"},
+   {"$connection_class_name$::$method_name$(\n"
+    "    NoAwaitTag,\n"
+    "    $request_type$ const&) {\n"
+    "  return StatusOr<$longrunning_operation_type$>(\n"
+    "    Status(StatusCode::kUnimplemented, \"not implemented\"));\n"
+    "}\n"
+    },
+                 // clang-format on
+                 {"\n"},
+                 {IsResponseTypeEmpty,
+                  // clang-format off
+    "future<Status>\n",
+    "future<StatusOr<$longrunning_deduced_response_type$>>\n"},
+   {"$connection_class_name$::$method_name$(\n"
+    "    $longrunning_operation_type$ const&) {\n"
+    "  return google::cloud::make_ready_future<\n"
+    "    StatusOr<$longrunning_deduced_response_type$>>(\n"
+    "    Status(StatusCode::kUnimplemented, \"not implemented\"));\n"
+    "}\n"
+    }  // clang-format on
              },
              All(IsNonStreaming, IsLongrunningOperation, Not(IsPaginated))),
          MethodPattern(
@@ -419,8 +487,104 @@ $connection_class_name$::Async$method_name$(
         __FILE__, __LINE__);
   }
 
-  auto endpoint_location_style = EndpointLocationStyle();
+  if (HasGenerateGrpcTransport()) {
+    EmitFactoryFunctionDefinition(EndpointLocationStyle());
+  }
 
+  CcCloseNamespaces();
+
+  // TODO(#8234): This is a special case for backwards compatibility of the
+  //     streaming update function.
+  if (vars().at("service_name") == "BigQueryRead") {
+    CcOpenForwardingNamespaces();
+    CcPrint(R"""(
+void BigQueryReadReadRowsStreamingUpdater(
+    google::cloud::bigquery::storage::v1::ReadRowsResponse const& response,
+    google::cloud::bigquery::storage::v1::ReadRowsRequest& request) {
+  return bigquery_storage_v1_internal::BigQueryReadReadRowsStreamingUpdater(response,
+                                                                 request);
+}
+)""");
+    CcCloseNamespaces();
+  }
+
+  return {};
+}
+
+std::string ConnectionGenerator::ConnectionFactoryFunctionArguments() const {
+  std::string args;
+  if (IsExperimental()) args += "ExperimentalTag, ";
+  switch (EndpointLocationStyle()) {
+    case ServiceConfiguration::LOCATION_DEPENDENT:
+    case ServiceConfiguration::LOCATION_DEPENDENT_COMPAT:
+      args += "std::string const& location, ";
+      break;
+    default:
+      break;
+  }
+  args += "Options options";
+  return args;
+}
+
+void ConnectionGenerator::EmitFactoryFunctionDeclaration(
+    ServiceConfiguration::EndpointLocationStyle endpoint_location_style) {
+  HeaderPrint(R"""(
+/**
+ * A factory function to construct an object of type `$connection_class_name$`.
+ *
+ * The returned connection object should not be used directly; instead it
+ * should be passed as an argument to the constructor of $client_class_name$.
+ *
+ * The optional @p options argument may be used to configure aspects of the
+ * returned `$connection_class_name$`. Expected options are any of the types in
+ * the following option lists:
+ *
+ * - `google::cloud::CommonOptionList`
+ * - `google::cloud::GrpcOptionList`
+ * - `google::cloud::UnifiedCredentialsOptionList`
+ * - `google::cloud::$product_namespace$::$service_name$PolicyOptionList`
+ *
+ * @note Unexpected options will be ignored. To log unexpected options instead,
+ *     set `GOOGLE_CLOUD_CPP_ENABLE_CLOG=yes` in the environment.
+ *)""");
+  switch (endpoint_location_style) {
+    case ServiceConfiguration::LOCATION_DEPENDENT:
+    case ServiceConfiguration::LOCATION_DEPENDENT_COMPAT:
+      HeaderPrint(R"""(
+ * @param location Sets the prefix for the default `EndpointOption` value.)""");
+      break;
+    default:
+      break;
+  }
+  HeaderPrint(R"""(
+ * @param options (optional) Configure the `$connection_class_name$` created by
+ * this function.
+ */
+std::shared_ptr<$connection_class_name$> Make$connection_class_name$(
+)""");
+  HeaderPrint("    " + ConnectionFactoryFunctionArguments() + " = {});\n");
+
+  switch (endpoint_location_style) {
+    case ServiceConfiguration::LOCATION_DEPENDENT_COMPAT:
+      HeaderPrint(R"""(
+/**
+ * A backwards-compatible version of the previous factory function.  Unless
+ * the service also offers a global endpoint, the default value of the
+ * `EndpointOption` may be useless, in which case it must be overridden.
+ *
+ * @deprecated Please use the `location` overload instead.
+ */
+std::shared_ptr<$connection_class_name$> Make$connection_class_name$(
+    Options options = {});
+)""");
+      break;
+    default:
+      break;
+  }
+}
+
+void ConnectionGenerator::EmitFactoryFunctionDefinition(
+    ServiceConfiguration::EndpointLocationStyle endpoint_location_style) {
   CcPrint(R"""(
 std::shared_ptr<$connection_class_name$> Make$connection_class_name$(
 )""");
@@ -443,10 +607,12 @@ std::shared_ptr<$connection_class_name$> Make$connection_class_name$(
   CcPrint("std::move(options));");
   CcPrint(R"""(
   auto background = internal::MakeBackgroundThreadsFactory(options)();
+  auto auth = internal::CreateAuthenticationStrategy(background->cq(), options);
   auto stub = $product_internal_namespace$::CreateDefault$stub_class_name$(
-    background->cq(), options);
-  return std::make_shared<$product_internal_namespace$::$connection_class_name$Impl>(
-      std::move(background), std::move(stub), std::move(options));
+    std::move(auth), options);
+  return $product_internal_namespace$::Make$tracing_connection_class_name$(
+      std::make_shared<$product_internal_namespace$::$connection_class_name$Impl>(
+      std::move(background), std::move(stub), std::move(options)));
 }
 )""");
 
@@ -462,25 +628,6 @@ std::shared_ptr<$connection_class_name$> Make$connection_class_name$(
     default:
       break;
   }
-
-  CcCloseNamespaces();
-
-  return {};
-}
-
-std::string ConnectionGenerator::ConnectionFactoryFunctionArguments() const {
-  std::string args;
-  if (IsExperimental()) args += "ExperimentalTag, ";
-  switch (EndpointLocationStyle()) {
-    case ServiceConfiguration::LOCATION_DEPENDENT:
-    case ServiceConfiguration::LOCATION_DEPENDENT_COMPAT:
-      args += "std::string const& location, ";
-      break;
-    default:
-      break;
-  }
-  args += "Options options";
-  return args;
 }
 
 }  // namespace generator_internal

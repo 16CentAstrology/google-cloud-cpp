@@ -20,7 +20,9 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_DIALOGFLOW_ES_INTERNAL_ENVIRONMENTS_METADATA_DECORATOR_H
 
 #include "google/cloud/dialogflow_es/internal/environments_stub.h"
+#include "google/cloud/options.h"
 #include "google/cloud/version.h"
+#include <map>
 #include <memory>
 #include <string>
 
@@ -32,45 +34,68 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 class EnvironmentsMetadata : public EnvironmentsStub {
  public:
   ~EnvironmentsMetadata() override = default;
-  explicit EnvironmentsMetadata(std::shared_ptr<EnvironmentsStub> child);
+  EnvironmentsMetadata(std::shared_ptr<EnvironmentsStub> child,
+                       std::multimap<std::string, std::string> fixed_metadata,
+                       std::string api_client_header = "");
 
   StatusOr<google::cloud::dialogflow::v2::ListEnvironmentsResponse>
-  ListEnvironments(grpc::ClientContext& context,
+  ListEnvironments(grpc::ClientContext& context, Options const& options,
                    google::cloud::dialogflow::v2::ListEnvironmentsRequest const&
                        request) override;
 
   StatusOr<google::cloud::dialogflow::v2::Environment> GetEnvironment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::GetEnvironmentRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::v2::Environment> CreateEnvironment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::CreateEnvironmentRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::v2::Environment> UpdateEnvironment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::UpdateEnvironmentRequest const& request)
       override;
 
   Status DeleteEnvironment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::DeleteEnvironmentRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::v2::EnvironmentHistory>
   GetEnvironmentHistory(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::GetEnvironmentHistoryRequest const&
           request) override;
 
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  void SetMetadata(grpc::ClientContext& context,
+  void SetMetadata(grpc::ClientContext& context, Options const& options,
                    std::string const& request_params);
-  void SetMetadata(grpc::ClientContext& context);
+  void SetMetadata(grpc::ClientContext& context, Options const& options);
 
   std::shared_ptr<EnvironmentsStub> child_;
+  std::multimap<std::string, std::string> fixed_metadata_;
   std::string api_client_header_;
 };
 

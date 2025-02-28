@@ -15,9 +15,9 @@
 #ifndef GOOGLE_CLOUD_CPP_GENERATOR_INTERNAL_CONNECTION_IMPL_GENERATOR_H
 #define GOOGLE_CLOUD_CPP_GENERATOR_INTERNAL_CONNECTION_IMPL_GENERATOR_H
 
-#include "google/cloud/status.h"
 #include "generator/internal/printer.h"
 #include "generator/internal/service_code_generator.h"
+#include "google/cloud/status.h"
 #include <google/protobuf/compiler/code_generator.h>
 #include <google/protobuf/descriptor.h>
 #include <map>
@@ -38,7 +38,8 @@ class ConnectionImplGenerator : public ServiceCodeGenerator {
       google::protobuf::ServiceDescriptor const* service_descriptor,
       VarsDictionary service_vars,
       std::map<std::string, VarsDictionary> service_method_vars,
-      google::protobuf::compiler::GeneratorContext* context);
+      google::protobuf::compiler::GeneratorContext* context,
+      std::vector<MixinMethod> const& mixin_methods);
 
   ~ConnectionImplGenerator() override = default;
 
@@ -48,11 +49,10 @@ class ConnectionImplGenerator : public ServiceCodeGenerator {
 
   static std::string MethodDeclaration(
       google::protobuf::MethodDescriptor const& method);
-  static std::string AsyncMethodDeclaration(
+  static std::string AsyncMethodDeclaration();
+  std::string MethodDefinition(
       google::protobuf::MethodDescriptor const& method);
-  static std::string MethodDefinition(
-      google::protobuf::MethodDescriptor const& method);
-  static std::string AsyncMethodDefinition(
+  std::string AsyncMethodDefinition(
       google::protobuf::MethodDescriptor const& method);
 };
 

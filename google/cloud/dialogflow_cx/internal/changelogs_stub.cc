@@ -21,6 +21,7 @@
 #include "google/cloud/status_or.h"
 #include <google/cloud/dialogflow/cx/v3/changelog.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -31,10 +32,10 @@ ChangelogsStub::~ChangelogsStub() = default;
 
 StatusOr<google::cloud::dialogflow::cx::v3::ListChangelogsResponse>
 DefaultChangelogsStub::ListChangelogs(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::cx::v3::ListChangelogsRequest const& request) {
   google::cloud::dialogflow::cx::v3::ListChangelogsResponse response;
-  auto status = grpc_stub_->ListChangelogs(&client_context, request, &response);
+  auto status = grpc_stub_->ListChangelogs(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -43,14 +44,71 @@ DefaultChangelogsStub::ListChangelogs(
 
 StatusOr<google::cloud::dialogflow::cx::v3::Changelog>
 DefaultChangelogsStub::GetChangelog(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::cx::v3::GetChangelogRequest const& request) {
   google::cloud::dialogflow::cx::v3::Changelog response;
-  auto status = grpc_stub_->GetChangelog(&client_context, request, &response);
+  auto status = grpc_stub_->GetChangelog(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
   return response;
+}
+
+StatusOr<google::cloud::location::ListLocationsResponse>
+DefaultChangelogsStub::ListLocations(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::location::ListLocationsRequest const& request) {
+  google::cloud::location::ListLocationsResponse response;
+  auto status = locations_stub_->ListLocations(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::cloud::location::Location> DefaultChangelogsStub::GetLocation(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::location::GetLocationRequest const& request) {
+  google::cloud::location::Location response;
+  auto status = locations_stub_->GetLocation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+DefaultChangelogsStub::ListOperations(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::ListOperationsRequest const& request) {
+  google::longrunning::ListOperationsResponse response;
+  auto status = operations_stub_->ListOperations(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::longrunning::Operation> DefaultChangelogsStub::GetOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::GetOperationRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = operations_stub_->GetOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+Status DefaultChangelogsStub::CancelOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::CancelOperationRequest const& request) {
+  google::protobuf::Empty response;
+  auto status = operations_stub_->CancelOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return google::cloud::Status();
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

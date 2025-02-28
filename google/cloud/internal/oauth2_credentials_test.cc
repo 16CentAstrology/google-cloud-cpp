@@ -24,13 +24,16 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
 using ::google::cloud::internal::UnavailableError;
+using ::google::cloud::testing_util::IsOk;
+using ::google::cloud::testing_util::IsOkAndHolds;
 using ::testing::IsEmpty;
+using ::testing::Not;
 using ::testing::Pair;
 using ::testing::Return;
 
 class MockCredentials : public Credentials {
  public:
-  MOCK_METHOD(StatusOr<internal::AccessToken>, GetToken,
+  MOCK_METHOD(StatusOr<AccessToken>, GetToken,
               (std::chrono::system_clock::time_point), (override));
 };
 
@@ -39,46 +42,49 @@ TEST(Credentials, AuthorizationHeaderSuccess) {
   auto const now = std::chrono::system_clock::now();
   auto const expiration = now + std::chrono::seconds(3600);
   EXPECT_CALL(mock, GetToken(now))
-      .WillOnce(Return(internal::AccessToken{"test-token", expiration}));
-  auto actual = AuthorizationHeader(mock, now);
-  ASSERT_STATUS_OK(actual);
-  EXPECT_THAT(*actual, Pair("Authorization", "Bearer test-token"));
+      .WillOnce(Return(AccessToken{"test-token", expiration}));
+  auto actual = mock.AuthenticationHeader(now);
+  EXPECT_THAT(actual, IsOkAndHolds(Pair("Authorization", "Bearer test-token")));
 }
 
-TEST(Credentials, AuthorizationHeaderJoinedSuccess) {
+TEST(Credentials, AuthenticationHeaderJoinedSuccess) {
   MockCredentials mock;
   auto const now = std::chrono::system_clock::now();
   auto const expiration = now + std::chrono::seconds(3600);
   EXPECT_CALL(mock, GetToken(now))
-      .WillOnce(Return(internal::AccessToken{"test-token", expiration}));
-  auto actual = AuthorizationHeaderJoined(mock, now);
-  ASSERT_STATUS_OK(actual);
-  EXPECT_THAT(*actual, "Authorization: Bearer test-token");
+      .WillOnce(Return(AccessToken{"test-token", expiration}));
+  auto actual = AuthenticationHeaderJoined(mock, now);
+  EXPECT_THAT(actual, IsOkAndHolds("Authorization: Bearer test-token"));
 }
 
-TEST(Credentials, AuthorizationHeaderJoinedEmpty) {
+TEST(Credentials, AuthenticationHeaderJoinedEmpty) {
   MockCredentials mock;
   auto const now = std::chrono::system_clock::now();
   auto const expiration = now + std::chrono::seconds(3600);
   EXPECT_CALL(mock, GetToken(now))
-      .WillOnce(Return(internal::AccessToken{"", expiration}));
-  auto actual = AuthorizationHeaderJoined(mock, now);
-  ASSERT_STATUS_OK(actual);
-  EXPECT_THAT(*actual, IsEmpty());
+      .WillOnce(Return(AccessToken{"", expiration}));
+  auto actual = AuthenticationHeaderJoined(mock, now);
+  EXPECT_THAT(actual, IsOkAndHolds(IsEmpty()));
 }
 
-TEST(Credentials, AuthorizationHeaderError) {
+TEST(Credentials, AuthenticationHeaderError) {
   MockCredentials mock;
   EXPECT_CALL(mock, GetToken).WillOnce(Return(UnavailableError("try-again")));
-  auto actual = AuthorizationHeader(mock);
+  auto actual = mock.AuthenticationHeader(std::chrono::system_clock::now());
   EXPECT_EQ(actual.status(), UnavailableError("try-again"));
 }
 
-TEST(Credentials, AuthorizationHeaderJoinedError) {
+TEST(Credentials, AuthenticationHeaderJoinedError) {
   MockCredentials mock;
   EXPECT_CALL(mock, GetToken).WillOnce(Return(UnavailableError("try-again")));
-  auto actual = AuthorizationHeaderJoined(mock);
+  auto actual = AuthenticationHeaderJoined(mock);
   EXPECT_EQ(actual.status(), UnavailableError("try-again"));
+}
+
+TEST(Credentials, ProjectId) {
+  MockCredentials mock;
+  EXPECT_THAT(mock.project_id(), Not(IsOk()));
+  EXPECT_THAT(mock.project_id({}), Not(IsOk()));
 }
 
 }  // namespace

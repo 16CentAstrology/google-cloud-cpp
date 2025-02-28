@@ -16,13 +16,13 @@
 #include "google/cloud/common_options.h"
 #include "google/cloud/grpc_error_delegate.h"
 #include "google/cloud/grpc_options.h"
+#include "google/cloud/internal/credentials_impl.h"
 #include "google/cloud/internal/filesystem.h"
 #include "google/cloud/internal/random.h"
 #include "google/cloud/options.h"
 #include "google/cloud/testing_util/scoped_environment.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
-#include <google/bigtable/admin/v2/bigtable_table_admin.grpc.pb.h>
+#include "google/cloud/testing_util/validate_metadata.h"
 #include <gmock/gmock.h>
 #include <fstream>
 
@@ -34,7 +34,13 @@ namespace {
 
 using ::google::cloud::testing_util::IsOk;
 using ::google::cloud::testing_util::ScopedEnvironment;
+using ::google::cloud::testing_util::StatusIs;
+using ::google::cloud::testing_util::ValidateMetadataFixture;
+using ::testing::Contains;
 using ::testing::IsEmpty;
+using ::testing::IsNull;
+using ::testing::NotNull;
+using ::testing::Pair;
 
 TEST(UnifiedGrpcCredentialsTest, GrpcCredentialOption) {
   CompletionQueue cq;
@@ -68,7 +74,7 @@ TEST(UnifiedGrpcCredentialsTest, WithGrpcCredentials) {
 
 TEST(UnifiedGrpcCredentialsTest, WithInsecureCredentials) {
   CompletionQueue cq;
-  auto result = CreateAuthenticationStrategy(MakeInsecureCredentials(), cq);
+  auto result = CreateAuthenticationStrategy(*MakeInsecureCredentials(), cq);
   ASSERT_NE(nullptr, result.get());
   grpc::ClientContext context;
   auto status = result->ConfigureContext(context);
@@ -84,7 +90,7 @@ TEST(UnifiedGrpcCredentialsTest, WithDefaultCredentials) {
 
   CompletionQueue cq;
   auto result =
-      CreateAuthenticationStrategy(MakeGoogleDefaultCredentials(), cq);
+      CreateAuthenticationStrategy(*MakeGoogleDefaultCredentials(), cq);
   ASSERT_NE(nullptr, result.get());
   grpc::ClientContext context;
   auto status = result->ConfigureContext(context);
@@ -97,12 +103,47 @@ TEST(UnifiedGrpcCredentialsTest, WithAccessTokenCredentials) {
       std::chrono::system_clock::now() + std::chrono::hours(1);
   CompletionQueue cq;
   auto result = CreateAuthenticationStrategy(
-      MakeAccessTokenCredentials("test-token", expiration), cq);
+      *MakeAccessTokenCredentials("test-token", expiration), cq);
   ASSERT_NE(nullptr, result.get());
   grpc::ClientContext context;
   auto status = result->ConfigureContext(context);
   EXPECT_THAT(status, IsOk());
   ASSERT_NE(nullptr, context.credentials());
+}
+
+TEST(UnifiedGrpcCredentialsTest, WithErrorCredentials) {
+  Status const error_status{StatusCode::kFailedPrecondition,
+                            "Precondition failed."};
+  CompletionQueue cq;
+  auto result = CreateAuthenticationStrategy(
+      *internal::MakeErrorCredentials(error_status), cq);
+  ASSERT_NE(nullptr, result.get());
+  EXPECT_TRUE(result->RequiresConfigureContext());
+  grpc::ClientContext context;
+  auto configured_context = result->ConfigureContext(context);
+  EXPECT_THAT(configured_context, StatusIs(error_status.code()));
+  auto async_configured_context =
+      result->AsyncConfigureContext(std::make_shared<grpc::ClientContext>())
+          .get();
+  EXPECT_THAT(async_configured_context, StatusIs(error_status.code()));
+  auto channel = result->CreateChannel(std::string{}, grpc::ChannelArguments{});
+  EXPECT_THAT(channel.get(), Not(IsNull()));
+}
+
+TEST(UnifiedGrpcCredentialsTest, WithApiKeyCredentials) {
+  CompletionQueue cq;
+  auto creds = ApiKeyConfig("api-key", Options{});
+  auto auth = CreateAuthenticationStrategy(creds, cq);
+  ASSERT_THAT(auth, NotNull());
+
+  grpc::ClientContext context;
+  auto status = auth->ConfigureContext(context);
+  EXPECT_STATUS_OK(status);
+  EXPECT_THAT(context.credentials(), IsNull());
+
+  ValidateMetadataFixture fixture;
+  auto headers = fixture.GetMetadata(context);
+  EXPECT_THAT(headers, Contains(Pair("x-goog-api-key", "api-key")));
 }
 
 TEST(UnifiedGrpcCredentialsTest, LoadCAInfoNotSet) {

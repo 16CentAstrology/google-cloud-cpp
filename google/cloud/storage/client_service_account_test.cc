@@ -19,9 +19,12 @@
 #include "google/cloud/storage/retry_policy.h"
 #include "google/cloud/storage/testing/canonical_errors.h"
 #include "google/cloud/storage/testing/client_unit_test.h"
-#include "google/cloud/storage/testing/retry_tests.h"
+#include "google/cloud/testing_util/scoped_environment.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -31,8 +34,19 @@ namespace {
 
 using ::google::cloud::internal::CurrentOptions;
 using ::google::cloud::storage::testing::canonical_errors::TransientError;
+using ::google::cloud::testing_util::ScopedEnvironment;
+using ::google::cloud::testing_util::StatusIs;
+using ::testing::ElementsAre;
+using ::testing::Property;
 using ::testing::Return;
 using ms = std::chrono::milliseconds;
+
+Status PermanentError() {
+  // We need an error code different from `kInvalidArgument` as this is used
+  // by `storage_internal::RequestProjectId()`. Some of the tests could be
+  // testing the wrong thing if we used the same value.
+  return Status(StatusCode::kPermissionDenied, "uh-oh");
+}
 
 /**
  * Test the Projects.serviceAccount-related functions in storage::Client.
@@ -63,23 +77,268 @@ TEST_F(ServiceAccountTest, GetProjectServiceAccount) {
   EXPECT_EQ(expected, *actual);
 }
 
-TEST_F(ServiceAccountTest, GetProjectServiceAccountTooManyFailures) {
-  testing::TooManyFailuresStatusTest<ServiceAccount>(
-      mock_, EXPECT_CALL(*mock_, GetServiceAccount),
-      [](Client& client) {
-        return client.GetServiceAccountForProject("test-project").status();
-      },
-      "GetServiceAccount");
+TEST_F(ServiceAccountTest, GetProjectServiceAccountNoProject) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", absl::nullopt);
+  auto mock = std::make_shared<testing::MockClient>();
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(
+          Return(storage::internal::DefaultOptionsWithCredentials(Options{})));
+  EXPECT_CALL(*mock, GetServiceAccount).Times(0);
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.GetServiceAccount(Options{});
+  EXPECT_THAT(actual, StatusIs(StatusCode::kInvalidArgument));
 }
 
-TEST_F(ServiceAccountTest, GetProjectServiceAccountPermanentFailure) {
-  auto client = ClientForMock();
-  testing::PermanentFailureStatusTest<ServiceAccount>(
-      client, EXPECT_CALL(*mock_, GetServiceAccount),
-      [](Client& client) {
-        return client.GetServiceAccountForProject("test-project").status();
-      },
-      "GetServiceAccount");
+TEST_F(ServiceAccountTest,
+       GetProjectServiceAccountProjectFromConnectionOptions) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", absl::nullopt);
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::GetProjectServiceAccountRequest::project_id,
+                    "client-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, GetServiceAccount(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual =
+      client.GetServiceAccount(Options{}.set<UserProjectOption>("u-p-test"));
+}
+
+TEST_F(ServiceAccountTest, GetProjectServiceAccountProjectFromEnv) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", "env-project-id");
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::GetProjectServiceAccountRequest::project_id,
+                    "env-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, GetServiceAccount(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.GetServiceAccount(Options{});
+}
+
+TEST_F(ServiceAccountTest, GetProjectServiceAccountProjectFromCallOptions) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", "env-project-id");
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::GetProjectServiceAccountRequest::project_id,
+                    "call-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, GetServiceAccount(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.GetServiceAccount(
+      Options{}.set<ProjectIdOption>("call-project-id"));
+}
+
+TEST_F(ServiceAccountTest, GetProjectServiceAccountProjectFromOverride) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", "env-project-id");
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::GetProjectServiceAccountRequest::project_id,
+                    "override-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, GetServiceAccount(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.GetServiceAccount(
+      OverrideDefaultProject("override-project-id"),
+      Options{}.set<ProjectIdOption>("call-project-id"));
+}
+
+TEST_F(ServiceAccountTest, ListHmacKeysNoProject) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", absl::nullopt);
+  auto mock = std::make_shared<testing::MockClient>();
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(
+          Return(storage::internal::DefaultOptionsWithCredentials(Options{})));
+  EXPECT_CALL(*mock, ListHmacKeys).Times(0);
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.ListHmacKeys(Options{});
+  std::vector<StatusOr<HmacKeyMetadata>> list{actual.begin(), actual.end()};
+  EXPECT_THAT(list, ElementsAre(StatusIs(StatusCode::kInvalidArgument)));
+}
+
+TEST_F(ServiceAccountTest, ListHmacKeysProjectFromConnectionOptions) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", absl::nullopt);
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::ListHmacKeysRequest::project_id,
+                    "client-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, ListHmacKeys(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.ListHmacKeys(Options{});
+  std::vector<StatusOr<HmacKeyMetadata>> list{actual.begin(), actual.end()};
+  EXPECT_THAT(list, ElementsAre(PermanentError()));
+}
+
+TEST_F(ServiceAccountTest, ListHmacKeysProjectFromEnv) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", "env-project-id");
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::ListHmacKeysRequest::project_id,
+                    "env-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, ListHmacKeys(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.ListHmacKeys(Options{});
+  std::vector<StatusOr<HmacKeyMetadata>> list{actual.begin(), actual.end()};
+  EXPECT_THAT(list, ElementsAre(PermanentError()));
+}
+
+TEST_F(ServiceAccountTest, ListHmacKeysProjectFromCallOptions) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", "env-project-id");
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::ListHmacKeysRequest::project_id,
+                    "call-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, ListHmacKeys(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual =
+      client.ListHmacKeys(Options{}.set<ProjectIdOption>("call-project-id"));
+  std::vector<StatusOr<HmacKeyMetadata>> list{actual.begin(), actual.end()};
+  EXPECT_THAT(list, ElementsAre(PermanentError()));
+}
+
+TEST_F(ServiceAccountTest, ListHmacKeysProjectFromOverride) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", "env-project-id");
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::ListHmacKeysRequest::project_id,
+                    "override-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, ListHmacKeys(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual =
+      client.ListHmacKeys(OverrideDefaultProject("override-project-id"),
+                          Options{}.set<ProjectIdOption>("call-project-id"));
+  std::vector<StatusOr<HmacKeyMetadata>> list{actual.begin(), actual.end()};
+  EXPECT_THAT(list, ElementsAre(PermanentError()));
+}
+
+TEST_F(ServiceAccountTest, CreateHmacKeyNoProject) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", absl::nullopt);
+  auto mock = std::make_shared<testing::MockClient>();
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(
+          Return(storage::internal::DefaultOptionsWithCredentials(Options{})));
+  EXPECT_CALL(*mock, CreateHmacKey).Times(0);
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.CreateHmacKey("test-service-account", Options{});
+  EXPECT_THAT(actual, StatusIs(StatusCode::kInvalidArgument));
+}
+
+TEST_F(ServiceAccountTest, CreateHmacKeyProjectFromConnectionOptions) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", absl::nullopt);
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::CreateHmacKeyRequest::project_id,
+                    "client-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, CreateHmacKey(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.CreateHmacKey("test-service-account", Options{});
+}
+
+TEST_F(ServiceAccountTest, CreateHmacKeyProjectFromEnv) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", "env-project-id");
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::CreateHmacKeyRequest::project_id,
+                    "env-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, CreateHmacKey(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.CreateHmacKey("test-service-account", Options{});
+}
+
+TEST_F(ServiceAccountTest, CreateHmacKeyProjectFromCallOptions) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", "env-project-id");
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::CreateHmacKeyRequest::project_id,
+                    "call-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, CreateHmacKey(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual =
+      client.CreateHmacKey("test-service-account",
+                           Options{}.set<ProjectIdOption>("call-project-id"));
+}
+
+TEST_F(ServiceAccountTest, CreateHmacKeyProjectFromOverride) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", "env-project-id");
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::CreateHmacKeyRequest::project_id,
+                    "override-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, CreateHmacKey(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.CreateHmacKey(
+      "test-service-account", OverrideDefaultProject("override-project-id"),
+      Options{}.set<ProjectIdOption>("call-project-id"));
 }
 
 TEST_F(ServiceAccountTest, CreateHmacKey) {
@@ -109,23 +368,88 @@ TEST_F(ServiceAccountTest, CreateHmacKey) {
   EXPECT_EQ(expected.secret, actual->second);
 }
 
-TEST_F(ServiceAccountTest, CreateHmacKeyTooManyFailures) {
-  testing::TooManyFailuresStatusTest<internal::CreateHmacKeyResponse>(
-      mock_, EXPECT_CALL(*mock_, CreateHmacKey),
-      [](Client& client) {
-        return client.CreateHmacKey("test-service-account").status();
-      },
-      "CreateHmacKey");
+TEST_F(ServiceAccountTest, DeleteHmacKeyNoProject) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", absl::nullopt);
+  auto mock = std::make_shared<testing::MockClient>();
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(
+          Return(storage::internal::DefaultOptionsWithCredentials(Options{})));
+  EXPECT_CALL(*mock, DeleteHmacKey).Times(0);
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.DeleteHmacKey("test-access-id", Options{});
+  EXPECT_THAT(actual, StatusIs(StatusCode::kInvalidArgument));
 }
 
-TEST_F(ServiceAccountTest, CreateHmacKeyPermanentFailure) {
-  auto client = ClientForMock();
-  testing::PermanentFailureStatusTest<internal::CreateHmacKeyResponse>(
-      client, EXPECT_CALL(*mock_, CreateHmacKey),
-      [](Client& client) {
-        return client.CreateHmacKey("test-service-account").status();
-      },
-      "CreateHmacKey");
+TEST_F(ServiceAccountTest, DeleteHmacKeyProjectFromConnectionOptions) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", absl::nullopt);
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::DeleteHmacKeyRequest::project_id,
+                    "client-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, DeleteHmacKey(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.DeleteHmacKey("test-access-id", Options{});
+}
+
+TEST_F(ServiceAccountTest, DeleteHmacKeyProjectFromEnv) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", "env-project-id");
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::DeleteHmacKeyRequest::project_id,
+                    "env-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, DeleteHmacKey(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.DeleteHmacKey("test-access-id", Options{});
+}
+
+TEST_F(ServiceAccountTest, DeleteHmacKeyProjectFromCallOptions) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", "env-project-id");
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::DeleteHmacKeyRequest::project_id,
+                    "call-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, DeleteHmacKey(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.DeleteHmacKey(
+      "test-access-id", Options{}.set<ProjectIdOption>("call-project-id"));
+}
+
+TEST_F(ServiceAccountTest, DeleteHmacKeyProjectFromOverride) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", "env-project-id");
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::DeleteHmacKeyRequest::project_id,
+                    "override-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, DeleteHmacKey(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.DeleteHmacKey(
+      "test-access-id", OverrideDefaultProject("override-project-id"),
+      Options{}.set<ProjectIdOption>("call-project-id"));
 }
 
 TEST_F(ServiceAccountTest, DeleteHmacKey) {
@@ -146,19 +470,87 @@ TEST_F(ServiceAccountTest, DeleteHmacKey) {
   ASSERT_STATUS_OK(actual);
 }
 
-TEST_F(ServiceAccountTest, DeleteHmacKeyTooManyFailures) {
-  testing::TooManyFailuresStatusTest<internal::EmptyResponse>(
-      mock_, EXPECT_CALL(*mock_, DeleteHmacKey),
-      [](Client& client) { return client.DeleteHmacKey("test-access-id"); },
-      "DeleteHmacKey");
+TEST_F(ServiceAccountTest, GetHmacKeyNoProject) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", absl::nullopt);
+  auto mock = std::make_shared<testing::MockClient>();
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(
+          Return(storage::internal::DefaultOptionsWithCredentials(Options{})));
+  EXPECT_CALL(*mock, GetHmacKey).Times(0);
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.GetHmacKey("test-access-id", Options{});
+  EXPECT_THAT(actual, StatusIs(StatusCode::kInvalidArgument));
 }
 
-TEST_F(ServiceAccountTest, DeleteHmacKeyPermanentFailure) {
-  auto client = ClientForMock();
-  testing::PermanentFailureStatusTest<internal::EmptyResponse>(
-      client, EXPECT_CALL(*mock_, DeleteHmacKey),
-      [](Client& client) { return client.DeleteHmacKey("test-access-id"); },
-      "DeleteHmacKey");
+TEST_F(ServiceAccountTest, GetHmacKeyProjectFromConnectionOptions) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", absl::nullopt);
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::GetHmacKeyRequest::project_id,
+                    "client-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, GetHmacKey(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.GetHmacKey("test-access-id", Options{});
+}
+
+TEST_F(ServiceAccountTest, GetHmacKeyProjectFromEnv) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", "env-project-id");
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::GetHmacKeyRequest::project_id, "env-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, GetHmacKey(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.GetHmacKey("test-access-id", Options{});
+}
+
+TEST_F(ServiceAccountTest, GetHmacKeyProjectFromCallOptions) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", "env-project-id");
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::GetHmacKeyRequest::project_id,
+                    "call-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, GetHmacKey(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.GetHmacKey(
+      "test-access-id", Options{}.set<ProjectIdOption>("call-project-id"));
+}
+
+TEST_F(ServiceAccountTest, GetHmacKeyProjectFromOverride) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", "env-project-id");
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::GetHmacKeyRequest::project_id,
+                    "override-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, GetHmacKey(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.GetHmacKey(
+      "test-access-id", OverrideDefaultProject("override-project-id"),
+      Options{}.set<ProjectIdOption>("call-project-id"));
 }
 
 TEST_F(ServiceAccountTest, GetHmacKey) {
@@ -186,23 +578,93 @@ TEST_F(ServiceAccountTest, GetHmacKey) {
   EXPECT_EQ(expected.state(), actual->state());
 }
 
-TEST_F(ServiceAccountTest, GetHmacKeyTooManyFailures) {
-  testing::TooManyFailuresStatusTest<HmacKeyMetadata>(
-      mock_, EXPECT_CALL(*mock_, GetHmacKey),
-      [](Client& client) {
-        return client.GetHmacKey("test-access-id").status();
-      },
-      "GetHmacKey");
+TEST_F(ServiceAccountTest, UpdateHmacKeyNoProject) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", absl::nullopt);
+  auto mock = std::make_shared<testing::MockClient>();
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(
+          Return(storage::internal::DefaultOptionsWithCredentials(Options{})));
+  EXPECT_CALL(*mock, UpdateHmacKey).Times(0);
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.UpdateHmacKey("test-service-account", HmacKeyMetadata(),
+                                     Options{});
+  EXPECT_THAT(actual, StatusIs(StatusCode::kInvalidArgument));
 }
 
-TEST_F(ServiceAccountTest, GetHmacKeyPermanentFailure) {
-  auto client = ClientForMock();
-  testing::PermanentFailureStatusTest<HmacKeyMetadata>(
-      client, EXPECT_CALL(*mock_, GetHmacKey),
-      [](Client& client) {
-        return client.GetHmacKey("test-access-id").status();
-      },
-      "GetHmacKey");
+TEST_F(ServiceAccountTest, UpdateHmacKeyProjectFromConnectionOptions) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", absl::nullopt);
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::UpdateHmacKeyRequest::project_id,
+                    "client-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, UpdateHmacKey(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.UpdateHmacKey("test-service-account", HmacKeyMetadata(),
+                                     Options{});
+}
+
+TEST_F(ServiceAccountTest, UpdateHmacKeyProjectFromEnv) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", "env-project-id");
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::UpdateHmacKeyRequest::project_id,
+                    "env-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, UpdateHmacKey(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual = client.UpdateHmacKey("test-service-account", HmacKeyMetadata(),
+                                     Options{});
+}
+
+TEST_F(ServiceAccountTest, UpdateHmacKeyProjectFromCallOptions) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", "env-project-id");
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::UpdateHmacKeyRequest::project_id,
+                    "call-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, UpdateHmacKey(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual =
+      client.UpdateHmacKey("test-service-account", HmacKeyMetadata(),
+                           Options{}.set<ProjectIdOption>("call-project-id"));
+}
+
+TEST_F(ServiceAccountTest, UpdateHmacKeyProjectFromOverride) {
+  auto env = ScopedEnvironment("GOOGLE_CLOUD_PROJECT", "env-project-id");
+  auto mock = std::make_shared<testing::MockClient>();
+  auto expected_request = []() {
+    return Property(&internal::UpdateHmacKeyRequest::project_id,
+                    "override-project-id");
+  };
+  EXPECT_CALL(*mock, options())
+      .WillRepeatedly(Return(storage::internal::DefaultOptionsWithCredentials(
+          Options{}.set<ProjectIdOption>("client-project-id"))));
+  EXPECT_CALL(*mock, UpdateHmacKey(expected_request()))
+      .WillOnce(Return(PermanentError()));
+  auto client =
+      google::cloud::storage::testing::UndecoratedClientFromMock(mock);
+  auto actual =
+      client.UpdateHmacKey("test-service-account", HmacKeyMetadata(),
+                           OverrideDefaultProject("override-project-id"),
+                           Options{}.set<ProjectIdOption>("call-project-id"));
 }
 
 TEST_F(ServiceAccountTest, UpdateHmacKey) {
@@ -229,27 +691,6 @@ TEST_F(ServiceAccountTest, UpdateHmacKey) {
   ASSERT_STATUS_OK(actual);
   EXPECT_EQ(expected.access_id(), actual->access_id());
   EXPECT_EQ(expected.state(), actual->state());
-}
-
-TEST_F(ServiceAccountTest, UpdateHmacKeyTooManyFailures) {
-  testing::TooManyFailuresStatusTest<HmacKeyMetadata>(
-      mock_, EXPECT_CALL(*mock_, UpdateHmacKey),
-      [](Client& client) {
-        return client.UpdateHmacKey("test-access-id", HmacKeyMetadata())
-            .status();
-      },
-      "UpdateHmacKey");
-}
-
-TEST_F(ServiceAccountTest, UpdateHmacKeyPermanentFailure) {
-  auto client = ClientForMock();
-  testing::PermanentFailureStatusTest<HmacKeyMetadata>(
-      client, EXPECT_CALL(*mock_, UpdateHmacKey),
-      [](Client& client) {
-        return client.UpdateHmacKey("test-access-id", HmacKeyMetadata())
-            .status();
-      },
-      "UpdateHmacKey");
 }
 
 TEST(DefaultCtorsWork, Trivial) {

@@ -13,11 +13,11 @@
 // limitations under the License.
 
 #include "generator/internal/round_robin_decorator_generator.h"
-#include "absl/memory/memory.h"
-#include "absl/strings/str_split.h"
 #include "generator/internal/codegen_utils.h"
+#include "generator/internal/longrunning.h"
 #include "generator/internal/predicate_utils.h"
 #include "generator/internal/printer.h"
+#include "absl/strings/str_split.h"
 #include <google/protobuf/descriptor.h>
 
 namespace google {
@@ -28,10 +28,12 @@ RoundRobinDecoratorGenerator::RoundRobinDecoratorGenerator(
     google::protobuf::ServiceDescriptor const* service_descriptor,
     VarsDictionary service_vars,
     std::map<std::string, VarsDictionary> service_method_vars,
-    google::protobuf::compiler::GeneratorContext* context)
-    : ServiceCodeGenerator("round_robin_header_path", "round_robin_cc_path",
-                           service_descriptor, std::move(service_vars),
-                           std::move(service_method_vars), context) {}
+    google::protobuf::compiler::GeneratorContext* context,
+    std::vector<MixinMethod> const& mixin_methods)
+    : StubGeneratorBase("round_robin_header_path", "round_robin_cc_path",
+                        service_descriptor, std::move(service_vars),
+                        std::move(service_method_vars), context,
+                        mixin_methods) {}
 
 Status RoundRobinDecoratorGenerator::GenerateHeader() {
   HeaderPrint(CopyrightLicenseFileHeader());
@@ -63,122 +65,7 @@ class $round_robin_class_name$ : public $stub_class_name$ {
   ~$round_robin_class_name$() override = default;
 )""");
 
-  for (auto const& method : methods()) {
-    if (IsStreamingRead(method)) {
-      HeaderPrintMethod(method, __FILE__, __LINE__, R"""(
-  std::unique_ptr<google::cloud::internal::StreamingReadRpc<$response_type$>>
-  $method_name$(
-      std::unique_ptr<grpc::ClientContext> context,
-      $request_type$ const& request) override;
-)""");
-      continue;
-    }
-    if (IsStreamingWrite(method)) {
-      HeaderPrintMethod(method, __FILE__, __LINE__, R"""(
-  std::unique_ptr<google::cloud::internal::StreamingWriteRpc<
-      $request_type$,
-      $response_type$>>
-  $method_name$(
-      std::unique_ptr<grpc::ClientContext> context) override;
-)""");
-      continue;
-    }
-    if (IsBidirStreaming(method)) {
-      HeaderPrintMethod(method, __FILE__, __LINE__, R"""(
-  std::unique_ptr<google::cloud::AsyncStreamingReadWriteRpc<
-      $request_type$,
-      $response_type$>>
-  Async$method_name$(
-      google::cloud::CompletionQueue const& cq,
-      std::unique_ptr<grpc::ClientContext> context) override;
-)""");
-      continue;
-    }
-    if (IsLongrunningOperation(method)) {
-      HeaderPrintMethod(method, __FILE__, __LINE__, R"""(
-  future<StatusOr<google::longrunning::Operation>> Async$method_name$(
-      google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
-      $request_type$ const& request) override;
-)""");
-      continue;
-    }
-    if (IsResponseTypeEmpty(method)) {
-      HeaderPrintMethod(method, __FILE__, __LINE__, R"""(
-  Status $method_name$(
-      grpc::ClientContext& context,
-      $request_type$ const& request) override;
-)""");
-      continue;
-    }
-    HeaderPrintMethod(method, __FILE__, __LINE__, R"""(
-  StatusOr<$response_type$> $method_name$(
-      grpc::ClientContext& context,
-      $request_type$ const& request) override;
-)""");
-  }
-
-  for (auto const& method : async_methods()) {
-    if (IsStreamingRead(method)) {
-      HeaderPrintMethod(method, __FILE__, __LINE__, R"""(
-  std::unique_ptr<google::cloud::internal::AsyncStreamingReadRpc<
-      $response_type$>>
-  Async$method_name$(
-      google::cloud::CompletionQueue const& cq,
-      std::unique_ptr<grpc::ClientContext> context,
-      $request_type$ const& request) override;
-)""");
-      continue;
-    }
-    if (IsStreamingWrite(method)) {
-      HeaderPrintMethod(method, __FILE__, __LINE__, R"""(
-  std::unique_ptr<google::cloud::internal::AsyncStreamingWriteRpc<
-      $request_type$,
-      $response_type$>>
-  Async$method_name$(
-      google::cloud::CompletionQueue const& cq,
-      std::unique_ptr<grpc::ClientContext> context) override;
-)""");
-      continue;
-    }
-    if (IsBidirStreaming(method)) {
-      // Nothing to do, these are always asynchronous.
-      continue;
-    }
-    if (IsLongrunningOperation(method)) {
-      // Nothing to do, these are always asynchronous.
-      continue;
-    }
-    if (IsResponseTypeEmpty(method)) {
-      HeaderPrintMethod(method, __FILE__, __LINE__, R"""(
-  future<Status> Async$method_name$(
-      google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
-      $request_type$ const& request) override;
-)""");
-      continue;
-    }
-    HeaderPrintMethod(method, __FILE__, __LINE__, R"""(
-future<StatusOr<$response_type$>> Async$method_name$(
-    google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
-    $request_type$ const& request) override;
-)""");
-  }
-
-  if (HasLongrunningMethod()) {
-    HeaderPrint(R"""(
-  future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
-      google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
-      google::longrunning::GetOperationRequest const& request) override;
-
-  future<Status> AsyncCancelOperation(
-      google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
-      google::longrunning::CancelOperationRequest const& request) override;
-)""");
-  }
+  HeaderPrintPublicMethods();
 
   HeaderPrint(R"""(
  private:
@@ -210,7 +97,7 @@ Status RoundRobinDecoratorGenerator::GenerateCc() {
   CcLocalIncludes({
       vars("round_robin_header_path"),
   });
-  CcSystemIncludes({});
+  CcSystemIncludes({"memory", "mutex", "vector"});
 
   auto result = CcOpenNamespaces(NamespaceType::kInternal);
   if (!result.ok()) return result;
@@ -228,9 +115,10 @@ $round_robin_class_name$::$round_robin_class_name$(
       CcPrintMethod(method, __FILE__, __LINE__, R"""(
 std::unique_ptr<google::cloud::internal::StreamingReadRpc<$response_type$>>
 $round_robin_class_name$::$method_name$(
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    Options const& options,
     $request_type$ const& request) {
-  return Child()->$method_name$(std::move(context), request);
+  return Child()->$method_name$(std::move(context), options, request);
 }
 )""");
       continue;
@@ -240,8 +128,9 @@ $round_robin_class_name$::$method_name$(
 std::unique_ptr<google::cloud::internal::StreamingWriteRpc<
     $request_type$, $response_type$>>
 $round_robin_class_name$::$method_name$(
-    std::unique_ptr<grpc::ClientContext> context) {
-  return Child()->$method_name$(std::move(context));
+    std::shared_ptr<grpc::ClientContext> context,
+    Options const& options) {
+  return Child()->$method_name$(std::move(context), options);
 }
 )""");
       continue;
@@ -253,8 +142,10 @@ std::unique_ptr<google::cloud::AsyncStreamingReadWriteRpc<
     $response_type$>>
 $round_robin_class_name$::Async$method_name$(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context) {
-  return Child()->Async$method_name$(cq, std::move(context));
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options) {
+  return Child()->Async$method_name$(
+      cq, std::move(context), std::move(options));
 }
 )""");
       continue;
@@ -264,42 +155,50 @@ $round_robin_class_name$::Async$method_name$(
 future<StatusOr<google::longrunning::Operation>>
 $round_robin_class_name$::Async$method_name$(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     $request_type$ const& request) {
-  return Child()->Async$method_name$(cq, std::move(context), request);
+  return Child()->Async$method_name$(
+      cq, std::move(context), std::move(options), request);
 }
 )""");
-      continue;
-    }
-    if (IsResponseTypeEmpty(method)) {
+
       CcPrintMethod(method, __FILE__, __LINE__, R"""(
-Status $round_robin_class_name$::$method_name$(
-    grpc::ClientContext& context,
-    $request_type$ const& request) {
-  return Child()->$method_name$(context, request);
+StatusOr<google::longrunning::Operation>
+$round_robin_class_name$::$method_name$(
+      grpc::ClientContext& context,
+      Options options,
+      $request_type$ const& request) {
+  return Child()->$method_name$(context, options, request);
 }
 )""");
+
       continue;
     }
     CcPrintMethod(method, __FILE__, __LINE__, R"""(
-StatusOr<$response_type$> $round_robin_class_name$::$method_name$(
+$return_type$ $round_robin_class_name$::$method_name$(
     grpc::ClientContext& context,
+    Options const& options,
     $request_type$ const& request) {
-  return Child()->$method_name$(context, request);
+  return Child()->$method_name$(context, options, request);
 }
 )""");
   }
 
   for (auto const& method : async_methods()) {
+    // Nothing to do, these are always asynchronous.
+    if (IsBidirStreaming(method) || IsLongrunningOperation(method)) continue;
     if (IsStreamingRead(method)) {
       CcPrintMethod(method, __FILE__, __LINE__, R"""(
 std::unique_ptr<google::cloud::internal::AsyncStreamingReadRpc<
     $response_type$>>
 $round_robin_class_name$::Async$method_name$(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     $request_type$ const& request) {
-  return Child()->Async$method_name$(cq, std::move(context), request);
+  return Child()->Async$method_name$(
+      cq, std::move(context), std::move(options), request);
 }
 )""");
       continue;
@@ -311,39 +210,23 @@ std::unique_ptr<google::cloud::internal::AsyncStreamingWriteRpc<
     $response_type$>>
 $round_robin_class_name$::Async$method_name$(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context) {
-  return Child()->Async$method_name$(cq, std::move(context));
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options) {
+  return Child()->Async$method_name$(
+      cq, std::move(context), std::move(options));
 }
 )""");
       continue;
     }
-    if (IsBidirStreaming(method)) {
-      // Nothing to do, these are always asynchronous.
-      continue;
-    }
-    if (IsLongrunningOperation(method)) {
-      // Nothing to do, these are always asynchronous.
-      continue;
-    }
-    if (IsResponseTypeEmpty(method)) {
-      CcPrintMethod(method, __FILE__, __LINE__, R"""(
-future<Status>
-$round_robin_class_name$::Async$method_name$(
-    google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
-    $request_type$ const& request) {
-  return Child()->Async$method_name$(cq, std::move(context), request);
-}
-)""");
-      continue;
-    }
+    CcPrintMethod(method, __FILE__, __LINE__, "\nfuture<$return_type$>");
     CcPrintMethod(method, __FILE__, __LINE__, R"""(
-future<StatusOr<$response_type$>>
 $round_robin_class_name$::Async$method_name$(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     $request_type$ const& request) {
-  return Child()->Async$method_name$(cq, std::move(context), request);
+  return Child()->Async$method_name$(
+      cq, std::move(context), std::move(options), request);
 }
 )""");
   }
@@ -354,17 +237,21 @@ $round_robin_class_name$::Async$method_name$(
 future<StatusOr<google::longrunning::Operation>>
 $round_robin_class_name$::AsyncGetOperation(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::longrunning::GetOperationRequest const& request) {
-  return Child()->AsyncGetOperation(cq, std::move(context), request);
+  return Child()->AsyncGetOperation(
+      cq, std::move(context), std::move(options), request);
 }
 
 future<Status>
 $round_robin_class_name$::AsyncCancelOperation(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::longrunning::CancelOperationRequest const& request) {
-  return Child()->AsyncCancelOperation(cq, std::move(context), request);
+  return Child()->AsyncCancelOperation(
+      cq, std::move(context), std::move(options), request);
 }
 )""");
   }

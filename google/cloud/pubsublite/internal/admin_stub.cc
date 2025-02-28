@@ -22,6 +22,7 @@
 #include <google/cloud/pubsublite/v1/admin.grpc.pb.h>
 #include <google/longrunning/operations.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -32,10 +33,10 @@ AdminServiceStub::~AdminServiceStub() = default;
 
 StatusOr<google::cloud::pubsublite::v1::Topic>
 DefaultAdminServiceStub::CreateTopic(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::pubsublite::v1::CreateTopicRequest const& request) {
   google::cloud::pubsublite::v1::Topic response;
-  auto status = grpc_stub_->CreateTopic(&client_context, request, &response);
+  auto status = grpc_stub_->CreateTopic(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -44,10 +45,10 @@ DefaultAdminServiceStub::CreateTopic(
 
 StatusOr<google::cloud::pubsublite::v1::Topic>
 DefaultAdminServiceStub::GetTopic(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::pubsublite::v1::GetTopicRequest const& request) {
   google::cloud::pubsublite::v1::Topic response;
-  auto status = grpc_stub_->GetTopic(&client_context, request, &response);
+  auto status = grpc_stub_->GetTopic(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -56,11 +57,10 @@ DefaultAdminServiceStub::GetTopic(
 
 StatusOr<google::cloud::pubsublite::v1::TopicPartitions>
 DefaultAdminServiceStub::GetTopicPartitions(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::pubsublite::v1::GetTopicPartitionsRequest const& request) {
   google::cloud::pubsublite::v1::TopicPartitions response;
-  auto status =
-      grpc_stub_->GetTopicPartitions(&client_context, request, &response);
+  auto status = grpc_stub_->GetTopicPartitions(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -69,10 +69,10 @@ DefaultAdminServiceStub::GetTopicPartitions(
 
 StatusOr<google::cloud::pubsublite::v1::ListTopicsResponse>
 DefaultAdminServiceStub::ListTopics(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::pubsublite::v1::ListTopicsRequest const& request) {
   google::cloud::pubsublite::v1::ListTopicsResponse response;
-  auto status = grpc_stub_->ListTopics(&client_context, request, &response);
+  auto status = grpc_stub_->ListTopics(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -81,10 +81,10 @@ DefaultAdminServiceStub::ListTopics(
 
 StatusOr<google::cloud::pubsublite::v1::Topic>
 DefaultAdminServiceStub::UpdateTopic(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::pubsublite::v1::UpdateTopicRequest const& request) {
   google::cloud::pubsublite::v1::Topic response;
-  auto status = grpc_stub_->UpdateTopic(&client_context, request, &response);
+  auto status = grpc_stub_->UpdateTopic(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -92,10 +92,10 @@ DefaultAdminServiceStub::UpdateTopic(
 }
 
 Status DefaultAdminServiceStub::DeleteTopic(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::pubsublite::v1::DeleteTopicRequest const& request) {
   google::protobuf::Empty response;
-  auto status = grpc_stub_->DeleteTopic(&client_context, request, &response);
+  auto status = grpc_stub_->DeleteTopic(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -104,12 +104,12 @@ Status DefaultAdminServiceStub::DeleteTopic(
 
 StatusOr<google::cloud::pubsublite::v1::ListTopicSubscriptionsResponse>
 DefaultAdminServiceStub::ListTopicSubscriptions(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::pubsublite::v1::ListTopicSubscriptionsRequest const&
         request) {
   google::cloud::pubsublite::v1::ListTopicSubscriptionsResponse response;
   auto status =
-      grpc_stub_->ListTopicSubscriptions(&client_context, request, &response);
+      grpc_stub_->ListTopicSubscriptions(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -118,11 +118,10 @@ DefaultAdminServiceStub::ListTopicSubscriptions(
 
 StatusOr<google::cloud::pubsublite::v1::Subscription>
 DefaultAdminServiceStub::CreateSubscription(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::pubsublite::v1::CreateSubscriptionRequest const& request) {
   google::cloud::pubsublite::v1::Subscription response;
-  auto status =
-      grpc_stub_->CreateSubscription(&client_context, request, &response);
+  auto status = grpc_stub_->CreateSubscription(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -131,11 +130,10 @@ DefaultAdminServiceStub::CreateSubscription(
 
 StatusOr<google::cloud::pubsublite::v1::Subscription>
 DefaultAdminServiceStub::GetSubscription(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::pubsublite::v1::GetSubscriptionRequest const& request) {
   google::cloud::pubsublite::v1::Subscription response;
-  auto status =
-      grpc_stub_->GetSubscription(&client_context, request, &response);
+  auto status = grpc_stub_->GetSubscription(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -144,11 +142,10 @@ DefaultAdminServiceStub::GetSubscription(
 
 StatusOr<google::cloud::pubsublite::v1::ListSubscriptionsResponse>
 DefaultAdminServiceStub::ListSubscriptions(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::pubsublite::v1::ListSubscriptionsRequest const& request) {
   google::cloud::pubsublite::v1::ListSubscriptionsResponse response;
-  auto status =
-      grpc_stub_->ListSubscriptions(&client_context, request, &response);
+  auto status = grpc_stub_->ListSubscriptions(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -157,11 +154,10 @@ DefaultAdminServiceStub::ListSubscriptions(
 
 StatusOr<google::cloud::pubsublite::v1::Subscription>
 DefaultAdminServiceStub::UpdateSubscription(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::pubsublite::v1::UpdateSubscriptionRequest const& request) {
   google::cloud::pubsublite::v1::Subscription response;
-  auto status =
-      grpc_stub_->UpdateSubscription(&client_context, request, &response);
+  auto status = grpc_stub_->UpdateSubscription(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -169,11 +165,10 @@ DefaultAdminServiceStub::UpdateSubscription(
 }
 
 Status DefaultAdminServiceStub::DeleteSubscription(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::pubsublite::v1::DeleteSubscriptionRequest const& request) {
   google::protobuf::Empty response;
-  auto status =
-      grpc_stub_->DeleteSubscription(&client_context, request, &response);
+  auto status = grpc_stub_->DeleteSubscription(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -183,9 +178,13 @@ Status DefaultAdminServiceStub::DeleteSubscription(
 future<StatusOr<google::longrunning::Operation>>
 DefaultAdminServiceStub::AsyncSeekSubscription(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions,
     google::cloud::pubsublite::v1::SeekSubscriptionRequest const& request) {
-  return cq.MakeUnaryRpc(
+  return internal::MakeUnaryRpcImpl<
+      google::cloud::pubsublite::v1::SeekSubscriptionRequest,
+      google::longrunning::Operation>(
+      cq,
       [this](
           grpc::ClientContext* context,
           google::cloud::pubsublite::v1::SeekSubscriptionRequest const& request,
@@ -195,13 +194,24 @@ DefaultAdminServiceStub::AsyncSeekSubscription(
       request, std::move(context));
 }
 
+StatusOr<google::longrunning::Operation>
+DefaultAdminServiceStub::SeekSubscription(
+    grpc::ClientContext& context, Options,
+    google::cloud::pubsublite::v1::SeekSubscriptionRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = grpc_stub_->SeekSubscription(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
 StatusOr<google::cloud::pubsublite::v1::Reservation>
 DefaultAdminServiceStub::CreateReservation(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::pubsublite::v1::CreateReservationRequest const& request) {
   google::cloud::pubsublite::v1::Reservation response;
-  auto status =
-      grpc_stub_->CreateReservation(&client_context, request, &response);
+  auto status = grpc_stub_->CreateReservation(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -210,10 +220,10 @@ DefaultAdminServiceStub::CreateReservation(
 
 StatusOr<google::cloud::pubsublite::v1::Reservation>
 DefaultAdminServiceStub::GetReservation(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::pubsublite::v1::GetReservationRequest const& request) {
   google::cloud::pubsublite::v1::Reservation response;
-  auto status = grpc_stub_->GetReservation(&client_context, request, &response);
+  auto status = grpc_stub_->GetReservation(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -222,11 +232,10 @@ DefaultAdminServiceStub::GetReservation(
 
 StatusOr<google::cloud::pubsublite::v1::ListReservationsResponse>
 DefaultAdminServiceStub::ListReservations(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::pubsublite::v1::ListReservationsRequest const& request) {
   google::cloud::pubsublite::v1::ListReservationsResponse response;
-  auto status =
-      grpc_stub_->ListReservations(&client_context, request, &response);
+  auto status = grpc_stub_->ListReservations(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -235,11 +244,10 @@ DefaultAdminServiceStub::ListReservations(
 
 StatusOr<google::cloud::pubsublite::v1::Reservation>
 DefaultAdminServiceStub::UpdateReservation(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::pubsublite::v1::UpdateReservationRequest const& request) {
   google::cloud::pubsublite::v1::Reservation response;
-  auto status =
-      grpc_stub_->UpdateReservation(&client_context, request, &response);
+  auto status = grpc_stub_->UpdateReservation(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -247,11 +255,10 @@ DefaultAdminServiceStub::UpdateReservation(
 }
 
 Status DefaultAdminServiceStub::DeleteReservation(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::pubsublite::v1::DeleteReservationRequest const& request) {
   google::protobuf::Empty response;
-  auto status =
-      grpc_stub_->DeleteReservation(&client_context, request, &response);
+  auto status = grpc_stub_->DeleteReservation(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -260,24 +267,73 @@ Status DefaultAdminServiceStub::DeleteReservation(
 
 StatusOr<google::cloud::pubsublite::v1::ListReservationTopicsResponse>
 DefaultAdminServiceStub::ListReservationTopics(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::pubsublite::v1::ListReservationTopicsRequest const&
         request) {
   google::cloud::pubsublite::v1::ListReservationTopicsResponse response;
-  auto status =
-      grpc_stub_->ListReservationTopics(&client_context, request, &response);
+  auto status = grpc_stub_->ListReservationTopics(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
   return response;
 }
 
+StatusOr<google::longrunning::ListOperationsResponse>
+DefaultAdminServiceStub::ListOperations(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::ListOperationsRequest const& request) {
+  google::longrunning::ListOperationsResponse response;
+  auto status = operations_stub_->ListOperations(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::longrunning::Operation> DefaultAdminServiceStub::GetOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::GetOperationRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = operations_stub_->GetOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+Status DefaultAdminServiceStub::DeleteOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::DeleteOperationRequest const& request) {
+  google::protobuf::Empty response;
+  auto status = operations_stub_->DeleteOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return google::cloud::Status();
+}
+
+Status DefaultAdminServiceStub::CancelOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::CancelOperationRequest const& request) {
+  google::protobuf::Empty response;
+  auto status = operations_stub_->CancelOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return google::cloud::Status();
+}
+
 future<StatusOr<google::cloud::pubsublite::v1::TopicPartitions>>
 DefaultAdminServiceStub::AsyncGetTopicPartitions(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    // NOLINTNEXTLINE(performance-unnecessary-value-param)
+    google::cloud::internal::ImmutableOptions,
     google::cloud::pubsublite::v1::GetTopicPartitionsRequest const& request) {
-  return cq.MakeUnaryRpc(
+  return internal::MakeUnaryRpcImpl<
+      google::cloud::pubsublite::v1::GetTopicPartitionsRequest,
+      google::cloud::pubsublite::v1::TopicPartitions>(
+      cq,
       [this](grpc::ClientContext* context,
              google::cloud::pubsublite::v1::GetTopicPartitionsRequest const&
                  request,
@@ -290,29 +346,37 @@ DefaultAdminServiceStub::AsyncGetTopicPartitions(
 future<StatusOr<google::longrunning::Operation>>
 DefaultAdminServiceStub::AsyncGetOperation(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    // NOLINTNEXTLINE(performance-unnecessary-value-param)
+    google::cloud::internal::ImmutableOptions,
     google::longrunning::GetOperationRequest const& request) {
-  return cq.MakeUnaryRpc(
+  return internal::MakeUnaryRpcImpl<google::longrunning::GetOperationRequest,
+                                    google::longrunning::Operation>(
+      cq,
       [this](grpc::ClientContext* context,
              google::longrunning::GetOperationRequest const& request,
              grpc::CompletionQueue* cq) {
-        return operations_->AsyncGetOperation(context, request, cq);
+        return operations_stub_->AsyncGetOperation(context, request, cq);
       },
       request, std::move(context));
 }
 
 future<Status> DefaultAdminServiceStub::AsyncCancelOperation(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    // NOLINTNEXTLINE(performance-unnecessary-value-param)
+    google::cloud::internal::ImmutableOptions,
     google::longrunning::CancelOperationRequest const& request) {
-  return cq
-      .MakeUnaryRpc(
-          [this](grpc::ClientContext* context,
-                 google::longrunning::CancelOperationRequest const& request,
-                 grpc::CompletionQueue* cq) {
-            return operations_->AsyncCancelOperation(context, request, cq);
-          },
-          request, std::move(context))
+  return internal::MakeUnaryRpcImpl<google::longrunning::CancelOperationRequest,
+                                    google::protobuf::Empty>(
+             cq,
+             [this](grpc::ClientContext* context,
+                    google::longrunning::CancelOperationRequest const& request,
+                    grpc::CompletionQueue* cq) {
+               return operations_stub_->AsyncCancelOperation(context, request,
+                                                             cq);
+             },
+             request, std::move(context))
       .then([](future<StatusOr<google::protobuf::Empty>> f) {
         return f.get().status();
       });

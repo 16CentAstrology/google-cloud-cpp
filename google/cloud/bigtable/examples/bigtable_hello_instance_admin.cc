@@ -23,6 +23,7 @@
 #include "google/cloud/bigtable/testing/random_names.h"
 #include "google/cloud/internal/getenv.h"
 #include "google/cloud/internal/random.h"
+#include "google/cloud/location.h"
 #include "google/cloud/log.h"
 #include "google/cloud/project.h"
 #include <algorithm>
@@ -35,8 +36,7 @@ using ::google::cloud::bigtable::examples::Usage;
 void BigtableHelloInstance(std::vector<std::string> const& argv) {
   if (argv.size() != 4) {
     throw Usage{
-        "bigtable-hello-instance <project-id> <instance-id> <cluster-id> "
-        "<zone>"};
+        "hello-instance <project-id> <instance-id> <cluster-id> <zone>"};
   }
 
   std::string const& project_id = argv[0];
@@ -48,6 +48,7 @@ void BigtableHelloInstance(std::vector<std::string> const& argv) {
   namespace cbt = ::google::cloud::bigtable;
   namespace cbta = ::google::cloud::bigtable_admin;
   using ::google::cloud::future;
+  using ::google::cloud::Location;
   using ::google::cloud::Project;
   using ::google::cloud::Status;
   using ::google::cloud::StatusOr;
@@ -61,10 +62,11 @@ void BigtableHelloInstance(std::vector<std::string> const& argv) {
 
   //! [check instance exists]
   std::cout << "\nCheck Instance exists:\n";
-  std::string const project_name = Project(project_id).FullName();
+  auto const project = Project(project_id);
+  std::string const project_name = project.FullName();
   StatusOr<google::bigtable::admin::v2::ListInstancesResponse> instances =
       instance_admin.ListInstances(project_name);
-  if (!instances) throw std::runtime_error(instances.status().message());
+  if (!instances) throw std::move(instances).status();
   if (!instances->failed_locations().empty()) {
     std::cerr
         << "The service tells us it has no information about these locations:";
@@ -93,7 +95,7 @@ void BigtableHelloInstance(std::vector<std::string> const& argv) {
 
     // production instance needs at least 3 nodes
     google::bigtable::admin::v2::Cluster c;
-    c.set_location(project_name + "/locations/" + zone);
+    c.set_location(Location(project, zone).FullName());
     c.set_serve_nodes(3);
     c.set_default_storage_type(google::bigtable::admin::v2::HDD);
 
@@ -112,7 +114,7 @@ void BigtableHelloInstance(std::vector<std::string> const& argv) {
                   if (!instance) {
                     std::cerr << "Could not create instance " << instance_id
                               << "\n";
-                    throw std::runtime_error(instance.status().message());
+                    throw std::move(instance).status();
                   }
                   std::cout << "Successfully created instance: "
                             << instance->DebugString() << "\n";
@@ -127,7 +129,7 @@ void BigtableHelloInstance(std::vector<std::string> const& argv) {
   //! [list instances]
   std::cout << "\nListing Instances:\n";
   instances = instance_admin.ListInstances(project_name);
-  if (!instances) throw std::runtime_error(instances.status().message());
+  if (!instances) throw std::move(instances).status();
   if (!instances->failed_locations().empty()) {
     std::cerr
         << "The service tells us it has no information about these locations:";
@@ -145,7 +147,7 @@ void BigtableHelloInstance(std::vector<std::string> const& argv) {
   //! [get instance]
   std::cout << "\nGet Instance:\n";
   auto instance = instance_admin.GetInstance(instance_name);
-  if (!instance) throw std::runtime_error(instance.status().message());
+  if (!instance) throw std::move(instance).status();
   std::cout << "Instance details :\n" << instance->DebugString() << "\n";
   //! [get instance]
 
@@ -153,7 +155,7 @@ void BigtableHelloInstance(std::vector<std::string> const& argv) {
   std::cout << "\nListing Clusters:\n";
   StatusOr<google::bigtable::admin::v2::ListClustersResponse> cluster_list =
       instance_admin.ListClusters(instance_name);
-  if (!cluster_list) throw std::runtime_error(cluster_list.status().message());
+  if (!cluster_list) throw std::move(cluster_list).status();
   if (!cluster_list->failed_locations().empty()) {
     std::cout << "The Cloud Bigtable service reports that the following "
                  "locations are temporarily unavailable and no information "

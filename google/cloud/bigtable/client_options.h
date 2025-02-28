@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "google/cloud/completion_queue.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/algorithm.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/options.h"
 #include "google/cloud/status.h"
 #include "google/cloud/tracing_options.h"
@@ -365,9 +366,10 @@ class ClientOptions {
         std::chrono::duration_cast<std::chrono::milliseconds>(fallback_timeout);
 
     if (ft_ms.count() > std::numeric_limits<int>::max()) {
-      return google::cloud::Status(google::cloud::StatusCode::kOutOfRange,
-                                   "The supplied duration is larger than the "
-                                   "maximum value allowed by gRPC (INT_MAX)");
+      return google::cloud::internal::OutOfRangeError(
+          "The supplied duration is larger than the "
+          "maximum value allowed by gRPC (INT_MAX)",
+          GCP_ERROR_INFO());
     }
     auto fallback_timeout_ms = static_cast<int>(ft_ms.count());
     opts_.lookup<GrpcChannelArgumentsNativeOption>().SetGrpclbFallbackTimeout(
@@ -517,27 +519,27 @@ class ClientOptions {
    * be enabled by clients configured with this option.
    *
    * @deprecated Please configure `google::cloud::Options` with
-   *     `google::cloud::TracingComponentsOption` instead.
+   *     `google::cloud::LoggingComponentsOption` instead.
    */
   GOOGLE_CLOUD_CPP_DEPRECATED(
       "use `google::cloud::Options` with "
-      "`google::cloud::TracingComponentsOption` instead")
+      "`google::cloud::LoggingComponentsOption` instead")
   bool tracing_enabled(std::string const& component) const {
     return google::cloud::internal::Contains(
-        opts_.get<TracingComponentsOption>(), component);
+        opts_.get<LoggingComponentsOption>(), component);
   }
 
   /**
    * Enable tracing for @p component in clients configured with this object.
    *
    * @deprecated Please configure `google::cloud::Options` with
-   *     `google::cloud::TracingComponentsOption` instead.
+   *     `google::cloud::LoggingComponentsOption` instead.
    */
   GOOGLE_CLOUD_CPP_DEPRECATED(
       "use `google::cloud::Options` with "
-      "`google::cloud::TracingComponentsOption` instead")
+      "`google::cloud::LoggingComponentsOption` instead")
   ClientOptions& enable_tracing(std::string const& component) {
-    opts_.lookup<TracingComponentsOption>().insert(component);
+    opts_.lookup<LoggingComponentsOption>().insert(component);
     return *this;
   }
 
@@ -545,13 +547,13 @@ class ClientOptions {
    * Disable tracing for @p component in clients configured with this object.
    *
    * @deprecated Please configure `google::cloud::Options` with
-   *     `google::cloud::TracingComponentsOption` instead.
+   *     `google::cloud::LoggingComponentsOption` instead.
    */
   GOOGLE_CLOUD_CPP_DEPRECATED(
       "use `google::cloud::Options` with "
-      "`google::cloud::TracingComponentsOption` instead")
+      "`google::cloud::LoggingComponentsOption` instead")
   ClientOptions& disable_tracing(std::string const& component) {
-    opts_.lookup<TracingComponentsOption>().erase(component);
+    opts_.lookup<LoggingComponentsOption>().erase(component);
     return *this;
   }
 

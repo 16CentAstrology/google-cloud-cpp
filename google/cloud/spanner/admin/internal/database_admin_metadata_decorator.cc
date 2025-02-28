@@ -17,11 +17,16 @@
 // source: google/spanner/admin/database/v1/spanner_database_admin.proto
 
 #include "google/cloud/spanner/admin/internal/database_admin_metadata_decorator.h"
-#include "google/cloud/common_options.h"
+#include "google/cloud/grpc_options.h"
+#include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/api_client_header.h"
+#include "google/cloud/internal/url_encode.h"
 #include "google/cloud/status_or.h"
 #include <google/spanner/admin/database/v1/spanner_database_admin.grpc.pb.h>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -29,207 +34,413 @@ namespace spanner_admin_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 DatabaseAdminMetadata::DatabaseAdminMetadata(
-    std::shared_ptr<DatabaseAdminStub> child)
+    std::shared_ptr<DatabaseAdminStub> child,
+    std::multimap<std::string, std::string> fixed_metadata,
+    std::string api_client_header)
     : child_(std::move(child)),
+      fixed_metadata_(std::move(fixed_metadata)),
       api_client_header_(
-          google::cloud::internal::ApiClientHeader("generator")) {}
+          api_client_header.empty()
+              ? google::cloud::internal::GeneratedLibClientHeader()
+              : std::move(api_client_header)) {}
 
 StatusOr<google::spanner::admin::database::v1::ListDatabasesResponse>
 DatabaseAdminMetadata::ListDatabases(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::spanner::admin::database::v1::ListDatabasesRequest const& request) {
-  SetMetadata(context, "parent=" + request.parent());
-  return child_->ListDatabases(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->ListDatabases(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 DatabaseAdminMetadata::AsyncCreateDatabase(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::spanner::admin::database::v1::CreateDatabaseRequest const&
         request) {
-  SetMetadata(*context, "parent=" + request.parent());
-  return child_->AsyncCreateDatabase(cq, std::move(context), request);
+  SetMetadata(*context, *options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->AsyncCreateDatabase(cq, std::move(context), std::move(options),
+                                     request);
+}
+
+StatusOr<google::longrunning::Operation> DatabaseAdminMetadata::CreateDatabase(
+    grpc::ClientContext& context, Options options,
+    google::spanner::admin::database::v1::CreateDatabaseRequest const&
+        request) {
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->CreateDatabase(context, options, request);
 }
 
 StatusOr<google::spanner::admin::database::v1::Database>
 DatabaseAdminMetadata::GetDatabase(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::spanner::admin::database::v1::GetDatabaseRequest const& request) {
-  SetMetadata(context, "name=" + request.name());
-  return child_->GetDatabase(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetDatabase(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+DatabaseAdminMetadata::AsyncUpdateDatabase(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::spanner::admin::database::v1::UpdateDatabaseRequest const&
+        request) {
+  SetMetadata(*context, *options,
+              absl::StrCat("database.name=",
+                           internal::UrlEncode(request.database().name())));
+  return child_->AsyncUpdateDatabase(cq, std::move(context), std::move(options),
+                                     request);
+}
+
+StatusOr<google::longrunning::Operation> DatabaseAdminMetadata::UpdateDatabase(
+    grpc::ClientContext& context, Options options,
+    google::spanner::admin::database::v1::UpdateDatabaseRequest const&
+        request) {
+  SetMetadata(context, options,
+              absl::StrCat("database.name=",
+                           internal::UrlEncode(request.database().name())));
+  return child_->UpdateDatabase(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 DatabaseAdminMetadata::AsyncUpdateDatabaseDdl(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::spanner::admin::database::v1::UpdateDatabaseDdlRequest const&
         request) {
-  SetMetadata(*context, "database=" + request.database());
-  return child_->AsyncUpdateDatabaseDdl(cq, std::move(context), request);
+  SetMetadata(
+      *context, *options,
+      absl::StrCat("database=", internal::UrlEncode(request.database())));
+  return child_->AsyncUpdateDatabaseDdl(cq, std::move(context),
+                                        std::move(options), request);
+}
+
+StatusOr<google::longrunning::Operation>
+DatabaseAdminMetadata::UpdateDatabaseDdl(
+    grpc::ClientContext& context, Options options,
+    google::spanner::admin::database::v1::UpdateDatabaseDdlRequest const&
+        request) {
+  SetMetadata(
+      context, options,
+      absl::StrCat("database=", internal::UrlEncode(request.database())));
+  return child_->UpdateDatabaseDdl(context, options, request);
 }
 
 Status DatabaseAdminMetadata::DropDatabase(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::spanner::admin::database::v1::DropDatabaseRequest const& request) {
-  SetMetadata(context, "database=" + request.database());
-  return child_->DropDatabase(context, request);
+  SetMetadata(
+      context, options,
+      absl::StrCat("database=", internal::UrlEncode(request.database())));
+  return child_->DropDatabase(context, options, request);
 }
 
 StatusOr<google::spanner::admin::database::v1::GetDatabaseDdlResponse>
 DatabaseAdminMetadata::GetDatabaseDdl(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::spanner::admin::database::v1::GetDatabaseDdlRequest const&
         request) {
-  SetMetadata(context, "database=" + request.database());
-  return child_->GetDatabaseDdl(context, request);
+  SetMetadata(
+      context, options,
+      absl::StrCat("database=", internal::UrlEncode(request.database())));
+  return child_->GetDatabaseDdl(context, options, request);
 }
 
 StatusOr<google::iam::v1::Policy> DatabaseAdminMetadata::SetIamPolicy(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::iam::v1::SetIamPolicyRequest const& request) {
-  SetMetadata(context, "resource=" + request.resource());
-  return child_->SetIamPolicy(context, request);
+  SetMetadata(
+      context, options,
+      absl::StrCat("resource=", internal::UrlEncode(request.resource())));
+  return child_->SetIamPolicy(context, options, request);
 }
 
 StatusOr<google::iam::v1::Policy> DatabaseAdminMetadata::GetIamPolicy(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::iam::v1::GetIamPolicyRequest const& request) {
-  SetMetadata(context, "resource=" + request.resource());
-  return child_->GetIamPolicy(context, request);
+  SetMetadata(
+      context, options,
+      absl::StrCat("resource=", internal::UrlEncode(request.resource())));
+  return child_->GetIamPolicy(context, options, request);
 }
 
 StatusOr<google::iam::v1::TestIamPermissionsResponse>
 DatabaseAdminMetadata::TestIamPermissions(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::iam::v1::TestIamPermissionsRequest const& request) {
-  SetMetadata(context, "resource=" + request.resource());
-  return child_->TestIamPermissions(context, request);
+  SetMetadata(
+      context, options,
+      absl::StrCat("resource=", internal::UrlEncode(request.resource())));
+  return child_->TestIamPermissions(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 DatabaseAdminMetadata::AsyncCreateBackup(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::spanner::admin::database::v1::CreateBackupRequest const& request) {
-  SetMetadata(*context, "parent=" + request.parent());
-  return child_->AsyncCreateBackup(cq, std::move(context), request);
+  SetMetadata(*context, *options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->AsyncCreateBackup(cq, std::move(context), std::move(options),
+                                   request);
+}
+
+StatusOr<google::longrunning::Operation> DatabaseAdminMetadata::CreateBackup(
+    grpc::ClientContext& context, Options options,
+    google::spanner::admin::database::v1::CreateBackupRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->CreateBackup(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 DatabaseAdminMetadata::AsyncCopyBackup(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::spanner::admin::database::v1::CopyBackupRequest const& request) {
-  SetMetadata(*context, "parent=" + request.parent());
-  return child_->AsyncCopyBackup(cq, std::move(context), request);
+  SetMetadata(*context, *options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->AsyncCopyBackup(cq, std::move(context), std::move(options),
+                                 request);
+}
+
+StatusOr<google::longrunning::Operation> DatabaseAdminMetadata::CopyBackup(
+    grpc::ClientContext& context, Options options,
+    google::spanner::admin::database::v1::CopyBackupRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->CopyBackup(context, options, request);
 }
 
 StatusOr<google::spanner::admin::database::v1::Backup>
 DatabaseAdminMetadata::GetBackup(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::spanner::admin::database::v1::GetBackupRequest const& request) {
-  SetMetadata(context, "name=" + request.name());
-  return child_->GetBackup(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetBackup(context, options, request);
 }
 
 StatusOr<google::spanner::admin::database::v1::Backup>
 DatabaseAdminMetadata::UpdateBackup(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::spanner::admin::database::v1::UpdateBackupRequest const& request) {
-  SetMetadata(context, "backup.name=" + request.backup().name());
-  return child_->UpdateBackup(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("backup.name=",
+                           internal::UrlEncode(request.backup().name())));
+  return child_->UpdateBackup(context, options, request);
 }
 
 Status DatabaseAdminMetadata::DeleteBackup(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::spanner::admin::database::v1::DeleteBackupRequest const& request) {
-  SetMetadata(context, "name=" + request.name());
-  return child_->DeleteBackup(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->DeleteBackup(context, options, request);
 }
 
 StatusOr<google::spanner::admin::database::v1::ListBackupsResponse>
 DatabaseAdminMetadata::ListBackups(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::spanner::admin::database::v1::ListBackupsRequest const& request) {
-  SetMetadata(context, "parent=" + request.parent());
-  return child_->ListBackups(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->ListBackups(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 DatabaseAdminMetadata::AsyncRestoreDatabase(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::spanner::admin::database::v1::RestoreDatabaseRequest const&
         request) {
-  SetMetadata(*context, "parent=" + request.parent());
-  return child_->AsyncRestoreDatabase(cq, std::move(context), request);
+  SetMetadata(*context, *options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->AsyncRestoreDatabase(cq, std::move(context),
+                                      std::move(options), request);
+}
+
+StatusOr<google::longrunning::Operation> DatabaseAdminMetadata::RestoreDatabase(
+    grpc::ClientContext& context, Options options,
+    google::spanner::admin::database::v1::RestoreDatabaseRequest const&
+        request) {
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->RestoreDatabase(context, options, request);
 }
 
 StatusOr<google::spanner::admin::database::v1::ListDatabaseOperationsResponse>
 DatabaseAdminMetadata::ListDatabaseOperations(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::spanner::admin::database::v1::ListDatabaseOperationsRequest const&
         request) {
-  SetMetadata(context, "parent=" + request.parent());
-  return child_->ListDatabaseOperations(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->ListDatabaseOperations(context, options, request);
 }
 
 StatusOr<google::spanner::admin::database::v1::ListBackupOperationsResponse>
 DatabaseAdminMetadata::ListBackupOperations(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::spanner::admin::database::v1::ListBackupOperationsRequest const&
         request) {
-  SetMetadata(context, "parent=" + request.parent());
-  return child_->ListBackupOperations(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->ListBackupOperations(context, options, request);
 }
 
 StatusOr<google::spanner::admin::database::v1::ListDatabaseRolesResponse>
 DatabaseAdminMetadata::ListDatabaseRoles(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::spanner::admin::database::v1::ListDatabaseRolesRequest const&
         request) {
-  SetMetadata(context, "parent=" + request.parent());
-  return child_->ListDatabaseRoles(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->ListDatabaseRoles(context, options, request);
+}
+
+StatusOr<google::spanner::admin::database::v1::AddSplitPointsResponse>
+DatabaseAdminMetadata::AddSplitPoints(
+    grpc::ClientContext& context, Options const& options,
+    google::spanner::admin::database::v1::AddSplitPointsRequest const&
+        request) {
+  SetMetadata(
+      context, options,
+      absl::StrCat("database=", internal::UrlEncode(request.database())));
+  return child_->AddSplitPoints(context, options, request);
+}
+
+StatusOr<google::spanner::admin::database::v1::BackupSchedule>
+DatabaseAdminMetadata::CreateBackupSchedule(
+    grpc::ClientContext& context, Options const& options,
+    google::spanner::admin::database::v1::CreateBackupScheduleRequest const&
+        request) {
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->CreateBackupSchedule(context, options, request);
+}
+
+StatusOr<google::spanner::admin::database::v1::BackupSchedule>
+DatabaseAdminMetadata::GetBackupSchedule(
+    grpc::ClientContext& context, Options const& options,
+    google::spanner::admin::database::v1::GetBackupScheduleRequest const&
+        request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetBackupSchedule(context, options, request);
+}
+
+StatusOr<google::spanner::admin::database::v1::BackupSchedule>
+DatabaseAdminMetadata::UpdateBackupSchedule(
+    grpc::ClientContext& context, Options const& options,
+    google::spanner::admin::database::v1::UpdateBackupScheduleRequest const&
+        request) {
+  SetMetadata(
+      context, options,
+      absl::StrCat("backup_schedule.name=",
+                   internal::UrlEncode(request.backup_schedule().name())));
+  return child_->UpdateBackupSchedule(context, options, request);
+}
+
+Status DatabaseAdminMetadata::DeleteBackupSchedule(
+    grpc::ClientContext& context, Options const& options,
+    google::spanner::admin::database::v1::DeleteBackupScheduleRequest const&
+        request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->DeleteBackupSchedule(context, options, request);
+}
+
+StatusOr<google::spanner::admin::database::v1::ListBackupSchedulesResponse>
+DatabaseAdminMetadata::ListBackupSchedules(
+    grpc::ClientContext& context, Options const& options,
+    google::spanner::admin::database::v1::ListBackupSchedulesRequest const&
+        request) {
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->ListBackupSchedules(context, options, request);
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+DatabaseAdminMetadata::ListOperations(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::ListOperationsRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->ListOperations(context, options, request);
+}
+
+StatusOr<google::longrunning::Operation> DatabaseAdminMetadata::GetOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::GetOperationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetOperation(context, options, request);
+}
+
+Status DatabaseAdminMetadata::DeleteOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::DeleteOperationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->DeleteOperation(context, options, request);
+}
+
+Status DatabaseAdminMetadata::CancelOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::CancelOperationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->CancelOperation(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 DatabaseAdminMetadata::AsyncGetOperation(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::longrunning::GetOperationRequest const& request) {
-  SetMetadata(*context, "name=" + request.name());
-  return child_->AsyncGetOperation(cq, std::move(context), request);
+  SetMetadata(*context, *options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->AsyncGetOperation(cq, std::move(context), std::move(options),
+                                   request);
 }
 
 future<Status> DatabaseAdminMetadata::AsyncCancelOperation(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::longrunning::CancelOperationRequest const& request) {
-  SetMetadata(*context, "name=" + request.name());
-  return child_->AsyncCancelOperation(cq, std::move(context), request);
+  SetMetadata(*context, *options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->AsyncCancelOperation(cq, std::move(context),
+                                      std::move(options), request);
 }
 
 void DatabaseAdminMetadata::SetMetadata(grpc::ClientContext& context,
+                                        Options const& options,
                                         std::string const& request_params) {
   context.AddMetadata("x-goog-request-params", request_params);
-  SetMetadata(context);
+  SetMetadata(context, options);
 }
 
-void DatabaseAdminMetadata::SetMetadata(grpc::ClientContext& context) {
-  context.AddMetadata("x-goog-api-client", api_client_header_);
-  auto const& options = internal::CurrentOptions();
-  if (options.has<UserProjectOption>()) {
-    context.AddMetadata("x-goog-user-project",
-                        options.get<UserProjectOption>());
-  }
-  auto const& authority = options.get<AuthorityOption>();
-  if (!authority.empty()) context.set_authority(authority);
+void DatabaseAdminMetadata::SetMetadata(grpc::ClientContext& context,
+                                        Options const& options) {
+  google::cloud::internal::SetMetadata(context, options, fixed_metadata_,
+                                       api_client_header_);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
-namespace gcpcxxV1 = GOOGLE_CLOUD_CPP_NS;  // NOLINT(misc-unused-alias-decls)
 }  // namespace spanner_admin_internal
 }  // namespace cloud
 }  // namespace google

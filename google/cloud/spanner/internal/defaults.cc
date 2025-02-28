@@ -36,8 +36,7 @@ void SetBasicDefaults(Options& opts) {
       std::move(opts), "GOOGLE_CLOUD_CPP_SPANNER_DEFAULT_ENDPOINT",
       "SPANNER_EMULATOR_HOST", "GOOGLE_CLOUD_CPP_SPANNER_DEFAULT_AUTHORITY",
       "spanner.googleapis.com");
-  opts =
-      internal::PopulateGrpcOptions(std::move(opts), "SPANNER_EMULATOR_HOST");
+  opts = internal::PopulateGrpcOptions(std::move(opts));
   if (!opts.has<GrpcNumChannelsOption>()) {
     opts.set<GrpcNumChannelsOption>(4);
   }
@@ -104,6 +103,21 @@ Options DefaultOptions(Options opts) {
   min_sessions =
       (std::min)(min_sessions, max_sessions_per_channel * num_channels);
 
+  if (!opts.has<spanner::RouteToLeaderOption>()) {
+    // The option defaults to on (unset), but the default can be changed with a
+    // suitably-negative value in `${GOOGLE_CLOUD_CPP_SPANNER_ROUTE_TO_LEADER}`.
+    if (auto e = internal::GetEnv("GOOGLE_CLOUD_CPP_SPANNER_ROUTE_TO_LEADER")) {
+      for (auto const* disable : {"N", "n", "F", "f", "0", "off"}) {
+        if (*e == disable) {
+          // Change the default from "for RW/PartitionedDml transactions"
+          // to "never".
+          opts.set<spanner::RouteToLeaderOption>(false);
+          break;
+        }
+      }
+    }
+  }
+
   return opts;
 }
 
@@ -111,6 +125,15 @@ Options DefaultOptions(Options opts) {
 // uses `DefaultOptions()` to set all the remaining defaults.
 Options DefaultAdminOptions(Options opts) {
   SetBasicDefaults(opts);
+
+  // Manually default `GrpcCredentialOption`, because the legacy admin stubs do
+  // not support GUAC (aka `UnifiedCredentialsOption`).
+  auto e = internal::GetEnv("SPANNER_EMULATOR_HOST");
+  if (e && !e->empty()) {
+    opts.set<GrpcCredentialOption>(grpc::InsecureChannelCredentials());
+  } else if (!opts.has<GrpcCredentialOption>()) {
+    opts.set<GrpcCredentialOption>(grpc::GoogleDefaultCredentials());
+  }
 
   if (!opts.has<spanner::SpannerRetryPolicyOption>()) {
     opts.set<spanner::SpannerRetryPolicyOption>(

@@ -18,6 +18,7 @@
 
 #include "google/cloud/dialogflow_cx/test_cases_client.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -126,12 +127,42 @@ TestCasesClient::RunTestCase(
   return connection_->RunTestCase(request);
 }
 
+StatusOr<google::longrunning::Operation> TestCasesClient::RunTestCase(
+    NoAwaitTag,
+    google::cloud::dialogflow::cx::v3::RunTestCaseRequest const& request,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->RunTestCase(NoAwaitTag{}, request);
+}
+
+future<StatusOr<google::cloud::dialogflow::cx::v3::RunTestCaseResponse>>
+TestCasesClient::RunTestCase(google::longrunning::Operation const& operation,
+                             Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->RunTestCase(operation);
+}
+
 future<StatusOr<google::cloud::dialogflow::cx::v3::BatchRunTestCasesResponse>>
 TestCasesClient::BatchRunTestCases(
     google::cloud::dialogflow::cx::v3::BatchRunTestCasesRequest const& request,
     Options opts) {
   internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
   return connection_->BatchRunTestCases(request);
+}
+
+StatusOr<google::longrunning::Operation> TestCasesClient::BatchRunTestCases(
+    NoAwaitTag,
+    google::cloud::dialogflow::cx::v3::BatchRunTestCasesRequest const& request,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->BatchRunTestCases(NoAwaitTag{}, request);
+}
+
+future<StatusOr<google::cloud::dialogflow::cx::v3::BatchRunTestCasesResponse>>
+TestCasesClient::BatchRunTestCases(
+    google::longrunning::Operation const& operation, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->BatchRunTestCases(operation);
 }
 
 StatusOr<google::cloud::dialogflow::cx::v3::CalculateCoverageResponse>
@@ -150,12 +181,42 @@ TestCasesClient::ImportTestCases(
   return connection_->ImportTestCases(request);
 }
 
+StatusOr<google::longrunning::Operation> TestCasesClient::ImportTestCases(
+    NoAwaitTag,
+    google::cloud::dialogflow::cx::v3::ImportTestCasesRequest const& request,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->ImportTestCases(NoAwaitTag{}, request);
+}
+
+future<StatusOr<google::cloud::dialogflow::cx::v3::ImportTestCasesResponse>>
+TestCasesClient::ImportTestCases(
+    google::longrunning::Operation const& operation, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->ImportTestCases(operation);
+}
+
 future<StatusOr<google::cloud::dialogflow::cx::v3::ExportTestCasesResponse>>
 TestCasesClient::ExportTestCases(
     google::cloud::dialogflow::cx::v3::ExportTestCasesRequest const& request,
     Options opts) {
   internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
   return connection_->ExportTestCases(request);
+}
+
+StatusOr<google::longrunning::Operation> TestCasesClient::ExportTestCases(
+    NoAwaitTag,
+    google::cloud::dialogflow::cx::v3::ExportTestCasesRequest const& request,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->ExportTestCases(NoAwaitTag{}, request);
+}
+
+future<StatusOr<google::cloud::dialogflow::cx::v3::ExportTestCasesResponse>>
+TestCasesClient::ExportTestCases(
+    google::longrunning::Operation const& operation, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->ExportTestCases(operation);
 }
 
 StreamRange<google::cloud::dialogflow::cx::v3::TestCaseResult>
@@ -188,6 +249,60 @@ TestCasesClient::GetTestCaseResult(
     Options opts) {
   internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
   return connection_->GetTestCaseResult(request);
+}
+
+StreamRange<google::cloud::location::Location> TestCasesClient::ListLocations(
+    google::cloud::location::ListLocationsRequest request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->ListLocations(std::move(request));
+}
+
+StatusOr<google::cloud::location::Location> TestCasesClient::GetLocation(
+    google::cloud::location::GetLocationRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->GetLocation(request);
+}
+
+StreamRange<google::longrunning::Operation> TestCasesClient::ListOperations(
+    std::string const& name, std::string const& filter, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::longrunning::ListOperationsRequest request;
+  request.set_name(name);
+  request.set_filter(filter);
+  return connection_->ListOperations(request);
+}
+
+StreamRange<google::longrunning::Operation> TestCasesClient::ListOperations(
+    google::longrunning::ListOperationsRequest request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->ListOperations(std::move(request));
+}
+
+StatusOr<google::longrunning::Operation> TestCasesClient::GetOperation(
+    std::string const& name, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::longrunning::GetOperationRequest request;
+  request.set_name(name);
+  return connection_->GetOperation(request);
+}
+
+StatusOr<google::longrunning::Operation> TestCasesClient::GetOperation(
+    google::longrunning::GetOperationRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->GetOperation(request);
+}
+
+Status TestCasesClient::CancelOperation(std::string const& name, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::longrunning::CancelOperationRequest request;
+  request.set_name(name);
+  return connection_->CancelOperation(request);
+}
+
+Status TestCasesClient::CancelOperation(
+    google::longrunning::CancelOperationRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->CancelOperation(request);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

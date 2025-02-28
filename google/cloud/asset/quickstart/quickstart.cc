@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/asset/asset_client.h"
+//! [all]
+#include "google/cloud/asset/v1/asset_client.h"
 #include "google/cloud/project.h"
 #include <iostream>
 
@@ -22,7 +23,7 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace asset = ::google::cloud::asset;
+  namespace asset = ::google::cloud::asset_v1;
   auto client = asset::AssetServiceClient(asset::MakeAssetServiceConnection());
 
   auto const project = google::cloud::Project(argv[1]);
@@ -39,3 +40,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

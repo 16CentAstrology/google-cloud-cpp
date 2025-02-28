@@ -36,11 +36,11 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * class. Then use the Google Test framework functions to program the behavior
  * of this mock.
  *
- * @see [This example][bq-mock] for how to test your application with
- * GoogleTest. While the example showcases types from the BigQuery library, the
- * underlying principles apply for any pair of `*Client` and `*Connection`.
+ * @see [This example][bq-mock] for how to test your application with GoogleTest.
+ * While the example showcases types from the BigQuery library, the underlying
+ * principles apply for any pair of `*Client` and `*Connection`.
  *
- * [bq-mock]: @googleapis_dev_link{bigquery,bigquery-read-mock.html}
+ * [bq-mock]: @cloud_cpp_docs_link{bigquery,bigquery-read-mock}
  */
 class MockFlowsConnection : public dialogflow_cx::FlowsConnection {
  public:
@@ -56,7 +56,7 @@ class MockFlowsConnection : public dialogflow_cx::FlowsConnection {
       (google::cloud::dialogflow::cx::v3::DeleteFlowRequest const& request),
       (override));
 
-  MOCK_METHOD(StreamRange<google::cloud::dialogflow::cx::v3::Flow>, ListFlows,
+  MOCK_METHOD((StreamRange<google::cloud::dialogflow::cx::v3::Flow>), ListFlows,
               (google::cloud::dialogflow::cx::v3::ListFlowsRequest request),
               (override));
 
@@ -70,10 +70,42 @@ class MockFlowsConnection : public dialogflow_cx::FlowsConnection {
       (google::cloud::dialogflow::cx::v3::UpdateFlowRequest const& request),
       (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// TrainFlow(Matcher<google::cloud::dialogflow::cx::v3::TrainFlowRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<StatusOr<google::protobuf::Struct>>, TrainFlow,
       (google::cloud::dialogflow::cx::v3::TrainFlowRequest const& request),
       (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, TrainFlow(_, _))
+  /// @endcode
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, TrainFlow,
+      (NoAwaitTag,
+       google::cloud::dialogflow::cx::v3::TrainFlowRequest const& request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock, TrainFlow(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(future<StatusOr<google::protobuf::Struct>>, TrainFlow,
+              (google::longrunning::Operation const& operation), (override));
 
   MOCK_METHOD(
       StatusOr<google::cloud::dialogflow::cx::v3::FlowValidationResult>,
@@ -88,17 +120,104 @@ class MockFlowsConnection : public dialogflow_cx::FlowsConnection {
            request),
       (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// ImportFlow(Matcher<google::cloud::dialogflow::cx::v3::ImportFlowRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<StatusOr<google::cloud::dialogflow::cx::v3::ImportFlowResponse>>,
       ImportFlow,
       (google::cloud::dialogflow::cx::v3::ImportFlowRequest const& request),
       (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, ImportFlow(_, _))
+  /// @endcode
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, ImportFlow,
+      (NoAwaitTag,
+       google::cloud::dialogflow::cx::v3::ImportFlowRequest const& request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock, ImportFlow(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(
+      future<StatusOr<google::cloud::dialogflow::cx::v3::ImportFlowResponse>>,
+      ImportFlow, (google::longrunning::Operation const& operation),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// ExportFlow(Matcher<google::cloud::dialogflow::cx::v3::ExportFlowRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<StatusOr<google::cloud::dialogflow::cx::v3::ExportFlowResponse>>,
       ExportFlow,
       (google::cloud::dialogflow::cx::v3::ExportFlowRequest const& request),
       (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, ExportFlow(_, _))
+  /// @endcode
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, ExportFlow,
+      (NoAwaitTag,
+       google::cloud::dialogflow::cx::v3::ExportFlowRequest const& request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock, ExportFlow(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(
+      future<StatusOr<google::cloud::dialogflow::cx::v3::ExportFlowResponse>>,
+      ExportFlow, (google::longrunning::Operation const& operation),
+      (override));
+
+  MOCK_METHOD((StreamRange<google::cloud::location::Location>), ListLocations,
+              (google::cloud::location::ListLocationsRequest request),
+              (override));
+
+  MOCK_METHOD(StatusOr<google::cloud::location::Location>, GetLocation,
+              (google::cloud::location::GetLocationRequest const& request),
+              (override));
+
+  MOCK_METHOD((StreamRange<google::longrunning::Operation>), ListOperations,
+              (google::longrunning::ListOperationsRequest request), (override));
+
+  MOCK_METHOD(StatusOr<google::longrunning::Operation>, GetOperation,
+              (google::longrunning::GetOperationRequest const& request),
+              (override));
+
+  MOCK_METHOD(Status, CancelOperation,
+              (google::longrunning::CancelOperationRequest const& request),
+              (override));
 };
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

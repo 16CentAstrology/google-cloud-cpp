@@ -26,11 +26,35 @@
 #include "google/cloud/internal/pagination_range.h"
 #include "google/cloud/internal/retry_loop.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
 namespace pubsublite_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
+namespace {
+
+std::unique_ptr<pubsublite::AdminServiceRetryPolicy> retry_policy(
+    Options const& options) {
+  return options.get<pubsublite::AdminServiceRetryPolicyOption>()->clone();
+}
+
+std::unique_ptr<BackoffPolicy> backoff_policy(Options const& options) {
+  return options.get<pubsublite::AdminServiceBackoffPolicyOption>()->clone();
+}
+
+std::unique_ptr<pubsublite::AdminServiceConnectionIdempotencyPolicy>
+idempotency_policy(Options const& options) {
+  return options
+      .get<pubsublite::AdminServiceConnectionIdempotencyPolicyOption>()
+      ->clone();
+}
+
+std::unique_ptr<PollingPolicy> polling_policy(Options const& options) {
+  return options.get<pubsublite::AdminServicePollingPolicyOption>()->clone();
+}
+
+}  // namespace
 
 AdminServiceConnectionImpl::AdminServiceConnectionImpl(
     std::unique_ptr<google::cloud::BackgroundThreads> background,
@@ -44,63 +68,70 @@ AdminServiceConnectionImpl::AdminServiceConnectionImpl(
 StatusOr<google::cloud::pubsublite::v1::Topic>
 AdminServiceConnectionImpl::CreateTopic(
     google::cloud::pubsublite::v1::CreateTopicRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->CreateTopic(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->CreateTopic(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::pubsublite::v1::CreateTopicRequest const& request) {
-        return stub_->CreateTopic(context, request);
+        return stub_->CreateTopic(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StatusOr<google::cloud::pubsublite::v1::Topic>
 AdminServiceConnectionImpl::GetTopic(
     google::cloud::pubsublite::v1::GetTopicRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(), idempotency_policy()->GetTopic(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->GetTopic(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::pubsublite::v1::GetTopicRequest const& request) {
-        return stub_->GetTopic(context, request);
+        return stub_->GetTopic(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StatusOr<google::cloud::pubsublite::v1::TopicPartitions>
 AdminServiceConnectionImpl::GetTopicPartitions(
     google::cloud::pubsublite::v1::GetTopicPartitionsRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->GetTopicPartitions(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->GetTopicPartitions(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::pubsublite::v1::GetTopicPartitionsRequest const&
                  request) {
-        return stub_->GetTopicPartitions(context, request);
+        return stub_->GetTopicPartitions(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StreamRange<google::cloud::pubsublite::v1::Topic>
 AdminServiceConnectionImpl::ListTopics(
     google::cloud::pubsublite::v1::ListTopicsRequest request) {
   request.clear_page_token();
-  auto& stub = stub_;
-  auto retry = std::shared_ptr<pubsublite::AdminServiceRetryPolicy const>(
-      retry_policy());
-  auto backoff = std::shared_ptr<BackoffPolicy const>(backoff_policy());
-  auto idempotency = idempotency_policy()->ListTopics(request);
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency = idempotency_policy(*current)->ListTopics(request);
   char const* function_name = __func__;
   return google::cloud::internal::MakePaginationRange<
       StreamRange<google::cloud::pubsublite::v1::Topic>>(
-      std::move(request),
-      [stub, retry, backoff, idempotency, function_name](
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<pubsublite::AdminServiceRetryPolicy>(
+           retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options,
           google::cloud::pubsublite::v1::ListTopicsRequest const& r) {
         return google::cloud::internal::RetryLoop(
             retry->clone(), backoff->clone(), idempotency,
-            [stub](grpc::ClientContext& context,
+            [stub](grpc::ClientContext& context, Options const& options,
                    google::cloud::pubsublite::v1::ListTopicsRequest const&
-                       request) { return stub->ListTopics(context, request); },
-            r, function_name);
+                       request) {
+              return stub->ListTopics(context, options, request);
+            },
+            options, r, function_name);
       },
       [](google::cloud::pubsublite::v1::ListTopicsResponse r) {
         std::vector<google::cloud::pubsublite::v1::Topic> result(
@@ -114,50 +145,54 @@ AdminServiceConnectionImpl::ListTopics(
 StatusOr<google::cloud::pubsublite::v1::Topic>
 AdminServiceConnectionImpl::UpdateTopic(
     google::cloud::pubsublite::v1::UpdateTopicRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->UpdateTopic(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->UpdateTopic(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::pubsublite::v1::UpdateTopicRequest const& request) {
-        return stub_->UpdateTopic(context, request);
+        return stub_->UpdateTopic(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 Status AdminServiceConnectionImpl::DeleteTopic(
     google::cloud::pubsublite::v1::DeleteTopicRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->DeleteTopic(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->DeleteTopic(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::pubsublite::v1::DeleteTopicRequest const& request) {
-        return stub_->DeleteTopic(context, request);
+        return stub_->DeleteTopic(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StreamRange<std::string> AdminServiceConnectionImpl::ListTopicSubscriptions(
     google::cloud::pubsublite::v1::ListTopicSubscriptionsRequest request) {
   request.clear_page_token();
-  auto& stub = stub_;
-  auto retry = std::shared_ptr<pubsublite::AdminServiceRetryPolicy const>(
-      retry_policy());
-  auto backoff = std::shared_ptr<BackoffPolicy const>(backoff_policy());
-  auto idempotency = idempotency_policy()->ListTopicSubscriptions(request);
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency =
+      idempotency_policy(*current)->ListTopicSubscriptions(request);
   char const* function_name = __func__;
   return google::cloud::internal::MakePaginationRange<StreamRange<std::string>>(
-      std::move(request),
-      [stub, retry, backoff, idempotency, function_name](
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<pubsublite::AdminServiceRetryPolicy>(
+           retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options,
           google::cloud::pubsublite::v1::ListTopicSubscriptionsRequest const&
               r) {
         return google::cloud::internal::RetryLoop(
             retry->clone(), backoff->clone(), idempotency,
-            [stub](grpc::ClientContext& context,
+            [stub](grpc::ClientContext& context, Options const& options,
                    google::cloud::pubsublite::v1::
                        ListTopicSubscriptionsRequest const& request) {
-              return stub->ListTopicSubscriptions(context, request);
+              return stub->ListTopicSubscriptions(context, options, request);
             },
-            r, function_name);
+            options, r, function_name);
       },
       [](google::cloud::pubsublite::v1::ListTopicSubscriptionsResponse r) {
         std::vector<std::string> result(r.subscriptions().size());
@@ -170,53 +205,58 @@ StreamRange<std::string> AdminServiceConnectionImpl::ListTopicSubscriptions(
 StatusOr<google::cloud::pubsublite::v1::Subscription>
 AdminServiceConnectionImpl::CreateSubscription(
     google::cloud::pubsublite::v1::CreateSubscriptionRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->CreateSubscription(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->CreateSubscription(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::pubsublite::v1::CreateSubscriptionRequest const&
                  request) {
-        return stub_->CreateSubscription(context, request);
+        return stub_->CreateSubscription(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StatusOr<google::cloud::pubsublite::v1::Subscription>
 AdminServiceConnectionImpl::GetSubscription(
     google::cloud::pubsublite::v1::GetSubscriptionRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->GetSubscription(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->GetSubscription(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::pubsublite::v1::GetSubscriptionRequest const&
-                 request) { return stub_->GetSubscription(context, request); },
-      request, __func__);
+                 request) {
+        return stub_->GetSubscription(context, options, request);
+      },
+      *current, request, __func__);
 }
 
 StreamRange<google::cloud::pubsublite::v1::Subscription>
 AdminServiceConnectionImpl::ListSubscriptions(
     google::cloud::pubsublite::v1::ListSubscriptionsRequest request) {
   request.clear_page_token();
-  auto& stub = stub_;
-  auto retry = std::shared_ptr<pubsublite::AdminServiceRetryPolicy const>(
-      retry_policy());
-  auto backoff = std::shared_ptr<BackoffPolicy const>(backoff_policy());
-  auto idempotency = idempotency_policy()->ListSubscriptions(request);
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency = idempotency_policy(*current)->ListSubscriptions(request);
   char const* function_name = __func__;
   return google::cloud::internal::MakePaginationRange<
       StreamRange<google::cloud::pubsublite::v1::Subscription>>(
-      std::move(request),
-      [stub, retry, backoff, idempotency, function_name](
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<pubsublite::AdminServiceRetryPolicy>(
+           retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options,
           google::cloud::pubsublite::v1::ListSubscriptionsRequest const& r) {
         return google::cloud::internal::RetryLoop(
             retry->clone(), backoff->clone(), idempotency,
             [stub](
-                grpc::ClientContext& context,
+                grpc::ClientContext& context, Options const& options,
                 google::cloud::pubsublite::v1::ListSubscriptionsRequest const&
                     request) {
-              return stub->ListSubscriptions(context, request);
+              return stub->ListSubscriptions(context, options, request);
             },
-            r, function_name);
+            options, r, function_name);
       },
       [](google::cloud::pubsublite::v1::ListSubscriptionsResponse r) {
         std::vector<google::cloud::pubsublite::v1::Subscription> result(
@@ -230,111 +270,179 @@ AdminServiceConnectionImpl::ListSubscriptions(
 StatusOr<google::cloud::pubsublite::v1::Subscription>
 AdminServiceConnectionImpl::UpdateSubscription(
     google::cloud::pubsublite::v1::UpdateSubscriptionRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->UpdateSubscription(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->UpdateSubscription(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::pubsublite::v1::UpdateSubscriptionRequest const&
                  request) {
-        return stub_->UpdateSubscription(context, request);
+        return stub_->UpdateSubscription(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 Status AdminServiceConnectionImpl::DeleteSubscription(
     google::cloud::pubsublite::v1::DeleteSubscriptionRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->DeleteSubscription(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->DeleteSubscription(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::pubsublite::v1::DeleteSubscriptionRequest const&
                  request) {
-        return stub_->DeleteSubscription(context, request);
+        return stub_->DeleteSubscription(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 future<StatusOr<google::cloud::pubsublite::v1::SeekSubscriptionResponse>>
 AdminServiceConnectionImpl::SeekSubscription(
     google::cloud::pubsublite::v1::SeekSubscriptionRequest const& request) {
-  auto& stub = stub_;
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto request_copy = request;
+  auto const idempotent =
+      idempotency_policy(*current)->SeekSubscription(request_copy);
   return google::cloud::internal::AsyncLongRunningOperation<
       google::cloud::pubsublite::v1::SeekSubscriptionResponse>(
-      background_->cq(), request,
-      [stub](google::cloud::CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::cloud::pubsublite::v1::SeekSubscriptionRequest const&
-                 request) {
-        return stub->AsyncSeekSubscription(cq, std::move(context), request);
+      background_->cq(), current, std::move(request_copy),
+      [stub = stub_](
+          google::cloud::CompletionQueue& cq,
+          std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::cloud::pubsublite::v1::SeekSubscriptionRequest const&
+              request) {
+        return stub->AsyncSeekSubscription(cq, std::move(context),
+                                           std::move(options), request);
       },
-      [stub](google::cloud::CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::longrunning::GetOperationRequest const& request) {
-        return stub->AsyncGetOperation(cq, std::move(context), request);
+      [stub = stub_](google::cloud::CompletionQueue& cq,
+                     std::shared_ptr<grpc::ClientContext> context,
+                     google::cloud::internal::ImmutableOptions options,
+                     google::longrunning::GetOperationRequest const& request) {
+        return stub->AsyncGetOperation(cq, std::move(context),
+                                       std::move(options), request);
       },
-      [stub](google::cloud::CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::longrunning::CancelOperationRequest const& request) {
-        return stub->AsyncCancelOperation(cq, std::move(context), request);
+      [stub = stub_](
+          google::cloud::CompletionQueue& cq,
+          std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::longrunning::CancelOperationRequest const& request) {
+        return stub->AsyncCancelOperation(cq, std::move(context),
+                                          std::move(options), request);
       },
       &google::cloud::internal::ExtractLongRunningResultResponse<
           google::cloud::pubsublite::v1::SeekSubscriptionResponse>,
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->SeekSubscription(request), polling_policy(),
-      __func__);
+      retry_policy(*current), backoff_policy(*current), idempotent,
+      polling_policy(*current), __func__);
+}
+
+StatusOr<google::longrunning::Operation>
+AdminServiceConnectionImpl::SeekSubscription(
+    NoAwaitTag,
+    google::cloud::pubsublite::v1::SeekSubscriptionRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->SeekSubscription(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::cloud::pubsublite::v1::SeekSubscriptionRequest const&
+                 request) {
+        return stub_->SeekSubscription(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+future<StatusOr<google::cloud::pubsublite::v1::SeekSubscriptionResponse>>
+AdminServiceConnectionImpl::SeekSubscription(
+    google::longrunning::Operation const& operation) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  if (!operation.metadata()
+           .Is<typename google::cloud::pubsublite::v1::OperationMetadata>()) {
+    return make_ready_future<
+        StatusOr<google::cloud::pubsublite::v1::SeekSubscriptionResponse>>(
+        internal::InvalidArgumentError(
+            "operation does not correspond to SeekSubscription",
+            GCP_ERROR_INFO().WithMetadata("operation",
+                                          operation.metadata().DebugString())));
+  }
+
+  return google::cloud::internal::AsyncAwaitLongRunningOperation<
+      google::cloud::pubsublite::v1::SeekSubscriptionResponse>(
+      background_->cq(), current, operation,
+      [stub = stub_](google::cloud::CompletionQueue& cq,
+                     std::shared_ptr<grpc::ClientContext> context,
+                     google::cloud::internal::ImmutableOptions options,
+                     google::longrunning::GetOperationRequest const& request) {
+        return stub->AsyncGetOperation(cq, std::move(context),
+                                       std::move(options), request);
+      },
+      [stub = stub_](
+          google::cloud::CompletionQueue& cq,
+          std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::longrunning::CancelOperationRequest const& request) {
+        return stub->AsyncCancelOperation(cq, std::move(context),
+                                          std::move(options), request);
+      },
+      &google::cloud::internal::ExtractLongRunningResultResponse<
+          google::cloud::pubsublite::v1::SeekSubscriptionResponse>,
+      polling_policy(*current), __func__);
 }
 
 StatusOr<google::cloud::pubsublite::v1::Reservation>
 AdminServiceConnectionImpl::CreateReservation(
     google::cloud::pubsublite::v1::CreateReservationRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->CreateReservation(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->CreateReservation(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::pubsublite::v1::CreateReservationRequest const&
                  request) {
-        return stub_->CreateReservation(context, request);
+        return stub_->CreateReservation(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StatusOr<google::cloud::pubsublite::v1::Reservation>
 AdminServiceConnectionImpl::GetReservation(
     google::cloud::pubsublite::v1::GetReservationRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->GetReservation(request),
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->GetReservation(request),
       [this](
-          grpc::ClientContext& context,
+          grpc::ClientContext& context, Options const& options,
           google::cloud::pubsublite::v1::GetReservationRequest const& request) {
-        return stub_->GetReservation(context, request);
+        return stub_->GetReservation(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StreamRange<google::cloud::pubsublite::v1::Reservation>
 AdminServiceConnectionImpl::ListReservations(
     google::cloud::pubsublite::v1::ListReservationsRequest request) {
   request.clear_page_token();
-  auto& stub = stub_;
-  auto retry = std::shared_ptr<pubsublite::AdminServiceRetryPolicy const>(
-      retry_policy());
-  auto backoff = std::shared_ptr<BackoffPolicy const>(backoff_policy());
-  auto idempotency = idempotency_policy()->ListReservations(request);
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency = idempotency_policy(*current)->ListReservations(request);
   char const* function_name = __func__;
   return google::cloud::internal::MakePaginationRange<
       StreamRange<google::cloud::pubsublite::v1::Reservation>>(
-      std::move(request),
-      [stub, retry, backoff, idempotency, function_name](
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<pubsublite::AdminServiceRetryPolicy>(
+           retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options,
           google::cloud::pubsublite::v1::ListReservationsRequest const& r) {
         return google::cloud::internal::RetryLoop(
             retry->clone(), backoff->clone(), idempotency,
-            [stub](grpc::ClientContext& context,
+            [stub](grpc::ClientContext& context, Options const& options,
                    google::cloud::pubsublite::v1::ListReservationsRequest const&
                        request) {
-              return stub->ListReservations(context, request);
+              return stub->ListReservations(context, options, request);
             },
-            r, function_name);
+            options, r, function_name);
       },
       [](google::cloud::pubsublite::v1::ListReservationsResponse r) {
         std::vector<google::cloud::pubsublite::v1::Reservation> result(
@@ -348,52 +456,56 @@ AdminServiceConnectionImpl::ListReservations(
 StatusOr<google::cloud::pubsublite::v1::Reservation>
 AdminServiceConnectionImpl::UpdateReservation(
     google::cloud::pubsublite::v1::UpdateReservationRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->UpdateReservation(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->UpdateReservation(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::pubsublite::v1::UpdateReservationRequest const&
                  request) {
-        return stub_->UpdateReservation(context, request);
+        return stub_->UpdateReservation(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 Status AdminServiceConnectionImpl::DeleteReservation(
     google::cloud::pubsublite::v1::DeleteReservationRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->DeleteReservation(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->DeleteReservation(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::pubsublite::v1::DeleteReservationRequest const&
                  request) {
-        return stub_->DeleteReservation(context, request);
+        return stub_->DeleteReservation(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StreamRange<std::string> AdminServiceConnectionImpl::ListReservationTopics(
     google::cloud::pubsublite::v1::ListReservationTopicsRequest request) {
   request.clear_page_token();
-  auto& stub = stub_;
-  auto retry = std::shared_ptr<pubsublite::AdminServiceRetryPolicy const>(
-      retry_policy());
-  auto backoff = std::shared_ptr<BackoffPolicy const>(backoff_policy());
-  auto idempotency = idempotency_policy()->ListReservationTopics(request);
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency =
+      idempotency_policy(*current)->ListReservationTopics(request);
   char const* function_name = __func__;
   return google::cloud::internal::MakePaginationRange<StreamRange<std::string>>(
-      std::move(request),
-      [stub, retry, backoff, idempotency, function_name](
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<pubsublite::AdminServiceRetryPolicy>(
+           retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options,
           google::cloud::pubsublite::v1::ListReservationTopicsRequest const&
               r) {
         return google::cloud::internal::RetryLoop(
             retry->clone(), backoff->clone(), idempotency,
-            [stub](grpc::ClientContext& context,
+            [stub](grpc::ClientContext& context, Options const& options,
                    google::cloud::pubsublite::v1::
                        ListReservationTopicsRequest const& request) {
-              return stub->ListReservationTopics(context, request);
+              return stub->ListReservationTopics(context, options, request);
             },
-            r, function_name);
+            options, r, function_name);
       },
       [](google::cloud::pubsublite::v1::ListReservationTopicsResponse r) {
         std::vector<std::string> result(r.topics().size());
@@ -403,19 +515,99 @@ StreamRange<std::string> AdminServiceConnectionImpl::ListReservationTopics(
       });
 }
 
+StreamRange<google::longrunning::Operation>
+AdminServiceConnectionImpl::ListOperations(
+    google::longrunning::ListOperationsRequest request) {
+  request.clear_page_token();
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency = idempotency_policy(*current)->ListOperations(request);
+  char const* function_name = __func__;
+  return google::cloud::internal::MakePaginationRange<
+      StreamRange<google::longrunning::Operation>>(
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<pubsublite::AdminServiceRetryPolicy>(
+           retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options,
+          google::longrunning::ListOperationsRequest const& r) {
+        return google::cloud::internal::RetryLoop(
+            retry->clone(), backoff->clone(), idempotency,
+            [stub](grpc::ClientContext& context, Options const& options,
+                   google::longrunning::ListOperationsRequest const& request) {
+              return stub->ListOperations(context, options, request);
+            },
+            options, r, function_name);
+      },
+      [](google::longrunning::ListOperationsResponse r) {
+        std::vector<google::longrunning::Operation> result(
+            r.operations().size());
+        auto& messages = *r.mutable_operations();
+        std::move(messages.begin(), messages.end(), result.begin());
+        return result;
+      });
+}
+
+StatusOr<google::longrunning::Operation>
+AdminServiceConnectionImpl::GetOperation(
+    google::longrunning::GetOperationRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->GetOperation(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::longrunning::GetOperationRequest const& request) {
+        return stub_->GetOperation(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+Status AdminServiceConnectionImpl::DeleteOperation(
+    google::longrunning::DeleteOperationRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->DeleteOperation(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::longrunning::DeleteOperationRequest const& request) {
+        return stub_->DeleteOperation(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+Status AdminServiceConnectionImpl::CancelOperation(
+    google::longrunning::CancelOperationRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->CancelOperation(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::longrunning::CancelOperationRequest const& request) {
+        return stub_->CancelOperation(context, options, request);
+      },
+      *current, request, __func__);
+}
+
 future<StatusOr<google::cloud::pubsublite::v1::TopicPartitions>>
 AdminServiceConnectionImpl::AsyncGetTopicPartitions(
     google::cloud::pubsublite::v1::GetTopicPartitionsRequest const& request) {
-  auto& stub = stub_;
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto request_copy = request;
+  auto const idempotent =
+      idempotency_policy(*current)->GetTopicPartitions(request_copy);
+  auto retry = retry_policy(*current);
+  auto backoff = backoff_policy(*current);
   return google::cloud::internal::AsyncRetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->GetTopicPartitions(request), background_->cq(),
-      [stub](CompletionQueue& cq, std::unique_ptr<grpc::ClientContext> context,
-             google::cloud::pubsublite::v1::GetTopicPartitionsRequest const&
-                 request) {
-        return stub->AsyncGetTopicPartitions(cq, std::move(context), request);
+      std::move(retry), std::move(backoff), idempotent, background_->cq(),
+      [stub = stub_](
+          CompletionQueue& cq, std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::cloud::pubsublite::v1::GetTopicPartitionsRequest const&
+              request) {
+        return stub->AsyncGetTopicPartitions(cq, std::move(context),
+                                             std::move(options), request);
       },
-      request, __func__);
+      std::move(current), std::move(request_copy), __func__);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

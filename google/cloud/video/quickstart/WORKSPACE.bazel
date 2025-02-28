@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# A minimal WORKSPACE file showing how to use the Transcoder API
-# C++ client library in Bazel-based projects.
+# A minimal WORKSPACE file showing how to use the video services C++ client
+# library in Bazel-based projects.
 workspace(name = "qs")
 
 # Add the necessary Starlark functions to fetch google-cloud-cpp.
@@ -23,29 +23,31 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 # NOTE: Update this version and SHA256 as needed.
 http_archive(
     name = "google_cloud_cpp",
-    sha256 = "ac93ef722d08bfb220343bde2f633c7c11f15e34ec3ecd0a57dbd3ff729cc3a6",
-    strip_prefix = "google-cloud-cpp-2.5.0",
-    url = "https://github.com/googleapis/google-cloud-cpp/archive/v2.5.0.tar.gz",
+    sha256 = "81ea28cf9e5bb032d356b0187409f30b1035f8ea5b530675ea248c8a6c0070aa",
+    strip_prefix = "google-cloud-cpp-2.35.0",
+    url = "https://github.com/googleapis/google-cloud-cpp/archive/v2.35.0.tar.gz",
 )
 
-# Load indirect dependencies due to
-#     https://github.com/bazelbuild/bazel/issues/1943
-load("@google_cloud_cpp//bazel:google_cloud_cpp_deps.bzl", "google_cloud_cpp_deps")
+load("@google_cloud_cpp//bazel:workspace0.bzl", "gl_cpp_workspace0")
 
-google_cloud_cpp_deps()
+gl_cpp_workspace0()
 
-load("@com_google_googleapis//:repository_rules.bzl", "switched_rules_by_language")
+load("@google_cloud_cpp//bazel:workspace1.bzl", "gl_cpp_workspace1")
 
-switched_rules_by_language(
-    name = "com_google_googleapis_imports",
-    cc = True,
-    grpc = True,
-)
+gl_cpp_workspace1()
 
-load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
+load("@google_cloud_cpp//bazel:workspace2.bzl", "gl_cpp_workspace2")
 
-grpc_deps()
+gl_cpp_workspace2()
 
-load("@com_github_grpc_grpc//bazel:grpc_extra_deps.bzl", "grpc_extra_deps")
+load("@google_cloud_cpp//bazel:workspace3.bzl", "gl_cpp_workspace3")
 
-grpc_extra_deps()
+gl_cpp_workspace3()
+
+load("@google_cloud_cpp//bazel:workspace4.bzl", "gl_cpp_workspace4")
+
+gl_cpp_workspace4()
+
+load("@google_cloud_cpp//bazel:workspace5.bzl", "gl_cpp_workspace5")
+
+gl_cpp_workspace5()

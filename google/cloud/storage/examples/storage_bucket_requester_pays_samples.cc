@@ -17,7 +17,12 @@
 #include "google/cloud/internal/getenv.h"
 #include <functional>
 #include <iostream>
+#include <random>
+#include <stdexcept>
+#include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -30,7 +35,7 @@ void GetBilling(google::cloud::storage::Client client,
      std::string const& user_project) {
     StatusOr<gcs::BucketMetadata> metadata =
         client.GetBucketMetadata(bucket_name, gcs::UserProject(user_project));
-    if (!metadata) throw std::runtime_error(metadata.status().message());
+    if (!metadata) throw std::move(metadata).status();
 
     if (!metadata->has_billing()) {
       std::cout
@@ -63,7 +68,7 @@ void EnableRequesterPays(google::cloud::storage::Client client,
     StatusOr<gcs::BucketMetadata> metadata = client.PatchBucket(
         bucket_name,
         gcs::BucketMetadataPatchBuilder().SetBilling(gcs::BucketBilling{true}));
-    if (!metadata) throw std::runtime_error(metadata.status().message());
+    if (!metadata) throw std::move(metadata).status();
 
     std::cout << "Billing configuration for bucket " << metadata->name()
               << " is updated. The bucket now";
@@ -91,7 +96,7 @@ void DisableRequesterPays(google::cloud::storage::Client client,
         bucket_name,
         gcs::BucketMetadataPatchBuilder().SetBilling(gcs::BucketBilling{false}),
         gcs::UserProject(billed_project));
-    if (!metadata) throw std::runtime_error(metadata.status().message());
+    if (!metadata) throw std::move(metadata).status();
 
     std::cout << "Billing configuration for bucket " << bucket_name
               << " is updated. The bucket now";
@@ -125,7 +130,7 @@ void WriteObjectRequesterPays(google::cloud::storage::Client client,
     stream.Close();
 
     StatusOr<gcs::ObjectMetadata> metadata = std::move(stream).metadata();
-    if (!metadata) throw std::runtime_error(metadata.status().message());
+    if (!metadata) throw std::move(metadata).status();
     std::cout << "Successfully wrote to object " << metadata->name()
               << " its size is: " << metadata->size()
               << "\nFull metadata: " << *metadata << "\n";
@@ -148,6 +153,7 @@ void ReadObjectRequesterPays(google::cloud::storage::Client client,
     while (std::getline(stream, line, '\n')) {
       std::cout << line << "\n";
     }
+    if (stream.bad()) throw google::cloud::Status(stream.status());
   }
   // [END storage_download_file_requester_pays]
   //! [read object requester pays]
@@ -187,7 +193,8 @@ void RunAll(std::vector<std::string> const& argv) {
   std::cout << "\nCreating bucket to run the example (" << bucket_name << ")"
             << std::endl;
   (void)client
-      .CreateBucketForProject(bucket_name, project_id, gcs::BucketMetadata{})
+      .CreateBucketForProject(bucket_name, project_id, gcs::BucketMetadata{},
+                              examples::CreateBucketOptions())
       .value();
   // In GCS a single project cannot create or delete buckets more often than
   // once every two seconds. We will pause until that time before deleting the

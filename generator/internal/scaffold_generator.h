@@ -15,8 +15,9 @@
 #ifndef GOOGLE_CLOUD_CPP_GENERATOR_INTERNAL_SCAFFOLD_GENERATOR_H
 #define GOOGLE_CLOUD_CPP_GENERATOR_INTERNAL_SCAFFOLD_GENERATOR_H
 
-#include "absl/types/optional.h"
 #include "generator/generator_config.pb.h"
+#include "absl/types/optional.h"
+#include <nlohmann/json.hpp>
 #include <iosfwd>
 #include <map>
 #include <string>
@@ -60,20 +61,58 @@ std::string ServiceSubdirectory(std::string const& product_path);
  */
 std::string OptionsGroup(std::string const& product_path);
 
+/**
+ * Load the `api-index-v1.json` file stored in the googleapis repository.
+ *
+ * If this is not available, it returns a JSON object with an empty list of
+ * APIs.
+ */
+nlohmann::json LoadApiIndex(std::string const& googleapis_path);
+
+/**
+ * Capture the information about @service as a set of "variables".
+ *
+ * This searches the API index file loaded in @p index for the details about
+ * @p service and generates a map of "variables" representing that information.
+ * If a service config YAML file is available, it loads some key information
+ * from that file too.
+ *
+ * @return a map with the variables needed to generate the build scaffold for
+ *     @p service. We use a map (instead of a more idiomatic / safe `struct`),
+ *     because we will feed this information to the protobuf compiler template
+ *     engine.
+ */
 std::map<std::string, std::string> ScaffoldVars(
-    std::string const& googleapis_path,
+    std::string const& yaml_root, nlohmann::json const& index,
     google::cloud::cpp::generator::ServiceConfiguration const& service,
     bool experimental);
 
-void MakeDirectory(std::string const& path);
+/// Find out the full path for the service config YAML file from the scaffold
+/// vars.
+std::string ServiceConfigYamlPath(
+    std::string const& root, std::map<std::string, std::string> const& vars);
 
+/**
+ * Generates (if possible) a `.repo-metadata.json` file for @p service.
+ *
+ * If @p allow_placeholders is true then the configuration file will be
+ * generated even if some information is missing.  This is used during the
+ * scaffold generation, and the developer is expected to fill any gaps.
+ */
+void GenerateMetadata(
+    std::map<std::string, std::string> const& vars,
+    std::string const& output_path,
+    google::cloud::cpp::generator::ServiceConfiguration const& service,
+    bool allow_placeholders);
+
+/// Generates the build and documentation scaffold for @p service.
 void GenerateScaffold(
-    std::string const& googleapis_path, std::string const& output_path,
-    google::cloud::cpp::generator::ServiceConfiguration const& service,
-    bool experimental);
+    std::map<std::string, std::string> const& vars,
+    std::string const& scaffold_templates_path, std::string const& output_path,
+    google::cloud::cpp::generator::ServiceConfiguration const& service);
 
-void GenerateCmakeConfigIn(std::ostream& os,
-                           std::map<std::string, std::string> const& variables);
+///@{
+/// @name Generators for each scaffold file.
 void GenerateReadme(std::ostream& os,
                     std::map<std::string, std::string> const& variables);
 void GenerateBuild(std::ostream& os,
@@ -84,6 +123,14 @@ void GenerateDoxygenMainPage(
     std::ostream& os, std::map<std::string, std::string> const& variables);
 void GenerateDoxygenOptionsPage(
     std::ostream& os, std::map<std::string, std::string> const& variables);
+void GenerateDoxygenEnvironmentPage(
+    std::ostream& os, std::map<std::string, std::string> const& variables);
+void GenerateOverrideAuthenticationPage(
+    std::ostream& os, std::map<std::string, std::string> const& variables);
+void GenerateOverrideEndpointPage(
+    std::ostream& os, std::map<std::string, std::string> const& variables);
+void GenerateOverrideRetryPoliciesPage(
+    std::ostream& os, std::map<std::string, std::string> const& variables);
 void GenerateQuickstartReadme(
     std::ostream& os, std::map<std::string, std::string> const& variables);
 void GenerateQuickstartSkeleton(
@@ -93,15 +140,13 @@ void GenerateQuickstartCMake(
 void GenerateQuickstartMakefile(
     std::ostream& os, std::map<std::string, std::string> const& variables);
 void GenerateQuickstartWorkspace(
-    std::ostream& os, std::map<std::string, std::string> const& variables);
+    std::ostream& os, std::map<std::string, std::string> const& variables,
+    std::string const& contents);
 void GenerateQuickstartBuild(
     std::ostream& os, std::map<std::string, std::string> const& variables);
 void GenerateQuickstartBazelrc(
     std::ostream& os, std::map<std::string, std::string> const& variables);
-void GenerateSamplesBuild(std::ostream& os,
-                          std::map<std::string, std::string> const& variables);
-void GenerateSamplesCMake(std::ostream& os,
-                          std::map<std::string, std::string> const& variables);
+///@}
 
 }  // namespace generator_internal
 }  // namespace cloud

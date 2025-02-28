@@ -37,60 +37,93 @@ class VersionsLogging : public VersionsStub {
   ~VersionsLogging() override = default;
   VersionsLogging(std::shared_ptr<VersionsStub> child,
                   TracingOptions tracing_options,
-                  std::set<std::string> components);
+                  std::set<std::string> const& components);
 
   StatusOr<google::cloud::dialogflow::cx::v3::ListVersionsResponse>
-  ListVersions(grpc::ClientContext& context,
+  ListVersions(grpc::ClientContext& context, Options const& options,
                google::cloud::dialogflow::cx::v3::ListVersionsRequest const&
                    request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Version> GetVersion(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetVersionRequest const& request)
       override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncCreateVersion(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::dialogflow::cx::v3::CreateVersionRequest const& request)
+      override;
+
+  StatusOr<google::longrunning::Operation> CreateVersion(
+      grpc::ClientContext& context, Options options,
       google::cloud::dialogflow::cx::v3::CreateVersionRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Version> UpdateVersion(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::UpdateVersionRequest const& request)
       override;
 
   Status DeleteVersion(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::DeleteVersionRequest const& request)
       override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncLoadVersion(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::dialogflow::cx::v3::LoadVersionRequest const& request)
+      override;
+
+  StatusOr<google::longrunning::Operation> LoadVersion(
+      grpc::ClientContext& context, Options options,
       google::cloud::dialogflow::cx::v3::LoadVersionRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::CompareVersionsResponse>
   CompareVersions(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::CompareVersionsRequest const& request)
       override;
 
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
+
   future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::GetOperationRequest const& request) override;
 
   future<Status> AsyncCancelOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::CancelOperationRequest const& request) override;
 
  private:
   std::shared_ptr<VersionsStub> child_;
   TracingOptions tracing_options_;
-  std::set<std::string> components_;
 };  // VersionsLogging
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

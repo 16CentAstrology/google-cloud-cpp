@@ -29,6 +29,7 @@
 #include "google/cloud/backoff_policy.h"
 #include "google/cloud/options.h"
 #include "google/cloud/status_or.h"
+#include "google/cloud/stream_range.h"
 #include "google/cloud/version.h"
 #include <memory>
 
@@ -36,6 +37,10 @@ namespace google {
 namespace cloud {
 namespace dialogflow_cx_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
+
+void SessionsServerStreamingDetectIntentStreamingUpdater(
+    google::cloud::dialogflow::cx::v3::DetectIntentResponse const& response,
+    google::cloud::dialogflow::cx::v3::DetectIntentRequest& request);
 
 class SessionsConnectionImpl : public dialogflow_cx::SessionsConnection {
  public:
@@ -52,6 +57,11 @@ class SessionsConnectionImpl : public dialogflow_cx::SessionsConnection {
   DetectIntent(google::cloud::dialogflow::cx::v3::DetectIntentRequest const&
                    request) override;
 
+  StreamRange<google::cloud::dialogflow::cx::v3::DetectIntentResponse>
+  ServerStreamingDetectIntent(
+      google::cloud::dialogflow::cx::v3::DetectIntentRequest const& request)
+      override;
+
   std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
       google::cloud::dialogflow::cx::v3::StreamingDetectIntentRequest,
       google::cloud::dialogflow::cx::v3::StreamingDetectIntentResponse>>
@@ -65,37 +75,27 @@ class SessionsConnectionImpl : public dialogflow_cx::SessionsConnection {
   FulfillIntent(google::cloud::dialogflow::cx::v3::FulfillIntentRequest const&
                     request) override;
 
+  StatusOr<google::cloud::dialogflow::cx::v3::AnswerFeedback>
+  SubmitAnswerFeedback(
+      google::cloud::dialogflow::cx::v3::SubmitAnswerFeedbackRequest const&
+          request) override;
+
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_cx::SessionsRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::SessionsRetryPolicyOption>()) {
-      return options.get<dialogflow_cx::SessionsRetryPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_cx::SessionsRetryPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::SessionsBackoffPolicyOption>()) {
-      return options.get<dialogflow_cx::SessionsBackoffPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_cx::SessionsBackoffPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<dialogflow_cx::SessionsConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options
-            .has<dialogflow_cx::SessionsConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_cx::SessionsConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_cx::SessionsConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_cx_internal::SessionsStub> stub_;
   Options options_;

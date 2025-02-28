@@ -21,7 +21,6 @@
 #include "google/cloud/testing_util/mock_completion_queue_impl.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include "google/cloud/testing_util/validate_metadata.h"
-#include "absl/memory/memory.h"
 #include <gmock/gmock.h>
 
 namespace google {
@@ -36,7 +35,7 @@ using ::google::cloud::bigtable_mocks::MockDataConnection;
 using ::google::cloud::testing_util::IsOk;
 using ::google::cloud::testing_util::IsProtoEqual;
 using ::google::cloud::testing_util::MockCompletionQueueImpl;
-using ::google::cloud::testing_util::chrono_literals::operator"" _ms;  // NOLINT
+using ::google::cloud::testing_util::chrono_literals::operator""_ms;
 using ::testing::Not;
 using ::testing::Return;
 using ::testing::WithParamInterface;
@@ -110,7 +109,7 @@ class MutationBatcherTest : public ::testing::Test {
     });
     EXPECT_CALL(*mock_, options).WillRepeatedly(Return(Options{}));
 
-    table_ = absl::make_unique<Table>(mock_, TableResource("p", "i", "t"));
+    table_ = std::make_unique<Table>(mock_, TableResource("p", "i", "t"));
   }
 
   void ExpectInteraction(std::vector<Exchange> const& interactions) {

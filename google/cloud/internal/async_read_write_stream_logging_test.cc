@@ -13,12 +13,12 @@
 // limitations under the License.
 
 #include "google/cloud/internal/async_read_write_stream_logging.h"
+#include "google/cloud/mocks/mock_async_streaming_read_write_rpc.h"
 #include "google/cloud/log.h"
 #include "google/cloud/status.h"
 #include "google/cloud/testing_util/scoped_log.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include "google/cloud/tracing_options.h"
-#include "absl/memory/memory.h"
 #include <google/protobuf/duration.pb.h>
 #include <google/protobuf/timestamp.pb.h>
 #include <gmock/gmock.h>
@@ -32,35 +32,22 @@ namespace {
 using ::google::cloud::testing_util::StatusIs;
 using ::testing::Contains;
 using ::testing::HasSubstr;
-
-template <typename Request, typename Response>
-class MockAsyncStreamingReadWriteRpc
-    : public AsyncStreamingReadWriteRpc<Request, Response> {
- public:
-  ~MockAsyncStreamingReadWriteRpc() override = default;
-
-  MOCK_METHOD(void, Cancel, (), (override));
-  MOCK_METHOD(future<bool>, Start, (), (override));
-  MOCK_METHOD(future<absl::optional<Response>>, Read, (), (override));
-  MOCK_METHOD(future<bool>, Write, (Request const&, grpc::WriteOptions),
-              (override));
-  MOCK_METHOD(future<bool>, WritesDone, (), (override));
-  MOCK_METHOD(future<Status>, Finish, (), (override));
-};
+using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
 
 class StreamingReadRpcLoggingTest : public ::testing::Test {
  protected:
   testing_util::ScopedLog log_;
 };
 
-using MockStream = MockAsyncStreamingReadWriteRpc<google::protobuf::Timestamp,
-                                                  google::protobuf::Duration>;
+using MockStream = google::cloud::mocks::MockAsyncStreamingReadWriteRpc<
+    google::protobuf::Timestamp, google::protobuf::Duration>;
 using TestedStream =
     AsyncStreamingReadWriteRpcLogging<google::protobuf::Timestamp,
                                       google::protobuf::Duration>;
 
 TEST_F(StreamingReadRpcLoggingTest, Cancel) {
-  auto mock = absl::make_unique<MockStream>();
+  auto mock = std::make_unique<MockStream>();
   EXPECT_CALL(*mock, Cancel()).Times(1);
   TestedStream stream(std::move(mock), TracingOptions{}, "test-id");
   stream.Cancel();
@@ -69,7 +56,7 @@ TEST_F(StreamingReadRpcLoggingTest, Cancel) {
 }
 
 TEST_F(StreamingReadRpcLoggingTest, Start) {
-  auto mock = absl::make_unique<MockStream>();
+  auto mock = std::make_unique<MockStream>();
   EXPECT_CALL(*mock, Start).WillOnce([] { return make_ready_future(true); });
   TestedStream stream(std::move(mock), TracingOptions{}, "test-id");
   EXPECT_TRUE(stream.Start().get());
@@ -78,7 +65,7 @@ TEST_F(StreamingReadRpcLoggingTest, Start) {
 }
 
 TEST_F(StreamingReadRpcLoggingTest, ReadWithValue) {
-  auto mock = absl::make_unique<MockStream>();
+  auto mock = std::make_unique<MockStream>();
   EXPECT_CALL(*mock, Read).WillOnce([] {
     return make_ready_future(absl::make_optional(google::protobuf::Duration{}));
   });
@@ -90,7 +77,7 @@ TEST_F(StreamingReadRpcLoggingTest, ReadWithValue) {
 }
 
 TEST_F(StreamingReadRpcLoggingTest, ReadWithout) {
-  auto mock = absl::make_unique<MockStream>();
+  auto mock = std::make_unique<MockStream>();
   EXPECT_CALL(*mock, Read).WillOnce([] {
     return make_ready_future(absl::optional<google::protobuf::Duration>{});
   });
@@ -102,7 +89,7 @@ TEST_F(StreamingReadRpcLoggingTest, ReadWithout) {
 }
 
 TEST_F(StreamingReadRpcLoggingTest, Write) {
-  auto mock = absl::make_unique<MockStream>();
+  auto mock = std::make_unique<MockStream>();
   EXPECT_CALL(*mock, Write)
       .WillOnce([](google::protobuf::Timestamp const&, grpc::WriteOptions) {
         return make_ready_future(true);
@@ -115,7 +102,7 @@ TEST_F(StreamingReadRpcLoggingTest, Write) {
 }
 
 TEST_F(StreamingReadRpcLoggingTest, WritesDone) {
-  auto mock = absl::make_unique<MockStream>();
+  auto mock = std::make_unique<MockStream>();
   EXPECT_CALL(*mock, WritesDone).WillOnce([] {
     return make_ready_future(true);
   });
@@ -126,7 +113,7 @@ TEST_F(StreamingReadRpcLoggingTest, WritesDone) {
 }
 
 TEST_F(StreamingReadRpcLoggingTest, Finish) {
-  auto mock = absl::make_unique<MockStream>();
+  auto mock = std::make_unique<MockStream>();
   EXPECT_CALL(*mock, Finish).WillOnce([] {
     return make_ready_future(Status{StatusCode::kUnavailable, "try-again"});
   });
@@ -136,6 +123,28 @@ TEST_F(StreamingReadRpcLoggingTest, Finish) {
   EXPECT_THAT(log_.ExtractLines(),
               Contains(AllOf(HasSubstr("Finish"), HasSubstr("test-id"),
                              HasSubstr("try-again"))));
+}
+
+TEST_F(StreamingReadRpcLoggingTest, GetRequestMetadata) {
+  auto mock = std::make_unique<MockStream>();
+  EXPECT_CALL(*mock, Finish).WillOnce([] {
+    return make_ready_future(Status{});
+  });
+  EXPECT_CALL(*mock, GetRequestMetadata).WillOnce([] {
+    return RpcMetadata{{{"hk0", "v0"}, {"hk1", "v1"}},
+                       {{"tk0", "v0"}, {"tk1", "v1"}}};
+  });
+
+  TestedStream stream(std::move(mock), TracingOptions{}, "test-id");
+  EXPECT_STATUS_OK(stream.Finish().get());
+  auto const metadata = stream.GetRequestMetadata();
+  EXPECT_THAT(metadata.headers,
+              UnorderedElementsAre(Pair("hk0", "v0"), Pair("hk1", "v1")));
+  EXPECT_THAT(metadata.trailers,
+              UnorderedElementsAre(Pair("tk0", "v0"), Pair("tk1", "v1")));
+
+  EXPECT_THAT(log_.ExtractLines(),
+              Contains(AllOf(HasSubstr("Finish"), HasSubstr("test-id"))));
 }
 
 }  // namespace

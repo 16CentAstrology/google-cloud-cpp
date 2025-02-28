@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include "google/cloud/pubsub/internal/subscription_lease_management.h"
+#include "google/cloud/pubsub/internal/batch_callback.h"
+#include "google/cloud/pubsub/testing/mock_batch_callback.h"
 #include "google/cloud/pubsub/testing/mock_subscription_batch_source.h"
 #include "google/cloud/internal/background_threads_impl.h"
 #include "google/cloud/testing_util/fake_completion_queue_impl.h"
@@ -49,10 +51,14 @@ future<Status> SimpleAckNack(std::string const&) {
 
 TEST(SubscriptionLeaseManagementTest, NormalLifecycle) {
   auto mock = std::make_shared<pubsub_testing::MockSubscriptionBatchSource>();
-  BatchCallback batch_callback;
-  EXPECT_CALL(*mock, Start).WillOnce([&](BatchCallback cb) {
+  std::shared_ptr<BatchCallback> batch_callback;
+  EXPECT_CALL(*mock, Start).WillOnce([&](std::shared_ptr<BatchCallback> cb) {
     batch_callback = std::move(cb);
   });
+
+  auto mock_batch_callback =
+      std::make_shared<pubsub_testing::MockBatchCallback>();
+  EXPECT_CALL(*mock_batch_callback, callback).Times(1);
 
   auto constexpr kTestDeadline = std::chrono::seconds(345);
   {
@@ -94,9 +100,9 @@ TEST(SubscriptionLeaseManagementTest, NormalLifecycle) {
       cq, shutdown_manager, mock, kTestDeadline, std::chrono::seconds(600));
 
   auto done = shutdown_manager->Start({});
-  uut->Start([](StatusOr<google::pubsub::v1::StreamingPullResponse> const&) {});
-
-  batch_callback(GenerateMessages("0-", 3));
+  uut->Start(mock_batch_callback);
+  batch_callback->callback(
+      BatchCallback::StreamingPullResponse{GenerateMessages("0-", 3)});
   ASSERT_EQ(1U, fake_cq->size());
 
   // Ack one of the messages and then fire the timer. The expectations set above
@@ -120,10 +126,14 @@ TEST(SubscriptionLeaseManagementTest, NormalLifecycle) {
 
 TEST(SubscriptionLeaseManagementTest, ShutdownOnError) {
   auto mock = std::make_shared<pubsub_testing::MockSubscriptionBatchSource>();
-  BatchCallback batch_callback;
-  EXPECT_CALL(*mock, Start).WillOnce([&](BatchCallback cb) {
+  std::shared_ptr<BatchCallback> batch_callback;
+  EXPECT_CALL(*mock, Start).WillOnce([&](std::shared_ptr<BatchCallback> cb) {
     batch_callback = std::move(cb);
   });
+
+  auto mock_batch_callback =
+      std::make_shared<pubsub_testing::MockBatchCallback>();
+  EXPECT_CALL(*mock_batch_callback, callback).Times(2);
 
   auto fake_cq = std::make_shared<FakeCompletionQueueImpl>();
   CompletionQueue cq(fake_cq);
@@ -134,12 +144,14 @@ TEST(SubscriptionLeaseManagementTest, ShutdownOnError) {
                                                  std::chrono::seconds(600));
 
   auto done = shutdown_manager->Start({});
-  uut->Start([](StatusOr<google::pubsub::v1::StreamingPullResponse> const&) {});
-  batch_callback(GenerateMessages("0-", 3));
+  uut->Start(mock_batch_callback);
+  batch_callback->callback(
+      BatchCallback::StreamingPullResponse{GenerateMessages("0-", 3)});
   EXPECT_EQ(1U, fake_cq->size());
 
-  batch_callback(StatusOr<google::pubsub::v1::StreamingPullResponse>(
-      Status(StatusCode::kPermissionDenied, "uh-oh")));
+  batch_callback->callback(BatchCallback::StreamingPullResponse{
+      StatusOr<google::pubsub::v1::StreamingPullResponse>(
+          Status(StatusCode::kPermissionDenied, "uh-oh"))});
   ASSERT_EQ(1U, fake_cq->size());
 
   fake_cq->SimulateCompletion(false);
@@ -162,10 +174,14 @@ TEST(SubscriptionLeaseManagementTest, DoesNotPropagateExtendLeases) {
 
 TEST(SubscriptionLeaseManagementTest, UsesDeadlineExtension) {
   auto mock = std::make_shared<pubsub_testing::MockSubscriptionBatchSource>();
-  BatchCallback batch_callback;
-  EXPECT_CALL(*mock, Start).WillOnce([&](BatchCallback cb) {
+  std::shared_ptr<BatchCallback> batch_callback;
+  EXPECT_CALL(*mock, Start).WillOnce([&](std::shared_ptr<BatchCallback> cb) {
     batch_callback = std::move(cb);
   });
+
+  auto mock_batch_callback =
+      std::make_shared<pubsub_testing::MockBatchCallback>();
+  EXPECT_CALL(*mock_batch_callback, callback).Times(1);
 
   auto constexpr kTestDeadline = std::chrono::seconds(345);
   auto constexpr kTestExtension = std::chrono::seconds(100);
@@ -196,9 +212,9 @@ TEST(SubscriptionLeaseManagementTest, UsesDeadlineExtension) {
                                                  kTestDeadline, kTestExtension);
 
   auto done = shutdown_manager->Start({});
-  uut->Start([](StatusOr<google::pubsub::v1::StreamingPullResponse> const&) {});
-
-  batch_callback(GenerateMessages("0-", 1));
+  uut->Start(mock_batch_callback);
+  batch_callback->callback(
+      BatchCallback::StreamingPullResponse{GenerateMessages("0-", 1)});
   ASSERT_EQ(1U, fake_cq->size());
 
   // Ignore message and then fire the timer. This will extend the deadline.
@@ -207,6 +223,58 @@ TEST(SubscriptionLeaseManagementTest, UsesDeadlineExtension) {
 
   shutdown_manager->MarkAsShutdown(__func__, Status{});
   uut->Shutdown();
+  fake_cq->SimulateCompletion(false);
+  ASSERT_EQ(0U, fake_cq->size());
+  EXPECT_THAT(done.get(), IsOk());
+}
+
+TEST(SubscriptionLeaseManagementTest, ExpiredMessage) {
+  auto mock = std::make_shared<pubsub_testing::MockSubscriptionBatchSource>();
+  std::shared_ptr<BatchCallback> batch_callback;
+  EXPECT_CALL(*mock, Start).WillOnce([&](std::shared_ptr<BatchCallback> cb) {
+    batch_callback = std::move(cb);
+  });
+
+  auto mock_batch_callback =
+      std::make_shared<pubsub_testing::MockBatchCallback>();
+  EXPECT_CALL(*mock_batch_callback, callback).Times(1);
+  EXPECT_CALL(*mock_batch_callback, ExpireMessage).Times(2);
+
+  auto constexpr kTestDeadline = std::chrono::seconds(1);
+  {
+    ::testing::InSequence sequence;
+    // We expect this message to be acked.
+    EXPECT_CALL(*mock, AckMessage("ack-0-1")).WillOnce(SimpleAckNack);
+    // Then all unhandled messages are nacked on shutdown.
+    EXPECT_CALL(*mock, BulkNack(UnorderedElementsAre("ack-0-2", "ack-0-0")))
+        .WillOnce([](std::vector<std::string> const&) {
+          return make_ready_future(Status{});
+        });
+    EXPECT_CALL(*mock, Shutdown).Times(1);
+  }
+
+  auto fake_cq = std::make_shared<FakeCompletionQueueImpl>();
+  CompletionQueue cq(fake_cq);
+
+  auto shutdown_manager = std::make_shared<SessionShutdownManager>();
+  auto uut = SubscriptionLeaseManagement::Create(
+      cq, shutdown_manager, mock, kTestDeadline, std::chrono::seconds(600));
+
+  auto done = shutdown_manager->Start({});
+  uut->Start(mock_batch_callback);
+  batch_callback->callback(
+      BatchCallback::StreamingPullResponse{GenerateMessages("0-", 3)});
+  ASSERT_EQ(1U, fake_cq->size());
+
+  // Ack one of the messages and then fire the timer. The expectations set above
+  // will verify that only the remaining messages have their lease extended.
+  uut->AckMessage("ack-0-1");
+  fake_cq->SimulateCompletion(true);
+  ASSERT_EQ(1U, fake_cq->size());
+
+  shutdown_manager->MarkAsShutdown(__func__, Status{});
+  uut->Shutdown();
+
   fake_cq->SimulateCompletion(false);
   ASSERT_EQ(0U, fake_cq->size());
   EXPECT_THAT(done.get(), IsOk());

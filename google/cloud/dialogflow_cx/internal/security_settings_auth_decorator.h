@@ -40,32 +40,52 @@ class SecuritySettingsServiceAuth : public SecuritySettingsServiceStub {
 
   StatusOr<google::cloud::dialogflow::cx::v3::SecuritySettings>
   CreateSecuritySettings(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::CreateSecuritySettingsRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::SecuritySettings>
   GetSecuritySettings(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetSecuritySettingsRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::SecuritySettings>
   UpdateSecuritySettings(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::UpdateSecuritySettingsRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::ListSecuritySettingsResponse>
   ListSecuritySettings(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::ListSecuritySettingsRequest const&
           request) override;
 
   Status DeleteSecuritySettings(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::DeleteSecuritySettingsRequest const&
           request) override;
+
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
 
  private:
   std::shared_ptr<google::cloud::internal::GrpcAuthenticationStrategy> auth_;

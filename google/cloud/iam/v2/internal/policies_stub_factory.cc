@@ -21,13 +21,17 @@
 #include "google/cloud/iam/v2/internal/policies_logging_decorator.h"
 #include "google/cloud/iam/v2/internal/policies_metadata_decorator.h"
 #include "google/cloud/iam/v2/internal/policies_stub.h"
+#include "google/cloud/iam/v2/internal/policies_tracing_stub.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/algorithm.h"
+#include "google/cloud/internal/opentelemetry.h"
 #include "google/cloud/log.h"
 #include "google/cloud/options.h"
 #include <google/iam/v2/policy.grpc.pb.h>
+#include <google/longrunning/operations.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -35,9 +39,8 @@ namespace iam_v2_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 std::shared_ptr<PoliciesStub> CreateDefaultPoliciesStub(
-    google::cloud::CompletionQueue cq, Options const& options) {
-  auto auth = google::cloud::internal::CreateAuthenticationStrategy(
-      std::move(cq), options);
+    std::shared_ptr<internal::GrpcAuthenticationStrategy> auth,
+    Options const& options) {
   auto channel = auth->CreateChannel(options.get<EndpointOption>(),
                                      internal::MakeChannelArguments(options));
   auto service_grpc_stub = google::iam::v2::Policies::NewStub(channel);
@@ -48,12 +51,16 @@ std::shared_ptr<PoliciesStub> CreateDefaultPoliciesStub(
   if (auth->RequiresConfigureContext()) {
     stub = std::make_shared<PoliciesAuth>(std::move(auth), std::move(stub));
   }
-  stub = std::make_shared<PoliciesMetadata>(std::move(stub));
-  if (internal::Contains(options.get<TracingComponentsOption>(), "rpc")) {
+  stub = std::make_shared<PoliciesMetadata>(
+      std::move(stub), std::multimap<std::string, std::string>{});
+  if (internal::Contains(options.get<LoggingComponentsOption>(), "rpc")) {
     GCP_LOG(INFO) << "Enabled logging for gRPC calls";
     stub = std::make_shared<PoliciesLogging>(
         std::move(stub), options.get<GrpcTracingOptionsOption>(),
-        options.get<TracingComponentsOption>());
+        options.get<LoggingComponentsOption>());
+  }
+  if (internal::TracingEnabled(options)) {
+    stub = MakePoliciesTracingStub(std::move(stub));
   }
   return stub;
 }

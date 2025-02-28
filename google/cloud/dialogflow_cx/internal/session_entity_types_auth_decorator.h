@@ -40,32 +40,52 @@ class SessionEntityTypesAuth : public SessionEntityTypesStub {
 
   StatusOr<google::cloud::dialogflow::cx::v3::ListSessionEntityTypesResponse>
   ListSessionEntityTypes(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::ListSessionEntityTypesRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::SessionEntityType>
   GetSessionEntityType(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetSessionEntityTypeRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::SessionEntityType>
   CreateSessionEntityType(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::CreateSessionEntityTypeRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::SessionEntityType>
   UpdateSessionEntityType(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::UpdateSessionEntityTypeRequest const&
           request) override;
 
   Status DeleteSessionEntityType(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::DeleteSessionEntityTypeRequest const&
           request) override;
+
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
 
  private:
   std::shared_ptr<google::cloud::internal::GrpcAuthenticationStrategy> auth_;

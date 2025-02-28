@@ -36,23 +36,59 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * of this class. Then use the Google Test framework functions to program the
  * behavior of this mock.
  *
- * @see [This example][bq-mock] for how to test your application with
- * GoogleTest. While the example showcases types from the BigQuery library, the
- * underlying principles apply for any pair of `*Client` and `*Connection`.
+ * @see [This example][bq-mock] for how to test your application with GoogleTest.
+ * While the example showcases types from the BigQuery library, the underlying
+ * principles apply for any pair of `*Client` and `*Connection`.
  *
- * [bq-mock]: @googleapis_dev_link{bigquery,bigquery-read-mock.html}
+ * [bq-mock]: @cloud_cpp_docs_link{bigquery,bigquery-read-mock}
  */
 class MockConversationDatasetsConnection
     : public dialogflow_es::ConversationDatasetsConnection {
  public:
   MOCK_METHOD(Options, options, (), (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// CreateConversationDataset(Matcher<google::cloud::dialogflow::v2::CreateConversationDatasetRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<StatusOr<google::cloud::dialogflow::v2::ConversationDataset>>,
       CreateConversationDataset,
       (google::cloud::dialogflow::v2::CreateConversationDatasetRequest const&
            request),
       (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, CreateConversationDataset(_, _))
+  /// @endcode
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, CreateConversationDataset,
+      (NoAwaitTag,
+       google::cloud::dialogflow::v2::CreateConversationDatasetRequest const&
+           request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// CreateConversationDataset(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(
+      future<StatusOr<google::cloud::dialogflow::v2::ConversationDataset>>,
+      CreateConversationDataset,
+      (google::longrunning::Operation const& operation), (override));
 
   MOCK_METHOD(
       StatusOr<google::cloud::dialogflow::v2::ConversationDataset>,
@@ -62,11 +98,20 @@ class MockConversationDatasetsConnection
       (override));
 
   MOCK_METHOD(
-      StreamRange<google::cloud::dialogflow::v2::ConversationDataset>,
+      (StreamRange<google::cloud::dialogflow::v2::ConversationDataset>),
       ListConversationDatasets,
       (google::cloud::dialogflow::v2::ListConversationDatasetsRequest request),
       (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// DeleteConversationDataset(Matcher<google::cloud::dialogflow::v2::DeleteConversationDatasetRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<StatusOr<google::cloud::dialogflow::v2::
                           DeleteConversationDatasetOperationMetadata>>,
@@ -75,6 +120,42 @@ class MockConversationDatasetsConnection
            request),
       (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, DeleteConversationDataset(_, _))
+  /// @endcode
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, DeleteConversationDataset,
+      (NoAwaitTag,
+       google::cloud::dialogflow::v2::DeleteConversationDatasetRequest const&
+           request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// DeleteConversationDataset(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(future<StatusOr<google::cloud::dialogflow::v2::
+                                  DeleteConversationDatasetOperationMetadata>>,
+              DeleteConversationDataset,
+              (google::longrunning::Operation const& operation), (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// ImportConversationData(Matcher<google::cloud::dialogflow::v2::ImportConversationDataRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<StatusOr<google::cloud::dialogflow::v2::
                           ImportConversationDataOperationResponse>>,
@@ -82,6 +163,51 @@ class MockConversationDatasetsConnection
       (google::cloud::dialogflow::v2::ImportConversationDataRequest const&
            request),
       (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, ImportConversationData(_, _))
+  /// @endcode
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, ImportConversationData,
+      (NoAwaitTag,
+       google::cloud::dialogflow::v2::ImportConversationDataRequest const&
+           request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// ImportConversationData(Matcher<google::longrunning::Operation const&>(_)))
+  /// @endcode
+  MOCK_METHOD(future<StatusOr<google::cloud::dialogflow::v2::
+                                  ImportConversationDataOperationResponse>>,
+              ImportConversationData,
+              (google::longrunning::Operation const& operation), (override));
+
+  MOCK_METHOD((StreamRange<google::cloud::location::Location>), ListLocations,
+              (google::cloud::location::ListLocationsRequest request),
+              (override));
+
+  MOCK_METHOD(StatusOr<google::cloud::location::Location>, GetLocation,
+              (google::cloud::location::GetLocationRequest const& request),
+              (override));
+
+  MOCK_METHOD((StreamRange<google::longrunning::Operation>), ListOperations,
+              (google::longrunning::ListOperationsRequest request), (override));
+
+  MOCK_METHOD(StatusOr<google::longrunning::Operation>, GetOperation,
+              (google::longrunning::GetOperationRequest const& request),
+              (override));
+
+  MOCK_METHOD(Status, CancelOperation,
+              (google::longrunning::CancelOperationRequest const& request),
+              (override));
 };
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

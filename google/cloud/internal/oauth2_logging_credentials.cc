@@ -31,7 +31,7 @@ LoggingCredentials::LoggingCredentials(std::string phase,
 
 LoggingCredentials::~LoggingCredentials() = default;
 
-StatusOr<internal::AccessToken> LoggingCredentials::GetToken(
+StatusOr<AccessToken> LoggingCredentials::GetToken(
     std::chrono::system_clock::time_point now) {
   auto token = impl_->GetToken(now);
   if (!token) {
@@ -72,6 +72,28 @@ std::string LoggingCredentials::AccountEmail() const {
 std::string LoggingCredentials::KeyId() const {
   GCP_LOG(DEBUG) << __func__ << "(" << phase_ << ")";
   return impl_->KeyId();
+}
+
+StatusOr<std::string> LoggingCredentials::universe_domain() const {
+  GCP_LOG(DEBUG) << __func__ << "(" << phase_ << ")";
+  return impl_->universe_domain();
+}
+
+StatusOr<std::string> LoggingCredentials::universe_domain(
+    Options const& options) const {
+  GCP_LOG(DEBUG) << __func__ << "(" << phase_ << ")";
+  return impl_->universe_domain(options);
+}
+
+StatusOr<std::string> LoggingCredentials::project_id() const {
+  GCP_LOG(DEBUG) << __func__ << "(" << phase_ << ")";
+  return impl_->project_id();
+}
+
+StatusOr<std::string> LoggingCredentials::project_id(
+    Options const& options) const {
+  GCP_LOG(DEBUG) << __func__ << "(" << phase_ << ")";
+  return impl_->project_id(options);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

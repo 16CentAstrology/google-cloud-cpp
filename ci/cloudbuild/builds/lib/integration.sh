@@ -23,18 +23,19 @@ if ((CI_CLOUDBUILD_BUILDS_LIB_INTEGRATION_SH__++ != 0)); then
 fi # include guard
 
 source module ci/etc/integration-tests-config.sh
-source module ci/lib/io.sh
+source module ci/cloudbuild/builds/lib/ctest.sh
 source module ci/cloudbuild/builds/lib/git.sh
+source module ci/lib/io.sh
 
 # To run the integration tests we need to install the dependencies for the storage emulator
 export PATH="${HOME}/.local/bin:${PATH}"
 python3 -m pip uninstall -y --quiet googleapis-storage-testbench
 python3 -m pip install --upgrade --user --quiet --disable-pip-version-check \
-  "git+https://github.com/googleapis/storage-testbench@v0.31.0"
+  "git+https://github.com/googleapis/storage-testbench@v0.52.0"
 
 # Some of the tests will need a valid roots.pem file.
 rm -f /dev/shm/roots.pem
-ci/retry-command.sh 3 120 curl -sSL -o /dev/shm/roots.pem https://pki.google.com/roots.pem
+ci/retry-command.sh 3 120 curl -fsSL -o /dev/shm/roots.pem https://pki.google.com/roots.pem
 
 # Outputs a list of Bazel arguments that should be used when running
 # integration tests. These do not include the common `bazel::common_args`.
@@ -48,11 +49,17 @@ ci/retry-command.sh 3 120 curl -sSL -o /dev/shm/roots.pem https://pki.google.com
 function integration::bazel_args() {
   declare -a args
 
+  # Integration tests are inherently flaky. Make up to three attempts to get the
+  # test passing.
+  args+=(--flaky_test_attempts=3)
+
   args+=(
     # Common settings
     "--test_env=GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}"
     "--test_env=GOOGLE_CLOUD_CPP_TEST_REGION=${GOOGLE_CLOUD_CPP_TEST_REGION}"
+    "--test_env=GOOGLE_CLOUD_CPP_NON_US_TEST_REGION=${GOOGLE_CLOUD_CPP_NON_US_TEST_REGION}"
     "--test_env=GOOGLE_CLOUD_CPP_TEST_ZONE=${GOOGLE_CLOUD_CPP_TEST_ZONE}"
+    "--test_env=GOOGLE_CLOUD_CPP_TEST_ORGANIZATION=${GOOGLE_CLOUD_CPP_TEST_ORGANIZATION}"
     "--test_env=GOOGLE_CLOUD_CPP_TEST_SERVICE_ACCOUNT_KEYFILE=${GOOGLE_CLOUD_CPP_TEST_SERVICE_ACCOUNT_KEYFILE}"
     "--test_env=GOOGLE_CLOUD_CPP_AUTO_RUN_EXAMPLES=${GOOGLE_CLOUD_CPP_AUTO_RUN_EXAMPLES}"
     "--test_env=GOOGLE_CLOUD_CPP_EXPERIMENTAL_LOG_CONFIG=${GOOGLE_CLOUD_CPP_EXPERIMENTAL_LOG_CONFIG}"
@@ -80,8 +87,8 @@ function integration::bazel_args() {
     "--test_env=GOOGLE_CLOUD_CPP_REST_TEST_SIGNING_SERVICE_ACCOUNT=${GOOGLE_CLOUD_CPP_REST_TEST_SIGNING_SERVICE_ACCOUNT}"
 
     # Storage
-    "--test_env=GOOGLE_CLOUD_CPP_STORAGE_GRPC_CONFIG=${GOOGLE_CLOUD_CPP_STORAGE_GRPC_CONFIG:-}"
     "--test_env=GOOGLE_CLOUD_CPP_STORAGE_TEST_BUCKET_NAME=${GOOGLE_CLOUD_CPP_STORAGE_TEST_BUCKET_NAME}"
+    "--test_env=GOOGLE_CLOUD_CPP_STORAGE_TEST_FOLDER_BUCKET_NAME=${GOOGLE_CLOUD_CPP_STORAGE_TEST_FOLDER_BUCKET_NAME}"
     "--test_env=GOOGLE_CLOUD_CPP_STORAGE_TEST_DESTINATION_BUCKET_NAME=${GOOGLE_CLOUD_CPP_STORAGE_TEST_DESTINATION_BUCKET_NAME}"
     "--test_env=GOOGLE_CLOUD_CPP_STORAGE_TEST_REGION_ID=${GOOGLE_CLOUD_CPP_STORAGE_TEST_REGION_ID}"
     "--test_env=GOOGLE_CLOUD_CPP_STORAGE_TEST_TOPIC_NAME=${GOOGLE_CLOUD_CPP_STORAGE_TEST_TOPIC_NAME}"
@@ -103,6 +110,9 @@ function integration::bazel_args() {
     "--test_env=GOOGLE_CLOUD_CPP_SPANNER_TEST_SERVICE_ACCOUNT=${GOOGLE_CLOUD_CPP_SPANNER_TEST_SERVICE_ACCOUNT}"
     "--test_env=GOOGLE_CLOUD_CPP_SPANNER_DEFAULT_ENDPOINT=${GOOGLE_CLOUD_CPP_SPANNER_DEFAULT_ENDPOINT:-}"
     "--test_env=GOOGLE_CLOUD_CPP_SPANNER_DEFAULT_AUTHORITY=${GOOGLE_CLOUD_CPP_SPANNER_DEFAULT_AUTHORITY:-}"
+
+    # Cloud Batch
+    "--test_env=GOOGLE_CLOUD_CPP_BATCH_TEST_TEMPLATE_NAME=${GOOGLE_CLOUD_CPP_BATCH_TEST_TEMPLATE_NAME:-}"
   )
 
   # Adds environment variables that need to reference a specific service
@@ -112,14 +122,16 @@ function integration::bazel_args() {
   key_base="key-$(date +"%Y-%m")"
   readonly KEY_DIR="/dev/shm"
   readonly SECRETS_BUCKET="gs://cloud-cpp-testing-resources-secrets"
-  gsutil cp "${SECRETS_BUCKET}/${key_base}.json" "${KEY_DIR}/${key_base}.json"
-  gsutil cp "${SECRETS_BUCKET}/${key_base}.p12" "${KEY_DIR}/${key_base}.p12"
-  args+=(
-    "--test_env=GOOGLE_CLOUD_CPP_REST_TEST_KEY_FILE_JSON=${KEY_DIR}/${key_base}.json"
-    "--test_env=GOOGLE_CLOUD_CPP_BIGTABLE_TEST_KEY_FILE_JSON=${KEY_DIR}/${key_base}.json"
-    "--test_env=GOOGLE_CLOUD_CPP_STORAGE_TEST_KEY_FILE_JSON=${KEY_DIR}/${key_base}.json"
-    "--test_env=GOOGLE_CLOUD_CPP_STORAGE_TEST_KEY_FILE_P12=${KEY_DIR}/${key_base}.p12"
-  )
+  gcloud storage cp --quiet "${SECRETS_BUCKET}/${key_base}.json" "${KEY_DIR}/${key_base}.json" >/dev/null 2>&1 || true
+  gcloud storage cp --quiet "${SECRETS_BUCKET}/${key_base}.p12" "${KEY_DIR}/${key_base}.p12" >/dev/null 2>&1 || true
+  if [[ -r "${KEY_DIR}/${key_base}.json" ]] && [[ -r "${KEY_DIR}/${key_base}.p12" ]]; then
+    args+=(
+      "--test_env=GOOGLE_CLOUD_CPP_REST_TEST_KEY_FILE_JSON=${KEY_DIR}/${key_base}.json"
+      "--test_env=GOOGLE_CLOUD_CPP_BIGTABLE_TEST_KEY_FILE_JSON=${KEY_DIR}/${key_base}.json"
+      "--test_env=GOOGLE_CLOUD_CPP_STORAGE_TEST_KEY_FILE_JSON=${KEY_DIR}/${key_base}.json"
+      "--test_env=GOOGLE_CLOUD_CPP_STORAGE_TEST_KEY_FILE_P12=${KEY_DIR}/${key_base}.p12"
+    )
+  fi
   printf "%s\n" "${args[@]}"
 }
 
@@ -152,44 +164,54 @@ function integration::bazel_with_emulators() {
     "generator/..."
     # BigQuery integration tests
     "google/cloud/bigquery/..."
+    # Compute integration tests
+    "google/cloud/compute/..."
     # IAM and IAM Credentials integration tests
     "google/cloud/iam/..."
     # Logging integration tests
     "google/cloud/logging/..."
     # Pub/Sub Lite integration tests
     "google/cloud/pubsublite/..."
+    # Cloud Sql Admin integration tests
+    "google/cloud/sql/integration_tests/..."
     # Unified Rest Credentials test
     "google/cloud:internal_unified_rest_credentials_integration_test"
   )
 
-  tag_filters="integration-test"
+  production_tests_tag_filters="integration-test,-ud-only"
   if echo "${args[@]}" | grep -w -q -- "--config=msan"; then
-    tag_filters="integration-test,-no-msan"
+    production_tests_tag_filters="integration-test,-no-msan,-ud-only"
   fi
-
-  io::log_h2 "Running integration tests that require production access"
-  bazel "${verb}" "${args[@]}" --test_tag_filters="${tag_filters}" \
-    "${production_integration_tests[@]}"
 
   io::log_h2 "Running Pub/Sub integration tests (with emulator)"
   "google/cloud/pubsub/ci/${EMULATOR_SCRIPT}" \
-    bazel "${verb}" "${args[@]}"
+    bazel "${verb}" "${args[@]}" --test_tag_filters="integration-test,-ud-only"
 
   io::log_h2 "Running Storage integration tests (with emulator)"
   "google/cloud/storage/ci/${EMULATOR_SCRIPT}" \
-    bazel "${verb}" "${args[@]}"
+    bazel "${verb}" "${args[@]}" --test_tag_filters="integration-test,-ud-only"
 
   io::log_h2 "Running Spanner integration tests (with emulator)"
   "google/cloud/spanner/ci/${EMULATOR_SCRIPT}" \
-    bazel "${verb}" "${args[@]}"
+    bazel "${verb}" "${args[@]}" --test_tag_filters="integration-test,-ud-only"
 
   io::log_h2 "Running Bigtable integration tests (with emulator)"
   "google/cloud/bigtable/ci/${EMULATOR_SCRIPT}" \
-    bazel "${verb}" "${args[@]}"
+    bazel "${verb}" "${args[@]}" --test_tag_filters="integration-test,-ud-only"
 
   io::log_h2 "Running REST integration tests (with emulator)"
   "google/cloud/internal/ci/${EMULATOR_SCRIPT}" \
-    bazel "${verb}" "${args[@]}"
+    bazel "${verb}" "${args[@]}" --test_tag_filters="integration-test,-ud-only"
+
+  if [[ "${BAZEL_TARGETS[*]}" != "..." ]]; then
+    io::log_h2 "Skipping some integration tests because BAZEL_TARGETS is not the default"
+    return 0
+  fi
+
+  io::log_h2 "Running integration tests that require production access"
+  bazel "${verb}" "${args[@]}" \
+    --test_tag_filters="${production_tests_tag_filters}" \
+    "${production_integration_tests[@]}"
 
   # This test is run separately because the access token changes every time and
   # that would mess up bazel's test cache for all the other tests.
@@ -228,8 +250,8 @@ function integration::bazel_with_emulators() {
     bazel_output_base="$(bazel info output_base)"
     bazel run --action_env=GOOGLE_CLOUD_CPP_ENABLE_CLOG=yes \
       //generator:google-cloud-cpp-codegen -- \
-      --protobuf_proto_path="${bazel_output_base}/external/com_google_protobuf/src" \
-      --googleapis_proto_path="${bazel_output_base}/external/com_google_googleapis" \
+      --protobuf_proto_path="${bazel_output_base}/external/protobuf~/src" \
+      --googleapis_proto_path="${bazel_output_base}/external/googleapis~" \
       --golden_proto_path="${PWD}" \
       --output_path="${PWD}" \
       --update_ci=false \
@@ -262,6 +284,9 @@ function integration::ctest_with_emulators() {
 
   local cmake_out="$1"
   mapfile -t ctest_args < <(ctest::common_args)
+  # Integration tests are inherently flaky. Make up to three attempts to get the
+  # test passing.
+  ctest_args+=(--repeat until-pass:3)
 
   io::log_h2 "Running Pub/Sub integration tests (with emulator)"
   "google/cloud/pubsub/ci/${EMULATOR_SCRIPT}" \

@@ -89,7 +89,7 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 template <DecimalMode>
 class Decimal {
  public:
-  /// Integer and fractional precision of a `Decimal` value of the mode.
+  /// @name Integer and fractional precision of a `Decimal` value of the mode.
   ///@{
   static std::size_t const kIntPrecision;
   static std::size_t const kFracPrecision;
@@ -98,9 +98,10 @@ class Decimal {
   /// Whether `DecimalMode` supports NaN values.
   static bool const kHasNaN;
 
-  /// @deprecated These backwards-compatibility constants only apply to
-  /// kGoogleSQL mode, and are no longer used in the implementation.
   ///@{
+  /// @name Backwards-compatibility constants.
+  /// @deprecated Only apply to kGoogleSQL mode, and are no longer used in the
+  /// implementation.
   static constexpr std::size_t kIntPrec = 29;
   static constexpr std::size_t kFracPrec = 9;
   ///@}
@@ -108,7 +109,7 @@ class Decimal {
   /// A zero value.
   Decimal() : rep_("0") {}
 
-  /// Regular value type, supporting copy, assign, move.
+  /// @name Regular value type, supporting copy, assign, move.
   ///@{
   Decimal(Decimal&&) noexcept = default;
   Decimal& operator=(Decimal&&) noexcept = default;
@@ -132,7 +133,7 @@ class Decimal {
   std::string&& ToString() && { return std::move(rep_); }
   ///@}
 
-  /// Relational operators
+  /// @name Relational operators
   ///@{
   friend bool operator==(Decimal const& a, Decimal const& b) {
     // Decimal-value equality, which only depends on the canonical
@@ -254,9 +255,11 @@ StatusOr<Decimal<Mode>> MakeDecimal(double d) {
  *
  * Fails on any (scaled) argument outside the NUMERIC value range.
  */
-template <
-    typename T, DecimalMode Mode,
-    typename std::enable_if<std::numeric_limits<T>::is_integer, int>::type = 0>
+template <typename T, DecimalMode Mode,
+          /// @cond implementation_details
+          std::enable_if_t<std::numeric_limits<T>::is_integer, int> = 0
+          /// @endcond
+          >
 StatusOr<Decimal<Mode>> MakeDecimal(T i, int exponent = 0) {
   return spanner_internal::MakeDecimal<Mode>(spanner_internal::ToString(i),
                                              exponent);
@@ -292,9 +295,12 @@ double ToDouble(Decimal<Mode> const& d) {
  */
 ///@{
 template <typename T, DecimalMode Mode,
-          typename std::enable_if<std::numeric_limits<T>::is_integer &&
-                                      !std::numeric_limits<T>::is_signed,
-                                  int>::type = 0>
+          /// @cond implementation_details
+          std::enable_if_t<std::numeric_limits<T>::is_integer &&
+                               !std::numeric_limits<T>::is_signed,
+                           int> = 0
+          /// @endcond
+          >
 StatusOr<T> ToInteger(  // NOLINT(misc-no-recursion)
     Decimal<Mode> const& d, int exponent = 0) {
   std::string const& rep = d.ToString();
@@ -329,9 +335,12 @@ StatusOr<T> ToInteger(  // NOLINT(misc-no-recursion)
   return v;
 }
 template <typename T, DecimalMode Mode,
-          typename std::enable_if<std::numeric_limits<T>::is_integer &&
-                                      std::numeric_limits<T>::is_signed,
-                                  int>::type = 0>
+          /// @cond implementation_details
+          std::enable_if_t<std::numeric_limits<T>::is_integer &&
+                               std::numeric_limits<T>::is_signed,
+                           int> = 0
+          /// @endcond
+          >
 StatusOr<T> ToInteger(  // NOLINT(misc-no-recursion)
     Decimal<Mode> const& d, int exponent = 0) {
   std::string const& rep = d.ToString();
@@ -399,8 +408,11 @@ inline StatusOr<Numeric> MakeNumeric(std::string s) {
 inline StatusOr<Numeric> MakeNumeric(double d) {
   return MakeDecimal<DecimalMode::kGoogleSQL>(d);
 }
-template <typename T, typename std::enable_if<
-                          std::numeric_limits<T>::is_integer, int>::type = 0>
+template <typename T,
+          /// @cond implementation_details
+          std::enable_if_t<std::numeric_limits<T>::is_integer, int> = 0
+          /// @endcond
+          >
 StatusOr<Numeric> MakeNumeric(T i, int exponent = 0) {
   return MakeDecimal<T, DecimalMode::kGoogleSQL>(i, exponent);
 }
@@ -416,8 +428,11 @@ inline StatusOr<PgNumeric> MakePgNumeric(std::string s) {
 inline StatusOr<PgNumeric> MakePgNumeric(double d) {
   return MakeDecimal<DecimalMode::kPostgreSQL>(d);
 }
-template <typename T, typename std::enable_if<
-                          std::numeric_limits<T>::is_integer, int>::type = 0>
+template <typename T,
+          /// @cond implementation_details
+          std::enable_if_t<std::numeric_limits<T>::is_integer, int> = 0
+          /// @endcond
+          >
 StatusOr<PgNumeric> MakePgNumeric(T i, int exponent = 0) {
   return MakeDecimal<T, DecimalMode::kPostgreSQL>(i, exponent);
 }

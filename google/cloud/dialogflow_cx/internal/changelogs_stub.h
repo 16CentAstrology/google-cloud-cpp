@@ -19,10 +19,14 @@
 #ifndef GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_DIALOGFLOW_CX_INTERNAL_CHANGELOGS_STUB_H
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_DIALOGFLOW_CX_INTERNAL_CHANGELOGS_STUB_H
 
+#include "google/cloud/options.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/version.h"
 #include <google/cloud/dialogflow/cx/v3/changelog.grpc.pb.h>
+#include <google/cloud/location/locations.grpc.pb.h>
+#include <google/longrunning/operations.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -34,14 +38,35 @@ class ChangelogsStub {
   virtual ~ChangelogsStub() = 0;
 
   virtual StatusOr<google::cloud::dialogflow::cx::v3::ListChangelogsResponse>
-  ListChangelogs(grpc::ClientContext& context,
+  ListChangelogs(grpc::ClientContext& context, Options const& options,
                  google::cloud::dialogflow::cx::v3::ListChangelogsRequest const&
                      request) = 0;
 
   virtual StatusOr<google::cloud::dialogflow::cx::v3::Changelog> GetChangelog(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetChangelogRequest const&
           request) = 0;
+
+  virtual StatusOr<google::cloud::location::ListLocationsResponse>
+  ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) = 0;
+
+  virtual StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) = 0;
+
+  virtual StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) = 0;
+
+  virtual StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) = 0;
+
+  virtual Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) = 0;
 };
 
 class DefaultChangelogsStub : public ChangelogsStub {
@@ -49,22 +74,52 @@ class DefaultChangelogsStub : public ChangelogsStub {
   explicit DefaultChangelogsStub(
       std::unique_ptr<
           google::cloud::dialogflow::cx::v3::Changelogs::StubInterface>
-          grpc_stub)
-      : grpc_stub_(std::move(grpc_stub)) {}
+          grpc_stub,
+      std::unique_ptr<google::longrunning::Operations::StubInterface>
+          operations_stub,
+      std::unique_ptr<google::cloud::location::Locations::StubInterface>
+          locations_stub)
+      : grpc_stub_(std::move(grpc_stub)),
+        operations_stub_(std::move(operations_stub)),
+        locations_stub_(std::move(locations_stub)) {}
 
   StatusOr<google::cloud::dialogflow::cx::v3::ListChangelogsResponse>
-  ListChangelogs(grpc::ClientContext& client_context,
+  ListChangelogs(grpc::ClientContext& context, Options const& options,
                  google::cloud::dialogflow::cx::v3::ListChangelogsRequest const&
                      request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Changelog> GetChangelog(
-      grpc::ClientContext& client_context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetChangelogRequest const& request)
       override;
+
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
 
  private:
   std::unique_ptr<google::cloud::dialogflow::cx::v3::Changelogs::StubInterface>
       grpc_stub_;
+  std::unique_ptr<google::longrunning::Operations::StubInterface>
+      operations_stub_;
+  std::unique_ptr<google::cloud::location::Locations::StubInterface>
+      locations_stub_;
 };
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

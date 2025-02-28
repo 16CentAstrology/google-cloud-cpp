@@ -24,11 +24,30 @@
 #include "google/cloud/internal/pagination_range.h"
 #include "google/cloud/internal/retry_loop.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
 namespace dialogflow_cx_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
+namespace {
+
+std::unique_ptr<dialogflow_cx::PagesRetryPolicy> retry_policy(
+    Options const& options) {
+  return options.get<dialogflow_cx::PagesRetryPolicyOption>()->clone();
+}
+
+std::unique_ptr<BackoffPolicy> backoff_policy(Options const& options) {
+  return options.get<dialogflow_cx::PagesBackoffPolicyOption>()->clone();
+}
+
+std::unique_ptr<dialogflow_cx::PagesConnectionIdempotencyPolicy>
+idempotency_policy(Options const& options) {
+  return options.get<dialogflow_cx::PagesConnectionIdempotencyPolicyOption>()
+      ->clone();
+}
+
+}  // namespace
 
 PagesConnectionImpl::PagesConnectionImpl(
     std::unique_ptr<google::cloud::BackgroundThreads> background,
@@ -42,23 +61,26 @@ StreamRange<google::cloud::dialogflow::cx::v3::Page>
 PagesConnectionImpl::ListPages(
     google::cloud::dialogflow::cx::v3::ListPagesRequest request) {
   request.clear_page_token();
-  auto& stub = stub_;
-  auto retry =
-      std::shared_ptr<dialogflow_cx::PagesRetryPolicy const>(retry_policy());
-  auto backoff = std::shared_ptr<BackoffPolicy const>(backoff_policy());
-  auto idempotency = idempotency_policy()->ListPages(request);
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency = idempotency_policy(*current)->ListPages(request);
   char const* function_name = __func__;
   return google::cloud::internal::MakePaginationRange<
       StreamRange<google::cloud::dialogflow::cx::v3::Page>>(
-      std::move(request),
-      [stub, retry, backoff, idempotency, function_name](
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<dialogflow_cx::PagesRetryPolicy>(
+           retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options,
           google::cloud::dialogflow::cx::v3::ListPagesRequest const& r) {
         return google::cloud::internal::RetryLoop(
             retry->clone(), backoff->clone(), idempotency,
-            [stub](grpc::ClientContext& context,
+            [stub](grpc::ClientContext& context, Options const& options,
                    google::cloud::dialogflow::cx::v3::ListPagesRequest const&
-                       request) { return stub->ListPages(context, request); },
-            r, function_name);
+                       request) {
+              return stub->ListPages(context, options, request);
+            },
+            options, r, function_name);
       },
       [](google::cloud::dialogflow::cx::v3::ListPagesResponse r) {
         std::vector<google::cloud::dialogflow::cx::v3::Page> result(
@@ -71,54 +93,164 @@ PagesConnectionImpl::ListPages(
 
 StatusOr<google::cloud::dialogflow::cx::v3::Page> PagesConnectionImpl::GetPage(
     google::cloud::dialogflow::cx::v3::GetPageRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(), idempotency_policy()->GetPage(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->GetPage(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::dialogflow::cx::v3::GetPageRequest const& request) {
-        return stub_->GetPage(context, request);
+        return stub_->GetPage(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StatusOr<google::cloud::dialogflow::cx::v3::Page>
 PagesConnectionImpl::CreatePage(
     google::cloud::dialogflow::cx::v3::CreatePageRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->CreatePage(request),
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->CreatePage(request),
       [this](
-          grpc::ClientContext& context,
+          grpc::ClientContext& context, Options const& options,
           google::cloud::dialogflow::cx::v3::CreatePageRequest const& request) {
-        return stub_->CreatePage(context, request);
+        return stub_->CreatePage(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StatusOr<google::cloud::dialogflow::cx::v3::Page>
 PagesConnectionImpl::UpdatePage(
     google::cloud::dialogflow::cx::v3::UpdatePageRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->UpdatePage(request),
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->UpdatePage(request),
       [this](
-          grpc::ClientContext& context,
+          grpc::ClientContext& context, Options const& options,
           google::cloud::dialogflow::cx::v3::UpdatePageRequest const& request) {
-        return stub_->UpdatePage(context, request);
+        return stub_->UpdatePage(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 Status PagesConnectionImpl::DeletePage(
     google::cloud::dialogflow::cx::v3::DeletePageRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->DeletePage(request),
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->DeletePage(request),
       [this](
-          grpc::ClientContext& context,
+          grpc::ClientContext& context, Options const& options,
           google::cloud::dialogflow::cx::v3::DeletePageRequest const& request) {
-        return stub_->DeletePage(context, request);
+        return stub_->DeletePage(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
+}
+
+StreamRange<google::cloud::location::Location>
+PagesConnectionImpl::ListLocations(
+    google::cloud::location::ListLocationsRequest request) {
+  request.clear_page_token();
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency = idempotency_policy(*current)->ListLocations(request);
+  char const* function_name = __func__;
+  return google::cloud::internal::MakePaginationRange<
+      StreamRange<google::cloud::location::Location>>(
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<dialogflow_cx::PagesRetryPolicy>(
+           retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options,
+          google::cloud::location::ListLocationsRequest const& r) {
+        return google::cloud::internal::RetryLoop(
+            retry->clone(), backoff->clone(), idempotency,
+            [stub](
+                grpc::ClientContext& context, Options const& options,
+                google::cloud::location::ListLocationsRequest const& request) {
+              return stub->ListLocations(context, options, request);
+            },
+            options, r, function_name);
+      },
+      [](google::cloud::location::ListLocationsResponse r) {
+        std::vector<google::cloud::location::Location> result(
+            r.locations().size());
+        auto& messages = *r.mutable_locations();
+        std::move(messages.begin(), messages.end(), result.begin());
+        return result;
+      });
+}
+
+StatusOr<google::cloud::location::Location> PagesConnectionImpl::GetLocation(
+    google::cloud::location::GetLocationRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->GetLocation(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::cloud::location::GetLocationRequest const& request) {
+        return stub_->GetLocation(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+StreamRange<google::longrunning::Operation> PagesConnectionImpl::ListOperations(
+    google::longrunning::ListOperationsRequest request) {
+  request.clear_page_token();
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency = idempotency_policy(*current)->ListOperations(request);
+  char const* function_name = __func__;
+  return google::cloud::internal::MakePaginationRange<
+      StreamRange<google::longrunning::Operation>>(
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<dialogflow_cx::PagesRetryPolicy>(
+           retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options,
+          google::longrunning::ListOperationsRequest const& r) {
+        return google::cloud::internal::RetryLoop(
+            retry->clone(), backoff->clone(), idempotency,
+            [stub](grpc::ClientContext& context, Options const& options,
+                   google::longrunning::ListOperationsRequest const& request) {
+              return stub->ListOperations(context, options, request);
+            },
+            options, r, function_name);
+      },
+      [](google::longrunning::ListOperationsResponse r) {
+        std::vector<google::longrunning::Operation> result(
+            r.operations().size());
+        auto& messages = *r.mutable_operations();
+        std::move(messages.begin(), messages.end(), result.begin());
+        return result;
+      });
+}
+
+StatusOr<google::longrunning::Operation> PagesConnectionImpl::GetOperation(
+    google::longrunning::GetOperationRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->GetOperation(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::longrunning::GetOperationRequest const& request) {
+        return stub_->GetOperation(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+Status PagesConnectionImpl::CancelOperation(
+    google::longrunning::CancelOperationRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->CancelOperation(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::longrunning::CancelOperationRequest const& request) {
+        return stub_->CancelOperation(context, options, request);
+      },
+      *current, request, __func__);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

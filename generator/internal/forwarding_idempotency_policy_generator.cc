@@ -22,10 +22,12 @@ ForwardingIdempotencyPolicyGenerator::ForwardingIdempotencyPolicyGenerator(
     google::protobuf::ServiceDescriptor const* service_descriptor,
     VarsDictionary service_vars,
     std::map<std::string, VarsDictionary> service_method_vars,
-    google::protobuf::compiler::GeneratorContext* context)
+    google::protobuf::compiler::GeneratorContext* context,
+    std::vector<MixinMethod> const& mixin_methods)
     : ServiceCodeGenerator("forwarding_idempotency_policy_header_path",
                            service_descriptor, std::move(service_vars),
-                           std::move(service_method_vars), context) {}
+                           std::move(service_method_vars), context,
+                           mixin_methods) {}
 
 Status ForwardingIdempotencyPolicyGenerator::GenerateHeader() {
   HeaderPrint(CopyrightLicenseFileHeader());
@@ -50,7 +52,10 @@ Status ForwardingIdempotencyPolicyGenerator::GenerateHeader() {
   // forwards
   HeaderPrint(
       R"""(
+/// @deprecated Use $product_namespace$::MakeDefault$idempotency_class_name$ directly.
 using ::google::cloud::$product_namespace$::MakeDefault$idempotency_class_name$;
+
+/// @deprecated Use $product_namespace$::$idempotency_class_name$ directly.
 using ::google::cloud::$product_namespace$::$idempotency_class_name$;
 )""");
 

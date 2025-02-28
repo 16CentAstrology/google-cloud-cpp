@@ -31,11 +31,13 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  *
  * `StatusOr<T>` represents either a usable `T` value or a `Status` object
  * explaining why a `T` value is not present. Typical usage of `StatusOr<T>`
- * looks like usage of a smart pointer, or even a std::optional<T>, in that you
- * first check its validity using a conversion to bool (or by calling
+ * looks like usage of a smart pointer, or even a `std::optional<T>`, in that
+ * you first check its validity using a conversion to bool (or by calling
  * `StatusOr::ok()`), then you may dereference the object to access the
- * contained value. It is undefined behavior (UB) to dereference a
- * `StatusOr<T>` that is not "ok". For example:
+ * contained value.
+ *
+ * It is undefined behavior (UB) to dereference a `StatusOr<T>` that is not
+ * "ok". For example:
  *
  * @code
  * StatusOr<Foo> foo = FetchFoo();
@@ -47,9 +49,9 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * @endcode
  *
  * Alternatively, you may call the `StatusOr::value()` member function,
- * which is defined to throw an exception if there is no `T` value, or crash
- * the program if exceptions are disabled. It is never UB to call
- * `.value()`.
+ * which is defined to: (1) throw an exception if there is no `T` value, or (2)
+ * crash the program if exceptions are disabled. It is never UB to call
+ * `value()`.
  *
  * @code
  * StatusOr<Foo> foo = FetchFoo();
@@ -58,12 +60,14 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  *
  * Functions that can fail will often return a `StatusOr<T>` instead of
  * returning an error code and taking a `T` out-param, or rather than directly
- * returning the `T` and throwing an exception on error. StatusOr is used so
- * that callers can choose whether they want to explicitly check for errors,
- * crash the program, or throw exceptions. Since constructors do not have a
- * return value, they should be designed in such a way that they cannot fail by
- * moving the object's complex initialization logic into a separate factory
- * function that itself can return a `StatusOr<T>`. For example:
+ * returning the `T` and throwing an exception on error. `StatusOr<T>` is used
+ * so that callers can choose whether they want to explicitly check for errors,
+ * crash the program, or throw exceptions.
+ *
+ * Since constructors do not have a return value, they should be designed in
+ * such a way that they cannot fail by moving the object's complex
+ * initialization logic into a separate factory function that itself can return
+ * a `StatusOr<T>`. For example:
  *
  * @code
  * class Bar {
@@ -79,15 +83,14 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  *
  * `StatusOr<T>` supports equality comparisons if the underlying type `T` does.
  *
- * TODO(...) - the current implementation is fairly naive with respect to `T`,
- *   it is unlikely to work correctly for reference types, types without default
- *   constructors, arrays.
- *
  * @tparam T the type of the value.
  */
 template <typename T>
 class StatusOr final {
  public:
+  static_assert(!std::is_reference<T>::value,
+                "StatusOr<T> requires T to **not** be a reference type");
+
   /**
    * A `value_type` member for use in generic programming.
    *
@@ -96,7 +99,7 @@ class StatusOr final {
   using value_type = T;
 
   /**
-   * Initializes with an error status (UNKNOWN).
+   * Initializes with an error status (`StatusCode::kUnknown`).
    */
   StatusOr() : StatusOr(MakeDefaultStatus()) {}
 
@@ -145,15 +148,20 @@ class StatusOr final {
 
   /**
    * Assign a `T` (or anything convertible to `T`) into the `StatusOr`.
+   *
+   * This function does not participate in overload resolution if `U` is equal
+   * to `StatusOr<T>` (or to a cv-ref-qualified `StatusOr<T>`).
+   *
+   * @return a reference to this object.
+   * @tparam U a type convertible to @p T.
    */
-  // Disable this assignment if U==StatusOr<T>. Well, really if U is a
-  // cv-qualified version of StatusOr<T>, so we need to apply std::decay<> to
-  // it first.
-  template <typename U = T>
-  typename std::enable_if<  // NOLINT(misc-unconventional-assign-operator)
-      !std::is_same<StatusOr, typename std::decay<U>::type>::value,
-      StatusOr>::type&
-  operator=(U&& rhs) {
+  template <
+      typename U = T,
+      /// @cond implementation_details
+      std::enable_if_t<!std::is_same<StatusOr, std::decay_t<U>>::value, int> = 0
+      /// @endcond
+      >
+  StatusOr& operator=(U&& rhs) {
     status_ = Status();
     value_ = std::forward<U>(rhs);
     return *this;
@@ -167,26 +175,44 @@ class StatusOr final {
    *
    * @param rhs the value used to initialize the object.
    *
-   * @throws only if `T`'s move constructor throws.
+   * @throws ... If `T`'s move constructor throws.
    */
   // NOLINTNEXTLINE(google-explicit-constructor)
   StatusOr(T&& rhs) : value_(std::move(rhs)) {}
 
+  /**
+   * Creates a new `StatusOr<T>` holding the value @p rhs.
+   *
+   * @par Post-conditions
+   * `ok() == true` and `value() == rhs`.
+   *
+   * @param rhs the value used to initialize the object.
+   *
+   * @throws ... If `T` copy constructor throws.
+   */
   // NOLINTNEXTLINE(google-explicit-constructor)
   StatusOr(T const& rhs) : value_(rhs) {}
 
+  /// Returns `true` when `this` holds a value.
   bool ok() const { return status_.ok(); }
+
+  /// Returns `true` when `this` holds a value.
   explicit operator bool() const { return status_.ok(); }
 
-  //@{
+  ///@{
   /**
-   * @name Deference operators.
+   * @name Dereference operators.
+   *
+   * @par Pre-conditions
+   * @parblock
+   * `ok() == true`
    *
    * @warning Using these operators when `ok() == false` results in undefined
    *     behavior.
+   * @endparblock
    *
-   * @return All these return a (properly ref and const-qualified) reference to
-   *     the underlying value.
+   * @return A properly ref and const-qualified reference to the underlying
+   *     value.
    */
   T& operator*() & { return *value_; }
 
@@ -195,31 +221,35 @@ class StatusOr final {
   T&& operator*() && { return *std::move(value_); }
 
   T const&& operator*() const&& { return *std::move(value_); }
-  //@}
+  ///@}
 
-  //@{
+  ///@{
   /**
    * @name Member access operators.
    *
+   * @par Pre-conditions
+   * @parblock
+   * `ok() == true`
+   *
    * @warning Using these operators when `ok() == false` results in undefined
    *     behavior.
+   * @endparblock
    *
-   * @return All these return a (properly ref and const-qualified) pointer to
-   *     the underlying value.
+   * @return A properly ref and const-qualified pointer to the underlying value.
    */
   T* operator->() & { return &*value_; }
 
   T const* operator->() const& { return &*value_; }
-  //@}
+  ///@}
 
-  //@{
+  ///@{
   /**
    * @name Value accessors.
    *
    * @return All these member functions return a (properly ref and
    *     const-qualified) reference to the underlying value.
    *
-   * @throws `RuntimeStatusError` with the contents of `status()` if the object
+   * @throws RuntimeStatusError with the contents of `status()` if the object
    *   does not contain a value, i.e., if `ok() == false`.
    */
   T& value() & {
@@ -241,9 +271,9 @@ class StatusOr final {
     CheckHasValue();
     return std::move(**this);
   }
-  //@}
+  ///@}
 
-  //@{
+  ///@{
   /**
    * @name Status accessors.
    *
@@ -251,7 +281,7 @@ class StatusOr final {
    */
   Status const& status() const& { return status_; }
   Status&& status() && { return std::move(status_); }
-  //@}
+  ///@}
 
  private:
   static Status MakeDefaultStatus() {

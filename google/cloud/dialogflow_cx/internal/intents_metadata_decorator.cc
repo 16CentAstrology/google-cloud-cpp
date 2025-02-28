@@ -17,75 +17,193 @@
 // source: google/cloud/dialogflow/cx/v3/intent.proto
 
 #include "google/cloud/dialogflow_cx/internal/intents_metadata_decorator.h"
-#include "google/cloud/common_options.h"
+#include "google/cloud/grpc_options.h"
+#include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/api_client_header.h"
+#include "google/cloud/internal/url_encode.h"
 #include "google/cloud/status_or.h"
 #include <google/cloud/dialogflow/cx/v3/intent.grpc.pb.h>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
 namespace dialogflow_cx_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
-IntentsMetadata::IntentsMetadata(std::shared_ptr<IntentsStub> child)
+IntentsMetadata::IntentsMetadata(
+    std::shared_ptr<IntentsStub> child,
+    std::multimap<std::string, std::string> fixed_metadata,
+    std::string api_client_header)
     : child_(std::move(child)),
+      fixed_metadata_(std::move(fixed_metadata)),
       api_client_header_(
-          google::cloud::internal::ApiClientHeader("generator")) {}
+          api_client_header.empty()
+              ? google::cloud::internal::GeneratedLibClientHeader()
+              : std::move(api_client_header)) {}
 
 StatusOr<google::cloud::dialogflow::cx::v3::ListIntentsResponse>
 IntentsMetadata::ListIntents(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::ListIntentsRequest const& request) {
-  SetMetadata(context, "parent=" + request.parent());
-  return child_->ListIntents(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->ListIntents(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::cx::v3::Intent> IntentsMetadata::GetIntent(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::GetIntentRequest const& request) {
-  SetMetadata(context, "name=" + request.name());
-  return child_->GetIntent(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetIntent(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::cx::v3::Intent>
 IntentsMetadata::CreateIntent(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::CreateIntentRequest const& request) {
-  SetMetadata(context, "parent=" + request.parent());
-  return child_->CreateIntent(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->CreateIntent(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::cx::v3::Intent>
 IntentsMetadata::UpdateIntent(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::UpdateIntentRequest const& request) {
-  SetMetadata(context, "intent.name=" + request.intent().name());
-  return child_->UpdateIntent(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("intent.name=",
+                           internal::UrlEncode(request.intent().name())));
+  return child_->UpdateIntent(context, options, request);
 }
 
 Status IntentsMetadata::DeleteIntent(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::DeleteIntentRequest const& request) {
-  SetMetadata(context, "name=" + request.name());
-  return child_->DeleteIntent(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->DeleteIntent(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+IntentsMetadata::AsyncImportIntents(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::dialogflow::cx::v3::ImportIntentsRequest const& request) {
+  SetMetadata(*context, *options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->AsyncImportIntents(cq, std::move(context), std::move(options),
+                                    request);
+}
+
+StatusOr<google::longrunning::Operation> IntentsMetadata::ImportIntents(
+    grpc::ClientContext& context, Options options,
+    google::cloud::dialogflow::cx::v3::ImportIntentsRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->ImportIntents(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+IntentsMetadata::AsyncExportIntents(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::dialogflow::cx::v3::ExportIntentsRequest const& request) {
+  SetMetadata(*context, *options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->AsyncExportIntents(cq, std::move(context), std::move(options),
+                                    request);
+}
+
+StatusOr<google::longrunning::Operation> IntentsMetadata::ExportIntents(
+    grpc::ClientContext& context, Options options,
+    google::cloud::dialogflow::cx::v3::ExportIntentsRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->ExportIntents(context, options, request);
+}
+
+StatusOr<google::cloud::location::ListLocationsResponse>
+IntentsMetadata::ListLocations(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::ListLocationsRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->ListLocations(context, options, request);
+}
+
+StatusOr<google::cloud::location::Location> IntentsMetadata::GetLocation(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::GetLocationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetLocation(context, options, request);
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+IntentsMetadata::ListOperations(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::ListOperationsRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->ListOperations(context, options, request);
+}
+
+StatusOr<google::longrunning::Operation> IntentsMetadata::GetOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::GetOperationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetOperation(context, options, request);
+}
+
+Status IntentsMetadata::CancelOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::CancelOperationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->CancelOperation(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+IntentsMetadata::AsyncGetOperation(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::longrunning::GetOperationRequest const& request) {
+  SetMetadata(*context, *options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->AsyncGetOperation(cq, std::move(context), std::move(options),
+                                   request);
+}
+
+future<Status> IntentsMetadata::AsyncCancelOperation(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::longrunning::CancelOperationRequest const& request) {
+  SetMetadata(*context, *options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->AsyncCancelOperation(cq, std::move(context),
+                                      std::move(options), request);
 }
 
 void IntentsMetadata::SetMetadata(grpc::ClientContext& context,
+                                  Options const& options,
                                   std::string const& request_params) {
   context.AddMetadata("x-goog-request-params", request_params);
-  SetMetadata(context);
+  SetMetadata(context, options);
 }
 
-void IntentsMetadata::SetMetadata(grpc::ClientContext& context) {
-  context.AddMetadata("x-goog-api-client", api_client_header_);
-  auto const& options = internal::CurrentOptions();
-  if (options.has<UserProjectOption>()) {
-    context.AddMetadata("x-goog-user-project",
-                        options.get<UserProjectOption>());
-  }
-  auto const& authority = options.get<AuthorityOption>();
-  if (!authority.empty()) context.set_authority(authority);
+void IntentsMetadata::SetMetadata(grpc::ClientContext& context,
+                                  Options const& options) {
+  google::cloud::internal::SetMetadata(context, options, fixed_metadata_,
+                                       api_client_header_);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

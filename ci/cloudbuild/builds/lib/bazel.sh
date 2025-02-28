@@ -25,9 +25,6 @@ fi # include guard
 
 source module ci/lib/io.sh
 
-# Selects a default bazel version, though individual builds can override this.
-: "${USE_BAZEL_VERSION:="6.0.0"}"
-export USE_BAZEL_VERSION
 io::log "Using bazelisk version"
 bazelisk version
 
@@ -39,12 +36,7 @@ io::log "Prefetching bazel deps..."
 # build.
 TIMEFORMAT="==> 🕑 prefetching done in %R seconds"
 time {
-  "ci/retry-command.sh" 3 120 bazel fetch ... \
-    @local_config_platform//... \
-    @local_config_cc_toolchains//... \
-    @local_config_sh//... \
-    @go_sdk//... \
-    @remotejdk11_linux//:jdk
+  "ci/retry-command.sh" 3 120 bazel fetch ...
 }
 echo >&2
 

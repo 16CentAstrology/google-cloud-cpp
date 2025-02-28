@@ -25,11 +25,35 @@
 #include "google/cloud/internal/pagination_range.h"
 #include "google/cloud/internal/retry_loop.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
 namespace dialogflow_es_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
+namespace {
+
+std::unique_ptr<dialogflow_es::EntityTypesRetryPolicy> retry_policy(
+    Options const& options) {
+  return options.get<dialogflow_es::EntityTypesRetryPolicyOption>()->clone();
+}
+
+std::unique_ptr<BackoffPolicy> backoff_policy(Options const& options) {
+  return options.get<dialogflow_es::EntityTypesBackoffPolicyOption>()->clone();
+}
+
+std::unique_ptr<dialogflow_es::EntityTypesConnectionIdempotencyPolicy>
+idempotency_policy(Options const& options) {
+  return options
+      .get<dialogflow_es::EntityTypesConnectionIdempotencyPolicyOption>()
+      ->clone();
+}
+
+std::unique_ptr<PollingPolicy> polling_policy(Options const& options) {
+  return options.get<dialogflow_es::EntityTypesPollingPolicyOption>()->clone();
+}
+
+}  // namespace
 
 EntityTypesConnectionImpl::EntityTypesConnectionImpl(
     std::unique_ptr<google::cloud::BackgroundThreads> background,
@@ -44,25 +68,26 @@ StreamRange<google::cloud::dialogflow::v2::EntityType>
 EntityTypesConnectionImpl::ListEntityTypes(
     google::cloud::dialogflow::v2::ListEntityTypesRequest request) {
   request.clear_page_token();
-  auto& stub = stub_;
-  auto retry = std::shared_ptr<dialogflow_es::EntityTypesRetryPolicy const>(
-      retry_policy());
-  auto backoff = std::shared_ptr<BackoffPolicy const>(backoff_policy());
-  auto idempotency = idempotency_policy()->ListEntityTypes(request);
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency = idempotency_policy(*current)->ListEntityTypes(request);
   char const* function_name = __func__;
   return google::cloud::internal::MakePaginationRange<
       StreamRange<google::cloud::dialogflow::v2::EntityType>>(
-      std::move(request),
-      [stub, retry, backoff, idempotency, function_name](
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<dialogflow_es::EntityTypesRetryPolicy>(
+           retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options,
           google::cloud::dialogflow::v2::ListEntityTypesRequest const& r) {
         return google::cloud::internal::RetryLoop(
             retry->clone(), backoff->clone(), idempotency,
-            [stub](grpc::ClientContext& context,
+            [stub](grpc::ClientContext& context, Options const& options,
                    google::cloud::dialogflow::v2::ListEntityTypesRequest const&
                        request) {
-              return stub->ListEntityTypes(context, request);
+              return stub->ListEntityTypes(context, options, request);
             },
-            r, function_name);
+            options, r, function_name);
       },
       [](google::cloud::dialogflow::v2::ListEntityTypesResponse r) {
         std::vector<google::cloud::dialogflow::v2::EntityType> result(
@@ -76,204 +101,628 @@ EntityTypesConnectionImpl::ListEntityTypes(
 StatusOr<google::cloud::dialogflow::v2::EntityType>
 EntityTypesConnectionImpl::GetEntityType(
     google::cloud::dialogflow::v2::GetEntityTypeRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->GetEntityType(request),
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->GetEntityType(request),
       [this](
-          grpc::ClientContext& context,
+          grpc::ClientContext& context, Options const& options,
           google::cloud::dialogflow::v2::GetEntityTypeRequest const& request) {
-        return stub_->GetEntityType(context, request);
+        return stub_->GetEntityType(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StatusOr<google::cloud::dialogflow::v2::EntityType>
 EntityTypesConnectionImpl::CreateEntityType(
     google::cloud::dialogflow::v2::CreateEntityTypeRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->CreateEntityType(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->CreateEntityType(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::dialogflow::v2::CreateEntityTypeRequest const&
-                 request) { return stub_->CreateEntityType(context, request); },
-      request, __func__);
+                 request) {
+        return stub_->CreateEntityType(context, options, request);
+      },
+      *current, request, __func__);
 }
 
 StatusOr<google::cloud::dialogflow::v2::EntityType>
 EntityTypesConnectionImpl::UpdateEntityType(
     google::cloud::dialogflow::v2::UpdateEntityTypeRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->UpdateEntityType(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->UpdateEntityType(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::dialogflow::v2::UpdateEntityTypeRequest const&
-                 request) { return stub_->UpdateEntityType(context, request); },
-      request, __func__);
+                 request) {
+        return stub_->UpdateEntityType(context, options, request);
+      },
+      *current, request, __func__);
 }
 
 Status EntityTypesConnectionImpl::DeleteEntityType(
     google::cloud::dialogflow::v2::DeleteEntityTypeRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->DeleteEntityType(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->DeleteEntityType(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::dialogflow::v2::DeleteEntityTypeRequest const&
-                 request) { return stub_->DeleteEntityType(context, request); },
-      request, __func__);
+                 request) {
+        return stub_->DeleteEntityType(context, options, request);
+      },
+      *current, request, __func__);
 }
 
 future<StatusOr<google::cloud::dialogflow::v2::BatchUpdateEntityTypesResponse>>
 EntityTypesConnectionImpl::BatchUpdateEntityTypes(
     google::cloud::dialogflow::v2::BatchUpdateEntityTypesRequest const&
         request) {
-  auto& stub = stub_;
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto request_copy = request;
+  auto const idempotent =
+      idempotency_policy(*current)->BatchUpdateEntityTypes(request_copy);
   return google::cloud::internal::AsyncLongRunningOperation<
       google::cloud::dialogflow::v2::BatchUpdateEntityTypesResponse>(
-      background_->cq(), request,
-      [stub](google::cloud::CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::cloud::dialogflow::v2::BatchUpdateEntityTypesRequest const&
-                 request) {
+      background_->cq(), current, std::move(request_copy),
+      [stub = stub_](
+          google::cloud::CompletionQueue& cq,
+          std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::cloud::dialogflow::v2::BatchUpdateEntityTypesRequest const&
+              request) {
         return stub->AsyncBatchUpdateEntityTypes(cq, std::move(context),
-                                                 request);
+                                                 std::move(options), request);
       },
-      [stub](google::cloud::CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::longrunning::GetOperationRequest const& request) {
-        return stub->AsyncGetOperation(cq, std::move(context), request);
+      [stub = stub_](google::cloud::CompletionQueue& cq,
+                     std::shared_ptr<grpc::ClientContext> context,
+                     google::cloud::internal::ImmutableOptions options,
+                     google::longrunning::GetOperationRequest const& request) {
+        return stub->AsyncGetOperation(cq, std::move(context),
+                                       std::move(options), request);
       },
-      [stub](google::cloud::CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::longrunning::CancelOperationRequest const& request) {
-        return stub->AsyncCancelOperation(cq, std::move(context), request);
+      [stub = stub_](
+          google::cloud::CompletionQueue& cq,
+          std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::longrunning::CancelOperationRequest const& request) {
+        return stub->AsyncCancelOperation(cq, std::move(context),
+                                          std::move(options), request);
       },
       &google::cloud::internal::ExtractLongRunningResultResponse<
           google::cloud::dialogflow::v2::BatchUpdateEntityTypesResponse>,
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->BatchUpdateEntityTypes(request), polling_policy(),
-      __func__);
+      retry_policy(*current), backoff_policy(*current), idempotent,
+      polling_policy(*current), __func__);
+}
+
+StatusOr<google::longrunning::Operation>
+EntityTypesConnectionImpl::BatchUpdateEntityTypes(
+    NoAwaitTag,
+    google::cloud::dialogflow::v2::BatchUpdateEntityTypesRequest const&
+        request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->BatchUpdateEntityTypes(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::cloud::dialogflow::v2::BatchUpdateEntityTypesRequest const&
+                 request) {
+        return stub_->BatchUpdateEntityTypes(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+future<StatusOr<google::cloud::dialogflow::v2::BatchUpdateEntityTypesResponse>>
+EntityTypesConnectionImpl::BatchUpdateEntityTypes(
+    google::longrunning::Operation const& operation) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  if (!operation.metadata().Is<typename google::protobuf::Struct>()) {
+    return make_ready_future<StatusOr<
+        google::cloud::dialogflow::v2::BatchUpdateEntityTypesResponse>>(
+        internal::InvalidArgumentError(
+            "operation does not correspond to BatchUpdateEntityTypes",
+            GCP_ERROR_INFO().WithMetadata("operation",
+                                          operation.metadata().DebugString())));
+  }
+
+  return google::cloud::internal::AsyncAwaitLongRunningOperation<
+      google::cloud::dialogflow::v2::BatchUpdateEntityTypesResponse>(
+      background_->cq(), current, operation,
+      [stub = stub_](google::cloud::CompletionQueue& cq,
+                     std::shared_ptr<grpc::ClientContext> context,
+                     google::cloud::internal::ImmutableOptions options,
+                     google::longrunning::GetOperationRequest const& request) {
+        return stub->AsyncGetOperation(cq, std::move(context),
+                                       std::move(options), request);
+      },
+      [stub = stub_](
+          google::cloud::CompletionQueue& cq,
+          std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::longrunning::CancelOperationRequest const& request) {
+        return stub->AsyncCancelOperation(cq, std::move(context),
+                                          std::move(options), request);
+      },
+      &google::cloud::internal::ExtractLongRunningResultResponse<
+          google::cloud::dialogflow::v2::BatchUpdateEntityTypesResponse>,
+      polling_policy(*current), __func__);
 }
 
 future<StatusOr<google::protobuf::Struct>>
 EntityTypesConnectionImpl::BatchDeleteEntityTypes(
     google::cloud::dialogflow::v2::BatchDeleteEntityTypesRequest const&
         request) {
-  auto& stub = stub_;
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto request_copy = request;
+  auto const idempotent =
+      idempotency_policy(*current)->BatchDeleteEntityTypes(request_copy);
   return google::cloud::internal::AsyncLongRunningOperation<
       google::protobuf::Struct>(
-      background_->cq(), request,
-      [stub](google::cloud::CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::cloud::dialogflow::v2::BatchDeleteEntityTypesRequest const&
-                 request) {
+      background_->cq(), current, std::move(request_copy),
+      [stub = stub_](
+          google::cloud::CompletionQueue& cq,
+          std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::cloud::dialogflow::v2::BatchDeleteEntityTypesRequest const&
+              request) {
         return stub->AsyncBatchDeleteEntityTypes(cq, std::move(context),
-                                                 request);
+                                                 std::move(options), request);
       },
-      [stub](google::cloud::CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::longrunning::GetOperationRequest const& request) {
-        return stub->AsyncGetOperation(cq, std::move(context), request);
+      [stub = stub_](google::cloud::CompletionQueue& cq,
+                     std::shared_ptr<grpc::ClientContext> context,
+                     google::cloud::internal::ImmutableOptions options,
+                     google::longrunning::GetOperationRequest const& request) {
+        return stub->AsyncGetOperation(cq, std::move(context),
+                                       std::move(options), request);
       },
-      [stub](google::cloud::CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::longrunning::CancelOperationRequest const& request) {
-        return stub->AsyncCancelOperation(cq, std::move(context), request);
+      [stub = stub_](
+          google::cloud::CompletionQueue& cq,
+          std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::longrunning::CancelOperationRequest const& request) {
+        return stub->AsyncCancelOperation(cq, std::move(context),
+                                          std::move(options), request);
       },
       &google::cloud::internal::ExtractLongRunningResultMetadata<
           google::protobuf::Struct>,
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->BatchDeleteEntityTypes(request), polling_policy(),
-      __func__);
+      retry_policy(*current), backoff_policy(*current), idempotent,
+      polling_policy(*current), __func__);
+}
+
+StatusOr<google::longrunning::Operation>
+EntityTypesConnectionImpl::BatchDeleteEntityTypes(
+    NoAwaitTag,
+    google::cloud::dialogflow::v2::BatchDeleteEntityTypesRequest const&
+        request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->BatchDeleteEntityTypes(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::cloud::dialogflow::v2::BatchDeleteEntityTypesRequest const&
+                 request) {
+        return stub_->BatchDeleteEntityTypes(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+future<StatusOr<google::protobuf::Struct>>
+EntityTypesConnectionImpl::BatchDeleteEntityTypes(
+    google::longrunning::Operation const& operation) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  if (!operation.metadata().Is<typename google::protobuf::Struct>()) {
+    return make_ready_future<StatusOr<google::protobuf::Struct>>(
+        internal::InvalidArgumentError(
+            "operation does not correspond to BatchDeleteEntityTypes",
+            GCP_ERROR_INFO().WithMetadata("operation",
+                                          operation.metadata().DebugString())));
+  }
+
+  return google::cloud::internal::AsyncAwaitLongRunningOperation<
+      google::protobuf::Struct>(
+      background_->cq(), current, operation,
+      [stub = stub_](google::cloud::CompletionQueue& cq,
+                     std::shared_ptr<grpc::ClientContext> context,
+                     google::cloud::internal::ImmutableOptions options,
+                     google::longrunning::GetOperationRequest const& request) {
+        return stub->AsyncGetOperation(cq, std::move(context),
+                                       std::move(options), request);
+      },
+      [stub = stub_](
+          google::cloud::CompletionQueue& cq,
+          std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::longrunning::CancelOperationRequest const& request) {
+        return stub->AsyncCancelOperation(cq, std::move(context),
+                                          std::move(options), request);
+      },
+      &google::cloud::internal::ExtractLongRunningResultMetadata<
+          google::protobuf::Struct>,
+      polling_policy(*current), __func__);
 }
 
 future<StatusOr<google::protobuf::Struct>>
 EntityTypesConnectionImpl::BatchCreateEntities(
     google::cloud::dialogflow::v2::BatchCreateEntitiesRequest const& request) {
-  auto& stub = stub_;
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto request_copy = request;
+  auto const idempotent =
+      idempotency_policy(*current)->BatchCreateEntities(request_copy);
   return google::cloud::internal::AsyncLongRunningOperation<
       google::protobuf::Struct>(
-      background_->cq(), request,
-      [stub](google::cloud::CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::cloud::dialogflow::v2::BatchCreateEntitiesRequest const&
-                 request) {
-        return stub->AsyncBatchCreateEntities(cq, std::move(context), request);
+      background_->cq(), current, std::move(request_copy),
+      [stub = stub_](
+          google::cloud::CompletionQueue& cq,
+          std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::cloud::dialogflow::v2::BatchCreateEntitiesRequest const&
+              request) {
+        return stub->AsyncBatchCreateEntities(cq, std::move(context),
+                                              std::move(options), request);
       },
-      [stub](google::cloud::CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::longrunning::GetOperationRequest const& request) {
-        return stub->AsyncGetOperation(cq, std::move(context), request);
+      [stub = stub_](google::cloud::CompletionQueue& cq,
+                     std::shared_ptr<grpc::ClientContext> context,
+                     google::cloud::internal::ImmutableOptions options,
+                     google::longrunning::GetOperationRequest const& request) {
+        return stub->AsyncGetOperation(cq, std::move(context),
+                                       std::move(options), request);
       },
-      [stub](google::cloud::CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::longrunning::CancelOperationRequest const& request) {
-        return stub->AsyncCancelOperation(cq, std::move(context), request);
+      [stub = stub_](
+          google::cloud::CompletionQueue& cq,
+          std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::longrunning::CancelOperationRequest const& request) {
+        return stub->AsyncCancelOperation(cq, std::move(context),
+                                          std::move(options), request);
       },
       &google::cloud::internal::ExtractLongRunningResultMetadata<
           google::protobuf::Struct>,
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->BatchCreateEntities(request), polling_policy(),
-      __func__);
+      retry_policy(*current), backoff_policy(*current), idempotent,
+      polling_policy(*current), __func__);
+}
+
+StatusOr<google::longrunning::Operation>
+EntityTypesConnectionImpl::BatchCreateEntities(
+    NoAwaitTag,
+    google::cloud::dialogflow::v2::BatchCreateEntitiesRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->BatchCreateEntities(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::cloud::dialogflow::v2::BatchCreateEntitiesRequest const&
+                 request) {
+        return stub_->BatchCreateEntities(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+future<StatusOr<google::protobuf::Struct>>
+EntityTypesConnectionImpl::BatchCreateEntities(
+    google::longrunning::Operation const& operation) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  if (!operation.metadata().Is<typename google::protobuf::Struct>()) {
+    return make_ready_future<StatusOr<google::protobuf::Struct>>(
+        internal::InvalidArgumentError(
+            "operation does not correspond to BatchCreateEntities",
+            GCP_ERROR_INFO().WithMetadata("operation",
+                                          operation.metadata().DebugString())));
+  }
+
+  return google::cloud::internal::AsyncAwaitLongRunningOperation<
+      google::protobuf::Struct>(
+      background_->cq(), current, operation,
+      [stub = stub_](google::cloud::CompletionQueue& cq,
+                     std::shared_ptr<grpc::ClientContext> context,
+                     google::cloud::internal::ImmutableOptions options,
+                     google::longrunning::GetOperationRequest const& request) {
+        return stub->AsyncGetOperation(cq, std::move(context),
+                                       std::move(options), request);
+      },
+      [stub = stub_](
+          google::cloud::CompletionQueue& cq,
+          std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::longrunning::CancelOperationRequest const& request) {
+        return stub->AsyncCancelOperation(cq, std::move(context),
+                                          std::move(options), request);
+      },
+      &google::cloud::internal::ExtractLongRunningResultMetadata<
+          google::protobuf::Struct>,
+      polling_policy(*current), __func__);
 }
 
 future<StatusOr<google::protobuf::Struct>>
 EntityTypesConnectionImpl::BatchUpdateEntities(
     google::cloud::dialogflow::v2::BatchUpdateEntitiesRequest const& request) {
-  auto& stub = stub_;
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto request_copy = request;
+  auto const idempotent =
+      idempotency_policy(*current)->BatchUpdateEntities(request_copy);
   return google::cloud::internal::AsyncLongRunningOperation<
       google::protobuf::Struct>(
-      background_->cq(), request,
-      [stub](google::cloud::CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::cloud::dialogflow::v2::BatchUpdateEntitiesRequest const&
-                 request) {
-        return stub->AsyncBatchUpdateEntities(cq, std::move(context), request);
+      background_->cq(), current, std::move(request_copy),
+      [stub = stub_](
+          google::cloud::CompletionQueue& cq,
+          std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::cloud::dialogflow::v2::BatchUpdateEntitiesRequest const&
+              request) {
+        return stub->AsyncBatchUpdateEntities(cq, std::move(context),
+                                              std::move(options), request);
       },
-      [stub](google::cloud::CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::longrunning::GetOperationRequest const& request) {
-        return stub->AsyncGetOperation(cq, std::move(context), request);
+      [stub = stub_](google::cloud::CompletionQueue& cq,
+                     std::shared_ptr<grpc::ClientContext> context,
+                     google::cloud::internal::ImmutableOptions options,
+                     google::longrunning::GetOperationRequest const& request) {
+        return stub->AsyncGetOperation(cq, std::move(context),
+                                       std::move(options), request);
       },
-      [stub](google::cloud::CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::longrunning::CancelOperationRequest const& request) {
-        return stub->AsyncCancelOperation(cq, std::move(context), request);
+      [stub = stub_](
+          google::cloud::CompletionQueue& cq,
+          std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::longrunning::CancelOperationRequest const& request) {
+        return stub->AsyncCancelOperation(cq, std::move(context),
+                                          std::move(options), request);
       },
       &google::cloud::internal::ExtractLongRunningResultMetadata<
           google::protobuf::Struct>,
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->BatchUpdateEntities(request), polling_policy(),
-      __func__);
+      retry_policy(*current), backoff_policy(*current), idempotent,
+      polling_policy(*current), __func__);
+}
+
+StatusOr<google::longrunning::Operation>
+EntityTypesConnectionImpl::BatchUpdateEntities(
+    NoAwaitTag,
+    google::cloud::dialogflow::v2::BatchUpdateEntitiesRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->BatchUpdateEntities(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::cloud::dialogflow::v2::BatchUpdateEntitiesRequest const&
+                 request) {
+        return stub_->BatchUpdateEntities(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+future<StatusOr<google::protobuf::Struct>>
+EntityTypesConnectionImpl::BatchUpdateEntities(
+    google::longrunning::Operation const& operation) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  if (!operation.metadata().Is<typename google::protobuf::Struct>()) {
+    return make_ready_future<StatusOr<google::protobuf::Struct>>(
+        internal::InvalidArgumentError(
+            "operation does not correspond to BatchUpdateEntities",
+            GCP_ERROR_INFO().WithMetadata("operation",
+                                          operation.metadata().DebugString())));
+  }
+
+  return google::cloud::internal::AsyncAwaitLongRunningOperation<
+      google::protobuf::Struct>(
+      background_->cq(), current, operation,
+      [stub = stub_](google::cloud::CompletionQueue& cq,
+                     std::shared_ptr<grpc::ClientContext> context,
+                     google::cloud::internal::ImmutableOptions options,
+                     google::longrunning::GetOperationRequest const& request) {
+        return stub->AsyncGetOperation(cq, std::move(context),
+                                       std::move(options), request);
+      },
+      [stub = stub_](
+          google::cloud::CompletionQueue& cq,
+          std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::longrunning::CancelOperationRequest const& request) {
+        return stub->AsyncCancelOperation(cq, std::move(context),
+                                          std::move(options), request);
+      },
+      &google::cloud::internal::ExtractLongRunningResultMetadata<
+          google::protobuf::Struct>,
+      polling_policy(*current), __func__);
 }
 
 future<StatusOr<google::protobuf::Struct>>
 EntityTypesConnectionImpl::BatchDeleteEntities(
     google::cloud::dialogflow::v2::BatchDeleteEntitiesRequest const& request) {
-  auto& stub = stub_;
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto request_copy = request;
+  auto const idempotent =
+      idempotency_policy(*current)->BatchDeleteEntities(request_copy);
   return google::cloud::internal::AsyncLongRunningOperation<
       google::protobuf::Struct>(
-      background_->cq(), request,
-      [stub](google::cloud::CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::cloud::dialogflow::v2::BatchDeleteEntitiesRequest const&
-                 request) {
-        return stub->AsyncBatchDeleteEntities(cq, std::move(context), request);
+      background_->cq(), current, std::move(request_copy),
+      [stub = stub_](
+          google::cloud::CompletionQueue& cq,
+          std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::cloud::dialogflow::v2::BatchDeleteEntitiesRequest const&
+              request) {
+        return stub->AsyncBatchDeleteEntities(cq, std::move(context),
+                                              std::move(options), request);
       },
-      [stub](google::cloud::CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::longrunning::GetOperationRequest const& request) {
-        return stub->AsyncGetOperation(cq, std::move(context), request);
+      [stub = stub_](google::cloud::CompletionQueue& cq,
+                     std::shared_ptr<grpc::ClientContext> context,
+                     google::cloud::internal::ImmutableOptions options,
+                     google::longrunning::GetOperationRequest const& request) {
+        return stub->AsyncGetOperation(cq, std::move(context),
+                                       std::move(options), request);
       },
-      [stub](google::cloud::CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::longrunning::CancelOperationRequest const& request) {
-        return stub->AsyncCancelOperation(cq, std::move(context), request);
+      [stub = stub_](
+          google::cloud::CompletionQueue& cq,
+          std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::longrunning::CancelOperationRequest const& request) {
+        return stub->AsyncCancelOperation(cq, std::move(context),
+                                          std::move(options), request);
       },
       &google::cloud::internal::ExtractLongRunningResultMetadata<
           google::protobuf::Struct>,
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->BatchDeleteEntities(request), polling_policy(),
-      __func__);
+      retry_policy(*current), backoff_policy(*current), idempotent,
+      polling_policy(*current), __func__);
+}
+
+StatusOr<google::longrunning::Operation>
+EntityTypesConnectionImpl::BatchDeleteEntities(
+    NoAwaitTag,
+    google::cloud::dialogflow::v2::BatchDeleteEntitiesRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->BatchDeleteEntities(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::cloud::dialogflow::v2::BatchDeleteEntitiesRequest const&
+                 request) {
+        return stub_->BatchDeleteEntities(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+future<StatusOr<google::protobuf::Struct>>
+EntityTypesConnectionImpl::BatchDeleteEntities(
+    google::longrunning::Operation const& operation) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  if (!operation.metadata().Is<typename google::protobuf::Struct>()) {
+    return make_ready_future<StatusOr<google::protobuf::Struct>>(
+        internal::InvalidArgumentError(
+            "operation does not correspond to BatchDeleteEntities",
+            GCP_ERROR_INFO().WithMetadata("operation",
+                                          operation.metadata().DebugString())));
+  }
+
+  return google::cloud::internal::AsyncAwaitLongRunningOperation<
+      google::protobuf::Struct>(
+      background_->cq(), current, operation,
+      [stub = stub_](google::cloud::CompletionQueue& cq,
+                     std::shared_ptr<grpc::ClientContext> context,
+                     google::cloud::internal::ImmutableOptions options,
+                     google::longrunning::GetOperationRequest const& request) {
+        return stub->AsyncGetOperation(cq, std::move(context),
+                                       std::move(options), request);
+      },
+      [stub = stub_](
+          google::cloud::CompletionQueue& cq,
+          std::shared_ptr<grpc::ClientContext> context,
+          google::cloud::internal::ImmutableOptions options,
+          google::longrunning::CancelOperationRequest const& request) {
+        return stub->AsyncCancelOperation(cq, std::move(context),
+                                          std::move(options), request);
+      },
+      &google::cloud::internal::ExtractLongRunningResultMetadata<
+          google::protobuf::Struct>,
+      polling_policy(*current), __func__);
+}
+
+StreamRange<google::cloud::location::Location>
+EntityTypesConnectionImpl::ListLocations(
+    google::cloud::location::ListLocationsRequest request) {
+  request.clear_page_token();
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency = idempotency_policy(*current)->ListLocations(request);
+  char const* function_name = __func__;
+  return google::cloud::internal::MakePaginationRange<
+      StreamRange<google::cloud::location::Location>>(
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<dialogflow_es::EntityTypesRetryPolicy>(
+           retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options,
+          google::cloud::location::ListLocationsRequest const& r) {
+        return google::cloud::internal::RetryLoop(
+            retry->clone(), backoff->clone(), idempotency,
+            [stub](
+                grpc::ClientContext& context, Options const& options,
+                google::cloud::location::ListLocationsRequest const& request) {
+              return stub->ListLocations(context, options, request);
+            },
+            options, r, function_name);
+      },
+      [](google::cloud::location::ListLocationsResponse r) {
+        std::vector<google::cloud::location::Location> result(
+            r.locations().size());
+        auto& messages = *r.mutable_locations();
+        std::move(messages.begin(), messages.end(), result.begin());
+        return result;
+      });
+}
+
+StatusOr<google::cloud::location::Location>
+EntityTypesConnectionImpl::GetLocation(
+    google::cloud::location::GetLocationRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->GetLocation(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::cloud::location::GetLocationRequest const& request) {
+        return stub_->GetLocation(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+StreamRange<google::longrunning::Operation>
+EntityTypesConnectionImpl::ListOperations(
+    google::longrunning::ListOperationsRequest request) {
+  request.clear_page_token();
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency = idempotency_policy(*current)->ListOperations(request);
+  char const* function_name = __func__;
+  return google::cloud::internal::MakePaginationRange<
+      StreamRange<google::longrunning::Operation>>(
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<dialogflow_es::EntityTypesRetryPolicy>(
+           retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options,
+          google::longrunning::ListOperationsRequest const& r) {
+        return google::cloud::internal::RetryLoop(
+            retry->clone(), backoff->clone(), idempotency,
+            [stub](grpc::ClientContext& context, Options const& options,
+                   google::longrunning::ListOperationsRequest const& request) {
+              return stub->ListOperations(context, options, request);
+            },
+            options, r, function_name);
+      },
+      [](google::longrunning::ListOperationsResponse r) {
+        std::vector<google::longrunning::Operation> result(
+            r.operations().size());
+        auto& messages = *r.mutable_operations();
+        std::move(messages.begin(), messages.end(), result.begin());
+        return result;
+      });
+}
+
+StatusOr<google::longrunning::Operation>
+EntityTypesConnectionImpl::GetOperation(
+    google::longrunning::GetOperationRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->GetOperation(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::longrunning::GetOperationRequest const& request) {
+        return stub_->GetOperation(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+Status EntityTypesConnectionImpl::CancelOperation(
+    google::longrunning::CancelOperationRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->CancelOperation(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::longrunning::CancelOperationRequest const& request) {
+        return stub_->CancelOperation(context, options, request);
+      },
+      *current, request, __func__);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

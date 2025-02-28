@@ -14,6 +14,7 @@
 
 #include "google/cloud/storage/internal/hmac_key_metadata_parser.h"
 #include "google/cloud/storage/internal/metadata_parser.h"
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -22,9 +23,7 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace internal {
 StatusOr<HmacKeyMetadata> HmacKeyMetadataParser::FromJson(
     nlohmann::json const& json) {
-  if (!json.is_object()) {
-    return Status(StatusCode::kInvalidArgument, __func__);
-  }
+  if (!json.is_object()) return NotJsonObject(json, GCP_ERROR_INFO());
   HmacKeyMetadata result{};
   result.set_access_id(json.value("accessId", ""));
   result.set_etag(json.value("etag", ""));

@@ -12,11 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load(":google_cloud_cpp_spanner.bzl", "google_cloud_cpp_spanner_hdrs", "google_cloud_cpp_spanner_srcs")
+load(":google_cloud_cpp_spanner_mocks.bzl", "google_cloud_cpp_spanner_mocks_hdrs")
+load(":google_cloud_cpp_spanner_rest.bzl", "google_cloud_cpp_spanner_rest_hdrs", "google_cloud_cpp_spanner_rest_srcs")
+load(":spanner_client_benchmarks.bzl", "spanner_client_benchmarks")
+load(":spanner_client_testing.bzl", "spanner_client_testing_hdrs", "spanner_client_testing_srcs")
+load(":spanner_client_unit_tests.bzl", "spanner_client_unit_tests")
+
 package(default_visibility = ["//visibility:private"])
 
 licenses(["notice"])  # Apache 2.0
 
-load(":google_cloud_cpp_spanner.bzl", "google_cloud_cpp_spanner_hdrs", "google_cloud_cpp_spanner_srcs")
+filegroup(
+    name = "public_hdrs",
+    srcs = [h for h in google_cloud_cpp_spanner_hdrs if not h.startswith("internal/")],
+    visibility = ["//:__pkg__"],
+)
 
 cc_library(
     name = "google_cloud_cpp_spanner",
@@ -30,7 +41,6 @@ cc_library(
         "//:common",
         "//:grpc_utils",
         "@com_google_absl//absl/container:fixed_array",
-        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
@@ -43,12 +53,31 @@ cc_library(
     ],
 )
 
-load(":google_cloud_cpp_spanner_mocks.bzl", "google_cloud_cpp_spanner_mocks_hdrs", "google_cloud_cpp_spanner_mocks_srcs")
+cc_library(
+    name = "google_cloud_cpp_spanner_rest",
+    srcs = google_cloud_cpp_spanner_rest_srcs,
+    hdrs = google_cloud_cpp_spanner_rest_hdrs,
+    visibility = [
+        ":__subpackages__",
+        "//:__pkg__",
+    ],
+    deps = [
+        ":google_cloud_cpp_spanner",
+        "//google/cloud:google_cloud_cpp_rest_internal",
+        "//google/cloud:google_cloud_cpp_rest_protobuf_internal",
+    ],
+)
+
+filegroup(
+    name = "mocks",
+    srcs = [h for h in google_cloud_cpp_spanner_mocks_hdrs if not h.startswith("internal/")],
+    visibility = ["//:__pkg__"],
+)
 
 cc_library(
     name = "google_cloud_cpp_spanner_mocks",
     testonly = True,
-    srcs = google_cloud_cpp_spanner_mocks_srcs,
+    srcs = [],
     hdrs = google_cloud_cpp_spanner_mocks_hdrs,
     visibility = [
         ":__subpackages__",
@@ -61,8 +90,6 @@ cc_library(
         "@com_google_googletest//:gtest_main",
     ],
 )
-
-load(":spanner_client_testing.bzl", "spanner_client_testing_hdrs", "spanner_client_testing_srcs")
 
 cc_library(
     name = "spanner_client_testing_private",
@@ -77,6 +104,9 @@ cc_library(
         ":google_cloud_cpp_spanner_mocks",
         "//:common",
         "//google/cloud/testing_util:google_cloud_cpp_testing_private",
+        "//protos:system_includes",
+        "//protos/google/cloud/spanner/testing:singer_cc_proto",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -94,25 +124,23 @@ cc_library(
     deps = [":spanner_client_testing_private"],
 )
 
-load(":spanner_client_unit_tests.bzl", "spanner_client_unit_tests")
-
 [cc_test(
     name = test.replace("/", "_").replace(".cc", ""),
     srcs = [test],
     deps = [
         ":google_cloud_cpp_spanner",
         ":google_cloud_cpp_spanner_mocks",
-        ":spanner_client_testing",
+        ":spanner_client_testing_private",
         "//:common",
+        "//google/cloud:google_cloud_cpp_mocks",
         "//google/cloud/testing_util:google_cloud_cpp_testing_grpc_private",
         "//google/cloud/testing_util:google_cloud_cpp_testing_private",
-        "@com_google_absl//absl/memory",
+        "//protos:system_includes",
+        "//protos/google/cloud/spanner/testing:singer_cc_proto",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_googletest//:gtest_main",
     ],
 ) for test in spanner_client_unit_tests]
-
-load(":spanner_client_benchmarks.bzl", "spanner_client_benchmarks")
 
 [cc_test(
     name = benchmark.replace("/", "_").replace(".cc", ""),

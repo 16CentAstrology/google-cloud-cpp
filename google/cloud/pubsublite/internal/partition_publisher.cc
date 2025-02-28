@@ -14,6 +14,7 @@
 
 #include "google/cloud/pubsublite/internal/partition_publisher.h"
 #include "google/cloud/internal/absl_str_cat_quiet.h"
+#include "google/cloud/internal/make_status.h"
 #include <functional>
 #include <iterator>
 
@@ -50,7 +51,6 @@ PartitionPublisher::~PartitionPublisher() {
   if (!shutdown.is_ready()) {
     GCP_LOG(WARNING) << "`Shutdown` must be called and finished before object "
                         "goes out of scope.";
-    assert(false);
   }
   shutdown.get();
 }
@@ -140,9 +140,9 @@ void PartitionPublisher::OnRead(absl::optional<PublishResponse> response) {
     // `InitialPublishResponse`, we abort because this should not be the
     // case once we start `Read`ing
     OnReadEnd();
-    return service_composite_.Abort(Status(
-        StatusCode::kAborted,
-        absl::StrCat("Invalid `Read` response: ", response->DebugString())));
+    return service_composite_.Abort(internal::AbortedError(
+        absl::StrCat("Invalid `Read` response: ", response->DebugString()),
+        GCP_ERROR_INFO()));
   }
 
   std::deque<MessageWithPromise> batch;
@@ -155,10 +155,10 @@ void PartitionPublisher::OnRead(absl::optional<PublishResponse> response) {
   }
   if (batch.empty()) {
     OnReadEnd();
-    return service_composite_.Abort(
-        Status(StatusCode::kFailedPrecondition,
-               "Server sent message response when no batches were "
-               "outstanding."));
+    return service_composite_.Abort(internal::FailedPreconditionError(
+        "Server sent message response when no batches were "
+        "outstanding.",
+        GCP_ERROR_INFO()));
   }
   std::int64_t offset = response->message_response().start_cursor().offset();
   for (auto& message : batch) {

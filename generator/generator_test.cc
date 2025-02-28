@@ -13,9 +13,9 @@
 // limitations under the License.
 
 #include "generator/generator.h"
-#include "google/cloud/log.h"
-#include "absl/memory/memory.h"
 #include "generator/internal/printer.h"
+#include "generator/testing/error_collectors.h"
+#include "generator/testing/fake_source_tree.h"
 #include "generator/testing/printer_mocks.h"
 #include <google/protobuf/compiler/importer.h>
 #include <google/protobuf/descriptor.h>
@@ -32,39 +32,6 @@ using ::google::protobuf::DescriptorPool;
 using ::google::protobuf::FileDescriptor;
 using ::google::protobuf::FileDescriptorProto;
 using ::testing::HasSubstr;
-using ::testing::Return;
-
-class StringSourceTree : public google::protobuf::compiler::SourceTree {
- public:
-  explicit StringSourceTree(std::map<std::string, std::string> files)
-      : files_(std::move(files)) {}
-
-  google::protobuf::io::ZeroCopyInputStream* Open(
-      std::string const& filename) override {
-    auto iter = files_.find(filename);
-    return iter == files_.end() ? nullptr
-                                : new google::protobuf::io::ArrayInputStream(
-                                      iter->second.data(),
-                                      static_cast<int>(iter->second.size()));
-  }
-
- private:
-  std::map<std::string, std::string> files_;
-};
-
-class AbortingErrorCollector : public DescriptorPool::ErrorCollector {
- public:
-  AbortingErrorCollector() = default;
-  AbortingErrorCollector(AbortingErrorCollector const&) = delete;
-  AbortingErrorCollector& operator=(AbortingErrorCollector const&) = delete;
-
-  void AddError(std::string const& filename, std::string const& element_name,
-                google::protobuf::Message const*, ErrorLocation,
-                std::string const& error_message) override {
-    GCP_LOG(FATAL) << "AddError() called unexpectedly: " << filename << " ["
-                   << element_name << "]: " << error_message;
-  }
-};
 
 char const* const kSuccessServiceProto =
     "syntax = \"proto3\";\n"
@@ -90,15 +57,15 @@ class GeneratorTest : public ::testing::Test {
 
  private:
   FileDescriptorProto file_proto_;
-  AbortingErrorCollector collector_;
-  StringSourceTree source_tree_;
+  generator_testing::ErrorCollector collector_;
+  generator_testing::FakeSourceTree source_tree_;
   google::protobuf::SimpleDescriptorDatabase simple_db_;
   google::protobuf::compiler::SourceTreeDescriptorDatabase source_tree_db_;
   google::protobuf::MergedDescriptorDatabase merged_db_;
 
  protected:
   void SetUp() override {
-    context_ = absl::make_unique<generator_testing::MockGeneratorContext>();
+    context_ = std::make_unique<generator_testing::MockGeneratorContext>();
   }
 
   DescriptorPool pool_;
@@ -140,38 +107,12 @@ TEST_F(GeneratorTest, BadCommandLineArgs) {
   EXPECT_EQ(actual_error, expected_error);
 }
 
-TEST_F(GeneratorTest, GenerateServicesSuccess) {
-  int constexpr kNumMockOutputStreams = 23;
-  std::vector<std::unique_ptr<generator_testing::MockZeroCopyOutputStream>>
-      mock_outputs(kNumMockOutputStreams);
-  for (auto& output : mock_outputs) {
-    output = absl::make_unique<generator_testing::MockZeroCopyOutputStream>();
-  }
-
-  FileDescriptor const* service_file_descriptor =
-      pool_.FindFileByName("google/foo/v1/service.proto");
-
-  for (auto& output : mock_outputs) {
-    EXPECT_CALL(*output, Next).WillRepeatedly(Return(false));
-  }
-
-  int next_mock = 0;
-  EXPECT_CALL(*context_, Open)
-      .Times(kNumMockOutputStreams)
-      .WillRepeatedly([&next_mock, &mock_outputs](::testing::Unused) {
-        return mock_outputs[next_mock++].release();
-      });
-
-  std::string actual_error;
-  Generator generator;
-  auto result = generator.Generate(service_file_descriptor,
-                                   {"product_path=google/cloud/foo"},
-                                   context_.get(), &actual_error);
-  EXPECT_TRUE(result);
-  EXPECT_TRUE(actual_error.empty());
-}
-
 }  // namespace
 }  // namespace generator
 }  // namespace cloud
 }  // namespace google
+
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}

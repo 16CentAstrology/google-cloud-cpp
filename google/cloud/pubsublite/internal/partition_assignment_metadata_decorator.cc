@@ -17,11 +17,16 @@
 // source: google/cloud/pubsublite/v1/subscriber.proto
 
 #include "google/cloud/pubsublite/internal/partition_assignment_metadata_decorator.h"
-#include "google/cloud/common_options.h"
+#include "google/cloud/grpc_options.h"
+#include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/api_client_header.h"
+#include "google/cloud/internal/url_encode.h"
 #include "google/cloud/status_or.h"
 #include <google/cloud/pubsublite/v1/subscriber.grpc.pb.h>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -29,37 +34,73 @@ namespace pubsublite_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 PartitionAssignmentServiceMetadata::PartitionAssignmentServiceMetadata(
-    std::shared_ptr<PartitionAssignmentServiceStub> child)
+    std::shared_ptr<PartitionAssignmentServiceStub> child,
+    std::multimap<std::string, std::string> fixed_metadata,
+    std::string api_client_header)
     : child_(std::move(child)),
+      fixed_metadata_(std::move(fixed_metadata)),
       api_client_header_(
-          google::cloud::internal::ApiClientHeader("generator")) {}
+          api_client_header.empty()
+              ? google::cloud::internal::GeneratedLibClientHeader()
+              : std::move(api_client_header)) {}
 
 std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
     google::cloud::pubsublite::v1::PartitionAssignmentRequest,
     google::cloud::pubsublite::v1::PartitionAssignment>>
 PartitionAssignmentServiceMetadata::AsyncAssignPartitions(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context) {
-  SetMetadata(*context);
-  return child_->AsyncAssignPartitions(cq, std::move(context));
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options) {
+  SetMetadata(*context, *options);
+  return child_->AsyncAssignPartitions(cq, std::move(context),
+                                       std::move(options));
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+PartitionAssignmentServiceMetadata::ListOperations(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::ListOperationsRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->ListOperations(context, options, request);
+}
+
+StatusOr<google::longrunning::Operation>
+PartitionAssignmentServiceMetadata::GetOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::GetOperationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetOperation(context, options, request);
+}
+
+Status PartitionAssignmentServiceMetadata::DeleteOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::DeleteOperationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->DeleteOperation(context, options, request);
+}
+
+Status PartitionAssignmentServiceMetadata::CancelOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::CancelOperationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->CancelOperation(context, options, request);
 }
 
 void PartitionAssignmentServiceMetadata::SetMetadata(
-    grpc::ClientContext& context, std::string const& request_params) {
+    grpc::ClientContext& context, Options const& options,
+    std::string const& request_params) {
   context.AddMetadata("x-goog-request-params", request_params);
-  SetMetadata(context);
+  SetMetadata(context, options);
 }
 
 void PartitionAssignmentServiceMetadata::SetMetadata(
-    grpc::ClientContext& context) {
-  context.AddMetadata("x-goog-api-client", api_client_header_);
-  auto const& options = internal::CurrentOptions();
-  if (options.has<UserProjectOption>()) {
-    context.AddMetadata("x-goog-user-project",
-                        options.get<UserProjectOption>());
-  }
-  auto const& authority = options.get<AuthorityOption>();
-  if (!authority.empty()) context.set_authority(authority);
+    grpc::ClientContext& context, Options const& options) {
+  google::cloud::internal::SetMetadata(context, options, fixed_metadata_,
+                                       api_client_header_);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

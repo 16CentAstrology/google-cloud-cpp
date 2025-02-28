@@ -67,16 +67,19 @@ using LongRunningOperationValueExtractor = std::function<StatusOr<ReturnType>(
  *  public:
  *   virtual future<StatusOr<google::longrunning::Operation>> AsyncFoo(
  *     google::cloud::CompletionQueue& cq,
- *     std::unique_ptr<grpc::ClientContext> context,
+ *     std::shared_ptr<grpc::ClientContext> context,
+ *     Options const& options,
  *     FooRequest const& request) = 0;
  *
  *   virtual future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
  *     google::cloud::CompletionQueue& cq,
- *     std::unique_ptr<grpc::ClientContext> context,
+ *     std::shared_ptr<grpc::ClientContext> context,
+ *     Options const& options,
  *     google::longrunning::GetOperationRequest const& request) = 0;
  *   virtual future<Status> AsyncCancelOperation(
  *     google::cloud::CompletionQueue& cq,
- *     std::unique_ptr<grpc::ClientContext> context,
+ *     std::shared_ptr<grpc::ClientContext> context,
+ *     Options const& options,
  *     google::longrunning::CancelOperationRequest const& request) = 0;
  * };
  * @endcode
@@ -86,23 +89,28 @@ using LongRunningOperationValueExtractor = std::function<StatusOr<ReturnType>(
  * @code
  * class BarConnectionImpl : public BarConnection {
  *  public:
- *   // Using C++14 for exposition purposes. The implementation supports C++11.
  *   future<StatusOr<FooResponse>> Foo(FooRequest const& request) override {
+ *     auto current = google::cloud::internal::SaveCurrentOptions();
  *     return google::cloud::internal::AsyncLongRunningOperation(
  *       cq_, request,
- *       [stub = stub_](auto& cq, auto context, auto const& request) {
- *         return stub->AsyncFoo(cq, std::move(context), request);
+ *       [stub = stub_](
+ *           auto& cq, auto context, auto const& options, auto const& request) {
+ *         return stub->AsyncFoo(cq, std::move(context), options, request);
  *       },
- *       [stub = stub_](auto& cq, auto context, auto const& request) {
- *         return stub->AsyncGetOperation(cq, std::move(context), request);
+ *       [stub = stub_](
+ *           auto& cq, auto context, auto const& options, auto const& request) {
+ *         return stub->AsyncGetOperation(
+ *             cq, std::move(context), options, request);
  *       },
- *       [stub](auto cq, auto context, auto const& r) {
- *         return stub->AsyncCancelOperation(cq, std::move(context), r);
+ *       [stub = stub_](
+ *           auto cq, auto context, auto const& options, auto const& r) {
+ *         return stub->AsyncCancelOperation(
+ *             cq, std::move(context), options, r);
  *       },
- *       retry_policy_->clone(), backoff_policy_->clone(),
+ *       retry_policy(*current), backoff_policy(*current),
  *       IdempotencyPolicy::kIdempotent,
- *       polling_policy_->clone(),
- *       __func__ // for debugging
+ *       polling_policy(*current),
+ *       current, __func__ // for debugging
  *       );
  *   }
  *
@@ -117,9 +125,9 @@ using LongRunningOperationValueExtractor = std::function<StatusOr<ReturnType>(
 template <typename ReturnType, typename RequestType, typename StartFunctor,
           typename RetryPolicyType>
 future<StatusOr<ReturnType>> AsyncLongRunningOperation(
-    google::cloud::CompletionQueue cq, RequestType&& request,
-    StartFunctor&& start, AsyncPollLongRunningOperation poll,
-    AsyncCancelLongRunningOperation cancel,
+    google::cloud::CompletionQueue cq, ImmutableOptions options,
+    RequestType&& request, StartFunctor&& start,
+    AsyncPollLongRunningOperation poll, AsyncCancelLongRunningOperation cancel,
     LongRunningOperationValueExtractor<ReturnType> value_extractor,
     std::unique_ptr<RetryPolicyType> retry_policy,
     std::unique_ptr<BackoffPolicy> backoff_policy, Idempotency idempotent,
@@ -127,12 +135,34 @@ future<StatusOr<ReturnType>> AsyncLongRunningOperation(
   using ::google::longrunning::Operation;
   auto operation =
       AsyncRetryLoop(std::move(retry_policy), std::move(backoff_policy),
-                     idempotent, cq, std::forward<StartFunctor>(start),
+                     idempotent, cq, std::forward<StartFunctor>(start), options,
                      std::forward<RequestType>(request), location);
   auto loc = std::string{location};
-  return AsyncPollingLoop(std::move(cq), std::move(operation), std::move(poll),
+  return AsyncPollingLoop(std::move(cq), std::move(options),
+                          std::move(operation), std::move(poll),
                           std::move(cancel), std::move(polling_policy),
                           std::move(location))
+      .then([value_extractor, loc](future<StatusOr<Operation>> g) {
+        return value_extractor(g.get(), loc);
+      });
+}
+
+/**
+ * Asynchronously polls an already started long-running operation.
+ */
+template <typename ReturnType>
+future<StatusOr<ReturnType>> AsyncAwaitLongRunningOperation(
+    google::cloud::CompletionQueue cq, ImmutableOptions options,
+    google::longrunning::Operation const& operation,
+    AsyncPollLongRunningOperation poll, AsyncCancelLongRunningOperation cancel,
+    LongRunningOperationValueExtractor<ReturnType> value_extractor,
+    std::unique_ptr<PollingPolicy> polling_policy, char const* location) {
+  using ::google::longrunning::Operation;
+  auto loc = std::string{location};
+  return AsyncPollingLoop(std::move(cq), std::move(options),
+                          make_ready_future(StatusOr<Operation>(operation)),
+                          std::move(poll), std::move(cancel),
+                          std::move(polling_policy), std::move(location))
       .then([value_extractor, loc](future<StatusOr<Operation>> g) {
         return value_extractor(g.get(), loc);
       });

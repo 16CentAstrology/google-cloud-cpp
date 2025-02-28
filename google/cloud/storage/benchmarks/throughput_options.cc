@@ -14,10 +14,18 @@
 
 #include "google/cloud/storage/benchmarks/throughput_options.h"
 #include "google/cloud/storage/options.h"
+#include "google/cloud/common_options.h"
 #include "google/cloud/grpc_options.h"
+#include "google/cloud/internal/make_status.h"
 #include "absl/strings/str_split.h"
 #include "absl/time/time.h"
+#include <algorithm>
+#include <iostream>
+#include <set>
 #include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -35,19 +43,22 @@ Status ValidateQuantizedRange(std::string const& name,
   if (!minimum.has_value() || !maximum.has_value()) {
     std::ostringstream os;
     os << "One of the range limits for " << name << " is missing";
-    return google::cloud::Status{StatusCode::kInvalidArgument, os.str()};
+    return google::cloud::internal::InvalidArgumentError(os.str(),
+                                                         GCP_ERROR_INFO());
   }
   if (*minimum > *maximum || *minimum < 0 || *maximum < 0) {
     std::ostringstream os;
     os << "Invalid range for " << name << " [" << *minimum << ',' << *maximum
        << "]";
-    return google::cloud::Status{StatusCode::kInvalidArgument, os.str()};
+    return google::cloud::internal::InvalidArgumentError(os.str(),
+                                                         GCP_ERROR_INFO());
   }
   if (quantum <= 0 || (quantum > *minimum && *minimum != 0)) {
     std::ostringstream os;
     os << "Invalid quantum for " << name << " (" << quantum
        << "), it should be in the (0," << *minimum << "] range";
-    return google::cloud::Status{StatusCode::kInvalidArgument, os.str()};
+    return google::cloud::internal::InvalidArgumentError(os.str(),
+                                                         GCP_ERROR_INFO());
   }
 
   return Status{};
@@ -102,13 +113,13 @@ using ::google::cloud::testing_util::OptionDescriptor;
 google::cloud::StatusOr<ThroughputOptions> ValidateParsedOptions(
     std::string const& usage, ThroughputOptions options) {
   auto make_status = [](std::ostringstream& os) {
-    auto const code = google::cloud::StatusCode::kInvalidArgument;
-    return google::cloud::Status{code, std::move(os).str()};
+    return google::cloud::internal::InvalidArgumentError(std::move(os).str(),
+                                                         GCP_ERROR_INFO());
   };
 
-  if (options.region.empty()) {
+  if (options.bucket.empty()) {
     std::ostringstream os;
-    os << "Missing value for --region option\n" << usage << "\n";
+    os << "Missing value for --bucket option\n" << usage << "\n";
     return make_status(os);
   }
 
@@ -239,14 +250,10 @@ google::cloud::StatusOr<ThroughputOptions> ParseThroughputOptions(
        [&wants_help](std::string const&) { wants_help = true; }},
       {"--description", "print benchmark description",
        [&wants_description](std::string const&) { wants_description = true; }},
-      {"--project-id", "use the given project id for the benchmark",
-       [&options](std::string const& val) { options.project_id = val; }},
+      {"--bucket", "use the given bucket for the benchmark",
+       [&options](std::string const& val) { options.bucket = val; }},
       {"--labels", "user-defined labels to tag the results",
        [&options](std::string const& val) { options.labels = val; }},
-      {"--region", "use the given region for the benchmark",
-       [&options](std::string const& val) { options.region = val; }},
-      {"--bucket-prefix", "use this prefix when creating the bucket",
-       [&options](std::string const& val) { options.bucket_prefix = val; }},
       {"--thread-count", "set the number of threads in the benchmark",
        [&options](std::string const& val) {
          options.thread_count = std::stoi(val);
@@ -322,7 +329,7 @@ google::cloud::StatusOr<ThroughputOptions> ParseThroughputOptions(
          options.libs = ParseLibraries(val);
        }},
       {"--enabled-transports",
-       "enable a subset of the transports (DirectPath, Grpc, Json, Xml)",
+       "enable a subset of the transports (DirectPath, Grpc, Json)",
        [&options](std::string const& val) {
          options.transports = ParseTransports(val);
        }},
@@ -347,10 +354,20 @@ google::cloud::StatusOr<ThroughputOptions> ParseThroughputOptions(
        [&options](std::string const& val) {
          options.grpc_options.set<EndpointOption>(val);
        }},
+      {"--grpc-authority-hostname",
+       "sets the ALTS call host for gRPC-based benchmarks",
+       [&options](std::string const& val) {
+         options.grpc_options.set<AuthorityOption>(val);
+       }},
       {"--direct-path-endpoint",
        "sets the endpoint for gRPC+DirectPath-based benchmarks",
        [&options](std::string const& val) {
          options.direct_path_options.set<EndpointOption>(val);
+       }},
+      {"--direct-path-authority-hostname",
+       "sets the ALTS call host for gRPC+DirectPath-based benchmarks",
+       [&options](std::string const& val) {
+         options.direct_path_options.set<AuthorityOption>(val);
        }},
       {"--transfer-stall-timeout",
        "configure `storage::TransferStallTimeoutOption`: the maximum time"
@@ -468,17 +485,15 @@ google::cloud::StatusOr<ThroughputOptions> ParseThroughputOptions(
     return options;
   }
 
-  if (unparsed.size() > 2) {
+  if (unparsed.size() >= 2) {
     std::ostringstream os;
     os << "Unknown arguments or options:\n";
     for (auto const& a : unparsed) {
       os << "  " << a << "\n";
     }
     os << usage << "\n";
-    return Status{StatusCode::kInvalidArgument, os.str()};
-  }
-  if (unparsed.size() == 2) {
-    options.region = unparsed[1];
+    return google::cloud::internal::InvalidArgumentError(os.str(),
+                                                         GCP_ERROR_INFO());
   }
   return ValidateParsedOptions(usage, options);
 }

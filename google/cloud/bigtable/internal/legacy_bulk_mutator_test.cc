@@ -18,7 +18,6 @@
 #include "google/cloud/bigtable/testing/mock_response_reader.h"
 #include "google/cloud/testing_util/chrono_literals.h"
 #include "google/cloud/testing_util/fake_completion_queue_impl.h"
-#include "absl/memory/memory.h"
 
 namespace google {
 namespace cloud {
@@ -28,14 +27,14 @@ namespace {
 
 namespace btproto = ::google::bigtable::v2;
 using ::testing::Return;
-using ::google::cloud::testing_util::chrono_literals::operator"" _ms;  // NOLINT
+using ::google::cloud::testing_util::chrono_literals::operator""_ms;
 using ::google::cloud::bigtable::testing::MockMutateRowsReader;
 
 auto constexpr kTableName = "projects/blah/instances/blah2/tables/table";
 
 std::unique_ptr<grpc::ClientContext> TestContext(
     std::string const& app_profile_id = "") {
-  auto context = absl::make_unique<grpc::ClientContext>();
+  auto context = std::make_unique<grpc::ClientContext>();
   bigtable_internal::MakeMetadataUpdatePolicy(kTableName, app_profile_id)
       .Setup(*context);
   return context;
@@ -52,7 +51,7 @@ TEST(MultipleRowsMutatorTest, Simple) {
   // Prepare the mocks.  The mutator should issue a RPC which must return a
   // stream of responses, we prepare the stream first because it is easier than
   // to create one of the fly.
-  auto reader = absl::make_unique<MockMutateRowsReader>(
+  auto reader = std::make_unique<MockMutateRowsReader>(
       "google.bigtable.v2.Bigtable.MutateRows");
   EXPECT_CALL(*reader, Read)
       .WillOnce([](btproto::MutateRowsResponse* r) {
@@ -77,7 +76,8 @@ TEST(MultipleRowsMutatorTest, Simple) {
       .WillOnce(reader.release()->MakeMockReturner());
 
   auto policy = DefaultIdempotentMutationPolicy();
-  internal::BulkMutator mutator("", kTableName, *policy, std::move(mut));
+  bigtable_internal::BulkMutator mutator("", kTableName, *policy,
+                                         std::move(mut));
 
   EXPECT_TRUE(mutator.HasPendingMutations());
   auto context = TestContext();
@@ -107,7 +107,7 @@ TEST(MultipleRowsMutatorTest, BulkApplyAppProfileId) {
   EXPECT_CALL(client, MutateRows)
       .WillOnce([expected_id](grpc::ClientContext*,
                               btproto::MutateRowsRequest const& req) {
-        auto reader = absl::make_unique<MockMutateRowsReader>(
+        auto reader = std::make_unique<MockMutateRowsReader>(
             "google.bigtable.v2.Bigtable.MutateRows");
         EXPECT_CALL(*reader, Read)
             .WillOnce([](btproto::MutateRowsResponse* r) {
@@ -130,7 +130,8 @@ TEST(MultipleRowsMutatorTest, BulkApplyAppProfileId) {
       });
 
   auto policy = DefaultIdempotentMutationPolicy();
-  internal::BulkMutator mutator("test-id", kTableName, *policy, std::move(mut));
+  bigtable_internal::BulkMutator mutator("test-id", kTableName, *policy,
+                                         std::move(mut));
 
   EXPECT_TRUE(mutator.HasPendingMutations());
   auto context = TestContext("test-id");
@@ -157,7 +158,7 @@ TEST(MultipleRowsMutatorTest, RetryPartialFailure) {
       .WillOnce(
           [](grpc::ClientContext*, btproto::MutateRowsRequest const& req) {
             EXPECT_EQ(kTableName, req.table_name());
-            auto r1 = absl::make_unique<MockMutateRowsReader>(
+            auto r1 = std::make_unique<MockMutateRowsReader>(
                 "google.bigtable.v2.Bigtable.MutateRows");
             EXPECT_CALL(*r1, Read)
                 .WillOnce([](btproto::MutateRowsResponse* r) {
@@ -179,7 +180,7 @@ TEST(MultipleRowsMutatorTest, RetryPartialFailure) {
             EXPECT_EQ(kTableName, req.table_name());
             // Prepare a second stream response, because the client should retry
             // after the partial failure.
-            auto r2 = absl::make_unique<MockMutateRowsReader>(
+            auto r2 = std::make_unique<MockMutateRowsReader>(
                 "google.bigtable.v2.Bigtable.MutateRows");
             EXPECT_CALL(*r2, Read)
                 .WillOnce([](btproto::MutateRowsResponse* r) {
@@ -196,7 +197,8 @@ TEST(MultipleRowsMutatorTest, RetryPartialFailure) {
           });
 
   auto policy = DefaultIdempotentMutationPolicy();
-  internal::BulkMutator mutator("", kTableName, *policy, std::move(mut));
+  bigtable_internal::BulkMutator mutator("", kTableName, *policy,
+                                         std::move(mut));
 
   // This work will be in BulkApply(), but this is the test for BulkMutator in
   // isolation, so call MakeOneRequest() twice, for the r1, and the r2 cases.
@@ -219,7 +221,7 @@ TEST(MultipleRowsMutatorTest, PermanentFailure) {
       SingleRowMutation("bar", {SetCell("fam", "col", 0_ms, "qux")}));
 
   // Make the first RPC return one recoverable and one unrecoverable failures.
-  auto r1 = absl::make_unique<MockMutateRowsReader>(
+  auto r1 = std::make_unique<MockMutateRowsReader>(
       "google.bigtable.v2.Bigtable.MutateRows");
   EXPECT_CALL(*r1, Read)
       .WillOnce([](btproto::MutateRowsResponse* r) {
@@ -239,7 +241,7 @@ TEST(MultipleRowsMutatorTest, PermanentFailure) {
 
   // The BulkMutator should issue a second request, which will return success
   // for the remaining mutation.
-  auto r2 = absl::make_unique<MockMutateRowsReader>(
+  auto r2 = std::make_unique<MockMutateRowsReader>(
       "google.bigtable.v2.Bigtable.MutateRows");
   EXPECT_CALL(*r2, Read)
       .WillOnce([](btproto::MutateRowsResponse* r) {
@@ -259,7 +261,8 @@ TEST(MultipleRowsMutatorTest, PermanentFailure) {
       .WillOnce(r2.release()->MakeMockReturner());
 
   auto policy = DefaultIdempotentMutationPolicy();
-  internal::BulkMutator mutator("", kTableName, *policy, std::move(mut));
+  bigtable_internal::BulkMutator mutator("", kTableName, *policy,
+                                         std::move(mut));
 
   // This work will be in BulkApply(), but this is the test for BulkMutator in
   // isolation, so call MakeOneRequest() twice, for the r1, and the r2 cases.
@@ -287,7 +290,7 @@ TEST(MultipleRowsMutatorTest, PartialStream) {
 
   // This will be the stream returned by the first request.  It is missing
   // information about one of the mutations.
-  auto r1 = absl::make_unique<MockMutateRowsReader>(
+  auto r1 = std::make_unique<MockMutateRowsReader>(
       "google.bigtable.v2.Bigtable.MutateRows");
   EXPECT_CALL(*r1, Read)
       .WillOnce([](btproto::MutateRowsResponse* r) {
@@ -302,7 +305,7 @@ TEST(MultipleRowsMutatorTest, PartialStream) {
   // The BulkMutation should issue a second request, this is the stream returned
   // by the second request, which indicates success for the missed mutation
   // on r1.
-  auto r2 = absl::make_unique<MockMutateRowsReader>(
+  auto r2 = std::make_unique<MockMutateRowsReader>(
       "google.bigtable.v2.Bigtable.MutateRows");
   EXPECT_CALL(*r2, Read)
       .WillOnce([](btproto::MutateRowsResponse* r) {
@@ -322,7 +325,8 @@ TEST(MultipleRowsMutatorTest, PartialStream) {
       .WillOnce(r2.release()->MakeMockReturner());
 
   auto policy = DefaultIdempotentMutationPolicy();
-  internal::BulkMutator mutator("", kTableName, *policy, std::move(mut));
+  bigtable_internal::BulkMutator mutator("", kTableName, *policy,
+                                         std::move(mut));
 
   // This work will be in BulkApply(), but this is the test for BulkMutator in
   // isolation, so call MakeOneRequest() twice: for the r1 and r2 cases.
@@ -360,7 +364,7 @@ TEST(MultipleRowsMutatorTest, RetryOnlyIdempotent) {
   EXPECT_CALL(client, MutateRows)
       .WillOnce([](grpc::ClientContext*, btproto::MutateRowsRequest const& r) {
         EXPECT_EQ(4, r.entries_size());
-        auto r1 = absl::make_unique<MockMutateRowsReader>(
+        auto r1 = std::make_unique<MockMutateRowsReader>(
             "google.bigtable.v2.Bigtable.MutateRows");
         EXPECT_CALL(*r1, Read)
             .WillOnce([](btproto::MutateRowsResponse* r) {
@@ -382,7 +386,7 @@ TEST(MultipleRowsMutatorTest, RetryOnlyIdempotent) {
         expect_r2(r);
         // The BulkMutator should issue a second request, with only the
         // idempotent mutations, make the mocks return success for them.
-        auto r2 = absl::make_unique<MockMutateRowsReader>(
+        auto r2 = std::make_unique<MockMutateRowsReader>(
             "google.bigtable.v2.Bigtable.MutateRows");
         EXPECT_CALL(*r2, Read)
             .WillOnce([](btproto::MutateRowsResponse* r) {
@@ -400,7 +404,8 @@ TEST(MultipleRowsMutatorTest, RetryOnlyIdempotent) {
       });
 
   auto policy = DefaultIdempotentMutationPolicy();
-  internal::BulkMutator mutator("", kTableName, *policy, std::move(mut));
+  bigtable_internal::BulkMutator mutator("", kTableName, *policy,
+                                         std::move(mut));
 
   // This work will be in BulkApply(), but this is the test for BulkMutator in
   // isolation, so call MakeOneRequest() twice, for the r1, and the r2 cases.
@@ -441,7 +446,7 @@ TEST(MultipleRowsMutatorTest, UnconfirmedAreFailed) {
   EXPECT_CALL(client, MutateRows)
       .WillOnce([](grpc::ClientContext*, btproto::MutateRowsRequest const& r) {
         EXPECT_EQ(3, r.entries_size());
-        auto r1 = absl::make_unique<MockMutateRowsReader>(
+        auto r1 = std::make_unique<MockMutateRowsReader>(
             "google.bigtable.v2.Bigtable.MutateRows");
         EXPECT_CALL(*r1, Read)
             .WillOnce([](btproto::MutateRowsResponse* r) {
@@ -461,7 +466,8 @@ TEST(MultipleRowsMutatorTest, UnconfirmedAreFailed) {
       });
 
   auto policy = DefaultIdempotentMutationPolicy();
-  internal::BulkMutator mutator("", kTableName, *policy, std::move(mut));
+  bigtable_internal::BulkMutator mutator("", kTableName, *policy,
+                                         std::move(mut));
 
   EXPECT_TRUE(mutator.HasPendingMutations());
   auto context = TestContext();

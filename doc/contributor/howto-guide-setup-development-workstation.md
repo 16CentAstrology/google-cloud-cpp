@@ -8,15 +8,14 @@ contributions to the project.
 - Packaging maintainers or developers who prefer to install the library in a
   fixed directory (such as `/usr/local` or `/opt`) should consult the
   [packaging guide](/doc/packaging.md).
-- Developers that prefer using a package manager such as
-  [vcpkg](https://vcpkg.io), [Conda](https://conda.io),
-  or [Conan](https://conan.io) should follow the instructions for their package
-  manager.
+- Developers who prefer using a package manager such as
+  [vcpkg](https://vcpkg.io), or [Conda](https://conda.io), should follow the
+  instructions for their package manager.
 - Developers wanting to use the libraries as part of a larger CMake or Bazel
   project should consult the [quickstart guides](/README.md#quickstart) for the
   library or libraries they want to use.
-- Developers wanting to compile the library just to run some examples or
-  tests should consult the
+- Developers wanting to compile the library just to run some examples or tests
+  should consult the
   [building and installing](/README.md#building-and-installing) section of the
   top-level README file.
 - Contributors and developers **to** `google-cloud-cpp`, this is the right
@@ -33,9 +32,9 @@ contributions to the project.
 ## Linux
 
 Install the dependencies needed for your distribution. The top-level
-[README](/README.md) file lists the minimal development tools necessary
-to compile `google-cloud-cpp`. But for active development you may want to
-install additional tools to run the unit and integration tests.
+[README](/README.md) file lists the minimal development tools necessary to
+compile `google-cloud-cpp`. But for active development you may want to install
+additional tools to run the unit and integration tests.
 
 These instructions will describe how to install these tools for Ubuntu 18.04
 (Bionic Beaver). For other distributions you may consult the Dockerfiles in
@@ -44,82 +43,168 @@ If you use a different distribution, you will need to use the corresponding
 package manager (`dnf`, `zypper`, `apk`, etc.) and find the corresponding
 package names.
 
-First, install the basic development tools:
+Install the basic development tools:
 
-```console
-sudo apt update
-sudo apt install -y build-essential cmake git gcc g++ cmake \
-        libc-ares-dev libc-ares2 libbenchmark-dev libcurl4-openssl-dev libssl-dev \
-        make npm pkg-config tar wget zlib1g-dev
+```sh
+sudo curl -o /usr/bin/bazelisk -sSL "https://github.com/bazelbuild/bazelisk/releases/download/v1.18.0/bazelisk-linux-amd64"
+sudo chmod +x /usr/bin/bazelisk
+sudo ln -s /usr/bin/bazelisk /usr/bin/bazel
+
+sudo apt-get update
+sudo apt-get --no-install-recommends install -y apt-transport-https apt-utils \
+        automake build-essential cmake ca-certificates curl git \
+        gcc g++ libc-ares-dev libc-ares2 libcurl4-openssl-dev libre2-dev \
+        libssl-dev m4 make pkg-config tar wget zlib1g-dev
+sudo apt install -y ninja-build
+sudo apt-get install curl zip unzip tar
 ```
 
-Then install `clang-10` and some additional Clang tools that we use to enforce
-code style rules:
+Install docker and its `buildx` component:
 
-```console
-sudo apt install -y clang-10 clang-tidy-10 clang-format-10 clang-tools-10
-sudo update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-10 100
-sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-10 100
+```sh
+sudo apt install -y docker.io docker-buildx
 ```
+
+Configure your user to launch docker without needing `sudo`:
+
+```sh
+sudo usermod -aG docker $USER
+```
+
+Update all packages and reboot:
+
+```sh
+sudo apt upgrade
+sudo shutdown -r now
+```
+
+Verify docker is working:
+
+```sh
+docker run hello-world
+```
+
+Clone the repository and run a test build:
+
+```sh
+git clone git@github.com:${GITHUB_USER}/google-cloud-cpp.git
+```
+
+```sh
+time env -C google-cloud-cpp bazel build //google/cloud/storage/...
+#
+# real    6m36.547s
+# user    0m0.825s
+# sys     0m0.630s
+```
+
+You need to install the Google Cloud SDK. These instructions work for a GCE VM,
+but you may need to adapt them for your environment. Check the instructions on
+the [Google Cloud SDK website](https://cloud.google.com/sdk/) for alternatives.
+
+```sh
+type gcloud || sudo google-cloud-cpp/ci/install-cloud-sdk.sh
+```
+
+By default, `gcloud` will use the GCE instance credentials. That may be enough
+in most cases, but you may need to use your *own* credentials:
+
+```sh
+/usr/local/google-cloud-sdk/bin/gcloud auth login
+```
+
+Don't forget the second ~breakfast~ login:
+
+```sh
+/usr/local/google-cloud-sdk/bin/gcloud auth application-default login
+```
+
+Test checkers:
+
+```sh
+time env -C google-cloud-cpp ci/cloudbuild/build.sh -t checkers-pr
+# The first time is slow, as it needs to create the docker image. The second
+# time it should run
+# real    0m30.997s
+# user    0m0.282s
+# sys     0m0.232s
+```
+
+```sh
+(
+echo ENABLED_FEATURES=storage,storage_grpc,opentelemetry
+echo RUN_CLANG_TIDY_FIX=NO
+) >$HOME/.cloudcxxrc
+time env -C google-cloud-cpp ci/cloudbuild/build.sh --distro fedora-latest-cmake --build development
+# The second run should get times such as
+# real    1m48.347s
+# user    0m0.259s
+# sys     0m0.247s
+```
+
+### Optional Tools
+
+Most of the time we use these tools in docker images, so there is no need to
+install them in your development environment.
 
 Install the buildifier tool, which we use to format `BUILD.bazel` files:
 
-```console
-sudo wget -q -O /usr/bin/buildifier https://github.com/bazelbuild/buildtools/releases/download/0.29.0/buildifier
+```sh
+sudo curl -fsSL -o /usr/bin/buildifier https://github.com/bazelbuild/buildtools/releases/download/6.0.0/buildifier-linux-amd64
 sudo chmod 755 /usr/bin/buildifier
 ```
 
 Install shfmt tool, which we use to format our shell scripts:
 
-```console
+```sh
 sudo curl -L -o /usr/local/bin/shfmt \
-    "https://github.com/mvdan/sh/releases/download/v3.1.0/shfmt_v3.1.0_linux_amd64"
+    "https://github.com/mvdan/sh/releases/download/v3.4.3/shfmt_v3.4.3_linux_amd64"
 sudo chmod 755 /usr/local/bin/shfmt
 ```
 
 Install `cmake_format` to automatically format the CMake list files. We pin this
 tool to a specific version because the formatting changes when the "latest"
-version is updated, and we do not want the builds to break just
-because some third party changed something.
+version is updated, and we do not want the builds to break just because some
+third party changed something.
 
-```console
+```sh
 sudo apt install -y python3 python3-pip
 pip3 install --upgrade pip
-pip3 install cmake_format==0.6.8
+pip3 install cmake_format==0.6.13
 ```
 
-Install black, which we use to format our Python scripts:
+Install \`black\`\`, which we use to format our Python scripts:
 
-```console
-pip3 install black==19.3b0
+```sh
+pip3 install black==22.3.0
 ```
 
-Install cspell for spell checking.
+Install `mdformat`, which we use to format our `.md` documents:
 
-```console
-sudo npm install -g cspell
+```sh
+pip3 install mdformat-gfm==0.3.5 \
+                 mdformat-frontmatter==0.4.1 \
+                 mdformat-footnote==0.1.1
+```
+
+Install `typos-cli` for spell and typo checking:
+
+```sh
+sudo apt install cargo
+cargo install typos-cli --version 1.16.1
 ```
 
 Install the Python modules used in the integration tests:
 
-```console
+```sh
 pip3 install setuptools wheel
 pip3 install git+https://github.com/googleapis/storage-testbench
 ```
 
 Add the pip directory to your PATH:
 
-```console
+```sh
 export PATH=$PATH:$HOME/.local/bin
-```
-
-You need to install the Google Cloud SDK. These instructions work for a GCE
-VM, but you may need to adapt them for your environment. Check the instructions
-on the [Google Cloud SDK website](https://cloud.google.com/sdk/) for
-alternatives.
-
-```console
-./ci/install-cloud-sdk.sh
 ```
 
 ### (Optional) Enable clang-based tooling in your IDE
@@ -130,9 +215,9 @@ a `compile_commands.json` file at the top of the repo, which CMake knows how to
 create for us.
 
 For the purposes of clang-tooling, it's best to build all the code and
-dependencies from source so that clangd can find all the symbols and jump you
-to the right spot in the source files. We prefer using `vcpkg` for this, so
-clone the vcpkg repo if you don't already have it checked out somewhere.
+dependencies from source so that clangd can find all the symbols and jump you to
+the right spot in the source files. We prefer using `vcpkg` for this, so clone
+the vcpkg repo if you don't already have it checked out somewhere.
 
 ```shell
 VCPKG_ROOT=~/vcpkg  # We'll use this later
@@ -145,13 +230,16 @@ option to compile the `google-cloud-cpp` code, and tell it to use `vcpkg` to
 build all the dependencies.
 
 ```shell
-cmake -H. -B.build -GNinja \
-  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-  -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+cmake -S . -B .build -G Ninja \
+  --toolchain "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" \
+  -DGOOGLE_CLOUD_CPP_ENABLE_CCACHE=ON \
+  -DGOOGLE_CLOUD_CPP_ENABLE_WERROR=ON \
+  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 cmake --build .build
 ```
 
-Finally, symlink the `.build/compile_commands.json` file into the top of the repo.
+Finally, symlink the `.build/compile_commands.json` file into the top of the
+repo.
 
 ```shell
 ln -s .build/compile_commands.json .
@@ -189,8 +277,9 @@ env -C cmake-out/home \
 ### Installing Docker
 
 You may want to [install Docker](https://docs.docker.com/engine/installation/).
-This will allow you to [use the build scripts](howto-guide-running-ci-builds-locally.md)
-to test on multiple platforms.
+This will allow you to
+[use the build scripts](howto-guide-running-ci-builds-locally.md) to test on
+multiple platforms.
 
 Once Docker is installed, to avoid needing to prepend `sudo` to Docker
 invocations, add yourself to the Docker group:
@@ -201,9 +290,9 @@ sudo usermod -aG docker $USER
 
 ## Windows
 
-If you mainly use Windows as your development environment, you need to install
-a number of tools.  We use [Chocolatey](https://www.chocolatey.org) to drive the
-installation, so you would need to install it first.  This needs to be executed
+If you mainly use Windows as your development environment, you need to install a
+number of tools. We use [Chocolatey](https://www.chocolatey.org) to drive the
+installation, so you would need to install it first. This needs to be executed
 in a `cmd.exe` shell, running as the `Administrator`:
 
 ```console
@@ -220,8 +309,8 @@ choco install -y git cmake ninja bazelisk
 
 ### Clone `google-cloud-cpp`
 
-You may need to create a new key pair to connect to GitHub.  Search the web
-for how to do this.  Then you can clone the code:
+You may need to create a new key pair to connect to GitHub. Search the web for
+how to do this. Then you can clone the code:
 
 ```console
 > cd \Users\%USERNAME%
@@ -231,23 +320,23 @@ for how to do this.  Then you can clone the code:
 
 ### Use the CI scripts to compile `google-cloud-cpp`
 
-You can use the CI driver scripts to compile the code. You need to load the
-MSVC environment variables:
+You can use the CI driver scripts to compile the code. You need to load the MSVC
+environment variables:
 
 ```console
-> set MSVC_VERSION=2019
+> set MSVC_VERSION=2022
 > call "c:\Program Files (x86)\Microsoft Visual Studio\%MSVC_VERSION%\Community\VC\Auxiliary\Build\vcvars64.bat"
 ```
 
 Or to setup for 32-bit builds:
 
 ```console
-> set MSVC_VERSION=2019
+> set MSVC_VERSION=2022
 > call "c:\Program Files (x86)\Microsoft Visual Studio\%MSVC_VERSION%\Community\VC\Auxiliary\Build\vcvars32.bat"
 ```
 
-Then run the CI scripts, for example, to compile and run the tests with CMake
-in debug mode:
+Then run the CI scripts, for example, to compile and run the tests with CMake in
+debug mode:
 
 ```console
 > cd google-cloud-cpp
@@ -335,56 +424,79 @@ This might be useful to run performance tests in isolation, but "close" to the
 service you are doing development for. The following instructions assume you
 have already created a project:
 
-```console
-$ PROJECT_ID=$(gcloud config get-value project)
+```sh
+PROJECT_ID=$(gcloud config get-value project)
 # Or manually set it if you have not configured your default project:
 ```
 
 Select a zone to run your VM:
 
-```console
-$ gcloud compute zones list
+```sh
+gcloud compute zones list
 $ ZONE=... # Pick a zone.
 ```
 
 Select the name of the VM:
 
-```console
-$ VM=... # e.g. VM=my-windows-devbox
+```sh
+VM=... # e.g. VM=my-windows-devbox
 ```
 
 Then create the virtual machine using:
 
-```console
-# Googlers should consult go/drawfork before selecting an image.
-$ IMAGE_PROJECT=ubuntu-os-cloud
-$ IMAGE=$(gcloud compute images list \
+```sh
+IMAGE_PROJECT=ubuntu-os-cloud
+
+IMAGE=$(gcloud compute images list \
     --project=${IMAGE_PROJECT} \
-    --filter="family ~ ubuntu-1804" \
+    --filter="family ~ ubuntu-2204" \
     --sort-by=~name \
     --format="value(name)" \
     --limit=1)
-$ PROJECT_NUMBER=$(gcloud projects list \
+
+PROJECT_NUMBER=$(gcloud projects list \
     --filter="project_id=${PROJECT_ID}" \
     --format="value(project_number)" \
     --limit=1)
-$ gcloud compute --project "${PROJECT_ID}" instances create "${VM}" \
-  --zone "${ZONE}" \
-  --image "${IMAGE}" \
-  --image-project "${IMAGE_PROJECT}" \
-  --boot-disk-size "1024" --boot-disk-type "pd-standard" \
-  --boot-disk-device-name "${VM}" \
-  --service-account "${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-  --machine-type "n1-standard-8" \
-  --subnet "default" \
-  --maintenance-policy "MIGRATE" \
-  --scopes "https://www.googleapis.com/auth/bigtable.admin","https://www.googleapis.com/auth/bigtable.data","https://www.googleapis.com/auth/cloud-platform"
+
+gcloud compute instances create ${VM} \
+    --project=${PROJECT_ID} \
+    --service-account=${PROJECT_NUMBER}-compute@developer.gserviceaccount.com \
+    --create-disk=auto-delete=yes,boot=yes,device-name=${VM},image=projects/${IMAGE_PROJECT}/global/images/${IMAGE},mode=rw,size=2048,type=projects/${PROJECT_ID}/zones/${ZONE}/diskTypes/pd-balanced \
+    --zone=${ZONE} \
+    --machine-type=n2d-standard-128 \
+    --network-interface=network-tier=PREMIUM,stack-type=IPV4_ONLY,subnet=default \
+    --maintenance-policy=MIGRATE \
+    --provisioning-model=STANDARD \
+    --scopes=https://www.googleapis.com/auth/cloud-platform \
+    --no-shielded-secure-boot \
+    --shielded-vtpm \
+    --shielded-integrity-monitoring \
+    --labels=goog-ec-src=vm_add-gcloud \
+    --reservation-affinity=any
 ```
 
-To login to this image use:
+Update the `ssh` configuration to include this new VM:
 
-```console
-$ gcloud compute ssh --ssh-flag=-A --zone=${ZONE} ${VM}
+```sh
+# You need to do this every time you add GCE instances.
+gcloud compute config-ssh
+```
+
+```sh
+# Googlers should do this once. It configures SSH to use a tunnel and to forward
+# the authentication agent on all VMs in your project.
+cat >>.ssh/config <__EOF__
+Host *.${PROJECT_ID}
+    ProxyCommand=corp-ssh-helper %h %p
+    ForwardAgent yes
+__EOF__
+```
+
+Then login using:
+
+```sh
+ssh -A ${VM}.${ZONE}.${PROJECT_ID}
 ```
 
 ## Appendix: Windows VM on Google Compute Engine
@@ -440,8 +552,8 @@ Reset the password for your account:
 $ gcloud compute --project "${PROJECT_ID}" reset-windows-password --zone "${ZONE}" "${VM}"
 ```
 
-Save that password in some kind of password manager.  Then connect to the VM
-using your favorite RDP client.  The Google Cloud Compute Engine
+Save that password in some kind of password manager. Then connect to the VM
+using your favorite RDP client. The Google Cloud Compute Engine
 [documentation](https://cloud.google.com/compute/docs/quickstart-windows)
 suggests some third-party clients that may be useful.
 

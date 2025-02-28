@@ -13,10 +13,10 @@
 // limitations under the License.
 
 #include "generator/integration_tests/golden/v1/internal/golden_thing_admin_logging_decorator.h"
+#include "generator/integration_tests/tests/mock_golden_thing_admin_stub.h"
 #include "google/cloud/log.h"
 #include "google/cloud/testing_util/scoped_log.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "generator/integration_tests/tests/mock_golden_thing_admin_stub.h"
 #include <gmock/gmock.h>
 #include <memory>
 
@@ -43,7 +43,7 @@ class LoggingDecoratorTest : public ::testing::Test {
   }
 
   static future<StatusOr<google::longrunning::Operation>>
-  LongrunningTransientError(Unused, Unused, Unused) {
+  LongrunningTransientError() {
     return make_ready_future(
         StatusOr<google::longrunning::Operation>(TransientError()));
   }
@@ -59,8 +59,7 @@ TEST_F(LoggingDecoratorTest, GetDatabaseSuccess) {
 
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   grpc::ClientContext context;
-  auto status = stub.GetDatabase(
-      context, google::test::admin::database::v1::GetDatabaseRequest());
+  auto status = stub.GetDatabase(context, Options{}, {});
   EXPECT_STATUS_OK(status);
 
   auto const log_lines = log_.ExtractLines();
@@ -73,8 +72,7 @@ TEST_F(LoggingDecoratorTest, GetDatabase) {
 
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   grpc::ClientContext context;
-  auto status = stub.GetDatabase(
-      context, google::test::admin::database::v1::GetDatabaseRequest());
+  auto status = stub.GetDatabase(context, Options{}, {});
   EXPECT_EQ(TransientError(), status.status());
 
   auto const log_lines = log_.ExtractLines();
@@ -87,8 +85,7 @@ TEST_F(LoggingDecoratorTest, ListDatabases) {
 
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   grpc::ClientContext context;
-  auto status = stub.ListDatabases(
-      context, google::test::admin::database::v1::ListDatabasesRequest());
+  auto status = stub.ListDatabases(context, Options{}, {});
   EXPECT_EQ(TransientError(), status.status());
 
   auto const log_lines = log_.ExtractLines();
@@ -96,13 +93,14 @@ TEST_F(LoggingDecoratorTest, ListDatabases) {
   EXPECT_THAT(log_lines, Contains(HasSubstr(TransientError().message())));
 }
 
-TEST_F(LoggingDecoratorTest, CreateDatabase) {
+TEST_F(LoggingDecoratorTest, AsyncCreateDatabase) {
   EXPECT_CALL(*mock_, AsyncCreateDatabase).WillOnce(LongrunningTransientError);
 
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   CompletionQueue cq;
   auto status = stub.AsyncCreateDatabase(
-      cq, absl::make_unique<grpc::ClientContext>(),
+      cq, std::make_shared<grpc::ClientContext>(),
+      internal::MakeImmutableOptions({}),
       google::test::admin::database::v1::CreateDatabaseRequest());
   EXPECT_EQ(TransientError(), status.get().status());
 
@@ -111,14 +109,30 @@ TEST_F(LoggingDecoratorTest, CreateDatabase) {
   EXPECT_THAT(log_lines, Contains(HasSubstr(TransientError().message())));
 }
 
-TEST_F(LoggingDecoratorTest, UpdateDatabaseDdl) {
+TEST_F(LoggingDecoratorTest, CreateDatabase) {
+  google::longrunning::Operation operation;
+  operation.set_name("my_operation");
+  EXPECT_CALL(*mock_, CreateDatabase).WillOnce(Return(operation));
+
+  GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
+  grpc::ClientContext context;
+  auto status = stub.CreateDatabase(context, Options{}, {});
+  EXPECT_STATUS_OK(status);
+
+  auto const log_lines = log_.ExtractLines();
+  EXPECT_THAT(log_lines, Contains(HasSubstr("CreateDatabase")));
+  EXPECT_THAT(log_lines, Contains(HasSubstr("my_operation")));
+}
+
+TEST_F(LoggingDecoratorTest, AsyncUpdateDatabaseDdl) {
   EXPECT_CALL(*mock_, AsyncUpdateDatabaseDdl)
       .WillOnce(LongrunningTransientError);
 
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   CompletionQueue cq;
   auto status = stub.AsyncUpdateDatabaseDdl(
-      cq, absl::make_unique<grpc::ClientContext>(),
+      cq, std::make_shared<grpc::ClientContext>(),
+      internal::MakeImmutableOptions({}),
       google::test::admin::database::v1::UpdateDatabaseDdlRequest());
   EXPECT_EQ(TransientError(), status.get().status());
 
@@ -127,13 +141,27 @@ TEST_F(LoggingDecoratorTest, UpdateDatabaseDdl) {
   EXPECT_THAT(log_lines, Contains(HasSubstr(TransientError().message())));
 }
 
+TEST_F(LoggingDecoratorTest, UpdateDatabaseDdl) {
+  google::longrunning::Operation operation;
+  operation.set_name("my_operation");
+  EXPECT_CALL(*mock_, UpdateDatabaseDdl).WillOnce(Return(operation));
+
+  GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
+  grpc::ClientContext context;
+  auto status = stub.UpdateDatabaseDdl(context, Options{}, {});
+  EXPECT_STATUS_OK(status);
+
+  auto const log_lines = log_.ExtractLines();
+  EXPECT_THAT(log_lines, Contains(HasSubstr("UpdateDatabaseDdl")));
+  EXPECT_THAT(log_lines, Contains(HasSubstr("my_operation")));
+}
+
 TEST_F(LoggingDecoratorTest, DropDatabase) {
   EXPECT_CALL(*mock_, DropDatabase).WillOnce(Return(TransientError()));
 
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   grpc::ClientContext context;
-  auto status = stub.DropDatabase(
-      context, google::test::admin::database::v1::DropDatabaseRequest());
+  auto status = stub.DropDatabase(context, Options{}, {});
   EXPECT_EQ(TransientError(), status);
 
   auto const log_lines = log_.ExtractLines();
@@ -146,8 +174,7 @@ TEST_F(LoggingDecoratorTest, GetDatabaseDdl) {
 
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   grpc::ClientContext context;
-  auto status = stub.GetDatabaseDdl(
-      context, google::test::admin::database::v1::GetDatabaseDdlRequest());
+  auto status = stub.GetDatabaseDdl(context, Options{}, {});
   EXPECT_EQ(TransientError(), status.status());
 
   auto const log_lines = log_.ExtractLines();
@@ -160,8 +187,7 @@ TEST_F(LoggingDecoratorTest, SetIamPolicy) {
 
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   grpc::ClientContext context;
-  auto status =
-      stub.SetIamPolicy(context, google::iam::v1::SetIamPolicyRequest());
+  auto status = stub.SetIamPolicy(context, Options{}, {});
   EXPECT_EQ(TransientError(), status.status());
 
   auto const log_lines = log_.ExtractLines();
@@ -174,8 +200,7 @@ TEST_F(LoggingDecoratorTest, GetIamPolicy) {
 
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   grpc::ClientContext context;
-  auto status =
-      stub.GetIamPolicy(context, google::iam::v1::GetIamPolicyRequest());
+  auto status = stub.GetIamPolicy(context, Options{}, {});
   EXPECT_EQ(TransientError(), status.status());
 
   auto const log_lines = log_.ExtractLines();
@@ -188,8 +213,7 @@ TEST_F(LoggingDecoratorTest, TestIamPermissions) {
 
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   grpc::ClientContext context;
-  auto status = stub.TestIamPermissions(
-      context, google::iam::v1::TestIamPermissionsRequest());
+  auto status = stub.TestIamPermissions(context, Options{}, {});
   EXPECT_EQ(TransientError(), status.status());
 
   auto const log_lines = log_.ExtractLines();
@@ -197,13 +221,14 @@ TEST_F(LoggingDecoratorTest, TestIamPermissions) {
   EXPECT_THAT(log_lines, Contains(HasSubstr(TransientError().message())));
 }
 
-TEST_F(LoggingDecoratorTest, CreateBackup) {
+TEST_F(LoggingDecoratorTest, AsyncCreateBackup) {
   EXPECT_CALL(*mock_, AsyncCreateBackup).WillOnce(LongrunningTransientError);
 
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   CompletionQueue cq;
   auto status = stub.AsyncCreateBackup(
-      cq, absl::make_unique<grpc::ClientContext>(),
+      cq, std::make_shared<grpc::ClientContext>(),
+      internal::MakeImmutableOptions({}),
       google::test::admin::database::v1::CreateBackupRequest());
   EXPECT_EQ(TransientError(), status.get().status());
 
@@ -212,13 +237,27 @@ TEST_F(LoggingDecoratorTest, CreateBackup) {
   EXPECT_THAT(log_lines, Contains(HasSubstr(TransientError().message())));
 }
 
+TEST_F(LoggingDecoratorTest, CreateBackup) {
+  google::longrunning::Operation operation;
+  operation.set_name("my_operation");
+  EXPECT_CALL(*mock_, CreateBackup).WillOnce(Return(operation));
+
+  GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
+  grpc::ClientContext context;
+  auto status = stub.CreateBackup(context, Options{}, {});
+  EXPECT_STATUS_OK(status);
+
+  auto const log_lines = log_.ExtractLines();
+  EXPECT_THAT(log_lines, Contains(HasSubstr("CreateBackup")));
+  EXPECT_THAT(log_lines, Contains(HasSubstr("my_operation")));
+}
+
 TEST_F(LoggingDecoratorTest, GetBackup) {
   EXPECT_CALL(*mock_, GetBackup).WillOnce(Return(TransientError()));
 
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   grpc::ClientContext context;
-  auto status = stub.GetBackup(
-      context, google::test::admin::database::v1::GetBackupRequest());
+  auto status = stub.GetBackup(context, Options{}, {});
   EXPECT_EQ(TransientError(), status.status());
 
   auto const log_lines = log_.ExtractLines();
@@ -231,8 +270,7 @@ TEST_F(LoggingDecoratorTest, UpdateBackup) {
 
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   grpc::ClientContext context;
-  auto status = stub.UpdateBackup(
-      context, google::test::admin::database::v1::UpdateBackupRequest());
+  auto status = stub.UpdateBackup(context, Options{}, {});
   EXPECT_EQ(TransientError(), status.status());
 
   auto const log_lines = log_.ExtractLines();
@@ -245,8 +283,7 @@ TEST_F(LoggingDecoratorTest, DeleteBackup) {
 
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   grpc::ClientContext context;
-  auto status = stub.DeleteBackup(
-      context, google::test::admin::database::v1::DeleteBackupRequest());
+  auto status = stub.DeleteBackup(context, Options{}, {});
   EXPECT_EQ(TransientError(), status);
 
   auto const log_lines = log_.ExtractLines();
@@ -259,8 +296,7 @@ TEST_F(LoggingDecoratorTest, ListBackups) {
 
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   grpc::ClientContext context;
-  auto status = stub.ListBackups(
-      context, google::test::admin::database::v1::ListBackupsRequest());
+  auto status = stub.ListBackups(context, Options{}, {});
   EXPECT_EQ(TransientError(), status.status());
 
   auto const log_lines = log_.ExtractLines();
@@ -268,13 +304,14 @@ TEST_F(LoggingDecoratorTest, ListBackups) {
   EXPECT_THAT(log_lines, Contains(HasSubstr(TransientError().message())));
 }
 
-TEST_F(LoggingDecoratorTest, RestoreDatabase) {
+TEST_F(LoggingDecoratorTest, AsyncRestoreDatabase) {
   EXPECT_CALL(*mock_, AsyncRestoreDatabase).WillOnce(LongrunningTransientError);
 
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   CompletionQueue cq;
   auto status = stub.AsyncRestoreDatabase(
-      cq, absl::make_unique<grpc::ClientContext>(),
+      cq, std::make_shared<grpc::ClientContext>(),
+      internal::MakeImmutableOptions({}),
       google::test::admin::database::v1::RestoreDatabaseRequest());
   EXPECT_EQ(TransientError(), status.get().status());
 
@@ -283,15 +320,28 @@ TEST_F(LoggingDecoratorTest, RestoreDatabase) {
   EXPECT_THAT(log_lines, Contains(HasSubstr(TransientError().message())));
 }
 
+TEST_F(LoggingDecoratorTest, RestoreDatabase) {
+  google::longrunning::Operation operation;
+  operation.set_name("my_operation");
+  EXPECT_CALL(*mock_, RestoreDatabase).WillOnce(Return(operation));
+
+  GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
+  grpc::ClientContext context;
+  auto status = stub.RestoreDatabase(context, Options{}, {});
+  EXPECT_STATUS_OK(status);
+
+  auto const log_lines = log_.ExtractLines();
+  EXPECT_THAT(log_lines, Contains(HasSubstr("RestoreDatabase")));
+  EXPECT_THAT(log_lines, Contains(HasSubstr("my_operation")));
+}
+
 TEST_F(LoggingDecoratorTest, ListDatabaseOperations) {
   EXPECT_CALL(*mock_, ListDatabaseOperations)
       .WillOnce(Return(TransientError()));
 
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   grpc::ClientContext context;
-  auto status = stub.ListDatabaseOperations(
-      context,
-      google::test::admin::database::v1::ListDatabaseOperationsRequest());
+  auto status = stub.ListDatabaseOperations(context, Options{}, {});
   EXPECT_EQ(TransientError(), status.status());
 
   auto const log_lines = log_.ExtractLines();
@@ -304,9 +354,7 @@ TEST_F(LoggingDecoratorTest, ListBackupOperations) {
 
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   grpc::ClientContext context;
-  auto status = stub.ListBackupOperations(
-      context,
-      google::test::admin::database::v1::ListBackupOperationsRequest());
+  auto status = stub.ListBackupOperations(context, Options{}, {});
   EXPECT_EQ(TransientError(), status.status());
 
   auto const log_lines = log_.ExtractLines();
@@ -324,7 +372,8 @@ TEST_F(LoggingDecoratorTest, AsyncGetDatabase) {
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   CompletionQueue cq;
   auto status = stub.AsyncGetDatabase(
-                        cq, absl::make_unique<grpc::ClientContext>(),
+                        cq, std::make_shared<grpc::ClientContext>(),
+                        internal::MakeImmutableOptions({}),
                         google::test::admin::database::v1::GetDatabaseRequest())
                     .get();
   EXPECT_EQ(TransientError(), status.status());
@@ -343,7 +392,8 @@ TEST_F(LoggingDecoratorTest, AsyncDropDatabase) {
   CompletionQueue cq;
   auto status =
       stub.AsyncDropDatabase(
-              cq, absl::make_unique<grpc::ClientContext>(),
+              cq, std::make_shared<grpc::ClientContext>(),
+              internal::MakeImmutableOptions({}),
               google::test::admin::database::v1::DropDatabaseRequest())
           .get();
   EXPECT_EQ(TransientError(), status);
@@ -359,7 +409,8 @@ TEST_F(LoggingDecoratorTest, GetOperation) {
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   CompletionQueue cq;
   auto status =
-      stub.AsyncGetOperation(cq, absl::make_unique<grpc::ClientContext>(),
+      stub.AsyncGetOperation(cq, std::make_shared<grpc::ClientContext>(),
+                             internal::MakeImmutableOptions({}),
                              google::longrunning::GetOperationRequest());
   EXPECT_EQ(TransientError(), status.get().status());
 
@@ -375,7 +426,8 @@ TEST_F(LoggingDecoratorTest, CancelOperation) {
   GoldenThingAdminLogging stub(mock_, TracingOptions{}, {});
   CompletionQueue cq;
   auto status =
-      stub.AsyncCancelOperation(cq, absl::make_unique<grpc::ClientContext>(),
+      stub.AsyncCancelOperation(cq, std::make_shared<grpc::ClientContext>(),
+                                internal::MakeImmutableOptions({}),
                                 google::longrunning::CancelOperationRequest());
   EXPECT_EQ(TransientError(), status.get());
 

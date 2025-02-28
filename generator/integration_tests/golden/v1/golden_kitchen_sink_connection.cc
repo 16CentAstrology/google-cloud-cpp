@@ -21,12 +21,15 @@
 #include "generator/integration_tests/golden/v1/internal/golden_kitchen_sink_connection_impl.h"
 #include "generator/integration_tests/golden/v1/internal/golden_kitchen_sink_option_defaults.h"
 #include "generator/integration_tests/golden/v1/internal/golden_kitchen_sink_stub_factory.h"
+#include "generator/integration_tests/golden/v1/internal/golden_kitchen_sink_tracing_connection.h"
 #include "google/cloud/background_threads.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/credentials.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/pagination_range.h"
+#include "google/cloud/internal/unified_grpc_credentials.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -71,6 +74,12 @@ GoldenKitchenSinkConnection::DoNothing(
   return Status(StatusCode::kUnimplemented, "not implemented");
 }
 
+Status
+GoldenKitchenSinkConnection::Deprecated2(
+    google::test::admin::database::v1::GenerateAccessTokenRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
 StreamRange<google::test::admin::database::v1::Response> GoldenKitchenSinkConnection::StreamingRead(
     google::test::admin::database::v1::Request const&) {
   return google::cloud::internal::MakeStreamRange<
@@ -85,7 +94,7 @@ std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
     google::test::admin::database::v1::Request,
     google::test::admin::database::v1::Response>>
 GoldenKitchenSinkConnection::AsyncStreamingReadWrite() {
-  return absl::make_unique<
+  return std::make_unique<
       ::google::cloud::internal::AsyncStreamingReadWriteRpcError<
           google::test::admin::database::v1::Request,
           google::test::admin::database::v1::Response>>(
@@ -104,6 +113,24 @@ GoldenKitchenSinkConnection::ExplicitRouting2(
   return Status(StatusCode::kUnimplemented, "not implemented");
 }
 
+StatusOr<google::cloud::location::Location>
+GoldenKitchenSinkConnection::GetLocation(
+    google::cloud::location::GetLocationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+StatusOr<google::iam::v1::Policy>
+GoldenKitchenSinkConnection::GetIamPolicy(
+    google::iam::v1::GetIamPolicyRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+StreamRange<google::longrunning::Operation> GoldenKitchenSinkConnection::ListOperations(
+    google::longrunning::ListOperationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::longrunning::Operation>>();
+}
+
 std::shared_ptr<GoldenKitchenSinkConnection> MakeGoldenKitchenSinkConnection(
     Options options) {
   internal::CheckExpectedOptions<CommonOptionList, GrpcOptionList,
@@ -112,10 +139,12 @@ std::shared_ptr<GoldenKitchenSinkConnection> MakeGoldenKitchenSinkConnection(
   options = golden_v1_internal::GoldenKitchenSinkDefaultOptions(
       std::move(options));
   auto background = internal::MakeBackgroundThreadsFactory(options)();
+  auto auth = internal::CreateAuthenticationStrategy(background->cq(), options);
   auto stub = golden_v1_internal::CreateDefaultGoldenKitchenSinkStub(
-    background->cq(), options);
-  return std::make_shared<golden_v1_internal::GoldenKitchenSinkConnectionImpl>(
-      std::move(background), std::move(stub), std::move(options));
+    std::move(auth), options);
+  return golden_v1_internal::MakeGoldenKitchenSinkTracingConnection(
+      std::make_shared<golden_v1_internal::GoldenKitchenSinkConnectionImpl>(
+      std::move(background), std::move(stub), std::move(options)));
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

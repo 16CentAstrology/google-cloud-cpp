@@ -21,9 +21,8 @@
 #include "google/cloud/internal/completion_queue_impl.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/version.h"
-#include "absl/memory/memory.h"
-#include "absl/meta/type_traits.h"
 #include <chrono>
+#include <type_traits>
 
 namespace google {
 namespace cloud {
@@ -31,8 +30,17 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 class CompletionQueue;
 
 namespace internal {
+
 std::shared_ptr<CompletionQueueImpl> GetCompletionQueueImpl(
     CompletionQueue const& cq);
+std::shared_ptr<CompletionQueueImpl> GetCompletionQueueImpl(
+    CompletionQueue&& cq);
+
+template <typename Request, typename Response>
+future<StatusOr<Response>> MakeUnaryRpcImpl(
+    CompletionQueue& cq, GrpcAsyncCall<Request, Response> async_call,
+    Request const& request, std::shared_ptr<grpc::ClientContext> context);
+
 }  // namespace internal
 
 /**
@@ -102,12 +110,16 @@ class CompletionQueue {
   /**
    * Make an asynchronous unary RPC.
    *
+   * @deprecated Applications should have no need to call this function. The
+   *     libraries provide `Async*()` member functions in the generated (or)
+   *     hand-crafted `*Client` classes for the same purpose.
+   *
    * @param async_call a callable to start the asynchronous RPC.
    * @param request the contents of the request.
    * @param context an initialized request context to make the call.
    *
    * @tparam AsyncCallType the type of @a async_call. It must be invocable with
-   *     `(grpc::ClientContext*, RequestType const&, grpc::CompletionQueue*)`.
+   *     `(grpc::ClientContext*, Request const&, grpc::CompletionQueue*)`.
    *     Furthermore, it should return a
    *     `std::unique_ptr<grpc::ClientAsyncResponseReaderInterface<Response>>>`.
    *     These requirements are verified by
@@ -115,23 +127,26 @@ class CompletionQueue {
    *     excluded from overload resolution if the parameters do not meet these
    *     requirements.
    * @tparam Request the type of the request parameter in the gRPC.
+   * @tparam Response the response from the asynchronous RPC.
+   * @tparam Sig a helper type to compute `Response`.
    *
    * @return a future that becomes satisfied when the operation completes.
    */
   template <
       typename AsyncCallType, typename Request,
+      /// @cond implementation_details
       typename Sig = internal::AsyncCallResponseType<AsyncCallType, Request>,
+      /// @endcond
       typename Response = typename Sig::type,
-      typename std::enable_if<Sig::value, int>::type = 0>
+      /// @cond implementation_details
+      std::enable_if_t<Sig::value, int> = 0
+      /// @endcond
+      >
   future<StatusOr<Response>> MakeUnaryRpc(
       AsyncCallType async_call, Request const& request,
       std::unique_ptr<grpc::ClientContext> context) {
-    auto op =
-        std::make_shared<internal::AsyncUnaryRpcFuture<Request, Response>>();
-    impl_->StartOperation(op, [&](void* tag) {
-      op->Start(async_call, std::move(context), request, impl_->cq(), tag);
-    });
-    return op->GetFuture();
+    return internal::MakeUnaryRpcImpl<Request, Response>(
+        *this, std::move(async_call), request, std::move(context));
   }
 
   /**
@@ -141,6 +156,10 @@ class CompletionQueue {
    * of all interesting events in the stream. Note that then handler is called
    * by any thread blocked on this object's Run() member function. However, only
    * one callback in the handler is called at a time.
+   *
+   * @deprecated Applications should have no need to call this function. The
+   *     libraries provide `Async*()` member functions in the generated (or)
+   *     hand-crafted `*Client` classes for the same purpose.
    *
    * @param async_call a callable to start the asynchronous RPC.
    * @param request the contents of the request.
@@ -181,13 +200,18 @@ class CompletionQueue {
   /**
    * Asynchronously run a functor on a thread `Run()`ning the `CompletionQueue`.
    *
-   * @tparam Functor the functor to call on the CompletionQueue thread.
-   *   It must satisfy the `void(CompletionQueue&)` signature.
-   * @param functor the value of the functor.
+   * @param functor the functor to invoke in one of the CompletionQueue's
+   *     threads.
+   *
+   * @tparam Functor the type of @p functor. It must satisfy
+   *     `std::is_invocable<Functor, #CompletionQueue&>`
    */
-  template <typename Functor,
-            typename std::enable_if<
-                internal::CheckRunAsyncCallback<Functor>::value, int>::type = 0>
+  template <
+      typename Functor,
+      /// @cond implementation_details
+      std::enable_if_t<internal::CheckRunAsyncCallback<Functor>::value, int> = 0
+      /// @endcond
+      >
   void RunAsync(Functor&& functor) {
     class Wrapper : public internal::RunAsyncBase {
      public:
@@ -203,22 +227,24 @@ class CompletionQueue {
 
      private:
       std::weak_ptr<internal::CompletionQueueImpl> impl_;
-      absl::decay_t<Functor> fun_;
+      std::decay_t<Functor> fun_;
     };
     impl_->RunAsync(
-        absl::make_unique<Wrapper>(impl_, std::forward<Functor>(functor)));
+        std::make_unique<Wrapper>(impl_, std::forward<Functor>(functor)));
   }
 
   /**
    * Asynchronously run a functor on a thread `Run()`ning the `CompletionQueue`.
    *
-   * @tparam Functor the functor to call on the CompletionQueue thread.
-   *   It must satisfy the `void()` signature.
-   * @param functor the value of the functor.
+   * @param functor the functor to call in one of the CompletionQueue's threads.
+   * @tparam Functor the type of @p functor. It must satisfy
+   *     `std::is_invocable<Functor>`.
    */
   template <typename Functor,
-            typename std::enable_if<internal::is_invocable<Functor>::value,
-                                    int>::type = 0>
+            /// @cond implementation_details
+            std::enable_if_t<internal::is_invocable<Functor>::value, int> = 0
+            /// @endcond
+            >
   void RunAsync(Functor&& functor) {
     class Wrapper : public internal::RunAsyncBase {
      public:
@@ -227,9 +253,9 @@ class CompletionQueue {
       void exec() override { fun_(); }
 
      private:
-      absl::decay_t<Functor> fun_;
+      std::decay_t<Functor> fun_;
     };
-    impl_->RunAsync(absl::make_unique<Wrapper>(std::forward<Functor>(functor)));
+    impl_->RunAsync(std::make_unique<Wrapper>(std::forward<Functor>(functor)));
   }
 
   /**
@@ -251,6 +277,8 @@ class CompletionQueue {
  private:
   friend std::shared_ptr<internal::CompletionQueueImpl>
   internal::GetCompletionQueueImpl(CompletionQueue const& cq);
+  friend std::shared_ptr<internal::CompletionQueueImpl>
+  internal::GetCompletionQueueImpl(CompletionQueue&& cq);
   std::shared_ptr<internal::CompletionQueueImpl> impl_;
 };
 
@@ -259,6 +287,24 @@ namespace internal {
 inline std::shared_ptr<CompletionQueueImpl> GetCompletionQueueImpl(
     CompletionQueue const& cq) {
   return cq.impl_;
+}
+
+inline std::shared_ptr<CompletionQueueImpl> GetCompletionQueueImpl(
+    CompletionQueue&& cq) {
+  return std::move(cq.impl_);
+}
+
+template <typename Request, typename Response>
+future<StatusOr<Response>> MakeUnaryRpcImpl(
+    CompletionQueue& cq, GrpcAsyncCall<Request, Response> async_call,
+    Request const& request, std::shared_ptr<grpc::ClientContext> context) {
+  auto op =
+      std::make_shared<internal::AsyncUnaryRpcFuture<Request, Response>>();
+  auto impl = GetCompletionQueueImpl(cq);
+  impl->StartOperation(op, [&, c = std::move(context)](void* tag) {
+    op->Start(async_call, std::move(c), request, impl->cq(), tag);
+  });
+  return op->GetFuture();
 }
 
 }  // namespace internal

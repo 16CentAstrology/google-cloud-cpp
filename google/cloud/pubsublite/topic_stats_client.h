@@ -26,6 +26,7 @@
 #include "google/cloud/status_or.h"
 #include "google/cloud/version.h"
 #include <memory>
+#include <string>
 
 namespace google {
 namespace cloud {
@@ -66,7 +67,7 @@ class TopicStatsServiceClient {
   ~TopicStatsServiceClient();
 
   ///@{
-  // @name Copy and move support
+  /// @name Copy and move support
   TopicStatsServiceClient(TopicStatsServiceClient const&) = default;
   TopicStatsServiceClient& operator=(TopicStatsServiceClient const&) = default;
   TopicStatsServiceClient(TopicStatsServiceClient&&) = default;
@@ -74,7 +75,7 @@ class TopicStatsServiceClient {
   ///@}
 
   ///@{
-  // @name Equality
+  /// @name Equality
   friend bool operator==(TopicStatsServiceClient const& a,
                          TopicStatsServiceClient const& b) {
     return a.connection_ == b.connection_;
@@ -85,27 +86,40 @@ class TopicStatsServiceClient {
   }
   ///@}
 
+  // clang-format off
   ///
   /// Compute statistics about a range of messages in a given topic and
   /// partition.
   ///
-  /// @param request
-  /// @googleapis_link{google::cloud::pubsublite::v1::ComputeMessageStatsRequest,google/cloud/pubsublite/v1/topic_stats.proto#L72}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.pubsublite.v1.ComputeMessageStatsRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::pubsublite::v1::ComputeMessageStatsResponse,google/cloud/pubsublite/v1/topic_stats.proto#L94}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.pubsublite.v1.ComputeMessageStatsResponse])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.cloud.pubsublite.v1.ComputeMessageStatsRequest]:
-  /// @googleapis_reference_link{google/cloud/pubsublite/v1/topic_stats.proto#L72}
-  /// [google.cloud.pubsublite.v1.ComputeMessageStatsResponse]:
-  /// @googleapis_reference_link{google/cloud/pubsublite/v1/topic_stats.proto#L94}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.pubsublite.v1.ComputeMessageStatsRequest]: @googleapis_reference_link{google/cloud/pubsublite/v1/topic_stats.proto#L76}
+  /// [google.cloud.pubsublite.v1.ComputeMessageStatsResponse]: @googleapis_reference_link{google/cloud/pubsublite/v1/topic_stats.proto#L98}
   ///
+  // clang-format on
   StatusOr<google::cloud::pubsublite::v1::ComputeMessageStatsResponse>
   ComputeMessageStats(
       google::cloud::pubsublite::v1::ComputeMessageStatsRequest const& request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Compute the head cursor for the partition.
   /// The head cursor's offset is guaranteed to be less than or equal to all
@@ -114,42 +128,331 @@ class TopicStatsServiceClient {
   /// been acknowledged. It is zero if there have never been messages in the
   /// partition.
   ///
-  /// @param request
-  /// @googleapis_link{google::cloud::pubsublite::v1::ComputeHeadCursorRequest,google/cloud/pubsublite/v1/topic_stats.proto#L113}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.pubsublite.v1.ComputeHeadCursorRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::pubsublite::v1::ComputeHeadCursorResponse,google/cloud/pubsublite/v1/topic_stats.proto#L127}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.pubsublite.v1.ComputeHeadCursorResponse])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.cloud.pubsublite.v1.ComputeHeadCursorRequest]:
-  /// @googleapis_reference_link{google/cloud/pubsublite/v1/topic_stats.proto#L113}
-  /// [google.cloud.pubsublite.v1.ComputeHeadCursorResponse]:
-  /// @googleapis_reference_link{google/cloud/pubsublite/v1/topic_stats.proto#L127}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.pubsublite.v1.ComputeHeadCursorRequest]: @googleapis_reference_link{google/cloud/pubsublite/v1/topic_stats.proto#L117}
+  /// [google.cloud.pubsublite.v1.ComputeHeadCursorResponse]: @googleapis_reference_link{google/cloud/pubsublite/v1/topic_stats.proto#L131}
   ///
+  // clang-format on
   StatusOr<google::cloud::pubsublite::v1::ComputeHeadCursorResponse>
   ComputeHeadCursor(
       google::cloud::pubsublite::v1::ComputeHeadCursorRequest const& request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Compute the corresponding cursor for a publish or event time in a topic
   /// partition.
   ///
-  /// @param request
-  /// @googleapis_link{google::cloud::pubsublite::v1::ComputeTimeCursorRequest,google/cloud/pubsublite/v1/topic_stats.proto#L134}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.pubsublite.v1.ComputeTimeCursorRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::pubsublite::v1::ComputeTimeCursorResponse,google/cloud/pubsublite/v1/topic_stats.proto#L153}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.pubsublite.v1.ComputeTimeCursorResponse])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.cloud.pubsublite.v1.ComputeTimeCursorRequest]:
-  /// @googleapis_reference_link{google/cloud/pubsublite/v1/topic_stats.proto#L134}
-  /// [google.cloud.pubsublite.v1.ComputeTimeCursorResponse]:
-  /// @googleapis_reference_link{google/cloud/pubsublite/v1/topic_stats.proto#L153}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.pubsublite.v1.ComputeTimeCursorRequest]: @googleapis_reference_link{google/cloud/pubsublite/v1/topic_stats.proto#L138}
+  /// [google.cloud.pubsublite.v1.ComputeTimeCursorResponse]: @googleapis_reference_link{google/cloud/pubsublite/v1/topic_stats.proto#L157}
   ///
+  // clang-format on
   StatusOr<google::cloud::pubsublite::v1::ComputeTimeCursorResponse>
   ComputeTimeCursor(
       google::cloud::pubsublite::v1::ComputeTimeCursorRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// Lists operations that match the specified filter in the request. If the
+  /// server doesn't support this method, it returns `UNIMPLEMENTED`.
+  ///
+  /// @param name  The name of the operation's parent resource.
+  /// @param filter  The standard list filter.
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [StreamRange](@ref google::cloud::StreamRange)
+  ///     to iterate of the results. See the documentation of this type for
+  ///     details. In brief, this class has `begin()` and `end()` member
+  ///     functions returning a iterator class meeting the
+  ///     [input iterator requirements]. The value type for this iterator is a
+  ///     [`StatusOr`] as the iteration may fail even after some values are
+  ///     retrieved successfully, for example, if there is a network disconnect.
+  ///     An empty set of results does not indicate an error, it indicates
+  ///     that there are no resources meeting the request criteria.
+  ///     On a successful iteration the `StatusOr<T>` contains elements of type
+  ///     [google.longrunning.Operation], or rather,
+  ///     the C++ class generated by Protobuf from that type. Please consult the
+  ///     Protobuf documentation for details on the [Protobuf mapping rules].
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.ListOperationsRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L167}
+  /// [google.longrunning.Operation]: @googleapis_reference_link{google/longrunning/operations.proto#L121}
+  ///
+  // clang-format on
+  StreamRange<google::longrunning::Operation> ListOperations(
+      std::string const& name, std::string const& filter, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Lists operations that match the specified filter in the request. If the
+  /// server doesn't support this method, it returns `UNIMPLEMENTED`.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.longrunning.ListOperationsRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [StreamRange](@ref google::cloud::StreamRange)
+  ///     to iterate of the results. See the documentation of this type for
+  ///     details. In brief, this class has `begin()` and `end()` member
+  ///     functions returning a iterator class meeting the
+  ///     [input iterator requirements]. The value type for this iterator is a
+  ///     [`StatusOr`] as the iteration may fail even after some values are
+  ///     retrieved successfully, for example, if there is a network disconnect.
+  ///     An empty set of results does not indicate an error, it indicates
+  ///     that there are no resources meeting the request criteria.
+  ///     On a successful iteration the `StatusOr<T>` contains elements of type
+  ///     [google.longrunning.Operation], or rather,
+  ///     the C++ class generated by Protobuf from that type. Please consult the
+  ///     Protobuf documentation for details on the [Protobuf mapping rules].
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.ListOperationsRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L167}
+  /// [google.longrunning.Operation]: @googleapis_reference_link{google/longrunning/operations.proto#L121}
+  ///
+  // clang-format on
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Gets the latest state of a long-running operation.  Clients can use this
+  /// method to poll the operation result at intervals as recommended by the API
+  /// service.
+  ///
+  /// @param name  The name of the operation resource.
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return the result of the RPC. The response message type
+  ///     ([google.longrunning.Operation])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.GetOperationRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L160}
+  /// [google.longrunning.Operation]: @googleapis_reference_link{google/longrunning/operations.proto#L121}
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> GetOperation(std::string const& name,
+                                                        Options opts = {});
+
+  // clang-format off
+  ///
+  /// Gets the latest state of a long-running operation.  Clients can use this
+  /// method to poll the operation result at intervals as recommended by the API
+  /// service.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.longrunning.GetOperationRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return the result of the RPC. The response message type
+  ///     ([google.longrunning.Operation])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.GetOperationRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L160}
+  /// [google.longrunning.Operation]: @googleapis_reference_link{google/longrunning/operations.proto#L121}
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// Deletes a long-running operation. This method indicates that the client is
+  /// no longer interested in the operation result. It does not cancel the
+  /// operation. If the server doesn't support this method, it returns
+  /// `google.rpc.Code.UNIMPLEMENTED`.
+  ///
+  /// @param name  The name of the operation resource to be deleted.
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [`Status`] object. If the request failed, the
+  ///     status contains the details of the failure.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.DeleteOperationRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L200}
+  ///
+  // clang-format on
+  Status DeleteOperation(std::string const& name, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Deletes a long-running operation. This method indicates that the client is
+  /// no longer interested in the operation result. It does not cancel the
+  /// operation. If the server doesn't support this method, it returns
+  /// `google.rpc.Code.UNIMPLEMENTED`.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.longrunning.DeleteOperationRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [`Status`] object. If the request failed, the
+  ///     status contains the details of the failure.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.DeleteOperationRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L200}
+  ///
+  // clang-format on
+  Status DeleteOperation(
+      google::longrunning::DeleteOperationRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// Starts asynchronous cancellation on a long-running operation.  The server
+  /// makes a best effort to cancel the operation, but success is not
+  /// guaranteed.  If the server doesn't support this method, it returns
+  /// `google.rpc.Code.UNIMPLEMENTED`.  Clients can use
+  /// [Operations.GetOperation][google.longrunning.Operations.GetOperation] or
+  /// other methods to check whether the cancellation succeeded or whether the
+  /// operation completed despite cancellation. On successful cancellation,
+  /// the operation is not deleted; instead, it becomes an operation with
+  /// an [Operation.error][google.longrunning.Operation.error] value with a
+  /// [google.rpc.Status.code][google.rpc.Status.code] of `1`, corresponding to
+  /// `Code.CANCELLED`.
+  ///
+  /// @param name  The name of the operation resource to be cancelled.
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [`Status`] object. If the request failed, the
+  ///     status contains the details of the failure.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.CancelOperationRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L193}
+  /// [google.longrunning.Operation.error]: @googleapis_reference_link{google/longrunning/operations.proto#L144}
+  /// [google.longrunning.Operations.GetOperation]: @googleapis_reference_link{google/longrunning/operations.proto#L70}
+  /// [google.rpc.Status.code]: @googleapis_reference_link{google/rpc/status.proto#L38}
+  ///
+  // clang-format on
+  Status CancelOperation(std::string const& name, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Starts asynchronous cancellation on a long-running operation.  The server
+  /// makes a best effort to cancel the operation, but success is not
+  /// guaranteed.  If the server doesn't support this method, it returns
+  /// `google.rpc.Code.UNIMPLEMENTED`.  Clients can use
+  /// [Operations.GetOperation][google.longrunning.Operations.GetOperation] or
+  /// other methods to check whether the cancellation succeeded or whether the
+  /// operation completed despite cancellation. On successful cancellation,
+  /// the operation is not deleted; instead, it becomes an operation with
+  /// an [Operation.error][google.longrunning.Operation.error] value with a
+  /// [google.rpc.Status.code][google.rpc.Status.code] of `1`, corresponding to
+  /// `Code.CANCELLED`.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.longrunning.CancelOperationRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [`Status`] object. If the request failed, the
+  ///     status contains the details of the failure.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.CancelOperationRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L193}
+  /// [google.longrunning.Operation.error]: @googleapis_reference_link{google/longrunning/operations.proto#L144}
+  /// [google.longrunning.Operations.GetOperation]: @googleapis_reference_link{google/longrunning/operations.proto#L70}
+  /// [google.rpc.Status.code]: @googleapis_reference_link{google/rpc/status.proto#L38}
+  ///
+  // clang-format on
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request,
       Options opts = {});
 
  private:

@@ -99,6 +99,14 @@ class AdminServiceConnectionImpl : public pubsublite::AdminServiceConnection {
   SeekSubscription(google::cloud::pubsublite::v1::SeekSubscriptionRequest const&
                        request) override;
 
+  StatusOr<google::longrunning::Operation> SeekSubscription(
+      NoAwaitTag,
+      google::cloud::pubsublite::v1::SeekSubscriptionRequest const& request)
+      override;
+
+  future<StatusOr<google::cloud::pubsublite::v1::SeekSubscriptionResponse>>
+  SeekSubscription(google::longrunning::Operation const& operation) override;
+
   StatusOr<google::cloud::pubsublite::v1::Reservation> CreateReservation(
       google::cloud::pubsublite::v1::CreateReservationRequest const& request)
       override;
@@ -122,52 +130,24 @@ class AdminServiceConnectionImpl : public pubsublite::AdminServiceConnection {
       google::cloud::pubsublite::v1::ListReservationTopicsRequest request)
       override;
 
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status DeleteOperation(
+      google::longrunning::DeleteOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
   future<StatusOr<google::cloud::pubsublite::v1::TopicPartitions>>
   AsyncGetTopicPartitions(
       google::cloud::pubsublite::v1::GetTopicPartitionsRequest const& request)
       override;
 
  private:
-  std::unique_ptr<pubsublite::AdminServiceRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<pubsublite::AdminServiceRetryPolicyOption>()) {
-      return options.get<pubsublite::AdminServiceRetryPolicyOption>()->clone();
-    }
-    return options_.get<pubsublite::AdminServiceRetryPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<pubsublite::AdminServiceBackoffPolicyOption>()) {
-      return options.get<pubsublite::AdminServiceBackoffPolicyOption>()
-          ->clone();
-    }
-    return options_.get<pubsublite::AdminServiceBackoffPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<pubsublite::AdminServiceConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options
-            .has<pubsublite::AdminServiceConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<pubsublite::AdminServiceConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<pubsublite::AdminServiceConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<PollingPolicy> polling_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<pubsublite::AdminServicePollingPolicyOption>()) {
-      return options.get<pubsublite::AdminServicePollingPolicyOption>()
-          ->clone();
-    }
-    return options_.get<pubsublite::AdminServicePollingPolicyOption>()->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<pubsublite_internal::AdminServiceStub> stub_;
   Options options_;

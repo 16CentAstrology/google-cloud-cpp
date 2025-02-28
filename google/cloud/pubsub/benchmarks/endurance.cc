@@ -12,19 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "google/cloud/pubsub/admin/subscription_admin_client.h"
+#include "google/cloud/pubsub/admin/topic_admin_client.h"
 #include "google/cloud/pubsub/publisher.h"
 #include "google/cloud/pubsub/subscriber.h"
-#include "google/cloud/pubsub/subscription_admin_client.h"
 #include "google/cloud/pubsub/testing/random_names.h"
-#include "google/cloud/pubsub/topic_admin_client.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/format_time_point.h"
 #include "google/cloud/internal/getenv.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/internal/random.h"
 #include "google/cloud/options.h"
 #include "google/cloud/testing_util/command_line_parsing.h"
-#include "absl/memory/memory.h"
+#include "absl/base/attributes.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/match.h"
+#include "absl/strings/string_view.h"
 #include <chrono>
 #include <iostream>
 #include <limits>
@@ -35,6 +38,7 @@
 
 namespace {
 namespace pubsub = ::google::cloud::pubsub;
+namespace pubsub_admin = ::google::cloud::pubsub_admin;
 using ::google::cloud::future;
 using ::google::cloud::Status;
 using ::google::cloud::StatusOr;
@@ -150,7 +154,7 @@ void PublisherTask(Config const& config, ExperimentFlowControl& flow_control,
                    int task);
 
 std::vector<pubsub::Subscription> CreateSubscriptions(
-    pubsub::SubscriptionAdminClient subscription_admin,
+    pubsub_admin::SubscriptionAdminClient subscription_admin,
     google::cloud::internal::DefaultPRNG& generator, Config const& config,
     pubsub::Topic const& topic);
 
@@ -177,9 +181,10 @@ int main(int argc, char* argv[]) {
   }
   if (config->show_help) return 0;
 
-  pubsub::TopicAdminClient topic_admin(pubsub::MakeTopicAdminConnection());
-  pubsub::SubscriptionAdminClient subscription_admin(
-      pubsub::MakeSubscriptionAdminConnection());
+  pubsub_admin::TopicAdminClient topic_admin(
+      pubsub_admin::MakeTopicAdminConnection());
+  pubsub_admin::SubscriptionAdminClient subscription_admin(
+      pubsub_admin::MakeSubscriptionAdminConnection());
 
   auto generator = google::cloud::internal::MakeDefaultPRNG();
 
@@ -191,13 +196,13 @@ int main(int argc, char* argv[]) {
   if (config->topic_id.empty()) {
     config->topic_id = google::cloud::pubsub_testing::RandomTopicId(generator);
     auto topic = pubsub::Topic(config->project_id, config->topic_id);
-    auto create = topic_admin.CreateTopic(pubsub::TopicBuilder{topic});
+    auto create = topic_admin.CreateTopic(topic.FullName());
     if (!create) {
       std::cout << "CreateTopic() failed: " << create.status() << "\n";
       return 1;
     }
     delete_topic = [topic_admin, topic]() mutable {
-      (void)topic_admin.DeleteTopic(topic);
+      (void)topic_admin.DeleteTopic(topic.FullName());
     };
   }
 
@@ -238,7 +243,7 @@ int main(int argc, char* argv[]) {
   std::vector<future<google::cloud::Status>> sessions;
   for (auto i = 0; i != config->session_count; ++i) {
     auto const& subscription = subscriptions[i % subscriptions.size()];
-    auto subscriber = absl::make_unique<pubsub::Subscriber>(
+    auto subscriber = std::make_unique<pubsub::Subscriber>(
         pubsub::MakeSubscriberConnection(subscription));
     sessions.push_back(subscriber->Subscribe(handler));
     subscribers.push_back(std::move(subscriber));
@@ -288,7 +293,7 @@ int main(int argc, char* argv[]) {
   cleanup.Defer(delete_topic);
   for (auto const& sub : subscriptions) {
     cleanup.Defer([subscription_admin, sub]() mutable {
-      (void)subscription_admin.DeleteSubscription(sub);
+      (void)subscription_admin.DeleteSubscription(sub.FullName());
     });
   }
 
@@ -344,6 +349,16 @@ int main(int argc, char* argv[]) {
 }
 
 namespace {
+
+ABSL_ATTRIBUTE_UNUSED
+bool StartsWith(absl::Cord const& text, absl::string_view prefix) {
+  return text.StartsWith(prefix);
+}
+
+ABSL_ATTRIBUTE_UNUSED
+bool StartsWith(absl::string_view text, absl::string_view prefix) {
+  return absl::StartsWith(text, prefix);
+}
 
 pubsub::Message ExperimentFlowControl::GenerateMessage(int task) {
   std::unique_lock<std::mutex> lk(mu_);
@@ -441,7 +456,7 @@ void PublisherTask(Config const& config, ExperimentFlowControl& flow_control,
       publisher = make_publisher();
     }
     auto message = flow_control.GenerateMessage(task);
-    auto const shutdown = absl::StartsWith(message.data(), "shutdown:");
+    auto const shutdown = StartsWith(message.data(), "shutdown:");
     last_publish = publisher.Publish(std::move(message))
                        .then([&flow_control](future<StatusOr<std::string>> f) {
                          flow_control.Published(f.get().ok());
@@ -453,7 +468,7 @@ void PublisherTask(Config const& config, ExperimentFlowControl& flow_control,
 }
 
 std::vector<pubsub::Subscription> CreateSubscriptions(
-    pubsub::SubscriptionAdminClient subscription_admin,
+    pubsub_admin::SubscriptionAdminClient subscription_admin,
     google::cloud::internal::DefaultPRNG& generator, Config const& config,
     pubsub::Topic const& topic) {
   std::vector<pubsub::Subscription> subscriptions;
@@ -461,7 +476,10 @@ std::vector<pubsub::Subscription> CreateSubscriptions(
     auto sub = pubsub::Subscription(
         config.project_id,
         google::cloud::pubsub_testing::RandomSubscriptionId(generator));
-    auto create = subscription_admin.CreateSubscription(topic, sub);
+    google::pubsub::v1::Subscription request;
+    request.set_name(sub.FullName());
+    request.set_topic(topic.FullName());
+    auto create = subscription_admin.CreateSubscription(request);
     if (!create) continue;
     subscriptions.push_back(std::move(sub));
   }
@@ -539,33 +557,37 @@ google::cloud::StatusOr<Config> ParseArgsImpl(std::vector<std::string> args,
   }
 
   if (options.project_id.empty()) {
-    return google::cloud::Status(google::cloud::StatusCode::kInvalidArgument,
-                                 "missing or empty --project-id option");
+    return google::cloud::internal::InvalidArgumentError(
+        "missing or empty --project-id option");
   }
 
   return options;
 }
 
 google::cloud::StatusOr<Config> SelfTest(std::string const& cmd) {
-  auto error = [](std::string m) {
-    return google::cloud::Status(google::cloud::StatusCode::kUnknown,
-                                 std::move(m));
+  auto error = [](std::string m,
+                  google::cloud::internal::ErrorInfoBuilder info) {
+    return google::cloud::internal::UnknownError(std::move(m), std::move(info));
   };
   for (auto const& var : {"GOOGLE_CLOUD_PROJECT"}) {
     auto const value = GetEnv(var).value_or("");
     if (!value.empty()) continue;
     std::ostringstream os;
     os << "The environment variable " << var << " is not set or empty";
-    return error(std::move(os).str());
+    return error(std::move(os).str(), GCP_ERROR_INFO());
   }
   auto config = ParseArgsImpl({cmd, "--help"}, kDescription);
-  if (!config || !config->show_help) return error("--help parsing");
+  if (!config || !config->show_help) {
+    return error("--help parsing", GCP_ERROR_INFO());
+  }
   config = ParseArgsImpl({cmd, "--description", "--help"}, kDescription);
-  if (!config || !config->show_help) return error("--description parsing");
+  if (!config || !config->show_help) {
+    return error("--description parsing", GCP_ERROR_INFO());
+  }
   config = ParseArgsImpl({cmd, "--project-id="}, kDescription);
-  if (config) return error("--project-id validation");
+  if (config) return error("--project-id validation", GCP_ERROR_INFO());
   config = ParseArgsImpl({cmd, "--topic-id=test-topic"}, kDescription);
-  if (!config) return error("--topic-id");
+  if (!config) return error("--topic-id", GCP_ERROR_INFO());
 
   return ParseArgsImpl(
       {

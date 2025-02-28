@@ -14,7 +14,9 @@
 # limitations under the License.
 # ~~~
 
-find_package(OpenSSL REQUIRED)
+if (NOT WIN32)
+    find_package(OpenSSL REQUIRED)
+endif ()
 
 # Generate the version information from the CMake values.
 configure_file(internal/version_info.h.in
@@ -29,6 +31,8 @@ configure_file(internal/build_info.cc.in internal/build_info.cc)
 add_library(
     google_cloud_cpp_common # cmake-format: sort
     ${CMAKE_CURRENT_BINARY_DIR}/internal/build_info.cc
+    access_token.cc
+    access_token.h
     backoff_policy.h
     common_options.h
     credentials.cc
@@ -41,8 +45,6 @@ add_library(
     internal/absl_str_cat_quiet.h
     internal/absl_str_join_quiet.h
     internal/absl_str_replace_quiet.h
-    internal/access_token.cc
-    internal/access_token.h
     internal/algorithm.h
     internal/api_client_header.cc
     internal/api_client_header.h
@@ -55,6 +57,8 @@ add_library(
     internal/base64_transforms.h
     internal/big_endian.h
     internal/build_info.h
+    internal/call_context.h
+    internal/clock.h
     internal/compiler_info.cc
     internal/compiler_info.h
     internal/compute_engine_util.cc
@@ -65,6 +69,9 @@ add_library(
     internal/debug_future_status.h
     internal/debug_string.cc
     internal/debug_string.h
+    internal/detect_gcp.h
+    internal/detect_gcp_impl.cc
+    internal/detect_gcp_impl.h
     internal/diagnostics_pop.inc
     internal/diagnostics_push.inc
     internal/disable_deprecation_warnings.inc
@@ -80,18 +87,26 @@ add_library(
     internal/future_fwd.h
     internal/future_impl.cc
     internal/future_impl.h
+    internal/future_then_impl.cc
     internal/future_then_impl.h
-    internal/future_then_meta.h
     internal/getenv.cc
     internal/getenv.h
     internal/group_options.h
+    internal/invocation_id_generator.cc
+    internal/invocation_id_generator.h
     internal/invoke_result.h
     internal/ios_flags_saver.h
     internal/log_impl.cc
     internal/log_impl.h
     internal/make_status.cc
     internal/make_status.h
+    internal/noexcept_action.cc
+    internal/noexcept_action.h
     internal/non_constructible.h
+    internal/opentelemetry.cc
+    internal/opentelemetry.h
+    internal/opentelemetry_context.cc
+    internal/opentelemetry_context.h
     internal/pagination_range.h
     internal/parse_rfc3339.cc
     internal/parse_rfc3339.h
@@ -100,10 +115,13 @@ add_library(
     internal/port_platform.h
     internal/random.cc
     internal/random.h
+    internal/retry_info.h
     internal/retry_loop_helpers.cc
     internal/retry_loop_helpers.h
-    internal/retry_policy.cc
-    internal/retry_policy.h
+    internal/retry_policy_impl.cc
+    internal/retry_policy_impl.h
+    internal/service_endpoint.cc
+    internal/service_endpoint.h
     internal/sha256_hash.cc
     internal/sha256_hash.h
     internal/sha256_hmac.cc
@@ -111,29 +129,44 @@ add_library(
     internal/sha256_type.h
     internal/status_payload_keys.cc
     internal/status_payload_keys.h
+    internal/status_utils.cc
+    internal/status_utils.h
     internal/strerror.cc
     internal/strerror.h
     internal/subject_token.cc
     internal/subject_token.h
     internal/throw_delegate.cc
     internal/throw_delegate.h
+    internal/timer_queue.cc
+    internal/timer_queue.h
+    internal/trace_propagator.cc
+    internal/trace_propagator.h
+    internal/traced_stream_range.h
     internal/tuple.h
     internal/type_list.h
     internal/type_traits.h
+    internal/url_encode.cc
+    internal/url_encode.h
     internal/user_agent_prefix.cc
     internal/user_agent_prefix.h
     internal/utility.h
     internal/version_info.h
     kms_key_name.cc
     kms_key_name.h
+    location.cc
+    location.h
     log.cc
     log.h
+    no_await_tag.h
+    opentelemetry_options.h
     optional.h
     options.cc
     options.h
     polling_policy.h
     project.cc
     project.h
+    retry_policy.h
+    rpc_metadata.h
     status.cc
     status.h
     status_or.h
@@ -142,6 +175,7 @@ add_library(
     terminate_handler.h
     tracing_options.cc
     tracing_options.h
+    universe_domain_options.h
     version.cc
     version.h)
 target_link_libraries(
@@ -150,12 +184,19 @@ target_link_libraries(
            absl::memory
            absl::optional
            absl::span
+           absl::str_format
            absl::time
            absl::variant
-           Threads::Threads
-           OpenSSL::Crypto)
+           Threads::Threads)
+if (WIN32)
+    target_compile_definitions(google_cloud_cpp_common
+                               PRIVATE WIN32_LEAN_AND_MEAN)
+    target_link_libraries(google_cloud_cpp_common PUBLIC bcrypt)
+else ()
+    target_link_libraries(google_cloud_cpp_common PUBLIC OpenSSL::Crypto)
+endif ()
 
-if (experimental-opentelemetry IN_LIST GOOGLE_CLOUD_CPP_ENABLE)
+if (opentelemetry IN_LIST GOOGLE_CLOUD_CPP_ENABLE)
     find_package(opentelemetry-cpp CONFIG)
     if (opentelemetry-cpp_FOUND)
         target_link_libraries(google_cloud_cpp_common
@@ -166,6 +207,7 @@ if (experimental-opentelemetry IN_LIST GOOGLE_CLOUD_CPP_ENABLE)
                    GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY)
         set(GOOGLE_CLOUD_CPP_FIND_OPTIONAL_DEPENDENCIES
             "find_dependency(opentelemetry-cpp)")
+        set(GOOGLE_CLOUD_CPP_OPENTELEMETRY_API "opentelemetry_api")
     endif ()
 endif ()
 google_cloud_cpp_add_common_options(google_cloud_cpp_common)
@@ -205,16 +247,7 @@ install(
             COMPONENT google_cloud_cpp_runtime
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
             COMPONENT google_cloud_cpp_runtime
-            NAMELINK_SKIP
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            COMPONENT google_cloud_cpp_development)
-# With CMake-3.12 and higher we could avoid this separate command (and the
-# duplication).
-install(
-    TARGETS google_cloud_cpp_common
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            COMPONENT google_cloud_cpp_development
-            NAMELINK_ONLY
+            NAMELINK_COMPONENT google_cloud_cpp_development
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
             COMPONENT google_cloud_cpp_development)
 
@@ -224,10 +257,17 @@ google_cloud_cpp_add_pkgconfig(
     "common"
     "Google Cloud C++ Client Library Common Components"
     "Common Components used by the Google Cloud C++ Client Libraries."
-    "absl_memory"
-    " absl_optional"
-    " absl_time"
-    " openssl")
+    "absl_optional"
+    "absl_span"
+    "absl_strings"
+    "absl_time"
+    "absl_time_zone"
+    "absl_variant"
+    "${GOOGLE_CLOUD_CPP_OPENTELEMETRY_API}"
+    NON_WIN32_REQUIRES
+    openssl
+    WIN32_LIBS
+    bcrypt)
 
 # Create and install the CMake configuration files.
 configure_file("config.cmake.in" "google_cloud_cpp_common-config.cmake" @ONLY)
@@ -243,112 +283,132 @@ install(
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/google_cloud_cpp_common"
     COMPONENT google_cloud_cpp_development)
 
-# Create a header-only library for the mocks. We use a CMake `INTERFACE` library
-# for these, a regular library would not work on macOS (where the library needs
-# at least one .o file).
-add_library(google_cloud_cpp_mocks INTERFACE)
-set(google_cloud_cpp_mocks_hdrs # cmake-format: sort
-                                mocks/mock_stream_range.h)
-export_list_to_bazel("google_cloud_cpp_mocks.bzl" "google_cloud_cpp_mocks_hdrs"
-                     YEAR "2022")
-target_link_libraries(
-    google_cloud_cpp_mocks INTERFACE google-cloud-cpp::common GTest::gmock_main
-                                     GTest::gmock GTest::gtest)
-set_target_properties(google_cloud_cpp_mocks PROPERTIES EXPORT_NAME
-                                                        google-cloud-cpp::mocks)
-target_include_directories(
-    google_cloud_cpp_mocks
-    INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
-              $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>
-              $<INSTALL_INTERFACE:include>)
-target_compile_options(google_cloud_cpp_mocks
-                       INTERFACE ${GOOGLE_CLOUD_CPP_EXCEPTIONS_FLAG})
-add_library(google-cloud-cpp::mocks ALIAS google_cloud_cpp_mocks)
+if (GOOGLE_CLOUD_CPP_WITH_MOCKS)
+    # Create a header-only library for the mocks. We use a CMake `INTERFACE`
+    # library for these, a regular library would not work on macOS (where the
+    # library needs at least one .o file).
+    add_library(google_cloud_cpp_mocks INTERFACE)
+    set(google_cloud_cpp_mocks_hdrs
+        # cmake-format: sort
+        mocks/current_options.h mocks/mock_async_streaming_read_write_rpc.h
+        mocks/mock_stream_range.h)
+    export_list_to_bazel("google_cloud_cpp_mocks.bzl"
+                         "google_cloud_cpp_mocks_hdrs" YEAR "2022")
+    target_link_libraries(
+        google_cloud_cpp_mocks INTERFACE google-cloud-cpp::common GTest::gmock
+                                         GTest::gtest)
+    set_target_properties(google_cloud_cpp_mocks
+                          PROPERTIES EXPORT_NAME google-cloud-cpp::mocks)
+    target_include_directories(
+        google_cloud_cpp_mocks
+        INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
+                  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>
+                  $<INSTALL_INTERFACE:include>)
+    target_compile_options(google_cloud_cpp_mocks
+                           INTERFACE ${GOOGLE_CLOUD_CPP_EXCEPTIONS_FLAG})
+    add_library(google-cloud-cpp::mocks ALIAS google_cloud_cpp_mocks)
 
-# Export the CMake targets to make it easy to create configuration files.
-install(
-    EXPORT google_cloud_cpp_mocks-targets
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/google_cloud_cpp_mocks"
-    COMPONENT google_cloud_cpp_development)
+    install(
+        FILES ${google_cloud_cpp_mocks_hdrs}
+        DESTINATION "include/google/cloud/mocks"
+        COMPONENT google_cloud_cpp_development)
 
-install(
-    TARGETS google_cloud_cpp_mocks
-    EXPORT google_cloud_cpp_mocks-targets
-    COMPONENT google_cloud_cpp_development)
-install(
-    FILES ${google_cloud_cpp_mocks_hdrs}
-    DESTINATION "include/google/cloud/mocks"
-    COMPONENT google_cloud_cpp_development)
+    # Export the CMake targets to make it easy to create configuration files.
+    install(
+        EXPORT google_cloud_cpp_mocks-targets
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/google_cloud_cpp_mocks"
+        COMPONENT google_cloud_cpp_development)
 
-google_cloud_cpp_add_pkgconfig_interface(
-    "mocks" "Google Cloud C++ Testing Library"
-    "Helpers for testing the Google Cloud C++ Client Libraries"
-    "google_cloud_cpp_common" " gmock_main")
+    install(
+        TARGETS google_cloud_cpp_mocks
+        EXPORT google_cloud_cpp_mocks-targets
+        COMPONENT google_cloud_cpp_development)
 
-# Create and install the CMake configuration files.
-configure_file("mocks-config.cmake.in" "google_cloud_cpp_mocks-config.cmake"
-               @ONLY)
-write_basic_package_version_file(
-    "google_cloud_cpp_mocks-config-version.cmake"
-    VERSION ${PROJECT_VERSION}
-    COMPATIBILITY ExactVersion)
+    google_cloud_cpp_add_pkgconfig(
+        "mocks" "Google Cloud C++ Testing Library"
+        "Helpers for testing the Google Cloud C++ Client Libraries"
+        "google_cloud_cpp_common" "gmock")
 
-install(
-    FILES
-        "${CMAKE_CURRENT_BINARY_DIR}/google_cloud_cpp_mocks-config.cmake"
-        "${CMAKE_CURRENT_BINARY_DIR}/google_cloud_cpp_mocks-config-version.cmake"
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/google_cloud_cpp_mocks"
-    COMPONENT google_cloud_cpp_development)
+    # Create and install the CMake configuration files.
+    configure_file("mocks-config.cmake.in"
+                   "google_cloud_cpp_mocks-config.cmake" @ONLY)
+    write_basic_package_version_file(
+        "google_cloud_cpp_mocks-config-version.cmake"
+        VERSION ${PROJECT_VERSION}
+        COMPATIBILITY ExactVersion)
+
+    install(
+        FILES
+            "${CMAKE_CURRENT_BINARY_DIR}/google_cloud_cpp_mocks-config.cmake"
+            "${CMAKE_CURRENT_BINARY_DIR}/google_cloud_cpp_mocks-config-version.cmake"
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/google_cloud_cpp_mocks"
+        COMPONENT google_cloud_cpp_development)
+endif ()
 
 if (BUILD_TESTING)
     include(FindBenchmarkWithWorkarounds)
 
     set(google_cloud_cpp_common_unit_tests
         # cmake-format: sort
+        access_token_test.cc
         common_options_test.cc
         future_coroutines_test.cc
         future_generic_test.cc
         future_generic_then_test.cc
         future_void_test.cc
         future_void_then_test.cc
-        internal/access_token_test.cc
         internal/algorithm_test.cc
         internal/api_client_header_test.cc
         internal/backoff_policy_test.cc
         internal/base64_transforms_test.cc
         internal/big_endian_test.cc
+        internal/call_context_test.cc
+        internal/clock_test.cc
         internal/compiler_info_test.cc
         internal/compute_engine_util_test.cc
         internal/credentials_impl_test.cc
         internal/debug_future_status_test.cc
         internal/debug_string_test.cc
+        internal/detect_gcp_test.cc
         internal/error_context_test.cc
         internal/filesystem_test.cc
         internal/format_time_point_test.cc
         internal/future_impl_test.cc
+        internal/future_then_impl_test.cc
         internal/group_options_test.cc
+        internal/invocation_id_generator_test.cc
         internal/invoke_result_test.cc
         internal/log_impl_test.cc
         internal/make_status_test.cc
+        internal/noexcept_action_test.cc
+        internal/opentelemetry_context_test.cc
         internal/opentelemetry_test.cc
         internal/pagination_range_test.cc
         internal/parse_rfc3339_test.cc
         internal/populate_common_options_test.cc
         internal/random_test.cc
         internal/retry_loop_helpers_test.cc
-        internal/retry_policy_test.cc
+        internal/retry_policy_impl_test.cc
+        internal/service_endpoint_test.cc
         internal/sha256_hash_test.cc
         internal/sha256_hmac_test.cc
         internal/status_payload_keys_test.cc
+        internal/status_utils_test.cc
         internal/strerror_test.cc
         internal/subject_token_test.cc
         internal/throw_delegate_test.cc
+        internal/timer_queue_test.cc
+        internal/trace_propagator_test.cc
+        internal/traced_stream_range_test.cc
         internal/tuple_test.cc
         internal/type_list_test.cc
+        internal/url_encode_test.cc
         internal/user_agent_prefix_test.cc
         internal/utility_test.cc
         kms_key_name_test.cc
+        location_test.cc
         log_test.cc
+        mocks/current_options_test.cc
         mocks/mock_stream_range_test.cc
         options_test.cc
         polling_policy_test.cc
@@ -375,9 +435,6 @@ if (BUILD_TESTING)
                     GTest::gmock
                     GTest::gtest)
         google_cloud_cpp_add_common_options(${target})
-        if (MSVC)
-            target_compile_options(${target} PRIVATE "/bigobj")
-        endif ()
         add_test(NAME ${target} COMMAND ${target})
     endforeach ()
 
@@ -397,4 +454,8 @@ if (BUILD_TESTING)
                                                 benchmark::benchmark_main)
         google_cloud_cpp_add_common_options(${target})
     endforeach ()
+endif ()
+
+if (BUILD_TESTING AND GOOGLE_CLOUD_CPP_ENABLE_CXX_EXCEPTIONS)
+    google_cloud_cpp_add_samples_relative("common" "samples/")
 endif ()

@@ -19,6 +19,7 @@
 #include "google/cloud/spanner/testing/random_instance_name.h"
 #include "google/cloud/spanner/version.h"
 #include "google/cloud/internal/format_time_point.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/internal/random.h"
 #include <chrono>
 #include <regex>
@@ -40,26 +41,28 @@ std::string CutoffDate() {
 
 }  // namespace
 
-Status CleanupStaleInstances(Project const& project) {
+Status CleanupStaleInstances(
+    Project const& project,
+    spanner_admin::InstanceAdminClient instance_admin_client,
+    spanner_admin::DatabaseAdminClient database_admin_client) {
   std::regex name_regex(R"(projects/.+/instances/)"
                         R"(temporary-instance-(\d{4}-\d{2}-\d{2})-.+)");
 
   // Make sure we're using a regex that matches a random instance name.
   if (name_regex.mark_count() != 1) {
-    return Status(StatusCode::kInternal,
-                  "Instance regex must have a single capture group");
+    return internal::InternalError(
+        "Instance regex must have a single capture group", GCP_ERROR_INFO());
   }
   auto generator = internal::MakeDefaultPRNG();
   auto random_id = spanner_testing::RandomInstanceName(generator);
   auto full_name = spanner::Instance(project, random_id).FullName();
   std::smatch m;
   if (!std::regex_match(full_name, m, name_regex)) {
-    return Status(StatusCode::kInternal,
-                  "Instance regex does not match a random instance name");
+    return internal::InternalError(
+        "Instance regex does not match a random instance name",
+        GCP_ERROR_INFO());
   }
 
-  spanner_admin::InstanceAdminClient instance_admin_client(
-      spanner_admin::MakeInstanceAdminConnection());
   auto cutoff_date = CutoffDate();
   std::vector<std::string> instances;
   for (auto const& instance :
@@ -76,8 +79,6 @@ Status CleanupStaleInstances(Project const& project) {
   }
 
   // We ignore failures here.
-  spanner_admin::DatabaseAdminClient database_admin_client(
-      spanner_admin::MakeDatabaseAdminConnection());
   for (auto const& instance : instances) {
     for (auto const& backup : database_admin_client.ListBackups(instance)) {
       database_admin_client.DeleteBackup(backup->name());
@@ -87,26 +88,26 @@ Status CleanupStaleInstances(Project const& project) {
   return Status();
 }
 
-Status CleanupStaleInstanceConfigs(Project const& project) {
+Status CleanupStaleInstanceConfigs(
+    Project const& project,
+    spanner_admin::InstanceAdminClient instance_admin_client) {
   std::regex name_regex(R"(projects/.+/instanceConfigs/)"
                         R"(custom-temporary-config-(\d{4}-\d{2}-\d{2})-.+)");
 
   // Make sure we're using a regex that matches a random config name.
   if (name_regex.mark_count() != 1) {
-    return Status(StatusCode::kInternal,
-                  "Config regex must have a single capture group");
+    return internal::InternalError(
+        "Config regex must have a single capture group", GCP_ERROR_INFO());
   }
   auto generator = internal::MakeDefaultPRNG();
   auto random_id = spanner_testing::RandomInstanceConfigName(generator);
   auto full_name = project.FullName() + "/instanceConfigs/" + random_id;
   std::smatch m;
   if (!std::regex_match(full_name, m, name_regex)) {
-    return Status(StatusCode::kInternal,
-                  "Config regex does not match a random config name");
+    return internal::InternalError(
+        "Config regex does not match a random config name", GCP_ERROR_INFO());
   }
 
-  spanner_admin::InstanceAdminClient instance_admin_client(
-      spanner_admin::MakeInstanceAdminConnection());
   auto cutoff_date = CutoffDate();
   std::vector<std::string> configs;
   for (auto const& config :

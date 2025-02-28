@@ -1,5 +1,5 @@
 # ~~~
-# Copyright 2018 Google Inc.
+# Copyright 2018 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,10 +37,19 @@ add_library(
     throughput_result.h)
 target_link_libraries(
     storage_benchmarks
-    PUBLIC storage_client_testing google_cloud_cpp_testing
-           google-cloud-cpp::storage google-cloud-cpp::grpc_utils
-           google-cloud-cpp::storage_protos CURL::libcurl)
+    PUBLIC storage_client_testing
+           google_cloud_cpp_testing
+           google-cloud-cpp::storage_grpc
+           google-cloud-cpp::storage
+           google-cloud-cpp::grpc_utils
+           google-cloud-cpp::storage_protos
+           CURL::libcurl)
 google_cloud_cpp_add_common_options(storage_benchmarks)
+if (Protobuf_VERSION VERSION_LESS "23")
+    target_compile_definitions(
+        storage_benchmarks
+        PRIVATE GOOGLE_CLOUD_CPP_ENABLE_CTYPE_CORD_WORKAROUND)
+endif ()
 
 include(CreateBazelConfig)
 create_bazel_config(storage_benchmarks YEAR 2019)
@@ -65,7 +74,6 @@ foreach (fname ${storage_benchmark_programs})
                 google-cloud-cpp::storage
                 google-cloud-cpp::common
                 absl::strings
-                CURL::libcurl
                 Threads::Threads
                 nlohmann_json)
     google_cloud_cpp_add_common_options(${target})
@@ -91,29 +99,42 @@ set(storage_benchmarks_unit_tests
 
 foreach (fname ${storage_benchmarks_unit_tests})
     google_cloud_cpp_add_executable(target "storage_benchmarks" "${fname}")
-    if (MSVC)
-        target_compile_options(${target} PRIVATE "/bigobj")
-    endif ()
-    if (BUILD_TESTING)
-        target_link_libraries(
-            ${target}
-            PRIVATE storage_benchmarks
-                    storage_client_testing
-                    google_cloud_cpp_testing
-                    google-cloud-cpp::storage
-                    GTest::gmock_main
-                    GTest::gmock
-                    GTest::gtest
-                    CURL::libcurl
-                    absl::strings
-                    nlohmann_json)
-        google_cloud_cpp_add_common_options(${target})
-        if (MSVC)
-            target_compile_options(${target} PRIVATE "/bigobj")
-        endif ()
-        add_test(NAME ${target} COMMAND ${target})
-    endif ()
+    target_link_libraries(
+        ${target}
+        PRIVATE storage_benchmarks
+                storage_client_testing
+                google_cloud_cpp_testing
+                google-cloud-cpp::storage
+                GTest::gmock_main
+                GTest::gmock
+                GTest::gtest
+                absl::strings
+                nlohmann_json)
+    google_cloud_cpp_add_common_options(${target})
+    add_test(NAME ${target} COMMAND ${target})
 endforeach ()
 # Export the list of unit tests so the Bazel BUILD file can pick it up.
 export_list_to_bazel("storage_benchmarks_unit_tests.bzl"
                      "storage_benchmarks_unit_tests" YEAR "2019")
+
+# We reduce the effort required to implement benchmarks for asynchronous APIs by
+# using C++20 coroutines, exceptions, and newer compilers.  The rest of this
+# file contains only these benchmarks, so return early if the features are not
+# available.
+if (NOT GOOGLE_CLOUD_CPP_ENABLE_CXX_EXCEPTIONS)
+    return()
+endif ()
+if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") AND (CMAKE_CXX_COMPILER_VERSION
+                                                VERSION_LESS 10))
+    return()
+endif ()
+
+add_executable(async_throughput_benchmark async_throughput_benchmark.cc)
+target_compile_features(async_throughput_benchmark PRIVATE cxx_std_20)
+# Skip clang-tidy because it will make recommendations based on C++20 and/or
+# C++17. Some of these recommendations will be about header files in
+# `google/cloud/*`. We cannot apply those recommendations because the headers
+# are also used with C++14.
+set_target_properties(async_throughput_benchmark PROPERTIES CXX_CLANG_TIDY "")
+target_link_libraries(async_throughput_benchmark
+                      PRIVATE storage_benchmarks google-cloud-cpp::storage_grpc)

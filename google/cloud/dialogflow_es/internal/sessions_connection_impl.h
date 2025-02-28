@@ -29,6 +29,7 @@
 #include "google/cloud/backoff_policy.h"
 #include "google/cloud/options.h"
 #include "google/cloud/status_or.h"
+#include "google/cloud/stream_range.h"
 #include "google/cloud/version.h"
 #include <memory>
 
@@ -57,37 +58,22 @@ class SessionsConnectionImpl : public dialogflow_es::SessionsConnection {
       google::cloud::dialogflow::v2::StreamingDetectIntentResponse>>
   AsyncStreamingDetectIntent() override;
 
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_es::SessionsRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::SessionsRetryPolicyOption>()) {
-      return options.get<dialogflow_es::SessionsRetryPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_es::SessionsRetryPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::SessionsBackoffPolicyOption>()) {
-      return options.get<dialogflow_es::SessionsBackoffPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_es::SessionsBackoffPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<dialogflow_es::SessionsConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options
-            .has<dialogflow_es::SessionsConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_es::SessionsConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_es::SessionsConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_es_internal::SessionsStub> stub_;
   Options options_;

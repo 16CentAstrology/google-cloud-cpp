@@ -42,6 +42,8 @@ add_library(
     internal/async_read_write_stream_auth.h
     internal/async_read_write_stream_impl.h
     internal/async_read_write_stream_logging.h
+    internal/async_read_write_stream_timeout.h
+    internal/async_read_write_stream_tracing.h
     internal/async_retry_loop.h
     internal/async_retry_unary_rpc.h
     internal/async_rpc_details.h
@@ -49,10 +51,14 @@ add_library(
     internal/async_streaming_read_rpc_auth.h
     internal/async_streaming_read_rpc_impl.h
     internal/async_streaming_read_rpc_logging.h
+    internal/async_streaming_read_rpc_timeout.h
+    internal/async_streaming_read_rpc_tracing.h
     internal/async_streaming_write_rpc.h
     internal/async_streaming_write_rpc_auth.h
     internal/async_streaming_write_rpc_impl.h
     internal/async_streaming_write_rpc_logging.h
+    internal/async_streaming_write_rpc_timeout.h
+    internal/async_streaming_write_rpc_tracing.h
     internal/background_threads_impl.cc
     internal/background_threads_impl.h
     internal/completion_queue_impl.h
@@ -66,16 +72,22 @@ add_library(
     internal/extract_long_running_result.h
     internal/grpc_access_token_authentication.cc
     internal/grpc_access_token_authentication.h
+    internal/grpc_api_key_authentication.cc
+    internal/grpc_api_key_authentication.h
     internal/grpc_async_access_token_cache.cc
     internal/grpc_async_access_token_cache.h
     internal/grpc_channel_credentials_authentication.cc
     internal/grpc_channel_credentials_authentication.h
     internal/grpc_impersonate_service_account.cc
     internal/grpc_impersonate_service_account.h
+    internal/grpc_metadata_view.h
+    internal/grpc_opentelemetry.cc
+    internal/grpc_opentelemetry.h
     internal/grpc_request_metadata.cc
     internal/grpc_request_metadata.h
     internal/grpc_service_account_authentication.cc
     internal/grpc_service_account_authentication.h
+    internal/log_wrapper.cc
     internal/log_wrapper.h
     internal/minimal_iam_credentials_stub.cc
     internal/minimal_iam_credentials_stub.h
@@ -88,10 +100,12 @@ add_library(
     internal/streaming_read_rpc.cc
     internal/streaming_read_rpc.h
     internal/streaming_read_rpc_logging.h
+    internal/streaming_read_rpc_tracing.h
     internal/streaming_write_rpc.h
     internal/streaming_write_rpc_impl.cc
     internal/streaming_write_rpc_impl.h
     internal/streaming_write_rpc_logging.h
+    internal/streaming_write_rpc_tracing.h
     internal/time_utils.cc
     internal/time_utils.h
     internal/unified_grpc_credentials.cc
@@ -102,8 +116,11 @@ target_link_libraries(
            absl::memory
            absl::time
            absl::variant
-           google-cloud-cpp::iam_protos
+           google-cloud-cpp::iam_credentials_v1_iamcredentials_protos
+           google-cloud-cpp::iam_v1_policy_protos
            google-cloud-cpp::longrunning_operations_protos
+           google-cloud-cpp::cloud_location_locations_protos
+           google-cloud-cpp::iam_v1_iam_policy_protos
            google-cloud-cpp::rpc_error_details_protos
            google-cloud-cpp::rpc_status_protos
            google-cloud-cpp::common
@@ -147,16 +164,7 @@ install(
             COMPONENT google_cloud_cpp_runtime
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
             COMPONENT google_cloud_cpp_runtime
-            NAMELINK_SKIP
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            COMPONENT google_cloud_cpp_development)
-# With CMake-3.12 and higher we could avoid this separate command (and the
-# duplication).
-install(
-    TARGETS google_cloud_cpp_grpc_utils
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            COMPONENT google_cloud_cpp_development
-            NAMELINK_ONLY
+            NAMELINK_COMPONENT google_cloud_cpp_development
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
             COMPONENT google_cloud_cpp_development)
 
@@ -168,10 +176,18 @@ google_cloud_cpp_add_pkgconfig(
     "gRPC Utilities for the Google Cloud C++ Client Library"
     "Provides gRPC Utilities for the Google Cloud C++ Client Library."
     "google_cloud_cpp_common"
-    " google_cloud_cpp_iam_protos"
-    " google_cloud_cpp_longrunning_operations_protos"
-    " google_cloud_cpp_rpc_status_protos"
-    " openssl")
+    "google_cloud_cpp_iam_credentials_v1_iamcredentials_protos"
+    "google_cloud_cpp_iam_v1_policy_protos"
+    "google_cloud_cpp_iam_v1_iam_policy_protos"
+    "google_cloud_cpp_cloud_location_locations_protos"
+    "google_cloud_cpp_longrunning_operations_protos"
+    "google_cloud_cpp_rpc_status_protos"
+    "absl_function_ref"
+    "absl_strings"
+    "absl_time"
+    "absl_time_zone"
+    "absl_variant"
+    "openssl")
 
 # Create and install the CMake configuration files.
 configure_file("grpc_utils/config.cmake.in"
@@ -196,9 +212,6 @@ function (google_cloud_cpp_grpc_utils_add_test fname labels)
                 google_cloud_cpp_testing_grpc
                 google_cloud_cpp_testing
                 google-cloud-cpp::common
-                google-cloud-cpp::iam_protos
-                google-cloud-cpp::bigtable_protos
-                google-cloud-cpp::spanner_protos
                 absl::variant
                 GTest::gmock_main
                 GTest::gmock
@@ -206,9 +219,6 @@ function (google_cloud_cpp_grpc_utils_add_test fname labels)
                 gRPC::grpc++
                 gRPC::grpc)
     google_cloud_cpp_add_common_options(${target})
-    if (MSVC)
-        target_compile_options(${target} PRIVATE "/bigobj")
-    endif ()
     add_test(NAME ${target} COMMAND ${target})
     set_tests_properties(${target} PROPERTIES LABELS "${labels}")
 endfunction ()
@@ -229,21 +239,29 @@ if (BUILD_TESTING)
         internal/async_read_write_stream_auth_test.cc
         internal/async_read_write_stream_impl_test.cc
         internal/async_read_write_stream_logging_test.cc
+        internal/async_read_write_stream_timeout_test.cc
+        internal/async_read_write_stream_tracing_test.cc
         internal/async_retry_loop_test.cc
         internal/async_retry_unary_rpc_test.cc
         internal/async_streaming_read_rpc_auth_test.cc
         internal/async_streaming_read_rpc_impl_test.cc
         internal/async_streaming_read_rpc_logging_test.cc
+        internal/async_streaming_read_rpc_timeout_test.cc
+        internal/async_streaming_read_rpc_tracing_test.cc
         internal/async_streaming_write_rpc_auth_test.cc
         internal/async_streaming_write_rpc_impl_test.cc
         internal/async_streaming_write_rpc_logging_test.cc
+        internal/async_streaming_write_rpc_timeout_test.cc
+        internal/async_streaming_write_rpc_tracing_test.cc
         internal/background_threads_impl_test.cc
         internal/debug_string_protobuf_test.cc
         internal/debug_string_status_test.cc
         internal/extract_long_running_result_test.cc
         internal/grpc_access_token_authentication_test.cc
+        internal/grpc_api_key_authentication_test.cc
         internal/grpc_async_access_token_cache_test.cc
         internal/grpc_channel_credentials_authentication_test.cc
+        internal/grpc_opentelemetry_test.cc
         internal/grpc_request_metadata_test.cc
         internal/grpc_service_account_authentication_test.cc
         internal/log_wrapper_test.cc
@@ -254,8 +272,10 @@ if (BUILD_TESTING)
         internal/routing_matcher_test.cc
         internal/streaming_read_rpc_logging_test.cc
         internal/streaming_read_rpc_test.cc
+        internal/streaming_read_rpc_tracing_test.cc
         internal/streaming_write_rpc_logging_test.cc
         internal/streaming_write_rpc_test.cc
+        internal/streaming_write_rpc_tracing_test.cc
         internal/time_utils_test.cc
         internal/unified_grpc_credentials_test.cc)
 
@@ -276,9 +296,36 @@ if (BUILD_TESTING)
         google_cloud_cpp_grpc_utils_add_test("${fname}" "")
     endforeach ()
 
+    # TODO(#12485) - remove dependency on bigtable in this integration test.
+    if (NOT bigtable IN_LIST GOOGLE_CLOUD_CPP_ENABLE)
+        list(REMOVE_ITEM google_cloud_cpp_grpc_utils_integration_tests
+             "internal/grpc_impersonate_service_account_integration_test.cc")
+    endif ()
+
     foreach (fname ${google_cloud_cpp_grpc_utils_integration_tests})
-        google_cloud_cpp_grpc_utils_add_test("${fname}"
-                                             "integration-test-production")
+        google_cloud_cpp_add_executable(target "common" "${fname}")
+        target_link_libraries(
+            ${target}
+            PRIVATE google-cloud-cpp::grpc_utils
+                    google_cloud_cpp_testing_grpc
+                    google_cloud_cpp_testing
+                    google-cloud-cpp::common
+                    google-cloud-cpp::iam_credentials_v1_iamcredentials_protos
+                    absl::variant
+                    GTest::gmock_main
+                    GTest::gmock
+                    GTest::gtest
+                    gRPC::grpc++
+                    gRPC::grpc)
+        google_cloud_cpp_add_common_options(${target})
+        add_test(NAME ${target} COMMAND ${target})
+        set_tests_properties(${target} PROPERTIES LABELS
+                                                  "integration-test-production")
+        # TODO(12485) - remove dep on bigtable_protos
+        if (bigtable IN_LIST GOOGLE_CLOUD_CPP_ENABLE)
+            target_link_libraries(${target}
+                                  PRIVATE google-cloud-cpp::bigtable_protos)
+        endif ()
     endforeach ()
 
     set(google_cloud_cpp_grpc_utils_benchmarks # cmake-format: sortable

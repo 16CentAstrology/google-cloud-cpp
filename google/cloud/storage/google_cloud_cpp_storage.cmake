@@ -14,9 +14,10 @@
 # limitations under the License.
 # ~~~
 
-include(FindCurlWithTargets)
-find_package(OpenSSL REQUIRED)
-find_package(ZLIB REQUIRED)
+find_package(CURL REQUIRED)
+if (NOT WIN32)
+    find_package(OpenSSL REQUIRED)
+endif ()
 
 # the client library
 add_library(
@@ -33,6 +34,8 @@ add_library(
     bucket_custom_placement_config.cc
     bucket_custom_placement_config.h
     bucket_encryption.h
+    bucket_hierarchical_namespace.cc
+    bucket_hierarchical_namespace.h
     bucket_iam_configuration.cc
     bucket_iam_configuration.h
     bucket_lifecycle.h
@@ -40,9 +43,13 @@ add_library(
     bucket_logging.h
     bucket_metadata.cc
     bucket_metadata.h
+    bucket_object_retention.cc
+    bucket_object_retention.h
     bucket_retention_policy.cc
     bucket_retention_policy.h
     bucket_rpo.h
+    bucket_soft_delete_policy.cc
+    bucket_soft_delete_policy.h
     bucket_versioning.h
     bucket_website.h
     client.cc
@@ -50,6 +57,7 @@ add_library(
     client_options.cc
     client_options.h
     download_options.h
+    enable_object_retention.h
     hash_mismatch_error.h
     hashing_options.cc
     hashing_options.h
@@ -60,11 +68,14 @@ add_library(
     iam_policy.h
     idempotency_policy.cc
     idempotency_policy.h
+    include_folders_as_prefixes.h
     internal/access_control_common.h
     internal/access_control_common_parser.cc
     internal/access_control_common_parser.h
     internal/access_token_credentials.cc
     internal/access_token_credentials.h
+    internal/base64.cc
+    internal/base64.h
     internal/binary_data_as_debug_string.h
     internal/bucket_access_control_parser.cc
     internal/bucket_access_control_parser.h
@@ -79,22 +90,16 @@ add_library(
     internal/complex_option.h
     internal/compute_engine_util.cc
     internal/compute_engine_util.h
+    internal/connection_factory.cc
+    internal/connection_factory.h
+    internal/connection_impl.cc
+    internal/connection_impl.h
     internal/const_buffer.cc
     internal/const_buffer.h
-    internal/curl_client.cc
-    internal/curl_client.h
-    internal/curl_download_request.cc
-    internal/curl_download_request.h
-    internal/curl_handle.cc
-    internal/curl_handle.h
-    internal/curl_handle_factory.cc
-    internal/curl_handle_factory.h
-    internal/curl_request.cc
-    internal/curl_request.h
-    internal/curl_request_builder.cc
-    internal/curl_request_builder.h
-    internal/curl_wrappers.cc
-    internal/curl_wrappers.h
+    internal/crc32c.cc
+    internal/crc32c.h
+    internal/curl/request.h
+    internal/curl/request_builder.h
     internal/default_object_acl_requests.cc
     internal/default_object_acl_requests.h
     internal/empty_response.cc
@@ -105,6 +110,11 @@ add_library(
     internal/generate_message_boundary.h
     internal/generic_object_request.h
     internal/generic_request.h
+    internal/generic_stub.h
+    internal/generic_stub_adapter.cc
+    internal/generic_stub_adapter.h
+    internal/generic_stub_factory.cc
+    internal/generic_stub_factory.h
     internal/hash_function.cc
     internal/hash_function.h
     internal/hash_function_impl.cc
@@ -123,18 +133,16 @@ add_library(
     internal/http_response.h
     internal/impersonate_service_account_credentials.cc
     internal/impersonate_service_account_credentials.h
-    internal/invocation_id_generator.cc
-    internal/invocation_id_generator.h
     internal/lifecycle_rule_parser.cc
     internal/lifecycle_rule_parser.h
-    internal/logging_client.cc
-    internal/logging_client.h
+    internal/logging_stub.cc
+    internal/logging_stub.h
     internal/make_jwt_assertion.cc
     internal/make_jwt_assertion.h
+    internal/md5hash.cc
+    internal/md5hash.h
     internal/metadata_parser.cc
     internal/metadata_parser.h
-    internal/minimal_iam_credentials_rest.cc
-    internal/minimal_iam_credentials_rest.h
     internal/notification_metadata_parser.cc
     internal/notification_metadata_parser.h
     internal/notification_requests.cc
@@ -152,26 +160,21 @@ add_library(
     internal/object_requests.h
     internal/object_write_streambuf.cc
     internal/object_write_streambuf.h
-    internal/openssl_util.cc
-    internal/openssl_util.h
-    internal/parameter_pack_validation.h
+    internal/openssl/hash_function_impl.cc
     internal/patch_builder.cc
     internal/patch_builder.h
     internal/patch_builder_details.cc
     internal/patch_builder_details.h
     internal/policy_document_request.cc
     internal/policy_document_request.h
-    internal/raw_client.cc
-    internal/raw_client.h
-    internal/raw_client_wrapper_utils.h
-    internal/rest_client.cc
-    internal/rest_client.h
-    internal/rest_object_read_source.cc
-    internal/rest_object_read_source.h
-    internal/rest_request_builder.cc
-    internal/rest_request_builder.h
-    internal/retry_client.cc
-    internal/retry_client.h
+    internal/request_project_id.cc
+    internal/request_project_id.h
+    internal/rest/object_read_source.cc
+    internal/rest/object_read_source.h
+    internal/rest/request_builder.cc
+    internal/rest/request_builder.h
+    internal/rest/stub.cc
+    internal/rest/stub.h
     internal/retry_object_read_source.cc
     internal/retry_object_read_source.h
     internal/service_account_parser.cc
@@ -182,9 +185,17 @@ add_library(
     internal/sign_blob_requests.h
     internal/signed_url_requests.cc
     internal/signed_url_requests.h
+    internal/storage_connection.cc
+    internal/storage_connection.h
+    internal/tracing_connection.cc
+    internal/tracing_connection.h
+    internal/tracing_object_read_source.cc
+    internal/tracing_object_read_source.h
     internal/tuple_filter.h
     internal/unified_rest_credentials.cc
     internal/unified_rest_credentials.h
+    internal/well_known_parameters_impl.h
+    internal/win32/hash_function_impl.cc
     lifecycle_rule.cc
     lifecycle_rule.h
     list_buckets_reader.cc
@@ -221,6 +232,8 @@ add_library(
     object_metadata.h
     object_read_stream.cc
     object_read_stream.h
+    object_retention.cc
+    object_retention.h
     object_rewriter.cc
     object_rewriter.h
     object_stream.h
@@ -228,6 +241,7 @@ add_library(
     object_write_stream.h
     options.h
     override_default_project.h
+    override_unlocked_retention.h
     owner.h
     parallel_upload.cc
     parallel_upload.h
@@ -238,6 +252,7 @@ add_library(
     service_account.cc
     service_account.h
     signed_url_options.h
+    soft_deleted.h
     storage_class.h
     upload_options.h
     user_ip_option.h
@@ -250,9 +265,9 @@ add_library(
     well_known_parameters.h)
 target_link_libraries(
     google_cloud_cpp_storage
-    PUBLIC absl::memory
+    PUBLIC absl::cord
+           absl::memory
            absl::strings
-           absl::str_format
            absl::time
            absl::variant
            google-cloud-cpp::common
@@ -260,14 +275,15 @@ target_link_libraries(
            nlohmann_json::nlohmann_json
            Crc32c::crc32c
            CURL::libcurl
-           Threads::Threads
-           OpenSSL::SSL
-           OpenSSL::Crypto
-           ZLIB::ZLIB)
+           Threads::Threads)
 if (WIN32)
+    target_compile_definitions(google_cloud_cpp_storage
+                               PRIVATE WIN32_LEAN_AND_MEAN)
     # We use `setsockopt()` directly, which requires the ws2_32 (Winsock2 for
     # Windows32?) library on Windows.
-    target_link_libraries(google_cloud_cpp_storage PUBLIC ws2_32)
+    target_link_libraries(google_cloud_cpp_storage PUBLIC ws2_32 bcrypt)
+else ()
+    target_link_libraries(google_cloud_cpp_storage PUBLIC OpenSSL::Crypto)
 endif ()
 google_cloud_cpp_add_common_options(google_cloud_cpp_storage)
 target_include_directories(
@@ -276,26 +292,16 @@ target_include_directories(
 target_compile_options(google_cloud_cpp_storage
                        PUBLIC ${GOOGLE_CLOUD_CPP_EXCEPTIONS_FLAG})
 
-# GCC-7.3 (the default GCC version on Ubuntu:18.04) issues a warning (a member
-# variable may be used without being initialized), in this file. GCC-8.0 no
-# longer emits that diagnostic, and neither does Clang. On the assumption that
-# this is a spurious warning we disable it for older versions of GCC. I (coryan)
-# did not research in exactly what version was this warning introduced, and when
-# it was fixed. I do not believe we need to be that accurate.
+# GCC-7.x issues a warning (a member variable may be used without being
+# initialized), in this file. GCC-8.0 no longer emits that diagnostic, and
+# neither does Clang. On the assumption that this is a spurious warning we
+# disable it for older versions of GCC.
 if (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU" AND ${CMAKE_CXX_COMPILER_VERSION}
                                                 VERSION_LESS 8.0)
     set_property(
         SOURCE list_objects_reader.cc
         APPEND_STRING
         PROPERTY COMPILE_FLAGS "-Wno-maybe-uninitialized")
-endif ()
-
-if (MSVC)
-    set_property(
-        SOURCE internal/policy_document_request.cc
-        APPEND_STRING
-        PROPERTY COMPILE_FLAGS
-                 "-D_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING")
 endif ()
 
 set_target_properties(
@@ -320,59 +326,36 @@ install(
             COMPONENT google_cloud_cpp_runtime
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
             COMPONENT google_cloud_cpp_runtime
-            NAMELINK_SKIP
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            COMPONENT google_cloud_cpp_development)
-# With CMake-3.12 and higher we could avoid this separate command (and the
-# duplication).
-install(
-    TARGETS google_cloud_cpp_storage
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            COMPONENT google_cloud_cpp_development
-            NAMELINK_ONLY
+            NAMELINK_COMPONENT google_cloud_cpp_development
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
             COMPONENT google_cloud_cpp_development)
 
 google_cloud_cpp_install_headers(google_cloud_cpp_storage
                                  include/google/cloud/storage)
 
-# Cannot use google_cloud_cpp_add_pkgconfig() for this library. There is a
-# horrible hack here, adding -lcrc32c to the 'Libs:` entry. We should be adding
-# this library to the `Requires:` line, but it does not create pkg-config
-# modules.
-set(GOOGLE_CLOUD_CPP_PC_NAME "The Google Cloud Storage C++ Client Library")
-set(GOOGLE_CLOUD_CPP_PC_DESCRIPTION
-    "Provides C++ APIs to access Google Cloud Storage.")
-string(CONCAT GOOGLE_CLOUD_CPP_PC_LIBS "-lgoogle_cloud_cpp_storage" " -lcrc32c")
-string(
-    CONCAT GOOGLE_CLOUD_CPP_PC_REQUIRES
-           "google_cloud_cpp_common"
-           " google_cloud_cpp_rest_internal"
-           " libcurl openssl"
-           " absl_memory"
-           " absl_strings"
-           " absl_str_format"
-           " absl_time"
-           " absl_variant")
-
-# Create and install the pkg-config files.
-google_cloud_cpp_set_pkgconfig_paths()
-configure_file("${PROJECT_SOURCE_DIR}/cmake/templates/config.pc.in"
-               "google_cloud_cpp_storage.pc" @ONLY)
-install(
-    FILES "${CMAKE_CURRENT_BINARY_DIR}/google_cloud_cpp_storage.pc"
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
-    COMPONENT google_cloud_cpp_development)
+google_cloud_cpp_add_pkgconfig(
+    "storage"
+    "The Google Cloud Storage C++ Client Library"
+    "Provides C++ APIs to access Google Cloud Storage."
+    "google_cloud_cpp_common"
+    "google_cloud_cpp_rest_internal"
+    "libcurl"
+    "absl_cord"
+    "absl_strings"
+    "absl_str_format"
+    "absl_time"
+    "absl_variant"
+    NON_WIN32_REQUIRES
+    openssl
+    LIBS
+    crc32c
+    WIN32_LIBS
+    ws2_32
+    bcrypt)
 
 # Create and install the CMake configuration files.
 include(CMakePackageConfigHelpers)
-if (GOOGLE_CLOUD_CPP_STORAGE_ENABLE_GRPC)
-    configure_file("config-grpc.cmake.in"
-                   "google_cloud_cpp_storage-config.cmake" @ONLY)
-else ()
-    configure_file("config.cmake.in" "google_cloud_cpp_storage-config.cmake"
-                   @ONLY)
-endif ()
+configure_file("config.cmake.in" "google_cloud_cpp_storage-config.cmake" @ONLY)
 write_basic_package_version_file(
     "google_cloud_cpp_storage-config-version.cmake"
     VERSION ${PROJECT_VERSION}
@@ -398,8 +381,12 @@ if (BUILD_TESTING)
         testing/client_unit_test.h
         testing/constants.h
         testing/mock_client.h
+        testing/mock_generic_stub.h
+        testing/mock_hash_function.h
+        testing/mock_hash_validator.h
         testing/mock_http_request.cc
         testing/mock_http_request.h
+        testing/mock_resume_policy.h
         testing/mock_storage_stub.h
         testing/object_integration_test.cc
         testing/object_integration_test.h
@@ -407,11 +394,16 @@ if (BUILD_TESTING)
         testing/random_names.h
         testing/remove_stale_buckets.cc
         testing/remove_stale_buckets.h
+        testing/retry_http_request.cc
+        testing/retry_http_request.h
+        testing/retry_tests.cc
         testing/retry_tests.h
         testing/storage_integration_test.cc
         testing/storage_integration_test.h
         testing/temp_file.cc
         testing/temp_file.h
+        testing/upload_hash_cases.cc
+        testing/upload_hash_cases.h
         testing/write_base64.cc
         testing/write_base64.h)
     target_link_libraries(
@@ -439,6 +431,8 @@ if (BUILD_TESTING)
         bucket_cors_entry_test.cc
         bucket_iam_configuration_test.cc
         bucket_metadata_test.cc
+        bucket_object_retention_test.cc
+        bucket_soft_delete_policy_test.cc
         client_bucket_acl_test.cc
         client_bucket_test.cc
         client_default_object_acl_test.cc
@@ -460,14 +454,23 @@ if (BUILD_TESTING)
         internal/access_control_common_parser_test.cc
         internal/access_control_common_test.cc
         internal/access_token_credentials_test.cc
+        internal/base64_test.cc
         internal/bucket_acl_requests_test.cc
         internal/bucket_requests_test.cc
         internal/complex_option_test.cc
         internal/compute_engine_util_test.cc
+        internal/connection_impl_bucket_acl_test.cc
+        internal/connection_impl_bucket_test.cc
+        internal/connection_impl_default_object_acl_test.cc
+        internal/connection_impl_notifications_test.cc
+        internal/connection_impl_object_acl_test.cc
+        internal/connection_impl_object_copy_test.cc
+        internal/connection_impl_object_test.cc
+        internal/connection_impl_service_account_test.cc
+        internal/connection_impl_sign_blob_test.cc
+        internal/connection_impl_test.cc
         internal/const_buffer_test.cc
-        internal/curl_client_test.cc
-        internal/curl_download_request_test.cc
-        internal/curl_handle_test.cc
+        internal/crc32c_test.cc
         internal/default_object_acl_requests_test.cc
         internal/generate_message_boundary_test.cc
         internal/generic_request_test.cc
@@ -477,27 +480,27 @@ if (BUILD_TESTING)
         internal/hmac_key_requests_test.cc
         internal/http_response_test.cc
         internal/impersonate_service_account_credentials_test.cc
-        internal/invocation_id_generator_test.cc
-        internal/logging_client_test.cc
+        internal/logging_stub_test.cc
         internal/make_jwt_assertion_test.cc
+        internal/md5hash_test.cc
         internal/metadata_parser_test.cc
         internal/notification_requests_test.cc
         internal/object_acl_requests_test.cc
         internal/object_read_streambuf_test.cc
         internal/object_requests_test.cc
         internal/object_write_streambuf_test.cc
-        internal/openssl_util_test.cc
-        internal/parameter_pack_validation_test.cc
         internal/patch_builder_test.cc
         internal/policy_document_request_test.cc
-        internal/rest_client_test.cc
-        internal/rest_object_read_source_test.cc
-        internal/rest_request_builder_test.cc
-        internal/retry_client_test.cc
+        internal/request_project_id_test.cc
+        internal/rest/object_read_source_test.cc
+        internal/rest/request_builder_test.cc
+        internal/rest/stub_test.cc
         internal/retry_object_read_source_test.cc
         internal/service_account_requests_test.cc
         internal/sign_blob_requests_test.cc
         internal/signed_url_requests_test.cc
+        internal/tracing_connection_test.cc
+        internal/tracing_object_read_source_test.cc
         internal/tuple_filter_test.cc
         internal/unified_rest_credentials_test.cc
         lifecycle_rule_test.cc
@@ -514,6 +517,7 @@ if (BUILD_TESTING)
         oauth2/service_account_credentials_test.cc
         object_access_control_test.cc
         object_metadata_test.cc
+        object_retention_test.cc
         object_stream_test.cc
         parallel_uploads_test.cc
         policy_document_test.cc
@@ -529,9 +533,6 @@ if (BUILD_TESTING)
 
     foreach (fname ${storage_client_unit_tests})
         google_cloud_cpp_add_executable(target "storage" "${fname}")
-        if (MSVC)
-            target_compile_options(${target} PRIVATE "/bigobj")
-        endif ()
         target_link_libraries(
             ${target}
             PRIVATE absl::memory
@@ -545,9 +546,6 @@ if (BUILD_TESTING)
                     CURL::libcurl
                     nlohmann_json::nlohmann_json)
         google_cloud_cpp_add_common_options(${target})
-        if (MSVC)
-            target_compile_options(${target} PRIVATE "/bigobj")
-        endif ()
         add_test(NAME ${target} COMMAND ${target})
     endforeach ()
     # Export the list of unit tests so the Bazel BUILD file can pick it up.
@@ -556,21 +554,20 @@ if (BUILD_TESTING)
 
     include(FindBenchmarkWithWorkarounds)
 
-    set(google_cloud_cpp_storage_benchmarks
-        # cmake-format: sort
-        internal/generate_message_boundary_benchmark.cc)
+    set(storage_client_benchmarks # cmake-format: sort
+                                  internal/crc32c_benchmark.cc)
 
     # Export the list of benchmarks to a .bzl file so we do not need to maintain
     # the list in two places.
-    export_list_to_bazel("google_cloud_cpp_storage_benchmarks.bzl"
-                         "google_cloud_cpp_storage_benchmarks" YEAR "2022")
+    export_list_to_bazel("storage_client_benchmarks.bzl"
+                         "storage_client_benchmarks" YEAR "2023")
 
     # Generate a target for each benchmark.
-    foreach (fname ${google_cloud_cpp_storage_benchmarks})
+    foreach (fname IN LISTS storage_client_benchmarks)
         google_cloud_cpp_add_executable(target "storage" "${fname}")
         add_test(NAME ${target} COMMAND ${target})
         target_link_libraries(
-            ${target} PRIVATE absl::memory google-cloud-cpp::storage
+            ${target} PRIVATE google-cloud-cpp::storage storage_client_testing
                               benchmark::benchmark_main)
         google_cloud_cpp_add_common_options(${target})
     endforeach ()

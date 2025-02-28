@@ -21,10 +21,14 @@
 
 #include "google/cloud/async_streaming_read_write_rpc.h"
 #include "google/cloud/completion_queue.h"
+#include "google/cloud/options.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/version.h"
 #include <google/cloud/dialogflow/v2/session.grpc.pb.h>
+#include <google/cloud/location/locations.grpc.pb.h>
+#include <google/longrunning/operations.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -37,25 +41,54 @@ class SessionsStub {
 
   virtual StatusOr<google::cloud::dialogflow::v2::DetectIntentResponse>
   DetectIntent(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::DetectIntentRequest const& request) = 0;
 
   virtual std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
       google::cloud::dialogflow::v2::StreamingDetectIntentRequest,
       google::cloud::dialogflow::v2::StreamingDetectIntentResponse>>
-  AsyncStreamingDetectIntent(google::cloud::CompletionQueue const& cq,
-                             std::unique_ptr<grpc::ClientContext> context) = 0;
+  AsyncStreamingDetectIntent(
+      google::cloud::CompletionQueue const& cq,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options) = 0;
+
+  virtual StatusOr<google::cloud::location::ListLocationsResponse>
+  ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) = 0;
+
+  virtual StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) = 0;
+
+  virtual StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) = 0;
+
+  virtual StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) = 0;
+
+  virtual Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) = 0;
 };
 
 class DefaultSessionsStub : public SessionsStub {
  public:
   explicit DefaultSessionsStub(
       std::unique_ptr<google::cloud::dialogflow::v2::Sessions::StubInterface>
-          grpc_stub)
-      : grpc_stub_(std::move(grpc_stub)) {}
+          grpc_stub,
+      std::unique_ptr<google::longrunning::Operations::StubInterface>
+          operations_stub,
+      std::unique_ptr<google::cloud::location::Locations::StubInterface>
+          locations_stub)
+      : grpc_stub_(std::move(grpc_stub)),
+        operations_stub_(std::move(operations_stub)),
+        locations_stub_(std::move(locations_stub)) {}
 
   StatusOr<google::cloud::dialogflow::v2::DetectIntentResponse> DetectIntent(
-      grpc::ClientContext& client_context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::DetectIntentRequest const& request)
       override;
 
@@ -64,11 +97,36 @@ class DefaultSessionsStub : public SessionsStub {
       google::cloud::dialogflow::v2::StreamingDetectIntentResponse>>
   AsyncStreamingDetectIntent(
       google::cloud::CompletionQueue const& cq,
-      std::unique_ptr<grpc::ClientContext> context) override;
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options) override;
+
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
 
  private:
   std::unique_ptr<google::cloud::dialogflow::v2::Sessions::StubInterface>
       grpc_stub_;
+  std::unique_ptr<google::longrunning::Operations::StubInterface>
+      operations_stub_;
+  std::unique_ptr<google::cloud::location::Locations::StubInterface>
+      locations_stub_;
 };
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

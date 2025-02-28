@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -342,7 +342,7 @@ class Filter {
     return tmp;
   }
 
-  //@{
+  ///@{
   /**
    * @name Less common range filters.
    *
@@ -483,7 +483,7 @@ class Filter {
     range.set_end_qualifier_open(std::move(end));
     return tmp;
   }
-  //@}
+  ///@}
 
   /**
    * Return a filter that transforms any values into the empty string.
@@ -500,7 +500,7 @@ class Filter {
   /**
    * Returns a filter that applies a label to each value.
    *
-   * Each value accepted by previous filters in modified to include the @p
+   * Each value accepted by previous filters is modified to include the @p
    * label.
    *
    * @note Currently, it is not possible to apply more than one label in a
@@ -522,9 +522,8 @@ class Filter {
     tmp.filter_.set_apply_label_transformer(std::move(label));
     return tmp;
   }
-  //@}
 
-  //@{
+  ///@{
   /**
    * @name Compound filters.
    *
@@ -688,7 +687,7 @@ class Filter {
     tmp.filter_.set_sink(true);
     return tmp;
   }
-  //@}
+  ///@}
 
   /// Return the filter expression as a protobuf.
   ::google::bigtable::v2::RowFilter const& as_proto() const& { return filter_; }

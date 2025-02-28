@@ -17,7 +17,6 @@
 // source: google/bigtable/admin/v2/bigtable_table_admin.proto
 
 #include "google/cloud/bigtable/admin/bigtable_table_admin_connection_idempotency_policy.h"
-#include "absl/memory/memory.h"
 #include <memory>
 
 namespace google {
@@ -32,8 +31,7 @@ BigtableTableAdminConnectionIdempotencyPolicy::
 
 std::unique_ptr<BigtableTableAdminConnectionIdempotencyPolicy>
 BigtableTableAdminConnectionIdempotencyPolicy::clone() const {
-  return absl::make_unique<BigtableTableAdminConnectionIdempotencyPolicy>(
-      *this);
+  return std::make_unique<BigtableTableAdminConnectionIdempotencyPolicy>(*this);
 }
 
 Idempotency BigtableTableAdminConnectionIdempotencyPolicy::CreateTable(
@@ -66,6 +64,31 @@ Idempotency BigtableTableAdminConnectionIdempotencyPolicy::UndeleteTable(
   return Idempotency::kNonIdempotent;
 }
 
+Idempotency BigtableTableAdminConnectionIdempotencyPolicy::CreateAuthorizedView(
+    google::bigtable::admin::v2::CreateAuthorizedViewRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
+Idempotency BigtableTableAdminConnectionIdempotencyPolicy::ListAuthorizedViews(
+    google::bigtable::admin::v2::ListAuthorizedViewsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency BigtableTableAdminConnectionIdempotencyPolicy::GetAuthorizedView(
+    google::bigtable::admin::v2::GetAuthorizedViewRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency BigtableTableAdminConnectionIdempotencyPolicy::UpdateAuthorizedView(
+    google::bigtable::admin::v2::UpdateAuthorizedViewRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
+Idempotency BigtableTableAdminConnectionIdempotencyPolicy::DeleteAuthorizedView(
+    google::bigtable::admin::v2::DeleteAuthorizedViewRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
 Idempotency BigtableTableAdminConnectionIdempotencyPolicy::ModifyColumnFamilies(
     google::bigtable::admin::v2::ModifyColumnFamiliesRequest const&) {
   return Idempotency::kNonIdempotent;
@@ -84,7 +107,7 @@ BigtableTableAdminConnectionIdempotencyPolicy::GenerateConsistencyToken(
 
 Idempotency BigtableTableAdminConnectionIdempotencyPolicy::CheckConsistency(
     google::bigtable::admin::v2::CheckConsistencyRequest const&) {
-  return Idempotency::kNonIdempotent;
+  return Idempotency::kIdempotent;
 }
 
 Idempotency BigtableTableAdminConnectionIdempotencyPolicy::CreateBackup(
@@ -117,9 +140,14 @@ Idempotency BigtableTableAdminConnectionIdempotencyPolicy::RestoreTable(
   return Idempotency::kNonIdempotent;
 }
 
+Idempotency BigtableTableAdminConnectionIdempotencyPolicy::CopyBackup(
+    google::bigtable::admin::v2::CopyBackupRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
 Idempotency BigtableTableAdminConnectionIdempotencyPolicy::GetIamPolicy(
     google::iam::v1::GetIamPolicyRequest const&) {
-  return Idempotency::kNonIdempotent;
+  return Idempotency::kIdempotent;
 }
 
 Idempotency BigtableTableAdminConnectionIdempotencyPolicy::SetIamPolicy(
@@ -130,12 +158,12 @@ Idempotency BigtableTableAdminConnectionIdempotencyPolicy::SetIamPolicy(
 
 Idempotency BigtableTableAdminConnectionIdempotencyPolicy::TestIamPermissions(
     google::iam::v1::TestIamPermissionsRequest const&) {
-  return Idempotency::kNonIdempotent;
+  return Idempotency::kIdempotent;
 }
 
 std::unique_ptr<BigtableTableAdminConnectionIdempotencyPolicy>
 MakeDefaultBigtableTableAdminConnectionIdempotencyPolicy() {
-  return absl::make_unique<BigtableTableAdminConnectionIdempotencyPolicy>();
+  return std::make_unique<BigtableTableAdminConnectionIdempotencyPolicy>();
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

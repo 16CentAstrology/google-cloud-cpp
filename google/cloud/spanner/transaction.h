@@ -162,12 +162,15 @@ class Transaction {
  private:
   // Friendship for access by internal helpers.
   friend struct spanner_internal::TransactionInternals;
+  struct SingleUseCommitTag {};
 
   // Construction of a single-use transaction.
   explicit Transaction(SingleUseOptions opts);
+  // Construction of a single-use commit transaction.
+  Transaction(ReadWriteOptions opts, SingleUseCommitTag);
   // Construction of a transaction with existing IDs.
   Transaction(std::string session_id, std::string transaction_id,
-              std::string transaction_tag);
+              bool route_to_leader, std::string transaction_tag);
 
   std::shared_ptr<spanner_internal::TransactionImpl> impl_;
 };
@@ -175,7 +178,7 @@ class Transaction {
 /**
  * Create a read-only transaction configured with @p opts.
  *
- * @copydoc Transaction::Transaction(ReadOnlyOptions)
+ * @copydoc Transaction::Transaction(Transaction::ReadOnlyOptions)
  */
 inline Transaction MakeReadOnlyTransaction(
     Transaction::ReadOnlyOptions opts = {}) {
@@ -185,7 +188,7 @@ inline Transaction MakeReadOnlyTransaction(
 /**
  * Create a read-write transaction configured with @p opts.
  *
- * @copydoc Transaction::Transaction(ReadOnlyOptions)
+ * @copydoc Transaction::Transaction(Transaction::ReadOnlyOptions)
  */
 inline Transaction MakeReadWriteTransaction(
     Transaction::ReadWriteOptions opts = {}) {
@@ -217,6 +220,12 @@ struct TransactionInternals {
     return spanner::Transaction(std::move(su_opts));
   }
 
+  static spanner::Transaction MakeSingleUseCommitTransaction(
+      spanner::Transaction::ReadWriteOptions opts) {
+    return spanner::Transaction(std::move(opts),
+                                spanner::Transaction::SingleUseCommitTag{});
+  }
+
   template <typename Functor>
   // Pass `txn` by value, despite being used only once. This avoids the
   // possibility of `txn` being destroyed by `f` before `Visit()` can
@@ -228,13 +237,18 @@ struct TransactionInternals {
   }
 
   static spanner::Transaction MakeTransactionFromIds(
-      std::string session_id, std::string transaction_id,
+      std::string session_id, std::string transaction_id, bool route_to_leader,
       std::string transaction_tag);
 };
 
 template <typename T>
 spanner::Transaction MakeSingleUseTransaction(T&& opts) {
   return TransactionInternals::MakeSingleUseTransaction(std::forward<T>(opts));
+}
+
+inline spanner::Transaction MakeSingleUseCommitTransaction(
+    spanner::Transaction::ReadWriteOptions opts) {
+  return TransactionInternals::MakeSingleUseCommitTransaction(std::move(opts));
 }
 
 template <typename Functor>
@@ -247,10 +261,10 @@ VisitInvokeResult<Functor> Visit(spanner::Transaction txn, Functor&& f) {
 }
 
 inline spanner::Transaction MakeTransactionFromIds(
-    std::string session_id, std::string transaction_id,
+    std::string session_id, std::string transaction_id, bool route_to_leader,
     std::string transaction_tag) {
   return TransactionInternals::MakeTransactionFromIds(
-      std::move(session_id), std::move(transaction_id),
+      std::move(session_id), std::move(transaction_id), route_to_leader,
       std::move(transaction_tag));
 }
 

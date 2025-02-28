@@ -14,14 +14,14 @@
 # limitations under the License.
 # ~~~
 
-cmake_minimum_required(VERSION 3.10...3.24)
+cmake_minimum_required(VERSION 3.13...3.24)
 
 # Define the project name and where to report bugs.
 set(PACKAGE_BUGREPORT "https://github.com/googleapis/google-cloud-cpp/issues")
 
 project(
     google-cloud-cpp
-    VERSION 2.6.0
+    VERSION 2.36.0
     LANGUAGES CXX)
 set(PROJECT_VERSION_PRE_RELEASE "rc")
 
@@ -29,25 +29,28 @@ if (NOT "${PROJECT_VERSION_PRE_RELEASE}" STREQUAL "")
     set(PROJECT_VERSION "${PROJECT_VERSION}-${PROJECT_VERSION_PRE_RELEASE}")
 endif ()
 
-if (APPLE AND NOT DEFINED CMAKE_CXX_STANDARD)
-    # AppleClang defaults to C++98, so we bump it to C++14.
-    message(
-        WARNING
-            "CMAKE_CXX_STANDARD was undefined, defaulting to C++14."
-            "To select the desired standard use something like the following:"
-            "\n"
-            "    cmake -DCMAKE_CXX_STANDARD=17 ..."
-            "\n"
-            "For more details, see "
-            "https://cmake.org/cmake/help/latest/variable/CMAKE_CXX_STANDARD.html"
-    )
-    set(CMAKE_CXX_STANDARD 14)
+# Automatically update the version(s) in the `MODULE.bazel` file.
+file(READ "MODULE.bazel" module_contents)
+string(
+    REGEX
+    REPLACE "version = \".*\",  # Updated by CMake"
+            "version = \"${PROJECT_VERSION}\",  # Updated by CMake"
+            updated_contents "${module_contents}")
+string(
+    REGEX
+    REPLACE
+        "compatibility_level = .*,  # Updated by CMake"
+        "compatibility_level = ${PROJECT_VERSION_MAJOR},  # Updated by CMake"
+        updated_contents "${updated_contents}")
+if (NOT ("${updated_contents}" STREQUAL "${module_contents}"))
+    # Rewrite the file *only* if it was updated.
+    file(WRITE "MODULE.bazel" "${updated_contents}")
 endif ()
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 7.3)
+    if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 7.5)
         message(
-            WARNING "The `google-cloud-cpp` library is tested with GCC >= 7.3."
+            WARNING "The `google-cloud-cpp` library is tested with GCC >= 7.5."
                     " We will consider patches for older versions.")
     endif ()
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
@@ -68,7 +71,6 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 endif ()
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
-include(SelectMSVCRuntime)
 
 option(GOOGLE_CLOUD_CPP_ENABLE_MACOS_OPENSSL_CHECK
        "If enabled, check that the user has defined OPENSSL_ROOT_DIR on macOS"
@@ -97,33 +99,38 @@ endif ()
 
 # If ccache is installed use it for the build.
 option(GOOGLE_CLOUD_CPP_ENABLE_CCACHE "Automatically use ccache if available"
-       ON)
+       OFF)
 mark_as_advanced(GOOGLE_CLOUD_CPP_ENABLE_CCACHE)
 
-if ("${GOOGLE_CLOUD_CPP_ENABLE_CCACHE}")
+if (GOOGLE_CLOUD_CPP_ENABLE_CCACHE)
     find_program(GOOGLE_CLOUD_CPP_CCACHE_PROGRAM ccache NAMES /usr/bin/ccache)
     mark_as_advanced(GOOGLE_CLOUD_CPP_CCACHE_PROGRAM)
     if (GOOGLE_CLOUD_CPP_CCACHE_PROGRAM)
         message(STATUS "ccache found: ${GOOGLE_CLOUD_CPP_CCACHE_PROGRAM}")
         set(CMAKE_CXX_COMPILER_LAUNCHER "${GOOGLE_CLOUD_CPP_CCACHE_PROGRAM}")
-        set(CMAKE_CC_COMPILER_LAUNCHER "${GOOGLE_CLOUD_CPP_CCACHE_PROGRAM}")
     endif ()
 endif ()
 
 # Search for Doxygen and create the targets for it if found.
-option(GOOGLE_CLOUD_CPP_GENERATE_DOXYGEN "Generate Doxygen documentation" OFF)
+option(GOOGLE_CLOUD_CPP_GENERATE_DOXYGEN [==[
+Generate Doxygen documentation. Only google-cloud-cpp developers are expected to
+use this flag.]==] OFF)
 mark_as_advanced(GOOGLE_CLOUD_CPP_GENERATE_DOXYGEN)
 
-# Generate docs with relative URLs matching with the directory structure on
-# googleapis.dev hosting.
-option(GOOGLE_CLOUD_CPP_GEN_DOCS_FOR_GOOGLEAPIS_DEV
-       "Use relative URLs in docs for googleapis.dev" OFF)
-mark_as_advanced(GOOGLE_CLOUD_CPP_GEN_DOCS_FOR_GOOGLEAPIS_DEV)
+option(
+    GOOGLE_CLOUD_CPP_USE_LATEST_FOR_REFDOC_LINKS
+    [==[
+Link to "latest" in our reference documentation. Otherwise, link to the project
+version. Only google-cloud-cpp developers are expected to use this flag.]==]
+    OFF)
+mark_as_advanced(GOOGLE_CLOUD_CPP_USE_LATEST_FOR_REFDOC_LINKS)
 
-# Use main as the version part of the relative URLs.
-option(GOOGLE_CLOUD_CPP_USE_MAIN_FOR_REFDOC_LINKS
-       "Use main as the version part for refdoc relative links" OFF)
-mark_as_advanced(GOOGLE_CLOUD_CPP_USE_MAIN_FOR_REFDOC_LINKS)
+# Compile the DocFX tool.
+option(
+    GOOGLE_CLOUD_CPP_INTERNAL_DOCFX
+    "Compile the docfx tool. Only google-cloud-cpp developers are expected to use this flag."
+    OFF)
+mark_as_advanced(GOOGLE_CLOUD_CPP_INTERNAL_DOCFX)
 
 set(GOOGLE_CLOUD_CPP_OVERRIDE_GOOGLEAPIS_URL
     ""
@@ -154,162 +161,91 @@ GOOGLE_CLOUD_CPP_OVERRIDE_GOOGLEAPIS_URL for details.
 ]==])
 mark_as_advanced(GOOGLE_CLOUD_CPP_OVERRIDE_GOOGLEAPIS_URL_HASH)
 
+option(
+    GOOGLE_CLOUD_CPP_USE_INSTALLED_COMMON
+    [==[
+Use a pre-installed version of the common libraries and proto files.
+
+This option is required to support package maintainers that split
+`google-cloud-cpp` into multiple packages.
+]==]
+    OFF)
+mark_as_advanced(GOOGLE_CLOUD_CPP_USE_INSTALLED_COMMON)
+
 include(CMakeDependentOption)
+cmake_dependent_option(
+    GOOGLE_CLOUD_CPP_WITH_MOCKS
+    [==[Build the google-cloud-cpp mocking libraries.
 
-option(GOOGLE_CLOUD_CPP_ENABLE_BIGTABLE "Enable building the Bigtable library."
-       ON)
-option(GOOGLE_CLOUD_CPP_ENABLE_BIGQUERY "Enable building the Bigquery library."
-       ON)
-option(GOOGLE_CLOUD_CPP_ENABLE_SPANNER "Enable building the Spanner library."
-       ON)
-option(GOOGLE_CLOUD_CPP_ENABLE_STORAGE "Enable building the Storage library."
-       ON)
-option(GOOGLE_CLOUD_CPP_ENABLE_PUBSUB "Enable building the Pub/Sub library." ON)
-option(GOOGLE_CLOUD_CPP_ENABLE_IAM "Enable building the IAM library." ON)
-option(GOOGLE_CLOUD_CPP_ENABLE_LOGGING "Enable building the Logging library."
-       ON)
-option(GOOGLE_CLOUD_CPP_ENABLE_GENERATOR "Enable building the generator." OFF)
+google-cloud-cpp offers mocking libraries with mock classes, to facilitate unit
+testing of Cloud C++ clients. Consumers of this library that do not use the
+provided mocks to test code involving the Cloud C++ clients may wish to turn
+this flag off.]==]
+    ON
+    "NOT BUILD_TESTING"
+    ON)
+mark_as_advanced(GOOGLE_CLOUD_CPP_WITH_MOCKS)
 
-# The default list of libraries to build. These can be overridden by the user by
-# passing a comma-separated list, i.e
-# `-DGOOGLE_CLOUD_CPP_ENABLE=spanner,storage`.
-set(GOOGLE_CLOUD_CPP_LEGACY_FEATURES
-    "bigtable;bigquery;iam;logging;pubsub;spanner;storage")
+# The examples use exception handling to simplify the code. Therefore they
+# cannot be compiled when exceptions are disabled, and applications cannot force
+# the flag.
+cmake_dependent_option(
+    GOOGLE_CLOUD_CPP_ENABLE_EXAMPLES "Compile the google-cloud-cpp examples."
+    ON "GOOGLE_CLOUD_CPP_ENABLE_CXX_EXCEPTIONS;BUILD_TESTING" OFF)
+mark_as_advanced(GOOGLE_CLOUD_CPP_ENABLE_EXAMPLES)
+
+include(GoogleCloudCppFeatures)
+
+# Controls the list of features compiled by `google-cloud-cpp`.
 set(GOOGLE_CLOUD_CPP_ENABLE
     ${GOOGLE_CLOUD_CPP_LEGACY_FEATURES}
     CACHE STRING "The list of libraries to build.")
 string(REPLACE "," ";" GOOGLE_CLOUD_CPP_ENABLE "${GOOGLE_CLOUD_CPP_ENABLE}")
 
-# Since these are not the recommended practice, mark them as advanced.
-mark_as_advanced(GOOGLE_CLOUD_CPP_ENABLE_BIGTABLE)
-mark_as_advanced(GOOGLE_CLOUD_CPP_ENABLE_BIGQUERY)
-mark_as_advanced(GOOGLE_CLOUD_CPP_ENABLE_SPANNER)
-mark_as_advanced(GOOGLE_CLOUD_CPP_ENABLE_STORAGE)
-mark_as_advanced(GOOGLE_CLOUD_CPP_ENABLE_PUBSUB)
-mark_as_advanced(GOOGLE_CLOUD_CPP_ENABLE_IAM)
-mark_as_advanced(GOOGLE_CLOUD_CPP_ENABLE_LOGGING)
-mark_as_advanced(GOOGLE_CLOUD_CPP_ENABLE_GENERATOR)
-
-set(GOOGLE_CLOUD_CPP_STORAGE_ENABLE_GRPC_DEFAULT OFF)
-if (experimental-storage-grpc IN_LIST GOOGLE_CLOUD_CPP_ENABLE)
-    set(GOOGLE_CLOUD_CPP_STORAGE_ENABLE_GRPC_DEFAULT ON)
-endif ()
-option(GOOGLE_CLOUD_CPP_STORAGE_ENABLE_GRPC
-       "Enable compilation for the GCS gRPC plugin (EXPERIMENTAL)"
-       "${GOOGLE_CLOUD_CPP_STORAGE_ENABLE_GRPC_DEFAULT}")
-mark_as_advanced(GOOGLE_CLOUD_CPP_STORAGE_ENABLE_GRPC)
-
-# We no longer build the generator by default, but if it was explicitly
-# requested, we add it to the list of enabled libraries.
-if (GOOGLE_CLOUD_CPP_ENABLE_GENERATOR)
-    list(APPEND GOOGLE_CLOUD_CPP_ENABLE "generator")
-endif ()
-
-function (google_cloud_cpp_enable_deps)
-    if (asset IN_LIST GOOGLE_CLOUD_CPP_ENABLE)
-        list(APPEND GOOGLE_CLOUD_CPP_ENABLE accesscontextmanager osconfig)
-    endif ()
-    if (binaryauthorization IN_LIST GOOGLE_CLOUD_CPP_ENABLE)
-        list(APPEND GOOGLE_CLOUD_CPP_ENABLE grafeas)
-    endif ()
-    if (containeranalysis IN_LIST GOOGLE_CLOUD_CPP_ENABLE)
-        list(APPEND GOOGLE_CLOUD_CPP_ENABLE grafeas)
-    endif ()
-    if (pubsublite IN_LIST GOOGLE_CLOUD_CPP_ENABLE)
-        list(APPEND GOOGLE_CLOUD_CPP_ENABLE pubsub)
-    endif ()
-    set(GOOGLE_CLOUD_CPP_ENABLE
-        "${GOOGLE_CLOUD_CPP_ENABLE}"
-        PARENT_SCOPE)
-endfunction ()
-
-function (google_cloud_cpp_enable_cleanup)
-    # Remove any library that's been disabled from the list.
-    foreach (library ${GOOGLE_CLOUD_CPP_ENABLE})
-        if ("${library}" STREQUAL "experimental-storage-grpc")
-            set(feature_flag "GOOGLE_CLOUD_CPP_STORAGE_ENABLE_GRPC")
-        else ()
-            string(TOUPPER "GOOGLE_CLOUD_CPP_ENABLE_${library}" feature_flag)
-        endif ()
-        if (NOT ${feature_flag} AND ${feature_flag} IN_LIST
-                                    GOOGLE_CLOUD_CPP_LEGACY_FEATURES)
-            message(
-                WARNING "Using ${feature_flag} is discouraged. Please use the"
-                        " unified GOOGLE_CLOUD_CPP_ENABLE list instead.")
-            list(REMOVE_ITEM GOOGLE_CLOUD_CPP_ENABLE ${library})
-        endif ()
-    endforeach ()
-    list(REMOVE_DUPLICATES GOOGLE_CLOUD_CPP_ENABLE)
-    set(GOOGLE_CLOUD_CPP_ENABLE
-        "${GOOGLE_CLOUD_CPP_ENABLE}"
-        PARENT_SCOPE)
-endfunction ()
-
+# We use some functions to enable the features configured in
+# `GOOGLE_CLOUD_CPP_ENABLE`. Using functions makes it easier to keep the code
+# structured, and documents what some of these things are doing.
+google_cloud_cpp_define_legacy_feature_options()
+google_cloud_cpp_apply_legacy_feature_options()
 google_cloud_cpp_enable_deps()
 google_cloud_cpp_enable_cleanup()
-
-if (GOOGLE_CLOUD_CPP_STORAGE_ENABLE_GRPC AND NOT
-                                             GOOGLE_CLOUD_CPP_ENABLE_STORAGE)
-    message(
-        FATAL_ERROR
-            "The experimental GCS+gRPC plugin is enabled, but the base storage"
-            " library is disabled. This is not a valid configuration, please"
-            " review the options provided to CMake. Pay particular attention to"
-            " GOOGLE_CLOUD_CPP_ENABLE, GOOGLE_CLOUD_CPP_ENABLE_STORAGE, and"
-            " GOOGLE_CLOUD_CPP_STORAGE_ENABLE_GRPC.")
-endif ()
-
-# The only case where gRPC support is not needed is when compiling *only* the
-# storage library.
-set(GOOGLE_CLOUD_CPP_ENABLE_GRPC_EXPRESSION ON)
-if ("${GOOGLE_CLOUD_CPP_ENABLE}" STREQUAL "storage")
-    set(GOOGLE_CLOUD_CPP_ENABLE_GRPC_EXPRESSION OFF)
-endif ()
-
-cmake_dependent_option(
-    GOOGLE_CLOUD_CPP_ENABLE_GRPC "Enable building the gRPC utilities library."
-    ON "GOOGLE_CLOUD_CPP_ENABLE_GRPC_EXPRESSION" OFF)
-mark_as_advanced(GOOGLE_CLOUD_CPP_ENABLE_GRPC)
+google_cloud_cpp_define_dependent_legacy_feature_options()
 
 # Building this target results in all protobufs being compiled.
 add_custom_target(google-cloud-cpp-protos)
 
 # Each subproject adds dependencies to this target to have their docs generated.
 add_custom_target(doxygen-docs)
+add_custom_target(all-docfx)
 
 find_package(absl CONFIG REQUIRED)
-if (${GOOGLE_CLOUD_CPP_ENABLE_GRPC})
+if (GOOGLE_CLOUD_CPP_ENABLE_GRPC)
     find_package(gRPC REQUIRED QUIET)
-    find_package(Protobuf REQUIRED QUIET)
-    add_subdirectory(external/googleapis)
-endif ()
+    # `Protobuf_PROTOC_EXECUTABLE` is pretty standard. It has been in use by
+    # CMake's FindProtobuf module for years, and it is defined by Protobuf's
+    # CMake configuration files. There is no obvious analog for the gRPC plugin.
+    # gRPC only exports the targets (e.g. `gRPC::grpc_cpp_plugin`) when
+    # applicable. We define our own variable.
+    set(GOOGLE_CLOUD_CPP_GRPC_PLUGIN_EXECUTABLE
+        $<TARGET_FILE:gRPC::grpc_cpp_plugin>
+        CACHE
+            STRING
+            [==[Override gRPC's protoc plugin location.
+`google-cloud-cpp` uses the gRPC's protoc plugin to generate gRPC stub code.
+One may need to override the default location when cross-compiling, as the gRPC
+package will point to the target environment and the plugin won't run on the
+host environment.
+]==])
+    mark_as_advanced(GOOGLE_CLOUD_CPP_GRPC_PLUGIN_EXECUTABLE)
 
-# The only case where REST support is not needed is when not compiling services
-# with REST interfaces.
-set(GOOGLE_CLOUD_CPP_ENABLE_REST_EXPRESSION ON)
-if (NOT storage IN_LIST GOOGLE_CLOUD_CPP_ENABLE
-    AND NOT experimental-storage-grpc IN_LIST GOOGLE_CLOUD_CPP_ENABLE
-    AND NOT generator IN_LIST GOOGLE_CLOUD_CPP_ENABLE)
-    set(GOOGLE_CLOUD_CPP_ENABLE_REST_EXPRESSION OFF)
-endif ()
-cmake_dependent_option(
-    GOOGLE_CLOUD_CPP_ENABLE_REST "Enable building the REST transport library."
-    ON "GOOGLE_CLOUD_CPP_ENABLE_REST_EXPRESSION" OFF)
-mark_as_advanced(GOOGLE_CLOUD_CPP_ENABLE_REST)
-
-# Detect incompatible flags and let the customer know what to do.
-if (storage IN_LIST GOOGLE_CLOUD_CPP_ENABLE AND NOT
-                                                GOOGLE_CLOUD_CPP_ENABLE_REST)
-    message(
-        FATAL_ERROR
-            "If storage is enabled (e.g. -DGOOGLE_CLOUD_CPP_ENABLE=storage),"
-            " the REST library cannot be disabled,"
-            " i.e., you cannot set -DGOOGLE_CLOUD_CPP_ENABLE_REST=OFF."
-            " If you do want to use the storage library,"
-            " then do not use -DGOOGLE_CLOUD_CPP_ENABLE_REST=OFF."
-            " If you do not want to use the storage library,"
-            " then provide a -DGOOGLE_CLOUD_CPP_ENABLE=... list and do not"
-            " include storage in that list.")
+    set(GOOGLE_CLOUD_CPP_FIND_DEPENDENCY_PROTOBUF
+        "find_dependency(Protobuf CONFIG)")
+    find_package(Protobuf CONFIG QUIET)
+    if (NOT Protobuf_FOUND)
+        set(GOOGLE_CLOUD_CPP_FIND_DEPENDENCY_PROTOBUF
+            "find_dependency(Protobuf)")
+        find_package(Protobuf REQUIRED)
+    endif ()
 endif ()
 
 # Enable testing in this directory so we can do a top-level `make test`. This
@@ -320,74 +256,39 @@ include(CTest)
 # used in the depends condition of the next option.
 include(EnableCxxExceptions)
 
-if (BUILD_TESTING)
+if (BUILD_TESTING OR GOOGLE_CLOUD_CPP_WITH_MOCKS)
     # Discover and add targets for the GTest::gtest and GTest::gmock libraries.
     include(FindGMockWithTargets)
 endif ()
 
-# The examples use exception handling to simplify the code. Therefore they
-# cannot be compiled when exceptions are disabled, and applications cannot force
-# the flag.
-cmake_dependent_option(
-    GOOGLE_CLOUD_CPP_ENABLE_EXAMPLES "Compile the google-cloud-cpp examples."
-    ON "GOOGLE_CLOUD_CPP_ENABLE_CXX_EXCEPTIONS;BUILD_TESTING" OFF)
-mark_as_advanced(GOOGLE_CLOUD_CPP_ENABLE_EXAMPLES)
+# Add any subdirectories configured in the application.
 
+# `docfx/` must be included before any library directories. The tool is used to
+# generate the library documentation.
+add_subdirectory(docfx)
+
+# We always include the external protos. If this is not needed it immediately
+# returns.
+add_subdirectory(external/googleapis)
 add_subdirectory(google/cloud)
-function (google_cloud_cpp_enable_features)
-    foreach (feature ${GOOGLE_CLOUD_CPP_ENABLE})
-        if ("${feature}" STREQUAL "generator")
-            add_subdirectory(generator)
-        elseif ("${feature}" STREQUAL "experimental-storage-grpc")
-            if (NOT ("storage" IN_LIST GOOGLE_CLOUD_CPP_ENABLE))
-                add_subdirectory(google/cloud/storage)
-            endif ()
-        elseif ("${feature}" STREQUAL "experimental-opentelemetry")
-        else ()
-            if (NOT IS_DIRECTORY
-                "${CMAKE_CURRENT_SOURCE_DIR}/google/cloud/${feature}"
-                OR NOT
-                   EXISTS
-                   "${CMAKE_CURRENT_SOURCE_DIR}/google/cloud/${feature}/CMakeLists.txt"
-            )
-                message(
-                    WARNING
-                        "${feature} is not a valid feature in google-cloud-cpp, ignored"
-                )
-                continue()
-            endif ()
-            add_subdirectory(google/cloud/${feature})
-            if (GOOGLE_CLOUD_CPP_ENABLE_EXAMPLES
-                AND IS_DIRECTORY
-                    "${CMAKE_CURRENT_SOURCE_DIR}/google/cloud/${feature}/samples"
-                AND EXISTS
-                    "${CMAKE_CURRENT_SOURCE_DIR}/google/cloud/${feature}/samples/CMakeLists.txt"
-            )
-                add_subdirectory(google/cloud/${feature}/samples)
-            endif ()
-            # Older libraries used examples/ to host their examples. The
-            # directory name cannot be easily changed as cloud.google.com
-            # references these files explicitly.
-            if (GOOGLE_CLOUD_CPP_ENABLE_EXAMPLES
-                AND IS_DIRECTORY
-                    "${CMAKE_CURRENT_SOURCE_DIR}/google/cloud/${feature}/examples"
-            )
-                add_subdirectory(google/cloud/${feature}/examples)
-            endif ()
-        endif ()
-    endforeach ()
-endfunction ()
+
+if (GOOGLE_CLOUD_CPP_USE_INSTALLED_COMMON)
+    find_package(google_cloud_cpp_common CONFIG REQUIRED)
+    if (GOOGLE_CLOUD_CPP_ENABLE_GRPC)
+        find_package(google_cloud_cpp_grpc_utils CONFIG REQUIRED)
+        find_package(google_cloud_cpp_googleapis CONFIG REQUIRED)
+    endif ()
+    if (GOOGLE_CLOUD_CPP_ENABLE_REST)
+        find_package(google_cloud_cpp_rest_internal CONFIG REQUIRED)
+    endif ()
+    if (GOOGLE_CLOUD_CPP_ENABLE_REST AND GOOGLE_CLOUD_CPP_ENABLE_GRPC)
+        find_package(google_cloud_cpp_rest_protobuf_internal CONFIG REQUIRED)
+    endif ()
+endif ()
+
 google_cloud_cpp_enable_features()
 
-# The examples are more readable if we use exceptions for error handling. We had
-# to tradeoff readability vs. "making them compile everywhere".
-if (GOOGLE_CLOUD_CPP_ENABLE_EXAMPLES
-    AND bigtable IN_LIST GOOGLE_CLOUD_CPP_ENABLE
-    AND iam IN_LIST GOOGLE_CLOUD_CPP_ENABLE
-    AND spanner IN_LIST GOOGLE_CLOUD_CPP_ENABLE
-    AND storage IN_LIST GOOGLE_CLOUD_CPP_ENABLE)
-    add_subdirectory(examples)
-endif ()
+add_subdirectory(examples)
 
 # Obsolete / retired flags and options. Removing them just cleans up a bit of
 # our code at the cost of breaking customers, while putting them here makes them

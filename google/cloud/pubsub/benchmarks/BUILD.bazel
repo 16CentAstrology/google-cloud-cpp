@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load(":pubsub_client_benchmark_programs.bzl", "pubsub_client_benchmark_programs")
+
 package(default_visibility = ["//visibility:private"])
 
 licenses(["notice"])  # Apache 2.0
-
-load(":pubsub_client_benchmark_programs.bzl", "pubsub_client_benchmark_programs")
 
 [cc_binary(
     name = program.replace("/", "_").replace(".cc", ""),
@@ -30,6 +30,9 @@ load(":pubsub_client_benchmark_programs.bzl", "pubsub_client_benchmark_programs"
         "//:pubsub",
         "//google/cloud/pubsub:pubsub_client_testing_private",
         "//google/cloud/testing_util:google_cloud_cpp_testing_private",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/strings:str_format",
     ],
 ) for program in pubsub_client_benchmark_programs]

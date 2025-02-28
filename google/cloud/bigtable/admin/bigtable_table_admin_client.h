@@ -22,6 +22,8 @@
 #include "google/cloud/bigtable/admin/bigtable_table_admin_connection.h"
 #include "google/cloud/future.h"
 #include "google/cloud/iam_updater.h"
+#include "google/cloud/internal/make_status.h"
+#include "google/cloud/no_await_tag.h"
 #include "google/cloud/options.h"
 #include "google/cloud/polling_policy.h"
 #include "google/cloud/status_or.h"
@@ -29,6 +31,7 @@
 #include <google/longrunning/operations.grpc.pb.h>
 #include <map>
 #include <memory>
+#include <string>
 
 namespace google {
 namespace cloud {
@@ -73,7 +76,7 @@ class BigtableTableAdminClient {
   ~BigtableTableAdminClient();
 
   ///@{
-  // @name Copy and move support
+  /// @name Copy and move support
   BigtableTableAdminClient(BigtableTableAdminClient const&) = default;
   BigtableTableAdminClient& operator=(BigtableTableAdminClient const&) =
       default;
@@ -82,7 +85,7 @@ class BigtableTableAdminClient {
   ///@}
 
   ///@{
-  // @name Equality
+  /// @name Equality
   friend bool operator==(BigtableTableAdminClient const& a,
                          BigtableTableAdminClient const& b) {
     return a.connection_ == b.connection_;
@@ -93,92 +96,148 @@ class BigtableTableAdminClient {
   }
   ///@}
 
+  // clang-format off
   ///
   /// Creates a new table in the specified instance.
   /// The table can be created with a full set of initial column families,
   /// specified in the request.
   ///
-  /// @param parent  Required. The unique name of the instance in which to
-  /// create the table.
+  /// @param parent  Required. The unique name of the instance in which to create the table.
   ///  Values are of the form `projects/{project}/instances/{instance}`.
-  /// @param table_id  Required. The name by which the new table should be
-  /// referred to within the parent
-  ///  instance, e.g., `foobar` rather than `{parent}/tables/foobar`.
+  /// @param table_id  Required. The name by which the new table should be referred to within the
+  ///  parent instance, e.g., `foobar` rather than `{parent}/tables/foobar`.
   ///  Maximum 50 characters.
   /// @param table  Required. The Table to create.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Table,google/bigtable/admin/v2/table.proto#L53}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.bigtable.admin.v2.Table])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.bigtable.admin.v2.CreateTableRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L434}
-  /// [google.bigtable.admin.v2.Table]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L53}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.CreateTableRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L514}
+  /// [google.bigtable.admin.v2.Table]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L63}
   ///
+  // clang-format on
   StatusOr<google::bigtable::admin::v2::Table> CreateTable(
       std::string const& parent, std::string const& table_id,
       google::bigtable::admin::v2::Table const& table, Options opts = {});
 
+  // clang-format off
   ///
   /// Creates a new table in the specified instance.
   /// The table can be created with a full set of initial column families,
   /// specified in the request.
   ///
-  /// @param request
-  /// @googleapis_link{google::bigtable::admin::v2::CreateTableRequest,google/bigtable/admin/v2/bigtable_table_admin.proto#L434}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.CreateTableRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Table,google/bigtable/admin/v2/table.proto#L53}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.bigtable.admin.v2.Table])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.bigtable.admin.v2.CreateTableRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L434}
-  /// [google.bigtable.admin.v2.Table]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L53}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.CreateTableRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L514}
+  /// [google.bigtable.admin.v2.Table]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L63}
   ///
+  // clang-format on
   StatusOr<google::bigtable::admin::v2::Table> CreateTable(
       google::bigtable::admin::v2::CreateTableRequest const& request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Lists all tables served from a specified instance.
   ///
-  /// @param parent  Required. The unique name of the instance for which tables
-  /// should be listed.
-  ///  Values are of the form `projects/{project}/instances/{instance}`.
+  /// @param parent  Required. The unique name of the instance for which tables should be
+  ///  listed. Values are of the form `projects/{project}/instances/{instance}`.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Table,google/bigtable/admin/v2/table.proto#L53}
+  /// @return a [StreamRange](@ref google::cloud::StreamRange)
+  ///     to iterate of the results. See the documentation of this type for
+  ///     details. In brief, this class has `begin()` and `end()` member
+  ///     functions returning a iterator class meeting the
+  ///     [input iterator requirements]. The value type for this iterator is a
+  ///     [`StatusOr`] as the iteration may fail even after some values are
+  ///     retrieved successfully, for example, if there is a network disconnect.
+  ///     An empty set of results does not indicate an error, it indicates
+  ///     that there are no resources meeting the request criteria.
+  ///     On a successful iteration the `StatusOr<T>` contains elements of type
+  ///     [google.bigtable.admin.v2.Table], or rather,
+  ///     the C++ class generated by Protobuf from that type. Please consult the
+  ///     Protobuf documentation for details on the [Protobuf mapping rules].
   ///
-  /// [google.bigtable.admin.v2.ListTablesRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L536}
-  /// [google.bigtable.admin.v2.Table]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L53}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.ListTablesRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L616}
+  /// [google.bigtable.admin.v2.Table]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L63}
   ///
+  // clang-format on
   StreamRange<google::bigtable::admin::v2::Table> ListTables(
       std::string const& parent, Options opts = {});
 
+  // clang-format off
   ///
   /// Lists all tables served from a specified instance.
   ///
-  /// @param request
-  /// @googleapis_link{google::bigtable::admin::v2::ListTablesRequest,google/bigtable/admin/v2/bigtable_table_admin.proto#L536}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.ListTablesRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Table,google/bigtable/admin/v2/table.proto#L53}
+  /// @return a [StreamRange](@ref google::cloud::StreamRange)
+  ///     to iterate of the results. See the documentation of this type for
+  ///     details. In brief, this class has `begin()` and `end()` member
+  ///     functions returning a iterator class meeting the
+  ///     [input iterator requirements]. The value type for this iterator is a
+  ///     [`StatusOr`] as the iteration may fail even after some values are
+  ///     retrieved successfully, for example, if there is a network disconnect.
+  ///     An empty set of results does not indicate an error, it indicates
+  ///     that there are no resources meeting the request criteria.
+  ///     On a successful iteration the `StatusOr<T>` contains elements of type
+  ///     [google.bigtable.admin.v2.Table], or rather,
+  ///     the C++ class generated by Protobuf from that type. Please consult the
+  ///     Protobuf documentation for details on the [Protobuf mapping rules].
   ///
-  /// [google.bigtable.admin.v2.ListTablesRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L536}
-  /// [google.bigtable.admin.v2.Table]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L53}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.ListTablesRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L616}
+  /// [google.bigtable.admin.v2.Table]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L63}
   ///
+  // clang-format on
   StreamRange<google::bigtable::admin::v2::Table> ListTables(
       google::bigtable::admin::v2::ListTablesRequest request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Gets metadata information about the specified table.
   ///
@@ -187,83 +246,183 @@ class BigtableTableAdminClient {
   ///  `projects/{project}/instances/{instance}/tables/{table}`.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Table,google/bigtable/admin/v2/table.proto#L53}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.bigtable.admin.v2.Table])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.bigtable.admin.v2.GetTableRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L579}
-  /// [google.bigtable.admin.v2.Table]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L53}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.GetTableRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L659}
+  /// [google.bigtable.admin.v2.Table]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L63}
   ///
+  // clang-format on
   StatusOr<google::bigtable::admin::v2::Table> GetTable(std::string const& name,
                                                         Options opts = {});
 
+  // clang-format off
   ///
   /// Gets metadata information about the specified table.
   ///
-  /// @param request
-  /// @googleapis_link{google::bigtable::admin::v2::GetTableRequest,google/bigtable/admin/v2/bigtable_table_admin.proto#L579}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.GetTableRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Table,google/bigtable/admin/v2/table.proto#L53}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.bigtable.admin.v2.Table])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.bigtable.admin.v2.GetTableRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L579}
-  /// [google.bigtable.admin.v2.Table]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L53}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.GetTableRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L659}
+  /// [google.bigtable.admin.v2.Table]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L63}
   ///
+  // clang-format on
   StatusOr<google::bigtable::admin::v2::Table> GetTable(
       google::bigtable::admin::v2::GetTableRequest const& request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Updates a specified table.
   ///
   /// @param table  Required. The table to update.
   ///  The table's `name` field is used to identify the table to update.
   /// @param update_mask  Required. The list of fields to update.
-  ///  A mask specifying which fields (e.g. `deletion_protection`) in the
-  ///  `table` field should be updated. This mask is relative to the `table`
-  ///  field, not to the request message. The wildcard (*) path is currently not
-  ///  supported. Currently UpdateTable is only supported for the following
-  ///  field:
-  ///   * `deletion_protection`
+  ///  A mask specifying which fields (e.g. `change_stream_config`) in the `table`
+  ///  field should be updated. This mask is relative to the `table` field, not to
+  ///  the request message. The wildcard (*) path is currently not supported.
+  ///  Currently UpdateTable is only supported for the following fields:
+  ///  @n
+  ///  * `change_stream_config`
+  ///  * `change_stream_config.retention_period`
+  ///  * `deletion_protection`
+  ///  @n
   ///  If `column_families` is set in `update_mask`, it will return an
   ///  UNIMPLEMENTED error.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Table,google/bigtable/admin/v2/table.proto#L53}
+  /// @return A [`future`] that becomes satisfied when the LRO
+  ///     ([Long Running Operation]) completes or the polling policy in effect
+  ///     for this call is exhausted. The future is satisfied with an error if
+  ///     the LRO completes with an error or the polling policy is exhausted.
+  ///     In this case the [`StatusOr`] returned by the future contains the
+  ///     error. If the LRO completes successfully the value of the future
+  ///     contains the LRO's result. For this RPC the result is a
+  ///     [google.bigtable.admin.v2.Table] proto message.
+  ///     The C++ class representing this message is created by Protobuf, using
+  ///     the [Protobuf mapping rules].
   ///
-  /// [google.bigtable.admin.v2.UpdateTableRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L597}
-  /// [google.bigtable.admin.v2.Table]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L53}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [Long Running Operation]: https://google.aip.dev/151
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.Table]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L63}
+  /// [google.bigtable.admin.v2.UpdateTableRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L677}
   ///
+  // clang-format on
   future<StatusOr<google::bigtable::admin::v2::Table>> UpdateTable(
       google::bigtable::admin::v2::Table const& table,
       google::protobuf::FieldMask const& update_mask, Options opts = {});
 
+  // clang-format off
+  ///
+  /// @copybrief UpdateTable
+  ///
+  /// Specifying the [`NoAwaitTag`] immediately returns the
+  /// [`google::longrunning::Operation`] that corresponds to the Long Running
+  /// Operation that has been started. No polling for operation status occurs.
+  ///
+  /// [`NoAwaitTag`]: @ref google::cloud::NoAwaitTag
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> UpdateTable(
+      NoAwaitTag, google::bigtable::admin::v2::Table const& table,
+      google::protobuf::FieldMask const& update_mask, Options opts = {});
+
+  // clang-format off
   ///
   /// Updates a specified table.
   ///
-  /// @param request
-  /// @googleapis_link{google::bigtable::admin::v2::UpdateTableRequest,google/bigtable/admin/v2/bigtable_table_admin.proto#L597}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.UpdateTableRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Table,google/bigtable/admin/v2/table.proto#L53}
+  /// @return A [`future`] that becomes satisfied when the LRO
+  ///     ([Long Running Operation]) completes or the polling policy in effect
+  ///     for this call is exhausted. The future is satisfied with an error if
+  ///     the LRO completes with an error or the polling policy is exhausted.
+  ///     In this case the [`StatusOr`] returned by the future contains the
+  ///     error. If the LRO completes successfully the value of the future
+  ///     contains the LRO's result. For this RPC the result is a
+  ///     [google.bigtable.admin.v2.Table] proto message.
+  ///     The C++ class representing this message is created by Protobuf, using
+  ///     the [Protobuf mapping rules].
   ///
-  /// [google.bigtable.admin.v2.UpdateTableRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L597}
-  /// [google.bigtable.admin.v2.Table]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L53}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [Long Running Operation]: https://google.aip.dev/151
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.Table]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L63}
+  /// [google.bigtable.admin.v2.UpdateTableRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L677}
   ///
+  // clang-format on
   future<StatusOr<google::bigtable::admin::v2::Table>> UpdateTable(
       google::bigtable::admin::v2::UpdateTableRequest const& request,
       Options opts = {});
 
+  // clang-format off
+  ///
+  /// @copybrief UpdateTable
+  ///
+  /// Specifying the [`NoAwaitTag`] immediately returns the
+  /// [`google::longrunning::Operation`] that corresponds to the Long Running
+  /// Operation that has been started. No polling for operation status occurs.
+  ///
+  /// [`NoAwaitTag`]: @ref google::cloud::NoAwaitTag
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> UpdateTable(
+      NoAwaitTag,
+      google::bigtable::admin::v2::UpdateTableRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// @copybrief UpdateTable
+  ///
+  /// This method accepts a `google::longrunning::Operation` that corresponds
+  /// to a previously started Long Running Operation (LRO) and polls the status
+  /// of the LRO in the background.
+  ///
+  // clang-format on
+  future<StatusOr<google::bigtable::admin::v2::Table>> UpdateTable(
+      google::longrunning::Operation const& operation, Options opts = {});
+
+  // clang-format off
   ///
   /// Permanently deletes a specified table and all of its data.
   ///
@@ -272,27 +431,49 @@ class BigtableTableAdminClient {
   ///  `projects/{project}/instances/{instance}/tables/{table}`.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
+  /// @return a [`Status`] object. If the request failed, the
+  ///     status contains the details of the failure.
   ///
-  /// [google.bigtable.admin.v2.DeleteTableRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L629}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.DeleteTableRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L713}
   ///
+  // clang-format on
   Status DeleteTable(std::string const& name, Options opts = {});
 
+  // clang-format off
   ///
   /// Permanently deletes a specified table and all of its data.
   ///
-  /// @param request
-  /// @googleapis_link{google::bigtable::admin::v2::DeleteTableRequest,google/bigtable/admin/v2/bigtable_table_admin.proto#L629}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.DeleteTableRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
+  /// @return a [`Status`] object. If the request failed, the
+  ///     status contains the details of the failure.
   ///
-  /// [google.bigtable.admin.v2.DeleteTableRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L629}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.DeleteTableRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L713}
   ///
+  // clang-format on
   Status DeleteTable(
       google::bigtable::admin::v2::DeleteTableRequest const& request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Restores a specified table which was accidentally deleted.
   ///
@@ -301,200 +482,783 @@ class BigtableTableAdminClient {
   ///  `projects/{project}/instances/{instance}/tables/{table}`.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Table,google/bigtable/admin/v2/table.proto#L53}
+  /// @return A [`future`] that becomes satisfied when the LRO
+  ///     ([Long Running Operation]) completes or the polling policy in effect
+  ///     for this call is exhausted. The future is satisfied with an error if
+  ///     the LRO completes with an error or the polling policy is exhausted.
+  ///     In this case the [`StatusOr`] returned by the future contains the
+  ///     error. If the LRO completes successfully the value of the future
+  ///     contains the LRO's result. For this RPC the result is a
+  ///     [google.bigtable.admin.v2.Table] proto message.
+  ///     The C++ class representing this message is created by Protobuf, using
+  ///     the [Protobuf mapping rules].
   ///
-  /// [google.bigtable.admin.v2.UndeleteTableRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L643}
-  /// [google.bigtable.admin.v2.Table]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L53}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [Long Running Operation]: https://google.aip.dev/151
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.Table]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L63}
+  /// [google.bigtable.admin.v2.UndeleteTableRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L727}
   ///
+  // clang-format on
   future<StatusOr<google::bigtable::admin::v2::Table>> UndeleteTable(
       std::string const& name, Options opts = {});
 
+  // clang-format off
+  ///
+  /// @copybrief UndeleteTable
+  ///
+  /// Specifying the [`NoAwaitTag`] immediately returns the
+  /// [`google::longrunning::Operation`] that corresponds to the Long Running
+  /// Operation that has been started. No polling for operation status occurs.
+  ///
+  /// [`NoAwaitTag`]: @ref google::cloud::NoAwaitTag
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> UndeleteTable(
+      NoAwaitTag, std::string const& name, Options opts = {});
+
+  // clang-format off
   ///
   /// Restores a specified table which was accidentally deleted.
   ///
-  /// @param request
-  /// @googleapis_link{google::bigtable::admin::v2::UndeleteTableRequest,google/bigtable/admin/v2/bigtable_table_admin.proto#L643}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.UndeleteTableRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Table,google/bigtable/admin/v2/table.proto#L53}
+  /// @return A [`future`] that becomes satisfied when the LRO
+  ///     ([Long Running Operation]) completes or the polling policy in effect
+  ///     for this call is exhausted. The future is satisfied with an error if
+  ///     the LRO completes with an error or the polling policy is exhausted.
+  ///     In this case the [`StatusOr`] returned by the future contains the
+  ///     error. If the LRO completes successfully the value of the future
+  ///     contains the LRO's result. For this RPC the result is a
+  ///     [google.bigtable.admin.v2.Table] proto message.
+  ///     The C++ class representing this message is created by Protobuf, using
+  ///     the [Protobuf mapping rules].
   ///
-  /// [google.bigtable.admin.v2.UndeleteTableRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L643}
-  /// [google.bigtable.admin.v2.Table]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L53}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [Long Running Operation]: https://google.aip.dev/151
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.Table]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L63}
+  /// [google.bigtable.admin.v2.UndeleteTableRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L727}
   ///
+  // clang-format on
   future<StatusOr<google::bigtable::admin::v2::Table>> UndeleteTable(
       google::bigtable::admin::v2::UndeleteTableRequest const& request,
       Options opts = {});
 
+  // clang-format off
+  ///
+  /// @copybrief UndeleteTable
+  ///
+  /// Specifying the [`NoAwaitTag`] immediately returns the
+  /// [`google::longrunning::Operation`] that corresponds to the Long Running
+  /// Operation that has been started. No polling for operation status occurs.
+  ///
+  /// [`NoAwaitTag`]: @ref google::cloud::NoAwaitTag
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> UndeleteTable(
+      NoAwaitTag,
+      google::bigtable::admin::v2::UndeleteTableRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// @copybrief UndeleteTable
+  ///
+  /// This method accepts a `google::longrunning::Operation` that corresponds
+  /// to a previously started Long Running Operation (LRO) and polls the status
+  /// of the LRO in the background.
+  ///
+  // clang-format on
+  future<StatusOr<google::bigtable::admin::v2::Table>> UndeleteTable(
+      google::longrunning::Operation const& operation, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Creates a new AuthorizedView in a table.
+  ///
+  /// @param parent  Required. This is the name of the table the AuthorizedView belongs to.
+  ///  Values are of the form
+  ///  `projects/{project}/instances/{instance}/tables/{table}`.
+  /// @param authorized_view  Required. The AuthorizedView to create.
+  /// @param authorized_view_id  Required. The id of the AuthorizedView to create. This AuthorizedView must
+  ///  not already exist. The `authorized_view_id` appended to `parent` forms the
+  ///  full AuthorizedView name of the form
+  ///  `projects/{project}/instances/{instance}/tables/{table}/authorizedView/{authorized_view}`.
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return A [`future`] that becomes satisfied when the LRO
+  ///     ([Long Running Operation]) completes or the polling policy in effect
+  ///     for this call is exhausted. The future is satisfied with an error if
+  ///     the LRO completes with an error or the polling policy is exhausted.
+  ///     In this case the [`StatusOr`] returned by the future contains the
+  ///     error. If the LRO completes successfully the value of the future
+  ///     contains the LRO's result. For this RPC the result is a
+  ///     [google.bigtable.admin.v2.AuthorizedView] proto message.
+  ///     The C++ class representing this message is created by Protobuf, using
+  ///     the [Protobuf mapping rules].
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [Long Running Operation]: https://google.aip.dev/151
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.AuthorizedView]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L212}
+  /// [google.bigtable.admin.v2.CreateAuthorizedViewRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1283}
+  ///
+  // clang-format on
+  future<StatusOr<google::bigtable::admin::v2::AuthorizedView>>
+  CreateAuthorizedView(
+      std::string const& parent,
+      google::bigtable::admin::v2::AuthorizedView const& authorized_view,
+      std::string const& authorized_view_id, Options opts = {});
+
+  // clang-format off
+  ///
+  /// @copybrief CreateAuthorizedView
+  ///
+  /// Specifying the [`NoAwaitTag`] immediately returns the
+  /// [`google::longrunning::Operation`] that corresponds to the Long Running
+  /// Operation that has been started. No polling for operation status occurs.
+  ///
+  /// [`NoAwaitTag`]: @ref google::cloud::NoAwaitTag
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> CreateAuthorizedView(
+      NoAwaitTag, std::string const& parent,
+      google::bigtable::admin::v2::AuthorizedView const& authorized_view,
+      std::string const& authorized_view_id, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Creates a new AuthorizedView in a table.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.CreateAuthorizedViewRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return A [`future`] that becomes satisfied when the LRO
+  ///     ([Long Running Operation]) completes or the polling policy in effect
+  ///     for this call is exhausted. The future is satisfied with an error if
+  ///     the LRO completes with an error or the polling policy is exhausted.
+  ///     In this case the [`StatusOr`] returned by the future contains the
+  ///     error. If the LRO completes successfully the value of the future
+  ///     contains the LRO's result. For this RPC the result is a
+  ///     [google.bigtable.admin.v2.AuthorizedView] proto message.
+  ///     The C++ class representing this message is created by Protobuf, using
+  ///     the [Protobuf mapping rules].
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [Long Running Operation]: https://google.aip.dev/151
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.AuthorizedView]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L212}
+  /// [google.bigtable.admin.v2.CreateAuthorizedViewRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1283}
+  ///
+  // clang-format on
+  future<StatusOr<google::bigtable::admin::v2::AuthorizedView>>
+  CreateAuthorizedView(
+      google::bigtable::admin::v2::CreateAuthorizedViewRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// @copybrief CreateAuthorizedView
+  ///
+  /// Specifying the [`NoAwaitTag`] immediately returns the
+  /// [`google::longrunning::Operation`] that corresponds to the Long Running
+  /// Operation that has been started. No polling for operation status occurs.
+  ///
+  /// [`NoAwaitTag`]: @ref google::cloud::NoAwaitTag
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> CreateAuthorizedView(
+      NoAwaitTag,
+      google::bigtable::admin::v2::CreateAuthorizedViewRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// @copybrief CreateAuthorizedView
+  ///
+  /// This method accepts a `google::longrunning::Operation` that corresponds
+  /// to a previously started Long Running Operation (LRO) and polls the status
+  /// of the LRO in the background.
+  ///
+  // clang-format on
+  future<StatusOr<google::bigtable::admin::v2::AuthorizedView>>
+  CreateAuthorizedView(google::longrunning::Operation const& operation,
+                       Options opts = {});
+
+  // clang-format off
+  ///
+  /// Lists all AuthorizedViews from a specific table.
+  ///
+  /// @param parent  Required. The unique name of the table for which AuthorizedViews should be
+  ///  listed. Values are of the form
+  ///  `projects/{project}/instances/{instance}/tables/{table}`.
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [StreamRange](@ref google::cloud::StreamRange)
+  ///     to iterate of the results. See the documentation of this type for
+  ///     details. In brief, this class has `begin()` and `end()` member
+  ///     functions returning a iterator class meeting the
+  ///     [input iterator requirements]. The value type for this iterator is a
+  ///     [`StatusOr`] as the iteration may fail even after some values are
+  ///     retrieved successfully, for example, if there is a network disconnect.
+  ///     An empty set of results does not indicate an error, it indicates
+  ///     that there are no resources meeting the request criteria.
+  ///     On a successful iteration the `StatusOr<T>` contains elements of type
+  ///     [google.bigtable.admin.v2.AuthorizedView], or rather,
+  ///     the C++ class generated by Protobuf from that type. Please consult the
+  ///     Protobuf documentation for details on the [Protobuf mapping rules].
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.AuthorizedView]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L212}
+  /// [google.bigtable.admin.v2.ListAuthorizedViewsRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1318}
+  ///
+  // clang-format on
+  StreamRange<google::bigtable::admin::v2::AuthorizedView> ListAuthorizedViews(
+      std::string const& parent, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Lists all AuthorizedViews from a specific table.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.ListAuthorizedViewsRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [StreamRange](@ref google::cloud::StreamRange)
+  ///     to iterate of the results. See the documentation of this type for
+  ///     details. In brief, this class has `begin()` and `end()` member
+  ///     functions returning a iterator class meeting the
+  ///     [input iterator requirements]. The value type for this iterator is a
+  ///     [`StatusOr`] as the iteration may fail even after some values are
+  ///     retrieved successfully, for example, if there is a network disconnect.
+  ///     An empty set of results does not indicate an error, it indicates
+  ///     that there are no resources meeting the request criteria.
+  ///     On a successful iteration the `StatusOr<T>` contains elements of type
+  ///     [google.bigtable.admin.v2.AuthorizedView], or rather,
+  ///     the C++ class generated by Protobuf from that type. Please consult the
+  ///     Protobuf documentation for details on the [Protobuf mapping rules].
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.AuthorizedView]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L212}
+  /// [google.bigtable.admin.v2.ListAuthorizedViewsRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1318}
+  ///
+  // clang-format on
+  StreamRange<google::bigtable::admin::v2::AuthorizedView> ListAuthorizedViews(
+      google::bigtable::admin::v2::ListAuthorizedViewsRequest request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// Gets information from a specified AuthorizedView.
+  ///
+  /// @param name  Required. The unique name of the requested AuthorizedView.
+  ///  Values are of the form
+  ///  `projects/{project}/instances/{instance}/tables/{table}/authorizedViews/{authorized_view}`.
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return the result of the RPC. The response message type
+  ///     ([google.bigtable.admin.v2.AuthorizedView])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.AuthorizedView]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L212}
+  /// [google.bigtable.admin.v2.GetAuthorizedViewRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1362}
+  ///
+  // clang-format on
+  StatusOr<google::bigtable::admin::v2::AuthorizedView> GetAuthorizedView(
+      std::string const& name, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Gets information from a specified AuthorizedView.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.GetAuthorizedViewRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return the result of the RPC. The response message type
+  ///     ([google.bigtable.admin.v2.AuthorizedView])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.AuthorizedView]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L212}
+  /// [google.bigtable.admin.v2.GetAuthorizedViewRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1362}
+  ///
+  // clang-format on
+  StatusOr<google::bigtable::admin::v2::AuthorizedView> GetAuthorizedView(
+      google::bigtable::admin::v2::GetAuthorizedViewRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// Updates an AuthorizedView in a table.
+  ///
+  /// @param authorized_view  Required. The AuthorizedView to update. The `name` in `authorized_view` is
+  ///  used to identify the AuthorizedView. AuthorizedView name must in this
+  ///  format
+  ///  `projects/<project>/instances/<instance>/tables/<table>/authorizedViews/<authorized_view>`
+  /// @param update_mask  Optional. The list of fields to update.
+  ///  A mask specifying which fields in the AuthorizedView resource should be
+  ///  updated. This mask is relative to the AuthorizedView resource, not to the
+  ///  request message. A field will be overwritten if it is in the mask. If
+  ///  empty, all fields set in the request will be overwritten. A special value
+  ///  `*` means to overwrite all fields (including fields not set in the
+  ///  request).
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return A [`future`] that becomes satisfied when the LRO
+  ///     ([Long Running Operation]) completes or the polling policy in effect
+  ///     for this call is exhausted. The future is satisfied with an error if
+  ///     the LRO completes with an error or the polling policy is exhausted.
+  ///     In this case the [`StatusOr`] returned by the future contains the
+  ///     error. If the LRO completes successfully the value of the future
+  ///     contains the LRO's result. For this RPC the result is a
+  ///     [google.bigtable.admin.v2.AuthorizedView] proto message.
+  ///     The C++ class representing this message is created by Protobuf, using
+  ///     the [Protobuf mapping rules].
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [Long Running Operation]: https://google.aip.dev/151
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.AuthorizedView]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L212}
+  /// [google.bigtable.admin.v2.UpdateAuthorizedViewRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1380}
+  ///
+  // clang-format on
+  future<StatusOr<google::bigtable::admin::v2::AuthorizedView>>
+  UpdateAuthorizedView(
+      google::bigtable::admin::v2::AuthorizedView const& authorized_view,
+      google::protobuf::FieldMask const& update_mask, Options opts = {});
+
+  // clang-format off
+  ///
+  /// @copybrief UpdateAuthorizedView
+  ///
+  /// Specifying the [`NoAwaitTag`] immediately returns the
+  /// [`google::longrunning::Operation`] that corresponds to the Long Running
+  /// Operation that has been started. No polling for operation status occurs.
+  ///
+  /// [`NoAwaitTag`]: @ref google::cloud::NoAwaitTag
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> UpdateAuthorizedView(
+      NoAwaitTag,
+      google::bigtable::admin::v2::AuthorizedView const& authorized_view,
+      google::protobuf::FieldMask const& update_mask, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Updates an AuthorizedView in a table.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.UpdateAuthorizedViewRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return A [`future`] that becomes satisfied when the LRO
+  ///     ([Long Running Operation]) completes or the polling policy in effect
+  ///     for this call is exhausted. The future is satisfied with an error if
+  ///     the LRO completes with an error or the polling policy is exhausted.
+  ///     In this case the [`StatusOr`] returned by the future contains the
+  ///     error. If the LRO completes successfully the value of the future
+  ///     contains the LRO's result. For this RPC the result is a
+  ///     [google.bigtable.admin.v2.AuthorizedView] proto message.
+  ///     The C++ class representing this message is created by Protobuf, using
+  ///     the [Protobuf mapping rules].
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [Long Running Operation]: https://google.aip.dev/151
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.AuthorizedView]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L212}
+  /// [google.bigtable.admin.v2.UpdateAuthorizedViewRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1380}
+  ///
+  // clang-format on
+  future<StatusOr<google::bigtable::admin::v2::AuthorizedView>>
+  UpdateAuthorizedView(
+      google::bigtable::admin::v2::UpdateAuthorizedViewRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// @copybrief UpdateAuthorizedView
+  ///
+  /// Specifying the [`NoAwaitTag`] immediately returns the
+  /// [`google::longrunning::Operation`] that corresponds to the Long Running
+  /// Operation that has been started. No polling for operation status occurs.
+  ///
+  /// [`NoAwaitTag`]: @ref google::cloud::NoAwaitTag
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> UpdateAuthorizedView(
+      NoAwaitTag,
+      google::bigtable::admin::v2::UpdateAuthorizedViewRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// @copybrief UpdateAuthorizedView
+  ///
+  /// This method accepts a `google::longrunning::Operation` that corresponds
+  /// to a previously started Long Running Operation (LRO) and polls the status
+  /// of the LRO in the background.
+  ///
+  // clang-format on
+  future<StatusOr<google::bigtable::admin::v2::AuthorizedView>>
+  UpdateAuthorizedView(google::longrunning::Operation const& operation,
+                       Options opts = {});
+
+  // clang-format off
+  ///
+  /// Permanently deletes a specified AuthorizedView.
+  ///
+  /// @param name  Required. The unique name of the AuthorizedView to be deleted.
+  ///  Values are of the form
+  ///  `projects/{project}/instances/{instance}/tables/{table}/authorizedViews/{authorized_view}`.
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [`Status`] object. If the request failed, the
+  ///     status contains the details of the failure.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.DeleteAuthorizedViewRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1418}
+  ///
+  // clang-format on
+  Status DeleteAuthorizedView(std::string const& name, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Permanently deletes a specified AuthorizedView.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.DeleteAuthorizedViewRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [`Status`] object. If the request failed, the
+  ///     status contains the details of the failure.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.DeleteAuthorizedViewRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1418}
+  ///
+  // clang-format on
+  Status DeleteAuthorizedView(
+      google::bigtable::admin::v2::DeleteAuthorizedViewRequest const& request,
+      Options opts = {});
+
+  // clang-format off
   ///
   /// Performs a series of column family modifications on the specified table.
   /// Either all or none of the modifications will occur before this method
   /// returns, but data requests received prior to that point may see a table
   /// where only some modifications have taken effect.
   ///
-  /// @param name  Required. The unique name of the table whose families should
-  /// be modified.
+  /// @param name  Required. The unique name of the table whose families should be modified.
   ///  Values are of the form
   ///  `projects/{project}/instances/{instance}/tables/{table}`.
-  /// @param modifications  Required. Modifications to be atomically applied to
-  /// the specified table's families.
-  ///  Entries are applied in order, meaning that earlier modifications can be
-  ///  masked by later ones (in the case of repeated updates to the same family,
-  ///  for example).
+  /// @param modifications  Required. Modifications to be atomically applied to the specified table's
+  ///  families. Entries are applied in order, meaning that earlier modifications
+  ///  can be masked by later ones (in the case of repeated updates to the same
+  ///  family, for example).
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Table,google/bigtable/admin/v2/table.proto#L53}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.bigtable.admin.v2.Table])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.bigtable.admin.v2.ModifyColumnFamiliesRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L670}
-  /// [google.bigtable.admin.v2.Table]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L53}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.ModifyColumnFamiliesRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L754}
+  /// [google.bigtable.admin.v2.Table]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L63}
   ///
+  // clang-format on
   StatusOr<google::bigtable::admin::v2::Table> ModifyColumnFamilies(
       std::string const& name,
       std::vector<google::bigtable::admin::v2::ModifyColumnFamiliesRequest::
                       Modification> const& modifications,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Performs a series of column family modifications on the specified table.
   /// Either all or none of the modifications will occur before this method
   /// returns, but data requests received prior to that point may see a table
   /// where only some modifications have taken effect.
   ///
-  /// @param request
-  /// @googleapis_link{google::bigtable::admin::v2::ModifyColumnFamiliesRequest,google/bigtable/admin/v2/bigtable_table_admin.proto#L670}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.ModifyColumnFamiliesRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Table,google/bigtable/admin/v2/table.proto#L53}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.bigtable.admin.v2.Table])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.bigtable.admin.v2.ModifyColumnFamiliesRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L670}
-  /// [google.bigtable.admin.v2.Table]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L53}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.ModifyColumnFamiliesRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L754}
+  /// [google.bigtable.admin.v2.Table]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L63}
   ///
+  // clang-format on
   StatusOr<google::bigtable::admin::v2::Table> ModifyColumnFamilies(
       google::bigtable::admin::v2::ModifyColumnFamiliesRequest const& request,
       Options opts = {});
 
+  // clang-format off
   ///
-  /// Permanently drop/delete a row range from a specified table. The request
-  /// can specify whether to delete all rows in a table, or only those that
-  /// match a particular prefix.
+  /// Permanently drop/delete a row range from a specified table. The request can
+  /// specify whether to delete all rows in a table, or only those that match a
+  /// particular prefix.
   ///
-  /// @param request
-  /// @googleapis_link{google::bigtable::admin::v2::DropRowRangeRequest,google/bigtable/admin/v2/bigtable_table_admin.proto#L512}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.DropRowRangeRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
+  /// @return a [`Status`] object. If the request failed, the
+  ///     status contains the details of the failure.
   ///
-  /// [google.bigtable.admin.v2.DropRowRangeRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L512}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.DropRowRangeRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L592}
   ///
+  // clang-format on
   Status DropRowRange(
       google::bigtable::admin::v2::DropRowRangeRequest const& request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Generates a consistency token for a Table, which can be used in
   /// CheckConsistency to check whether mutations to the table that finished
-  /// before this call started have been replicated. The tokens will be
-  /// available for 90 days.
+  /// before this call started have been replicated. The tokens will be available
+  /// for 90 days.
   ///
-  /// @param name  Required. The unique name of the Table for which to create a
-  /// consistency token.
-  ///  Values are of the form
+  /// @param name  Required. The unique name of the Table for which to create a consistency
+  ///  token. Values are of the form
   ///  `projects/{project}/instances/{instance}/tables/{table}`.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::GenerateConsistencyTokenResponse,google/bigtable/admin/v2/bigtable_table_admin.proto#L725}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.bigtable.admin.v2.GenerateConsistencyTokenResponse])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.bigtable.admin.v2.GenerateConsistencyTokenRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L711}
-  /// [google.bigtable.admin.v2.GenerateConsistencyTokenResponse]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L725}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.GenerateConsistencyTokenRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L805}
+  /// [google.bigtable.admin.v2.GenerateConsistencyTokenResponse]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L819}
   ///
+  // clang-format on
   StatusOr<google::bigtable::admin::v2::GenerateConsistencyTokenResponse>
   GenerateConsistencyToken(std::string const& name, Options opts = {});
 
+  // clang-format off
   ///
   /// Generates a consistency token for a Table, which can be used in
   /// CheckConsistency to check whether mutations to the table that finished
-  /// before this call started have been replicated. The tokens will be
-  /// available for 90 days.
+  /// before this call started have been replicated. The tokens will be available
+  /// for 90 days.
   ///
-  /// @param request
-  /// @googleapis_link{google::bigtable::admin::v2::GenerateConsistencyTokenRequest,google/bigtable/admin/v2/bigtable_table_admin.proto#L711}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.GenerateConsistencyTokenRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::GenerateConsistencyTokenResponse,google/bigtable/admin/v2/bigtable_table_admin.proto#L725}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.bigtable.admin.v2.GenerateConsistencyTokenResponse])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.bigtable.admin.v2.GenerateConsistencyTokenRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L711}
-  /// [google.bigtable.admin.v2.GenerateConsistencyTokenResponse]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L725}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.GenerateConsistencyTokenRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L805}
+  /// [google.bigtable.admin.v2.GenerateConsistencyTokenResponse]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L819}
   ///
+  // clang-format on
   StatusOr<google::bigtable::admin::v2::GenerateConsistencyTokenResponse>
   GenerateConsistencyToken(
       google::bigtable::admin::v2::GenerateConsistencyTokenRequest const&
           request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Checks replication consistency based on a consistency token, that is, if
   /// replication has caught up based on the conditions specified in the token
   /// and the check request.
   ///
-  /// @param name  Required. The unique name of the Table for which to check
-  /// replication consistency.
-  ///  Values are of the form
+  /// @param name  Required. The unique name of the Table for which to check replication
+  ///  consistency. Values are of the form
   ///  `projects/{project}/instances/{instance}/tables/{table}`.
-  /// @param consistency_token  Required. The token created using
-  /// GenerateConsistencyToken for the Table.
+  /// @param consistency_token  Required. The token created using GenerateConsistencyToken for the Table.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::CheckConsistencyResponse,google/bigtable/admin/v2/bigtable_table_admin.proto#L749}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.bigtable.admin.v2.CheckConsistencyResponse])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.bigtable.admin.v2.CheckConsistencyRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L732}
-  /// [google.bigtable.admin.v2.CheckConsistencyResponse]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L749}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.CheckConsistencyRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L826}
+  /// [google.bigtable.admin.v2.CheckConsistencyResponse]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L865}
   ///
+  // clang-format on
   StatusOr<google::bigtable::admin::v2::CheckConsistencyResponse>
   CheckConsistency(std::string const& name,
                    std::string const& consistency_token, Options opts = {});
 
+  // clang-format off
   ///
   /// Checks replication consistency based on a consistency token, that is, if
   /// replication has caught up based on the conditions specified in the token
   /// and the check request.
   ///
-  /// @param request
-  /// @googleapis_link{google::bigtable::admin::v2::CheckConsistencyRequest,google/bigtable/admin/v2/bigtable_table_admin.proto#L732}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.CheckConsistencyRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::CheckConsistencyResponse,google/bigtable/admin/v2/bigtable_table_admin.proto#L749}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.bigtable.admin.v2.CheckConsistencyResponse])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.bigtable.admin.v2.CheckConsistencyRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L732}
-  /// [google.bigtable.admin.v2.CheckConsistencyResponse]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L749}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.CheckConsistencyRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L826}
+  /// [google.bigtable.admin.v2.CheckConsistencyResponse]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L865}
   ///
+  // clang-format on
   StatusOr<google::bigtable::admin::v2::CheckConsistencyResponse>
   CheckConsistency(
       google::bigtable::admin::v2::CheckConsistencyRequest const& request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Starts creating a new Cloud Bigtable Backup.  The returned backup
   /// [long-running operation][google.longrunning.Operation] can be used to
@@ -505,32 +1269,64 @@ class BigtableTableAdminClient {
   /// [Backup][google.bigtable.admin.v2.Backup], if successful. Cancelling the
   /// returned operation will stop the creation and delete the backup.
   ///
-  /// @param parent  Required. This must be one of the clusters in the instance
-  /// in which this
+  /// @param parent  Required. This must be one of the clusters in the instance in which this
   ///  table is located. The backup will be stored in this cluster. Values are
   ///  of the form `projects/{project}/instances/{instance}/clusters/{cluster}`.
-  /// @param backup_id  Required. The id of the backup to be created. The
-  /// `backup_id` along with
-  ///  the parent `parent` are combined as {parent}/backups/{backup_id} to
-  ///  create the full backup name, of the form:
+  /// @param backup_id  Required. The id of the backup to be created. The `backup_id` along with
+  ///  the parent `parent` are combined as {parent}/backups/{backup_id} to create
+  ///  the full backup name, of the form:
   ///  `projects/{project}/instances/{instance}/clusters/{cluster}/backups/{backup_id}`.
   ///  This string must be between 1 and 50 characters in length and match the
   ///  regex [_a-zA-Z0-9][-_.a-zA-Z0-9]*.
   /// @param backup  Required. The backup to create.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Backup,google/bigtable/admin/v2/table.proto#L311}
+  /// @return A [`future`] that becomes satisfied when the LRO
+  ///     ([Long Running Operation]) completes or the polling policy in effect
+  ///     for this call is exhausted. The future is satisfied with an error if
+  ///     the LRO completes with an error or the polling policy is exhausted.
+  ///     In this case the [`StatusOr`] returned by the future contains the
+  ///     error. If the LRO completes successfully the value of the future
+  ///     contains the LRO's result. For this RPC the result is a
+  ///     [google.bigtable.admin.v2.Backup] proto message.
+  ///     The C++ class representing this message is created by Protobuf, using
+  ///     the [Protobuf mapping rules].
   ///
-  /// [google.bigtable.admin.v2.CreateBackupRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L918}
-  /// [google.bigtable.admin.v2.Backup]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L311}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [Long Running Operation]: https://google.aip.dev/151
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.Backup]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L440}
+  /// [google.bigtable.admin.v2.CreateBackupMetadata]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1060}
+  /// [google.bigtable.admin.v2.CreateBackupRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1035}
+  /// [google.longrunning.Operation]: @googleapis_reference_link{google/longrunning/operations.proto#L121}
+  /// [google.longrunning.Operation.metadata]: @googleapis_reference_link{google/longrunning/operations.proto#L131}
+  /// [google.longrunning.Operation.response]: @googleapis_reference_link{google/longrunning/operations.proto#L154}
   ///
+  // clang-format on
   future<StatusOr<google::bigtable::admin::v2::Backup>> CreateBackup(
       std::string const& parent, std::string const& backup_id,
       google::bigtable::admin::v2::Backup const& backup, Options opts = {});
 
+  // clang-format off
+  ///
+  /// @copybrief CreateBackup
+  ///
+  /// Specifying the [`NoAwaitTag`] immediately returns the
+  /// [`google::longrunning::Operation`] that corresponds to the Long Running
+  /// Operation that has been started. No polling for operation status occurs.
+  ///
+  /// [`NoAwaitTag`]: @ref google::cloud::NoAwaitTag
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> CreateBackup(
+      NoAwaitTag, std::string const& parent, std::string const& backup_id,
+      google::bigtable::admin::v2::Backup const& backup, Options opts = {});
+
+  // clang-format off
   ///
   /// Starts creating a new Cloud Bigtable Backup.  The returned backup
   /// [long-running operation][google.longrunning.Operation] can be used to
@@ -541,22 +1337,73 @@ class BigtableTableAdminClient {
   /// [Backup][google.bigtable.admin.v2.Backup], if successful. Cancelling the
   /// returned operation will stop the creation and delete the backup.
   ///
-  /// @param request
-  /// @googleapis_link{google::bigtable::admin::v2::CreateBackupRequest,google/bigtable/admin/v2/bigtable_table_admin.proto#L918}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.CreateBackupRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Backup,google/bigtable/admin/v2/table.proto#L311}
+  /// @return A [`future`] that becomes satisfied when the LRO
+  ///     ([Long Running Operation]) completes or the polling policy in effect
+  ///     for this call is exhausted. The future is satisfied with an error if
+  ///     the LRO completes with an error or the polling policy is exhausted.
+  ///     In this case the [`StatusOr`] returned by the future contains the
+  ///     error. If the LRO completes successfully the value of the future
+  ///     contains the LRO's result. For this RPC the result is a
+  ///     [google.bigtable.admin.v2.Backup] proto message.
+  ///     The C++ class representing this message is created by Protobuf, using
+  ///     the [Protobuf mapping rules].
   ///
-  /// [google.bigtable.admin.v2.CreateBackupRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L918}
-  /// [google.bigtable.admin.v2.Backup]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L311}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [Long Running Operation]: https://google.aip.dev/151
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.Backup]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L440}
+  /// [google.bigtable.admin.v2.CreateBackupMetadata]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1060}
+  /// [google.bigtable.admin.v2.CreateBackupRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1035}
+  /// [google.longrunning.Operation]: @googleapis_reference_link{google/longrunning/operations.proto#L121}
+  /// [google.longrunning.Operation.metadata]: @googleapis_reference_link{google/longrunning/operations.proto#L131}
+  /// [google.longrunning.Operation.response]: @googleapis_reference_link{google/longrunning/operations.proto#L154}
   ///
+  // clang-format on
   future<StatusOr<google::bigtable::admin::v2::Backup>> CreateBackup(
       google::bigtable::admin::v2::CreateBackupRequest const& request,
       Options opts = {});
 
+  // clang-format off
+  ///
+  /// @copybrief CreateBackup
+  ///
+  /// Specifying the [`NoAwaitTag`] immediately returns the
+  /// [`google::longrunning::Operation`] that corresponds to the Long Running
+  /// Operation that has been started. No polling for operation status occurs.
+  ///
+  /// [`NoAwaitTag`]: @ref google::cloud::NoAwaitTag
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> CreateBackup(
+      NoAwaitTag,
+      google::bigtable::admin::v2::CreateBackupRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// @copybrief CreateBackup
+  ///
+  /// This method accepts a `google::longrunning::Operation` that corresponds
+  /// to a previously started Long Running Operation (LRO) and polls the status
+  /// of the LRO in the background.
+  ///
+  // clang-format on
+  future<StatusOr<google::bigtable::admin::v2::Backup>> CreateBackup(
+      google::longrunning::Operation const& operation, Options opts = {});
+
+  // clang-format off
   ///
   /// Gets metadata on a pending or completed Cloud Bigtable Backup.
   ///
@@ -565,83 +1412,122 @@ class BigtableTableAdminClient {
   ///  `projects/{project}/instances/{instance}/clusters/{cluster}/backups/{backup}`.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Backup,google/bigtable/admin/v2/table.proto#L311}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.bigtable.admin.v2.Backup])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.bigtable.admin.v2.GetBackupRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L974}
-  /// [google.bigtable.admin.v2.Backup]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L311}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.Backup]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L440}
+  /// [google.bigtable.admin.v2.GetBackupRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1095}
   ///
+  // clang-format on
   StatusOr<google::bigtable::admin::v2::Backup> GetBackup(
       std::string const& name, Options opts = {});
 
+  // clang-format off
   ///
   /// Gets metadata on a pending or completed Cloud Bigtable Backup.
   ///
-  /// @param request
-  /// @googleapis_link{google::bigtable::admin::v2::GetBackupRequest,google/bigtable/admin/v2/bigtable_table_admin.proto#L974}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.GetBackupRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Backup,google/bigtable/admin/v2/table.proto#L311}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.bigtable.admin.v2.Backup])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.bigtable.admin.v2.GetBackupRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L974}
-  /// [google.bigtable.admin.v2.Backup]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L311}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.Backup]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L440}
+  /// [google.bigtable.admin.v2.GetBackupRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1095}
   ///
+  // clang-format on
   StatusOr<google::bigtable::admin::v2::Backup> GetBackup(
       google::bigtable::admin::v2::GetBackupRequest const& request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Updates a pending or completed Cloud Bigtable Backup.
   ///
-  /// @param backup  Required. The backup to update. `backup.name`, and the
-  /// fields to be updated
+  /// @param backup  Required. The backup to update. `backup.name`, and the fields to be updated
   ///  as specified by `update_mask` are required. Other fields are ignored.
   ///  Update is only supported for the following fields:
+  ///  @n
   ///   * `backup.expire_time`.
-  /// @param update_mask  Required. A mask specifying which fields (e.g.
-  /// `expire_time`) in the
+  /// @param update_mask  Required. A mask specifying which fields (e.g. `expire_time`) in the
   ///  Backup resource should be updated. This mask is relative to the Backup
   ///  resource, not to the request message. The field mask must always be
   ///  specified; this prevents any future fields from being erased accidentally
   ///  by clients that do not know about them.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Backup,google/bigtable/admin/v2/table.proto#L311}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.bigtable.admin.v2.Backup])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.bigtable.admin.v2.UpdateBackupRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L958}
-  /// [google.bigtable.admin.v2.Backup]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L311}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.Backup]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L440}
+  /// [google.bigtable.admin.v2.UpdateBackupRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1076}
   ///
+  // clang-format on
   StatusOr<google::bigtable::admin::v2::Backup> UpdateBackup(
       google::bigtable::admin::v2::Backup const& backup,
       google::protobuf::FieldMask const& update_mask, Options opts = {});
 
+  // clang-format off
   ///
   /// Updates a pending or completed Cloud Bigtable Backup.
   ///
-  /// @param request
-  /// @googleapis_link{google::bigtable::admin::v2::UpdateBackupRequest,google/bigtable/admin/v2/bigtable_table_admin.proto#L958}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.UpdateBackupRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Backup,google/bigtable/admin/v2/table.proto#L311}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.bigtable.admin.v2.Backup])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.bigtable.admin.v2.UpdateBackupRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L958}
-  /// [google.bigtable.admin.v2.Backup]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L311}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.Backup]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L440}
+  /// [google.bigtable.admin.v2.UpdateBackupRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1076}
   ///
+  // clang-format on
   StatusOr<google::bigtable::admin::v2::Backup> UpdateBackup(
       google::bigtable::admin::v2::UpdateBackupRequest const& request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Deletes a pending or completed Cloud Bigtable backup.
   ///
@@ -650,158 +1536,428 @@ class BigtableTableAdminClient {
   ///  `projects/{project}/instances/{instance}/clusters/{cluster}/backups/{backup}`.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
+  /// @return a [`Status`] object. If the request failed, the
+  ///     status contains the details of the failure.
   ///
-  /// [google.bigtable.admin.v2.DeleteBackupRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L987}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.DeleteBackupRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1109}
   ///
+  // clang-format on
   Status DeleteBackup(std::string const& name, Options opts = {});
 
+  // clang-format off
   ///
   /// Deletes a pending or completed Cloud Bigtable backup.
   ///
-  /// @param request
-  /// @googleapis_link{google::bigtable::admin::v2::DeleteBackupRequest,google/bigtable/admin/v2/bigtable_table_admin.proto#L987}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.DeleteBackupRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
+  /// @return a [`Status`] object. If the request failed, the
+  ///     status contains the details of the failure.
   ///
-  /// [google.bigtable.admin.v2.DeleteBackupRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L987}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.DeleteBackupRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1109}
   ///
+  // clang-format on
   Status DeleteBackup(
       google::bigtable::admin::v2::DeleteBackupRequest const& request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Lists Cloud Bigtable backups. Returns both completed and pending
   /// backups.
   ///
-  /// @param parent  Required. The cluster to list backups from.  Values are of
-  /// the
+  /// @param parent  Required. The cluster to list backups from.  Values are of the
   ///  form `projects/{project}/instances/{instance}/clusters/{cluster}`.
-  ///  Use `{cluster} = '-'` to list backups for all clusters in an instance,
+  ///  Use `{cluster} = "-"` to list backups for all clusters in an instance,
   ///  e.g., `projects/{project}/instances/{instance}/clusters/-`.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Backup,google/bigtable/admin/v2/table.proto#L311}
+  /// @return a [StreamRange](@ref google::cloud::StreamRange)
+  ///     to iterate of the results. See the documentation of this type for
+  ///     details. In brief, this class has `begin()` and `end()` member
+  ///     functions returning a iterator class meeting the
+  ///     [input iterator requirements]. The value type for this iterator is a
+  ///     [`StatusOr`] as the iteration may fail even after some values are
+  ///     retrieved successfully, for example, if there is a network disconnect.
+  ///     An empty set of results does not indicate an error, it indicates
+  ///     that there are no resources meeting the request criteria.
+  ///     On a successful iteration the `StatusOr<T>` contains elements of type
+  ///     [google.bigtable.admin.v2.Backup], or rather,
+  ///     the C++ class generated by Protobuf from that type. Please consult the
+  ///     Protobuf documentation for details on the [Protobuf mapping rules].
   ///
-  /// [google.bigtable.admin.v2.ListBackupsRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1000}
-  /// [google.bigtable.admin.v2.Backup]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L311}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.Backup]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L440}
+  /// [google.bigtable.admin.v2.ListBackupsRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1123}
   ///
+  // clang-format on
   StreamRange<google::bigtable::admin::v2::Backup> ListBackups(
       std::string const& parent, Options opts = {});
 
+  // clang-format off
   ///
   /// Lists Cloud Bigtable backups. Returns both completed and pending
   /// backups.
   ///
-  /// @param request
-  /// @googleapis_link{google::bigtable::admin::v2::ListBackupsRequest,google/bigtable/admin/v2/bigtable_table_admin.proto#L1000}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.ListBackupsRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Backup,google/bigtable/admin/v2/table.proto#L311}
+  /// @return a [StreamRange](@ref google::cloud::StreamRange)
+  ///     to iterate of the results. See the documentation of this type for
+  ///     details. In brief, this class has `begin()` and `end()` member
+  ///     functions returning a iterator class meeting the
+  ///     [input iterator requirements]. The value type for this iterator is a
+  ///     [`StatusOr`] as the iteration may fail even after some values are
+  ///     retrieved successfully, for example, if there is a network disconnect.
+  ///     An empty set of results does not indicate an error, it indicates
+  ///     that there are no resources meeting the request criteria.
+  ///     On a successful iteration the `StatusOr<T>` contains elements of type
+  ///     [google.bigtable.admin.v2.Backup], or rather,
+  ///     the C++ class generated by Protobuf from that type. Please consult the
+  ///     Protobuf documentation for details on the [Protobuf mapping rules].
   ///
-  /// [google.bigtable.admin.v2.ListBackupsRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1000}
-  /// [google.bigtable.admin.v2.Backup]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L311}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.Backup]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L440}
+  /// [google.bigtable.admin.v2.ListBackupsRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1123}
   ///
+  // clang-format on
   StreamRange<google::bigtable::admin::v2::Backup> ListBackups(
       google::bigtable::admin::v2::ListBackupsRequest request,
       Options opts = {});
 
+  // clang-format off
   ///
-  /// Create a new table by restoring from a completed backup. The new table
-  /// must be in the same project as the instance containing the backup.  The
+  /// Create a new table by restoring from a completed backup.  The
   /// returned table [long-running operation][google.longrunning.Operation] can
   /// be used to track the progress of the operation, and to cancel it.  The
   /// [metadata][google.longrunning.Operation.metadata] field type is
-  /// [RestoreTableMetadata][google.bigtable.admin.RestoreTableMetadata].  The
+  /// [RestoreTableMetadata][google.bigtable.admin.v2.RestoreTableMetadata].  The
   /// [response][google.longrunning.Operation.response] type is
   /// [Table][google.bigtable.admin.v2.Table], if successful.
   ///
-  /// @param request
-  /// @googleapis_link{google::bigtable::admin::v2::RestoreTableRequest,google/bigtable/admin/v2/bigtable_table_admin.proto#L362}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.RestoreTableRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::Table,google/bigtable/admin/v2/table.proto#L53}
+  /// @return A [`future`] that becomes satisfied when the LRO
+  ///     ([Long Running Operation]) completes or the polling policy in effect
+  ///     for this call is exhausted. The future is satisfied with an error if
+  ///     the LRO completes with an error or the polling policy is exhausted.
+  ///     In this case the [`StatusOr`] returned by the future contains the
+  ///     error. If the LRO completes successfully the value of the future
+  ///     contains the LRO's result. For this RPC the result is a
+  ///     [google.bigtable.admin.v2.Table] proto message.
+  ///     The C++ class representing this message is created by Protobuf, using
+  ///     the [Protobuf mapping rules].
   ///
-  /// [google.bigtable.admin.v2.RestoreTableRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L362}
-  /// [google.bigtable.admin.v2.Table]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L53}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [Long Running Operation]: https://google.aip.dev/151
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.RestoreTableMetadata]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L469}
+  /// [google.bigtable.admin.v2.RestoreTableRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L441}
+  /// [google.bigtable.admin.v2.Table]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L63}
+  /// [google.longrunning.Operation]: @googleapis_reference_link{google/longrunning/operations.proto#L121}
+  /// [google.longrunning.Operation.metadata]: @googleapis_reference_link{google/longrunning/operations.proto#L131}
+  /// [google.longrunning.Operation.response]: @googleapis_reference_link{google/longrunning/operations.proto#L154}
   ///
+  // clang-format on
   future<StatusOr<google::bigtable::admin::v2::Table>> RestoreTable(
       google::bigtable::admin::v2::RestoreTableRequest const& request,
       Options opts = {});
 
+  // clang-format off
+  ///
+  /// @copybrief RestoreTable
+  ///
+  /// Specifying the [`NoAwaitTag`] immediately returns the
+  /// [`google::longrunning::Operation`] that corresponds to the Long Running
+  /// Operation that has been started. No polling for operation status occurs.
+  ///
+  /// [`NoAwaitTag`]: @ref google::cloud::NoAwaitTag
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> RestoreTable(
+      NoAwaitTag,
+      google::bigtable::admin::v2::RestoreTableRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// @copybrief RestoreTable
+  ///
+  /// This method accepts a `google::longrunning::Operation` that corresponds
+  /// to a previously started Long Running Operation (LRO) and polls the status
+  /// of the LRO in the background.
+  ///
+  // clang-format on
+  future<StatusOr<google::bigtable::admin::v2::Table>> RestoreTable(
+      google::longrunning::Operation const& operation, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Copy a Cloud Bigtable backup to a new backup in the destination cluster
+  /// located in the destination instance and project.
+  ///
+  /// @param parent  Required. The name of the destination cluster that will contain the backup
+  ///  copy. The cluster must already exist. Values are of the form:
+  ///  `projects/{project}/instances/{instance}/clusters/{cluster}`.
+  /// @param backup_id  Required. The id of the new backup. The `backup_id` along with `parent`
+  ///  are combined as {parent}/backups/{backup_id} to create the full backup
+  ///  name, of the form:
+  ///  `projects/{project}/instances/{instance}/clusters/{cluster}/backups/{backup_id}`.
+  ///  This string must be between 1 and 50 characters in length and match the
+  ///  regex [_a-zA-Z0-9][-_.a-zA-Z0-9]*.
+  /// @param source_backup  Required. The source backup to be copied from.
+  ///  The source backup needs to be in READY state for it to be copied.
+  ///  Copying a copied backup is not allowed.
+  ///  Once CopyBackup is in progress, the source backup cannot be deleted or
+  ///  cleaned up on expiration until CopyBackup is finished.
+  ///  Values are of the form:
+  ///  `projects/<project>/instances/<instance>/clusters/<cluster>/backups/<backup>`.
+  /// @param expire_time  Required. Required. The expiration time of the copied backup with
+  ///  microsecond granularity that must be at least 6 hours and at most 30 days
+  ///  from the time the request is received. Once the `expire_time` has
+  ///  passed, Cloud Bigtable will delete the backup and free the resources used
+  ///  by the backup.
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return A [`future`] that becomes satisfied when the LRO
+  ///     ([Long Running Operation]) completes or the polling policy in effect
+  ///     for this call is exhausted. The future is satisfied with an error if
+  ///     the LRO completes with an error or the polling policy is exhausted.
+  ///     In this case the [`StatusOr`] returned by the future contains the
+  ///     error. If the LRO completes successfully the value of the future
+  ///     contains the LRO's result. For this RPC the result is a
+  ///     [google.bigtable.admin.v2.Backup] proto message.
+  ///     The C++ class representing this message is created by Protobuf, using
+  ///     the [Protobuf mapping rules].
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [Long Running Operation]: https://google.aip.dev/151
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.Backup]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L440}
+  /// [google.bigtable.admin.v2.CopyBackupRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1220}
+  ///
+  // clang-format on
+  future<StatusOr<google::bigtable::admin::v2::Backup>> CopyBackup(
+      std::string const& parent, std::string const& backup_id,
+      std::string const& source_backup,
+      google::protobuf::Timestamp const& expire_time, Options opts = {});
+
+  // clang-format off
+  ///
+  /// @copybrief CopyBackup
+  ///
+  /// Specifying the [`NoAwaitTag`] immediately returns the
+  /// [`google::longrunning::Operation`] that corresponds to the Long Running
+  /// Operation that has been started. No polling for operation status occurs.
+  ///
+  /// [`NoAwaitTag`]: @ref google::cloud::NoAwaitTag
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> CopyBackup(
+      NoAwaitTag, std::string const& parent, std::string const& backup_id,
+      std::string const& source_backup,
+      google::protobuf::Timestamp const& expire_time, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Copy a Cloud Bigtable backup to a new backup in the destination cluster
+  /// located in the destination instance and project.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.CopyBackupRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return A [`future`] that becomes satisfied when the LRO
+  ///     ([Long Running Operation]) completes or the polling policy in effect
+  ///     for this call is exhausted. The future is satisfied with an error if
+  ///     the LRO completes with an error or the polling policy is exhausted.
+  ///     In this case the [`StatusOr`] returned by the future contains the
+  ///     error. If the LRO completes successfully the value of the future
+  ///     contains the LRO's result. For this RPC the result is a
+  ///     [google.bigtable.admin.v2.Backup] proto message.
+  ///     The C++ class representing this message is created by Protobuf, using
+  ///     the [Protobuf mapping rules].
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [Long Running Operation]: https://google.aip.dev/151
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.Backup]: @googleapis_reference_link{google/bigtable/admin/v2/table.proto#L440}
+  /// [google.bigtable.admin.v2.CopyBackupRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L1220}
+  ///
+  // clang-format on
+  future<StatusOr<google::bigtable::admin::v2::Backup>> CopyBackup(
+      google::bigtable::admin::v2::CopyBackupRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// @copybrief CopyBackup
+  ///
+  /// Specifying the [`NoAwaitTag`] immediately returns the
+  /// [`google::longrunning::Operation`] that corresponds to the Long Running
+  /// Operation that has been started. No polling for operation status occurs.
+  ///
+  /// [`NoAwaitTag`]: @ref google::cloud::NoAwaitTag
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> CopyBackup(
+      NoAwaitTag, google::bigtable::admin::v2::CopyBackupRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// @copybrief CopyBackup
+  ///
+  /// This method accepts a `google::longrunning::Operation` that corresponds
+  /// to a previously started Long Running Operation (LRO) and polls the status
+  /// of the LRO in the background.
+  ///
+  // clang-format on
+  future<StatusOr<google::bigtable::admin::v2::Backup>> CopyBackup(
+      google::longrunning::Operation const& operation, Options opts = {});
+
+  // clang-format off
   ///
   /// Gets the access control policy for a Table or Backup resource.
   /// Returns an empty policy if the resource exists but does not have a policy
   /// set.
   ///
-  /// @param resource  REQUIRED: The resource for which the policy is being
-  /// requested.
+  /// @param resource  REQUIRED: The resource for which the policy is being requested.
   ///  See the operation documentation for the appropriate value for this field.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::iam::v1::Policy,google/iam/v1/policy.proto#L96}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.iam.v1.Policy])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.iam.v1.GetIamPolicyRequest]:
-  /// @googleapis_reference_link{google/iam/v1/iam_policy.proto#L123}
-  /// [google.iam.v1.Policy]:
-  /// @googleapis_reference_link{google/iam/v1/policy.proto#L96}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.iam.v1.GetIamPolicyRequest]: @googleapis_reference_link{google/iam/v1/iam_policy.proto#L123}
+  /// [google.iam.v1.Policy]: @googleapis_reference_link{google/iam/v1/policy.proto#L102}
   ///
+  // clang-format on
   StatusOr<google::iam::v1::Policy> GetIamPolicy(std::string const& resource,
                                                  Options opts = {});
 
+  // clang-format off
   ///
   /// Gets the access control policy for a Table or Backup resource.
   /// Returns an empty policy if the resource exists but does not have a policy
   /// set.
   ///
-  /// @param request
-  /// @googleapis_link{google::iam::v1::GetIamPolicyRequest,google/iam/v1/iam_policy.proto#L123}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.iam.v1.GetIamPolicyRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::iam::v1::Policy,google/iam/v1/policy.proto#L96}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.iam.v1.Policy])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.iam.v1.GetIamPolicyRequest]:
-  /// @googleapis_reference_link{google/iam/v1/iam_policy.proto#L123}
-  /// [google.iam.v1.Policy]:
-  /// @googleapis_reference_link{google/iam/v1/policy.proto#L96}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.iam.v1.GetIamPolicyRequest]: @googleapis_reference_link{google/iam/v1/iam_policy.proto#L123}
+  /// [google.iam.v1.Policy]: @googleapis_reference_link{google/iam/v1/policy.proto#L102}
   ///
+  // clang-format on
   StatusOr<google::iam::v1::Policy> GetIamPolicy(
       google::iam::v1::GetIamPolicyRequest const& request, Options opts = {});
 
+  // clang-format off
   ///
   /// Sets the access control policy on a Table or Backup resource.
   /// Replaces any existing policy.
   ///
-  /// @param resource  REQUIRED: The resource for which the policy is being
-  /// specified.
+  /// @param resource  REQUIRED: The resource for which the policy is being specified.
   ///  See the operation documentation for the appropriate value for this field.
-  /// @param policy  REQUIRED: The complete policy to be applied to the
-  /// `resource`. The size of
+  /// @param policy  REQUIRED: The complete policy to be applied to the `resource`. The size of
   ///  the policy is limited to a few 10s of KB. An empty policy is a
   ///  valid policy but certain Cloud Platform services (such as Projects)
   ///  might reject them.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::iam::v1::Policy,google/iam/v1/policy.proto#L96}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.iam.v1.Policy])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.iam.v1.SetIamPolicyRequest]:
-  /// @googleapis_reference_link{google/iam/v1/iam_policy.proto#L101}
-  /// [google.iam.v1.Policy]:
-  /// @googleapis_reference_link{google/iam/v1/policy.proto#L96}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.iam.v1.Policy]: @googleapis_reference_link{google/iam/v1/policy.proto#L102}
+  /// [google.iam.v1.SetIamPolicyRequest]: @googleapis_reference_link{google/iam/v1/iam_policy.proto#L100}
   ///
+  // clang-format on
   StatusOr<google::iam::v1::Policy> SetIamPolicy(
       std::string const& resource, google::iam::v1::Policy const& policy,
       Options opts = {});
@@ -830,114 +1986,162 @@ class BigtableTableAdminClient {
                                                  IamUpdater const& updater,
                                                  Options opts = {});
 
+  // clang-format off
   ///
   /// Sets the access control policy on a Table or Backup resource.
   /// Replaces any existing policy.
   ///
-  /// @param request
-  /// @googleapis_link{google::iam::v1::SetIamPolicyRequest,google/iam/v1/iam_policy.proto#L101}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.iam.v1.SetIamPolicyRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::iam::v1::Policy,google/iam/v1/policy.proto#L96}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.iam.v1.Policy])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.iam.v1.SetIamPolicyRequest]:
-  /// @googleapis_reference_link{google/iam/v1/iam_policy.proto#L101}
-  /// [google.iam.v1.Policy]:
-  /// @googleapis_reference_link{google/iam/v1/policy.proto#L96}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.iam.v1.Policy]: @googleapis_reference_link{google/iam/v1/policy.proto#L102}
+  /// [google.iam.v1.SetIamPolicyRequest]: @googleapis_reference_link{google/iam/v1/iam_policy.proto#L100}
   ///
+  // clang-format on
   StatusOr<google::iam::v1::Policy> SetIamPolicy(
       google::iam::v1::SetIamPolicyRequest const& request, Options opts = {});
 
+  // clang-format off
   ///
   /// Returns permissions that the caller has on the specified Table or Backup
   /// resource.
   ///
-  /// @param resource  REQUIRED: The resource for which the policy detail is
-  /// being requested.
+  /// @param resource  REQUIRED: The resource for which the policy detail is being requested.
   ///  See the operation documentation for the appropriate value for this field.
-  /// @param permissions  The set of permissions to check for the `resource`.
-  /// Permissions with
+  /// @param permissions  The set of permissions to check for the `resource`. Permissions with
   ///  wildcards (such as '*' or 'storage.*') are not allowed. For more
   ///  information see
   ///  [IAM Overview](https://cloud.google.com/iam/docs/overview#permissions).
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::iam::v1::TestIamPermissionsResponse,google/iam/v1/iam_policy.proto#L151}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.iam.v1.TestIamPermissionsResponse])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.iam.v1.TestIamPermissionsRequest]:
-  /// @googleapis_reference_link{google/iam/v1/iam_policy.proto#L136}
-  /// [google.iam.v1.TestIamPermissionsResponse]:
-  /// @googleapis_reference_link{google/iam/v1/iam_policy.proto#L151}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.iam.v1.TestIamPermissionsRequest]: @googleapis_reference_link{google/iam/v1/iam_policy.proto#L137}
+  /// [google.iam.v1.TestIamPermissionsResponse]: @googleapis_reference_link{google/iam/v1/iam_policy.proto#L153}
   ///
+  // clang-format on
   StatusOr<google::iam::v1::TestIamPermissionsResponse> TestIamPermissions(
       std::string const& resource, std::vector<std::string> const& permissions,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Returns permissions that the caller has on the specified Table or Backup
   /// resource.
   ///
-  /// @param request
-  /// @googleapis_link{google::iam::v1::TestIamPermissionsRequest,google/iam/v1/iam_policy.proto#L136}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.iam.v1.TestIamPermissionsRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::iam::v1::TestIamPermissionsResponse,google/iam/v1/iam_policy.proto#L151}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.iam.v1.TestIamPermissionsResponse])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.iam.v1.TestIamPermissionsRequest]:
-  /// @googleapis_reference_link{google/iam/v1/iam_policy.proto#L136}
-  /// [google.iam.v1.TestIamPermissionsResponse]:
-  /// @googleapis_reference_link{google/iam/v1/iam_policy.proto#L151}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.iam.v1.TestIamPermissionsRequest]: @googleapis_reference_link{google/iam/v1/iam_policy.proto#L137}
+  /// [google.iam.v1.TestIamPermissionsResponse]: @googleapis_reference_link{google/iam/v1/iam_policy.proto#L153}
   ///
+  // clang-format on
   StatusOr<google::iam::v1::TestIamPermissionsResponse> TestIamPermissions(
       google::iam::v1::TestIamPermissionsRequest const& request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Checks replication consistency based on a consistency token, that is, if
   /// replication has caught up based on the conditions specified in the token
   /// and the check request.
   ///
-  /// @param name  Required. The unique name of the Table for which to check
-  /// replication consistency.
-  ///  Values are of the form
+  /// @param name  Required. The unique name of the Table for which to check replication
+  ///  consistency. Values are of the form
   ///  `projects/{project}/instances/{instance}/tables/{table}`.
-  /// @param consistency_token  Required. The token created using
-  /// GenerateConsistencyToken for the Table.
+  /// @param consistency_token  Required. The token created using GenerateConsistencyToken for the Table.
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::CheckConsistencyResponse,google/bigtable/admin/v2/bigtable_table_admin.proto#L749}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.bigtable.admin.v2.CheckConsistencyResponse])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.bigtable.admin.v2.CheckConsistencyRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L732}
-  /// [google.bigtable.admin.v2.CheckConsistencyResponse]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L749}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.CheckConsistencyRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L826}
+  /// [google.bigtable.admin.v2.CheckConsistencyResponse]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L865}
   ///
+  // clang-format on
   future<StatusOr<google::bigtable::admin::v2::CheckConsistencyResponse>>
   AsyncCheckConsistency(std::string const& name,
                         std::string const& consistency_token,
                         Options opts = {});
 
+  // clang-format off
   ///
   /// Checks replication consistency based on a consistency token, that is, if
   /// replication has caught up based on the conditions specified in the token
   /// and the check request.
   ///
-  /// @param request
-  /// @googleapis_link{google::bigtable::admin::v2::CheckConsistencyRequest,google/bigtable/admin/v2/bigtable_table_admin.proto#L732}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.bigtable.admin.v2.CheckConsistencyRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::bigtable::admin::v2::CheckConsistencyResponse,google/bigtable/admin/v2/bigtable_table_admin.proto#L749}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.bigtable.admin.v2.CheckConsistencyResponse])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.bigtable.admin.v2.CheckConsistencyRequest]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L732}
-  /// [google.bigtable.admin.v2.CheckConsistencyResponse]:
-  /// @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L749}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.bigtable.admin.v2.CheckConsistencyRequest]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L826}
+  /// [google.bigtable.admin.v2.CheckConsistencyResponse]: @googleapis_reference_link{google/bigtable/admin/v2/bigtable_table_admin.proto#L865}
   ///
+  // clang-format on
   future<StatusOr<google::bigtable::admin::v2::CheckConsistencyResponse>>
   AsyncCheckConsistency(
       google::bigtable::admin::v2::CheckConsistencyRequest const& request,

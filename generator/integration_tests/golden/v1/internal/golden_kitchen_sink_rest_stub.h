@@ -19,11 +19,15 @@
 #ifndef GOOGLE_CLOUD_CPP_GENERATOR_INTEGRATION_TESTS_GOLDEN_V1_INTERNAL_GOLDEN_KITCHEN_SINK_REST_STUB_H
 #define GOOGLE_CLOUD_CPP_GENERATOR_INTEGRATION_TESTS_GOLDEN_V1_INTERNAL_GOLDEN_KITCHEN_SINK_REST_STUB_H
 
+#include "google/cloud/completion_queue.h"
 #include "google/cloud/internal/rest_client.h"
 #include "google/cloud/internal/rest_context.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/version.h"
 #include <generator/integration_tests/backup.pb.h>
+#include <google/cloud/location/locations.pb.h>
+#include <google/iam/v1/iam_policy.pb.h>
+#include <google/longrunning/operations.pb.h>
 #include <generator/integration_tests/test.pb.h>
 #include <memory>
 
@@ -38,35 +42,47 @@ class GoldenKitchenSinkRestStub {
 
   virtual StatusOr<google::test::admin::database::v1::GenerateAccessTokenResponse> GenerateAccessToken(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::GenerateAccessTokenRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::GenerateAccessTokenRequest const& request) = 0;
 
   virtual StatusOr<google::test::admin::database::v1::GenerateIdTokenResponse> GenerateIdToken(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::GenerateIdTokenRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::GenerateIdTokenRequest const& request) = 0;
 
   virtual StatusOr<google::test::admin::database::v1::WriteLogEntriesResponse> WriteLogEntries(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::WriteLogEntriesRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::WriteLogEntriesRequest const& request) = 0;
 
   virtual StatusOr<google::test::admin::database::v1::ListLogsResponse> ListLogs(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ListLogsRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::ListLogsRequest const& request) = 0;
 
   virtual StatusOr<google::test::admin::database::v1::ListServiceAccountKeysResponse> ListServiceAccountKeys(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ListServiceAccountKeysRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::ListServiceAccountKeysRequest const& request) = 0;
 
   virtual Status DoNothing(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::protobuf::Empty const& request) = 0;
+      Options const& options, google::protobuf::Empty const& request) = 0;
 
   virtual Status ExplicitRouting1(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ExplicitRoutingRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::ExplicitRoutingRequest const& request) = 0;
 
   virtual Status ExplicitRouting2(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ExplicitRoutingRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::ExplicitRoutingRequest const& request) = 0;
+
+  virtual StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::rest_internal::RestContext& rest_context,
+      Options const& options, google::cloud::location::GetLocationRequest const& request) = 0;
+
+  virtual StatusOr<google::iam::v1::Policy> GetIamPolicy(
+      google::cloud::rest_internal::RestContext& rest_context,
+      Options const& options, google::iam::v1::GetIamPolicyRequest const& request) = 0;
+
+  virtual StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      google::cloud::rest_internal::RestContext& rest_context,
+      Options const& options, google::longrunning::ListOperationsRequest const& request) = 0;
 };
 
 class DefaultGoldenKitchenSinkRestStub : public GoldenKitchenSinkRestStub {
@@ -75,43 +91,55 @@ class DefaultGoldenKitchenSinkRestStub : public GoldenKitchenSinkRestStub {
 
   explicit DefaultGoldenKitchenSinkRestStub(Options options);
   DefaultGoldenKitchenSinkRestStub(
-      std::shared_ptr<rest_internal::RestClient> rest_client,
+      std::shared_ptr<rest_internal::RestClient> service,
       Options options);
 
   StatusOr<google::test::admin::database::v1::GenerateAccessTokenResponse> GenerateAccessToken(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::GenerateAccessTokenRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::GenerateAccessTokenRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::GenerateIdTokenResponse> GenerateIdToken(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::GenerateIdTokenRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::GenerateIdTokenRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::WriteLogEntriesResponse> WriteLogEntries(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::WriteLogEntriesRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::WriteLogEntriesRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::ListLogsResponse> ListLogs(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ListLogsRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::ListLogsRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::ListServiceAccountKeysResponse> ListServiceAccountKeys(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ListServiceAccountKeysRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::ListServiceAccountKeysRequest const& request) override;
 
   Status DoNothing(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::protobuf::Empty const& request) override;
+      Options const& options, google::protobuf::Empty const& request) override;
 
   Status ExplicitRouting1(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ExplicitRoutingRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::ExplicitRoutingRequest const& request) override;
 
   Status ExplicitRouting2(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ExplicitRoutingRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::ExplicitRoutingRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::rest_internal::RestContext& rest_context,
+      Options const& options, google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::iam::v1::Policy> GetIamPolicy(
+      google::cloud::rest_internal::RestContext& rest_context,
+      Options const& options, google::iam::v1::GetIamPolicyRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      google::cloud::rest_internal::RestContext& rest_context,
+      Options const& options, google::longrunning::ListOperationsRequest const& request) override;
 
  private:
-  std::shared_ptr<rest_internal::RestClient> rest_client_;
+  std::shared_ptr<rest_internal::RestClient> service_;
   Options options_;
 };
 

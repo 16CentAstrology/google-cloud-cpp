@@ -38,15 +38,14 @@ class DatabaseAdminLogging : public DatabaseAdminStub {
 
   ~DatabaseAdminLogging() override = default;
 
-  //@{
+  ///@{
   /**
    * @name Override the functions from `DatabaseAdminStub`.
    *
    * Run the logging loop (if appropriate) for the child DatabaseAdminStub.
    */
-  ///
   future<StatusOr<google::longrunning::Operation>> AsyncCreateDatabase(
-      CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
+      CompletionQueue&, std::shared_ptr<grpc::ClientContext>,
       google::spanner::admin::database::v1::CreateDatabaseRequest const&)
       override;
 
@@ -61,7 +60,7 @@ class DatabaseAdminLogging : public DatabaseAdminStub {
       override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncUpdateDatabaseDdl(
-      CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
+      CompletionQueue&, std::shared_ptr<grpc::ClientContext>,
       google::spanner::admin::database::v1::UpdateDatabaseDdlRequest const&)
       override;
 
@@ -77,7 +76,7 @@ class DatabaseAdminLogging : public DatabaseAdminStub {
       override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncRestoreDatabase(
-      CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
+      CompletionQueue&, std::shared_ptr<grpc::ClientContext>,
       google::spanner::admin::database::v1::RestoreDatabaseRequest const&)
       override;
 
@@ -94,7 +93,7 @@ class DatabaseAdminLogging : public DatabaseAdminStub {
       google::iam::v1::TestIamPermissionsRequest const& request) override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncCreateBackup(
-      CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
+      CompletionQueue&, std::shared_ptr<grpc::ClientContext>,
       google::spanner::admin::database::v1::CreateBackupRequest const&)
       override;
 
@@ -130,13 +129,13 @@ class DatabaseAdminLogging : public DatabaseAdminStub {
                              ListDatabaseOperationsRequest const&) override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
-      CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
+      CompletionQueue&, std::shared_ptr<grpc::ClientContext>,
       google::longrunning::GetOperationRequest const&) override;
 
   future<Status> AsyncCancelOperation(
-      CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
+      CompletionQueue&, std::shared_ptr<grpc::ClientContext>,
       google::longrunning::CancelOperationRequest const&) override;
-  //@}
+  ///@}
 
  private:
   std::shared_ptr<DatabaseAdminStub> child_;

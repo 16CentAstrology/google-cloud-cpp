@@ -40,32 +40,52 @@ class TransitionRouteGroupsAuth : public TransitionRouteGroupsStub {
 
   StatusOr<google::cloud::dialogflow::cx::v3::ListTransitionRouteGroupsResponse>
   ListTransitionRouteGroups(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::ListTransitionRouteGroupsRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::TransitionRouteGroup>
   GetTransitionRouteGroup(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetTransitionRouteGroupRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::TransitionRouteGroup>
   CreateTransitionRouteGroup(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::
           CreateTransitionRouteGroupRequest const& request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::TransitionRouteGroup>
   UpdateTransitionRouteGroup(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::
           UpdateTransitionRouteGroupRequest const& request) override;
 
   Status DeleteTransitionRouteGroup(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::
           DeleteTransitionRouteGroupRequest const& request) override;
+
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
 
  private:
   std::shared_ptr<google::cloud::internal::GrpcAuthenticationStrategy> auth_;

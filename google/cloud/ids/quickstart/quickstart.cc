@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/ids/ids_client.h"
+//! [all]
+#include "google/cloud/ids/v1/ids_client.h"
+#include "google/cloud/location.h"
 #include <iostream>
 
 int main(int argc, char* argv[]) try {
@@ -21,11 +23,12 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace ids = ::google::cloud::ids;
+  auto const location = google::cloud::Location(argv[1], "-");
+
+  namespace ids = ::google::cloud::ids_v1;
   auto client = ids::IDSClient(ids::MakeIDSConnection());
 
-  auto const parent = std::string{"projects/"} + argv[1] + "/locations/-";
-  for (auto ep : client.ListEndpoints(parent)) {
+  for (auto ep : client.ListEndpoints(location.FullName())) {
     if (!ep) throw std::move(ep).status();
     std::cout << ep->DebugString() << "\n";
   }
@@ -35,3 +38,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

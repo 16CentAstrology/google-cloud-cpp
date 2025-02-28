@@ -26,6 +26,20 @@ function (google_cloud_cpp_add_protos_property)
                  "List of .proto files specified for a target.")
 endfunction ()
 
+# We use this call enough times to warrant factoring it out.
+#
+# Set `out_VAR` to the value of `in_VAR`, if `in_VAR` is set. Otherwise, set it
+# to ${CMAKE_CURRENT_BINARY_DIR}.
+function (google_cloud_cpp_set_out_directory in_VAR out_VAR)
+    set(dir "${CMAKE_CURRENT_BINARY_DIR}")
+    if (${in_VAR})
+        set(dir "${${in_VAR}}")
+    endif ()
+    set(${out_VAR}
+        "${dir}"
+        PARENT_SCOPE)
+endfunction ()
+
 # Generate C++ for .proto files preserving the directory hierarchy
 #
 # Receives a list of `.proto` file names and (a) creates the runs to convert
@@ -42,9 +56,6 @@ endfunction ()
 # Use the `PROTO_PATH` option to provide one or more directories to search for
 # proto files in the import.
 #
-# If `LOCAL_INCLUDE` is set to true, `file.pb.cc` file generated for
-# `a/b/file.proto` will include `file.pb.h` rather than `a/b/file.pb.h`.
-#
 # @par Example
 #
 # google_cloud_cpp_generate_proto( MY_PB_FILES "foo/bar/baz.proto"
@@ -56,8 +67,9 @@ endfunction ()
 # `foo/bar/baz.proto` then the directory containing `foo` must be in the search
 # path.
 function (google_cloud_cpp_generate_proto SRCS)
-    cmake_parse_arguments(_opt "LOCAL_INCLUDE" "" "PROTO_PATH_DIRECTORIES"
+    cmake_parse_arguments(_opt "" "OUT_DIRECTORY" "PROTO_PATH_DIRECTORIES"
                           ${ARGN})
+    google_cloud_cpp_set_out_directory(_opt_OUT_DIRECTORY OUT_DIR)
     if (NOT _opt_UNPARSED_ARGUMENTS)
         message(SEND_ERROR "Error: google_cloud_cpp_generate_proto() called"
                            " without any proto files")
@@ -67,7 +79,7 @@ function (google_cloud_cpp_generate_proto SRCS)
     # Build the list of `--proto_path` options. Use the absolute path for each
     # option given, and do not include any path more than once.
     set(protobuf_include_path)
-    foreach (dir ${_opt_PROTO_PATH_DIRECTORIES})
+    foreach (dir IN LISTS _opt_PROTO_PATH_DIRECTORIES)
         get_filename_component(absolute_path ${dir} ABSOLUTE)
         list(FIND protobuf_include_path "${absolute_path}"
              already_in_search_path)
@@ -77,7 +89,7 @@ function (google_cloud_cpp_generate_proto SRCS)
     endforeach ()
 
     set(${SRCS})
-    foreach (file_path ${_opt_UNPARSED_ARGUMENTS})
+    foreach (file_path IN LISTS _opt_UNPARSED_ARGUMENTS)
         get_filename_component(file_directory "${file_path}" DIRECTORY)
         get_filename_component(file_name "${file_path}" NAME)
         # This gets the file name without the ".proto" extension. We would like
@@ -89,37 +101,25 @@ function (google_cloud_cpp_generate_proto SRCS)
         # source proto directory
         set(D "${file_directory}")
         if (DEFINED _opt_PROTO_PATH_DIRECTORIES)
-            foreach (P ${_opt_PROTO_PATH_DIRECTORIES})
+            foreach (P IN LISTS _opt_PROTO_PATH_DIRECTORIES)
                 string(REGEX REPLACE "^${P}" "" T "${D}")
                 set(D ${T})
             endforeach ()
         endif ()
-        set(pb_cc "${CMAKE_CURRENT_BINARY_DIR}/${D}/${file_stem}.pb.cc")
-        set(pb_h "${CMAKE_CURRENT_BINARY_DIR}/${D}/${file_stem}.pb.h")
+        set(pb_cc "${OUT_DIR}/${D}/${file_stem}.pb.cc")
+        set(pb_h "${OUT_DIR}/${D}/${file_stem}.pb.h")
         list(APPEND ${SRCS} "${pb_cc}" "${pb_h}")
 
-        if (${_opt_LOCAL_INCLUDE})
-            add_custom_command(
-                OUTPUT "${pb_cc}" "${pb_h}"
-                COMMAND
-                    $<TARGET_FILE:protobuf::protoc> ARGS --cpp_out
-                    "${CMAKE_CURRENT_BINARY_DIR}/${D}" ${protobuf_include_path}
-                    "${file_name}"
-                DEPENDS "${file_path}" protobuf::protoc
-                WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${D}"
-                COMMENT "Running C++ protocol buffer compiler on ${file_path}"
-                VERBATIM)
-        else ()
-            add_custom_command(
-                OUTPUT "${pb_cc}" "${pb_h}"
-                COMMAND
-                    $<TARGET_FILE:protobuf::protoc> ARGS --cpp_out
-                    "${CMAKE_CURRENT_BINARY_DIR}" ${protobuf_include_path}
-                    "${file_path}"
-                DEPENDS "${file_path}" protobuf::protoc
-                COMMENT "Running C++ protocol buffer compiler on ${file_path}"
-                VERBATIM)
+        if (NOT Protobuf_PROTOC_EXECUTABLE)
+            set(Protobuf_PROTOC_EXECUTABLE $<TARGET_FILE:protobuf::protoc>)
         endif ()
+        add_custom_command(
+            OUTPUT "${pb_cc}" "${pb_h}"
+            COMMAND ${Protobuf_PROTOC_EXECUTABLE} ARGS --cpp_out "${OUT_DIR}"
+                    ${protobuf_include_path} "${file_path}"
+            DEPENDS "${file_path}"
+            COMMENT "Running C++ protocol buffer compiler on ${file_path}"
+            VERBATIM)
     endforeach ()
 
     set_source_files_properties(${${SRCS}} PROPERTIES GENERATED TRUE)
@@ -155,7 +155,9 @@ endfunction ()
 # `foo/bar/baz.proto` then the directory containing `foo` must be in the search
 # path.
 function (google_cloud_cpp_generate_grpcpp SRCS)
-    cmake_parse_arguments(_opt "" "" "PROTO_PATH_DIRECTORIES" ${ARGN})
+    cmake_parse_arguments(_opt "" "OUT_DIRECTORY" "PROTO_PATH_DIRECTORIES"
+                          ${ARGN})
+    google_cloud_cpp_set_out_directory(_opt_OUT_DIRECTORY OUT_DIR)
     if (NOT _opt_UNPARSED_ARGUMENTS)
         message(
             SEND_ERROR "Error: google_cloud_cpp_generate_grpc() called without"
@@ -193,19 +195,20 @@ function (google_cloud_cpp_generate_grpcpp SRCS)
                 set(D ${T})
             endforeach ()
         endif ()
-        set(grpc_pb_cc
-            "${CMAKE_CURRENT_BINARY_DIR}/${D}/${file_stem}.grpc.pb.cc")
-        set(grpc_pb_h "${CMAKE_CURRENT_BINARY_DIR}/${D}/${file_stem}.grpc.pb.h")
+        set(grpc_pb_cc "${OUT_DIR}/${D}/${file_stem}.grpc.pb.cc")
+        set(grpc_pb_h "${OUT_DIR}/${D}/${file_stem}.grpc.pb.h")
         list(APPEND ${SRCS} "${grpc_pb_cc}" "${grpc_pb_h}")
+        if (NOT Protobuf_PROTOC_EXECUTABLE)
+            set(Protobuf_PROTOC_EXECUTABLE $<TARGET_FILE:protobuf::protoc>)
+        endif ()
         add_custom_command(
             OUTPUT "${grpc_pb_cc}" "${grpc_pb_h}"
             COMMAND
-                $<TARGET_FILE:protobuf::protoc> ARGS
-                --plugin=protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>
-                "--grpc_out=${CMAKE_CURRENT_BINARY_DIR}"
-                "--cpp_out=${CMAKE_CURRENT_BINARY_DIR}" ${protobuf_include_path}
-                "${file_path}"
-            DEPENDS "${file_path}" protobuf::protoc gRPC::grpc_cpp_plugin
+                ${Protobuf_PROTOC_EXECUTABLE} ARGS
+                --plugin=protoc-gen-grpc=${GOOGLE_CLOUD_CPP_GRPC_PLUGIN_EXECUTABLE}
+                "--grpc_out=${OUT_DIR}" "--cpp_out=${OUT_DIR}"
+                ${protobuf_include_path} "${file_path}"
+            DEPENDS "${file_path}"
             COMMENT "Running gRPC C++ protocol buffer compiler on ${file_path}"
             VERBATIM)
     endforeach ()
@@ -232,6 +235,20 @@ endfunction ()
 # ${EXTERNAL_GOOGLEAPIS_SOURCE}/google/bigtable/v2/bigtable.proto
 #
 function (google_cloud_cpp_load_protolist var file)
+    cmake_parse_arguments(
+        _opt
+        # No boolean flags
+        ""
+        # If present PROTO_DIR overrides the default
+        # "${EXTERNAL_GOOGLEAPIS_SOURCE}"
+        "PROTO_DIR"
+        # No multi-argument flags
+        ""
+        ${ARGN})
+    if (NOT DEFINED _opt_PROTO_DIR)
+        set(_opt_PROTO_DIR "${EXTERNAL_GOOGLEAPIS_SOURCE}")
+    endif ()
+
     file(READ "${file}" contents)
     string(REGEX REPLACE "\n" ";" contents "${contents}")
     set(protos)
@@ -241,7 +258,7 @@ function (google_cloud_cpp_load_protolist var file)
         if ("${line}" STREQUAL "")
             continue()
         endif ()
-        list(APPEND protos "${EXTERNAL_GOOGLEAPIS_SOURCE}/${line}")
+        list(APPEND protos "${_opt_PROTO_DIR}/${line}")
     endforeach ()
     set(${var}
         "${protos}"
@@ -270,17 +287,22 @@ function (google_cloud_cpp_load_protodeps var file)
 
     # Omit a target from deps.
     set(targets_to_omit
+        "google-cloud-cpp::cloud_kms_v1_kms_protos"
         "google-cloud-cpp::cloud_orgpolicy_v1_orgpolicy_protos"
         "google-cloud-cpp::cloud_oslogin_common_common_protos"
         "google-cloud-cpp::cloud_recommender_v1_recommender_protos"
         "google-cloud-cpp::identity_accesscontextmanager_type_type_protos")
-    # Replace "google-cloud-cpp::$1" with "google-cloud-cpp:$2" in deps.
+    # Replace "google-cloud-cpp::$1" with "google-cloud-cpp:$2" in deps. The
+    # most common reason to need one of these is a dependency between the protos
+    # in one library vs. the protos in a second library. The AIPs frown upon
+    # such dependencies, but they do happen.
     set(target_substitutions
         "grafeas_v1_grafeas_protos\;grafeas_protos"
+        "iam_v2_policy_protos\;iam_v2_protos"
+        "logging_type_type_protos\;logging_type_protos"
         "identity_accesscontextmanager_v1_accesscontextmanager_protos\;accesscontextmanager_protos"
         "cloud_osconfig_v1_osconfig_protos\;osconfig_protos"
-        "devtools_source_v1_source_protos\;devtools_source_v1_source_context_protos"
-    )
+        "cloud_documentai_v1_documentai_protos\;documentai_protos")
 
     foreach (line IN LISTS contents)
         if ("${line}" STREQUAL "")
@@ -315,13 +337,19 @@ include(GNUInstallDirs)
 
 # Install headers for a C++ proto library.
 function (google_cloud_cpp_install_proto_library_headers target)
+    cmake_parse_arguments(_opt "" "OUT_DIRECTORY" "" ${ARGN})
+    google_cloud_cpp_set_out_directory(_opt_OUT_DIRECTORY OUT_DIR)
+    get_target_property(type ${target} TYPE)
+    if ("${type}" STREQUAL "INTERFACE_LIBRARY")
+        return()
+    endif ()
     get_target_property(target_sources ${target} SOURCES)
     foreach (header ${target_sources})
         # Skip anything that is not a header file.
         if (NOT "${header}" MATCHES "\\.h$")
             continue()
         endif ()
-        string(REPLACE "${CMAKE_CURRENT_BINARY_DIR}/" "" relative "${header}")
+        string(REPLACE "${OUT_DIR}/" "" relative "${header}")
         get_filename_component(dir "${relative}" DIRECTORY)
         install(
             FILES "${header}"
@@ -332,6 +360,12 @@ endfunction ()
 
 # Install protos for a C++ proto library.
 function (google_cloud_cpp_install_proto_library_protos target source_dir)
+    cmake_parse_arguments(_opt "" "OUT_DIRECTORY" "" ${ARGN})
+    google_cloud_cpp_set_out_directory(_opt_OUT_DIRECTORY OUT_DIR)
+    get_target_property(type ${target} TYPE)
+    if ("${type}" STREQUAL "INTERFACE_LIBRARY")
+        return()
+    endif ()
     get_target_property(target_protos ${target} PROTO_SOURCES)
     foreach (header ${target_protos})
         # Skip anything that is not a header file.
@@ -339,7 +373,7 @@ function (google_cloud_cpp_install_proto_library_protos target source_dir)
             continue()
         endif ()
         string(REPLACE "${source_dir}/" "" relative "${header}")
-        string(REPLACE "${CMAKE_CURRENT_BINARY_DIR}/" "" relative "${relative}")
+        string(REPLACE "${OUT_DIR}/" "" relative "${relative}")
         get_filename_component(dir "${relative}" DIRECTORY)
         # This is modeled after the Protobuf library, it installs the basic
         # protos (think google/protobuf/any.proto) in the include directory for
@@ -351,26 +385,21 @@ function (google_cloud_cpp_install_proto_library_protos target source_dir)
     endforeach ()
 endfunction ()
 
-include(EnableWerror)
+include(GoogleCloudCppCommonOptions)
 
 function (google_cloud_cpp_proto_library libname)
-    cmake_parse_arguments(_opt "LOCAL_INCLUDE" "" "PROTO_PATH_DIRECTORIES"
+    cmake_parse_arguments(_opt "" "OUT_DIRECTORY" "PROTO_PATH_DIRECTORIES"
                           ${ARGN})
+    google_cloud_cpp_set_out_directory(_opt_OUT_DIRECTORY OUT_DIR)
     if (NOT _opt_UNPARSED_ARGUMENTS)
         message(SEND_ERROR "Error: google_cloud_cpp_proto_library() called"
                            " without any proto files")
         return()
     endif ()
 
-    if (${_opt_LOCAL_INCLUDE})
-        google_cloud_cpp_generate_proto(
-            proto_sources ${_opt_UNPARSED_ARGUMENTS} LOCAL_INCLUDE
-            PROTO_PATH_DIRECTORIES ${_opt_PROTO_PATH_DIRECTORIES})
-    else ()
-        google_cloud_cpp_generate_proto(
-            proto_sources ${_opt_UNPARSED_ARGUMENTS} PROTO_PATH_DIRECTORIES
-            ${_opt_PROTO_PATH_DIRECTORIES})
-    endif ()
+    google_cloud_cpp_generate_proto(
+        proto_sources ${_opt_UNPARSED_ARGUMENTS} PROTO_PATH_DIRECTORIES
+        ${_opt_PROTO_PATH_DIRECTORIES} OUT_DIRECTORY ${_opt_OUT_DIRECTORY})
 
     add_library(${libname} ${proto_sources})
     set_property(TARGET ${libname} PROPERTY PROTO_SOURCES
@@ -380,10 +409,9 @@ function (google_cloud_cpp_proto_library libname)
     # We want to treat the generated code as "system" headers so they get
     # ignored by the more aggressive warnings.
     target_include_directories(
-        ${libname} SYSTEM PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+        ${libname} SYSTEM PUBLIC $<BUILD_INTERFACE:${OUT_DIR}>
                                  $<INSTALL_INTERFACE:include>)
-    google_cloud_cpp_silence_warnings_in_deps(${libname})
-    set_target_properties(${libname} PROPERTIES CXX_CLANG_TIDY "")
+    google_cloud_cpp_add_common_options(${libname} NO_WARNINGS)
     if (MSVC)
         # The protobuf-generated files have warnings under the default MSVC
         # settings. We are not interested in these warnings, because we cannot
@@ -398,7 +426,8 @@ function (google_cloud_cpp_proto_library libname)
 endfunction ()
 
 function (google_cloud_cpp_grpcpp_library libname)
-    cmake_parse_arguments(_opt "" "" "PROTO_PATH_DIRECTORIES" ${ARGN})
+    cmake_parse_arguments(_opt "" "OUT_DIRECTORY" "PROTO_PATH_DIRECTORIES"
+                          ${ARGN})
     if (NOT _opt_UNPARSED_ARGUMENTS)
         message(SEND_ERROR "Error: google_cloud_cpp_proto_library() called"
                            " without any proto files")
@@ -407,10 +436,10 @@ function (google_cloud_cpp_grpcpp_library libname)
 
     google_cloud_cpp_generate_grpcpp(
         grpcpp_sources ${_opt_UNPARSED_ARGUMENTS} PROTO_PATH_DIRECTORIES
-        ${_opt_PROTO_PATH_DIRECTORIES})
+        ${_opt_PROTO_PATH_DIRECTORIES} OUT_DIRECTORY ${_opt_OUT_DIRECTORY})
     google_cloud_cpp_proto_library(
         ${libname} ${_opt_UNPARSED_ARGUMENTS} PROTO_PATH_DIRECTORIES
-        ${_opt_PROTO_PATH_DIRECTORIES})
+        ${_opt_PROTO_PATH_DIRECTORIES} OUT_DIRECTORY ${_opt_OUT_DIRECTORY})
     target_sources(${libname} PRIVATE ${grpcpp_sources})
 endfunction ()
 
@@ -435,13 +464,13 @@ macro (external_googleapis_install_pc_common target)
     list(
         APPEND
         _target_pc_requires
-        " grpc++"
-        " grpc"
-        " openssl"
-        " protobuf"
-        " zlib"
-        " libcares")
-    string(CONCAT GOOGLE_CLOUD_CPP_PC_REQUIRES ${_target_pc_requires})
+        "grpc++"
+        "grpc"
+        "openssl"
+        "protobuf"
+        "zlib"
+        "libcares")
+    string(JOIN " " GOOGLE_CLOUD_CPP_PC_REQUIRES ${_target_pc_requires})
     get_target_property(_target_type ${target} TYPE)
     if ("${_target_type}" STREQUAL "INTERFACE_LIBRARY")
         set(GOOGLE_CLOUD_CPP_PC_LIBS "")
@@ -462,4 +491,35 @@ function (external_googleapis_install_pc target)
         FILES "${CMAKE_CURRENT_BINARY_DIR}/${target}.pc"
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
         COMPONENT google_cloud_cpp_development)
+endfunction ()
+
+# Find the proto include directory
+#
+# Sometimes (this happens often with vcpkg) protobuf is installed in a non-
+# standard directory. We need to find out where, and then add that directory to
+# the search path for protos.
+macro (google_cloud_cpp_find_proto_include_dir VAR)
+    find_path(${VAR} google/protobuf/descriptor.proto)
+    if (${VAR})
+        list(INSERT PROTOBUF_IMPORT_DIRS 0 "${${VAR}}")
+    endif ()
+endmacro ()
+
+# We used to offer the proto library by another name. Maintain backwards
+# compatibility by providing an interface library with that name. See
+# https://github.com/googleapis/google-cloud-cpp/issues/8022 for more details.
+function (google_cloud_cpp_backwards_compat_protos_library old_name new_name)
+    add_library(google_cloud_cpp_${old_name} INTERFACE)
+    set_target_properties(google_cloud_cpp_${old_name}
+                          PROPERTIES EXPORT_NAME google-cloud-cpp::${old_name})
+    add_library(google-cloud-cpp::${old_name} ALIAS
+                google_cloud_cpp_${old_name})
+    target_link_libraries(
+        google_cloud_cpp_${old_name}
+        PUBLIC
+        INTERFACE google-cloud-cpp::${new_name})
+
+    google_cloud_cpp_add_pkgconfig(
+        ${old_name} "The Google APIS C++ ${old_name} Proto Library"
+        "Compiled proto for C++." "google_cloud_cpp_${new_name}")
 endfunction ()

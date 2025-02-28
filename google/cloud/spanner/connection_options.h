@@ -25,10 +25,18 @@ namespace spanner {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 /**
- * The traits to configure `ConnectionOptions<T>` for Cloud Spanner.
+ * The traits to configure [`ConnectionOptions<T>`] for Cloud Spanner.
  *
- * See `google::cloud::ConnectionOptions<T>` for more details at
- * https://googleapis.dev/cpp/google-cloud-common/latest/
+ * @deprecated Use [`Options`](@ref google::cloud::Options) instead,
+ *     and set (as needed)
+ *     [`EndpointOption`](
+ *     @ref google::cloud::EndpointOption),
+ *     [`UserAgentProductsOption`](
+ *     @ref google::cloud::UserAgentProductsOption), or
+ *     [`GrpcNumChannelsOption`](
+ *     @ref google::cloud::GrpcNumChannelsOption).
+ *
+ * [`ConnectionOptions<T>`]: @ref google::cloud::ConnectionOptions
  */
 struct ConnectionOptionsTraits {
   static std::string default_endpoint();
@@ -39,8 +47,7 @@ struct ConnectionOptionsTraits {
 /**
  * The options for Cloud Spanner connections.
  *
- * See `google::cloud::ConnectionOptions<T>` for more details at
- * https://googleapis.dev/cpp/google-cloud-common/latest/
+ * @deprecated Use [`Options`](@ref google::cloud::Options) instead.
  */
 using ConnectionOptions =
     google::cloud::ConnectionOptions<ConnectionOptionsTraits>;

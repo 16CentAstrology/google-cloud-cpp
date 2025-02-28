@@ -39,6 +39,7 @@
  */
 
 #include "google/cloud/bigtable/idempotent_mutation_policy.h"
+#include "google/cloud/bigtable/retry_policy.h"
 #include "google/cloud/bigtable/rpc_retry_policy.h"
 #include "google/cloud/bigtable/version.h"
 #include "google/cloud/backoff_policy.h"
@@ -70,10 +71,32 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * @see https://cloud.google.com/bigtable/docs/replication-overview#app-profiles
  *     for how app profiles are used to achieve replication.
  *
- * @ingroup bigtable-options
+ * @ingroup google-cloud-bigtable-options
  */
 struct AppProfileIdOption {
   using Type = std::string;
+};
+
+/**
+ * Read rows in reverse order.
+ *
+ * The rows will be streamed in reverse lexicographic order of the keys. This is
+ * particularly useful to get the last N records before a key.
+ *
+ * This option does not affect the contents of the rows, just the order that
+ * the rows are returned.
+ *
+ * @note When using this option, the order of row keys in a `bigtable::RowRange`
+ * does not change. The row keys still must be supplied in lexicographic order.
+ *
+ * @snippet read_snippets.cc reverse scan
+ *
+ * @see https://cloud.google.com/bigtable/docs/reads#reverse-scan
+ *
+ * @ingroup google-cloud-bigtable-options
+ */
+struct ReverseScanOption {
+  using Type = bool;
 };
 
 /**
@@ -112,7 +135,7 @@ struct InstanceAdminEndpointOption {
  *
  * The server will not disconnect idle connections before this time.
  *
- * @ingroup bigtable-options
+ * @ingroup google-cloud-bigtable-options
  */
 struct MinConnectionRefreshOption {
   using Type = std::chrono::milliseconds;
@@ -128,11 +151,43 @@ struct MinConnectionRefreshOption {
  * @note If this value is less than the value of `MinConnectionRefreshOption`,
  * it will be set to the value of `MinConnectionRefreshOption`.
  *
- * @ingroup bigtable-options
+ * @ingroup google-cloud-bigtable-options
  */
 struct MaxConnectionRefreshOption {
   using Type = std::chrono::milliseconds;
 };
+
+namespace experimental {
+
+/**
+ * If set, the client will throttle mutations in batch write jobs.
+ *
+ * This option is for batch write jobs where the goal is to avoid cluster
+ * overload and prevent job failure more than it is to minimize latency or
+ * maximize throughput.
+ *
+ * With this option set, the server rate-limits traffic to avoid overloading
+ * your Bigtable cluster, while ensuring the cluster is under enough load to
+ * trigger Bigtable [autoscaling] (if enabled).
+ *
+ * The [app profile] associated with these requests must be configured for
+ * [single-cluster routing]. See #google::cloud::bigtable::AppProfileIdOption.
+ *
+ * @note This option must be supplied to `MakeDataConnection()` in order to take
+ * effect.
+ *
+ * @see https://cloud.google.com/bigtable/docs/writes#flow-control
+ *
+ * [autoscaling]: https://cloud.google.com/bigtable/docs/autoscaling
+ * [app profile]: https://cloud.google.com/bigtable/docs/app-profiles
+ * [single-cluster routing]:
+ * https://cloud.google.com/bigtable/docs/routing#single-cluster
+ */
+struct BulkApplyThrottlingOption {
+  using Type = bool;
+};
+
+}  // namespace experimental
 
 /// The complete list of options accepted by `bigtable::*Client`
 using ClientOptionList =
@@ -140,21 +195,10 @@ using ClientOptionList =
                InstanceAdminEndpointOption, MinConnectionRefreshOption,
                MaxConnectionRefreshOption>;
 
-using DataRetryPolicy = ::google::cloud::internal::TraitBasedRetryPolicy<
-    bigtable::internal::SafeGrpcRetry>;
-
-using DataLimitedTimeRetryPolicy =
-    ::google::cloud::internal::LimitedTimeRetryPolicy<
-        bigtable::internal::SafeGrpcRetry>;
-
-using DataLimitedErrorCountRetryPolicy =
-    ::google::cloud::internal::LimitedErrorCountRetryPolicy<
-        bigtable::internal::SafeGrpcRetry>;
-
 /**
  * Option to configure the retry policy used by `Table`.
  *
- * @ingroup bigtable-options
+ * @ingroup google-cloud-bigtable-options
  */
 struct DataRetryPolicyOption {
   using Type = std::shared_ptr<DataRetryPolicy>;
@@ -163,16 +207,16 @@ struct DataRetryPolicyOption {
 /**
  * Option to configure the backoff policy used by `Table`.
  *
- * @ingroup bigtable-options
+ * @ingroup google-cloud-bigtable-options
  */
 struct DataBackoffPolicyOption {
   using Type = std::shared_ptr<BackoffPolicy>;
 };
 
 /**
- *  Option to configure the idempotency policy used by `Table`.
+ * Option to configure the idempotency policy used by `Table`.
  *
- * @ingroup bigtable-options
+ * @ingroup google-cloud-bigtable-options
  */
 struct IdempotentMutationPolicyOption {
   using Type = std::shared_ptr<bigtable::IdempotentMutationPolicy>;

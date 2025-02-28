@@ -19,6 +19,7 @@
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/build_info.h"
 #include "google/cloud/internal/getenv.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/internal/random.h"
 #include "google/cloud/log.h"
 #include "google/cloud/options.h"
@@ -26,13 +27,20 @@
 #include "google/cloud/testing_util/timer.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
+#include <algorithm>
+#include <iostream>
+#include <iterator>
+#include <mutex>
+#include <random>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace {
-using ::google::cloud::storage_experimental::DefaultGrpcClient;
 using ::google::cloud::testing_util::FormatSize;
 using ::google::cloud::testing_util::Timer;
 namespace gcs = ::google::cloud::storage;
-namespace gcs_ex = ::google::cloud::storage_experimental;
 namespace gcs_bm = ::google::cloud::storage_benchmarks;
 using gcs_bm::AggregateUploadThroughputOptions;
 using gcs_bm::FormatBandwidthGbPerSecond;
@@ -117,8 +125,7 @@ gcs::Client MakeClient(AggregateUploadThroughputOptions const& options) {
                   .set<gcs::UploadBufferSizeOption>(256 * gcs_bm::kKiB);
 #if GOOGLE_CLOUD_CPP_STORAGE_HAVE_GRPC
   if (options.api == "GRPC") {
-    return DefaultGrpcClient(
-        std::move(opts).set<gcs_ex::GrpcPluginOption>("media"));
+    return gcs::MakeGrpcClient(std::move(opts));
   }
 #endif  // GOOGLE_CLOUD_CPP_STORAGE_HAVE_GRPC
   return gcs::Client(std::move(opts));
@@ -312,21 +319,17 @@ UploadDetail UploadOneObject(gcs::Client& client,
   using std::chrono::microseconds;
 
   auto const buffer_size = static_cast<std::streamsize>(write_block.size());
-  // The JSON API returns the object metadata after an insert, while the XML API
-  // does not. If the application explicitly requests "filter out all the
-  // fields" from the response, then both APIs are equivalent and the library
-  // prefers XML in that case. Using gcs::Fields() has no effect.
-  auto xml_hack = options.api == "XML" ? gcs::Fields("") : gcs::Fields();
   auto const object_start = clock::now();
   auto const start = std::chrono::system_clock::now();
 
-  auto stream =
-      client.WriteObject(options.bucket_name, upload.object_name, xml_hack);
+  auto stream = client.WriteObject(options.bucket_name, upload.object_name);
   auto object_bytes = std::uint64_t{0};
   while (object_bytes < upload.object_size) {
     auto n = std::min(static_cast<std::uint64_t>(buffer_size),
                       upload.object_size - object_bytes);
-    if (!stream.write(write_block.data(), n)) break;
+    if (!stream.write(write_block.data(), static_cast<std::streamsize>(n))) {
+      break;
+    }
     object_bytes += n;
   }
   stream.Close();
@@ -376,8 +379,8 @@ google::cloud::StatusOr<AggregateUploadThroughputOptions> SelfTest(
     if (!value.empty()) continue;
     std::ostringstream os;
     os << "The environment variable " << var << " is not set or empty";
-    return google::cloud::Status(google::cloud::StatusCode::kUnknown,
-                                 std::move(os).str());
+    return google::cloud::internal::UnknownError(std::move(os).str(),
+                                                 GCP_ERROR_INFO());
   }
   auto bucket_name =
       GetEnv("GOOGLE_CLOUD_CPP_STORAGE_TEST_BUCKET_NAME").value();

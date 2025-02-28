@@ -20,8 +20,8 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_SPANNER_ADMIN_DATABASE_ADMIN_CONNECTION_IDEMPOTENCY_POLICY_H
 
 #include "google/cloud/idempotency.h"
-#include "google/cloud/internal/retry_policy.h"
 #include "google/cloud/version.h"
+#include <google/longrunning/operations.grpc.pb.h>
 #include <google/spanner/admin/database/v1/spanner_database_admin.grpc.pb.h>
 #include <memory>
 
@@ -47,6 +47,10 @@ class DatabaseAdminConnectionIdempotencyPolicy {
 
   virtual google::cloud::Idempotency GetDatabase(
       google::spanner::admin::database::v1::GetDatabaseRequest const& request);
+
+  virtual google::cloud::Idempotency UpdateDatabase(
+      google::spanner::admin::database::v1::UpdateDatabaseRequest const&
+          request);
 
   virtual google::cloud::Idempotency UpdateDatabaseDdl(
       google::spanner::admin::database::v1::UpdateDatabaseDdlRequest const&
@@ -100,6 +104,41 @@ class DatabaseAdminConnectionIdempotencyPolicy {
 
   virtual google::cloud::Idempotency ListDatabaseRoles(
       google::spanner::admin::database::v1::ListDatabaseRolesRequest request);
+
+  virtual google::cloud::Idempotency AddSplitPoints(
+      google::spanner::admin::database::v1::AddSplitPointsRequest const&
+          request);
+
+  virtual google::cloud::Idempotency CreateBackupSchedule(
+      google::spanner::admin::database::v1::CreateBackupScheduleRequest const&
+          request);
+
+  virtual google::cloud::Idempotency GetBackupSchedule(
+      google::spanner::admin::database::v1::GetBackupScheduleRequest const&
+          request);
+
+  virtual google::cloud::Idempotency UpdateBackupSchedule(
+      google::spanner::admin::database::v1::UpdateBackupScheduleRequest const&
+          request);
+
+  virtual google::cloud::Idempotency DeleteBackupSchedule(
+      google::spanner::admin::database::v1::DeleteBackupScheduleRequest const&
+          request);
+
+  virtual google::cloud::Idempotency ListBackupSchedules(
+      google::spanner::admin::database::v1::ListBackupSchedulesRequest request);
+
+  virtual google::cloud::Idempotency ListOperations(
+      google::longrunning::ListOperationsRequest request);
+
+  virtual google::cloud::Idempotency GetOperation(
+      google::longrunning::GetOperationRequest const& request);
+
+  virtual google::cloud::Idempotency DeleteOperation(
+      google::longrunning::DeleteOperationRequest const& request);
+
+  virtual google::cloud::Idempotency CancelOperation(
+      google::longrunning::CancelOperationRequest const& request);
 };
 
 std::unique_ptr<DatabaseAdminConnectionIdempotencyPolicy>

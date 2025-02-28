@@ -13,9 +13,9 @@
 // limitations under the License.
 
 #include "google/cloud/pubsub/internal/default_pull_ack_handler.h"
-#include "google/cloud/pubsub/internal/pull_lease_manager.h"
-#include "google/cloud/pubsub/options.h"
+#include "google/cloud/pubsub/internal/default_pull_lease_manager.h"
 #include "google/cloud/pubsub/retry_policy.h"
+#include "google/cloud/pubsub/testing/mock_pull_lease_manager.h"
 #include "google/cloud/pubsub/testing/mock_subscriber_stub.h"
 #include "google/cloud/pubsub/testing/test_retry_policies.h"
 #include "google/cloud/testing_util/async_sequencer.h"
@@ -29,6 +29,7 @@ namespace pubsub_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
+using ::google::cloud::pubsub_testing::MockPullLeaseManager;
 using ::google::cloud::pubsub_testing::MockSubscriberStub;
 using ::google::cloud::testing_util::AsyncSequencer;
 using ::google::cloud::testing_util::StatusIs;
@@ -44,13 +45,6 @@ using ::testing::Return;
 
 using MockClock =
     ::testing::MockFunction<std::chrono::system_clock::time_point()>;
-
-Options MakeTestOptions() {
-  return google::cloud::pubsub_testing::MakeTestOptions(
-      Options{}
-          .set<pubsub::MaxDeadlineTimeOption>(std::chrono::seconds(300))
-          .set<pubsub::MaxDeadlineExtensionOption>(std::chrono::seconds(10)));
-}
 
 CompletionQueue MakeMockCompletionQueue(AsyncSequencer<bool>& aseq) {
   auto mock = std::make_shared<testing_util::MockCompletionQueueImpl>();
@@ -88,15 +82,16 @@ TEST(PullAckHandlerTest, AckSimple) {
   auto request_matcher = AllOf(
       Property(&AcknowledgeRequest::ack_ids, ElementsAre("test-ack-id")),
       Property(&AcknowledgeRequest::subscription, subscription.FullName()));
-  EXPECT_CALL(*mock, AsyncAcknowledge(_, _, request_matcher))
+  EXPECT_CALL(*mock, AsyncAcknowledge(_, _, _, request_matcher))
       .WillOnce(Return(ByMove(make_ready_future(TransientError()))))
       .WillOnce(
           Return(ByMove(make_ready_future(TransientError("test-ack-id")))))
       .WillOnce(Return(ByMove(make_ready_future(Status{}))));
   AsyncSequencer<bool> aseq;
   auto cq = MakeMockCompletionQueue(aseq);
-  auto handler = absl::make_unique<DefaultPullAckHandler>(
-      cq, mock, MakeTestOptions(), subscription, "test-ack-id", 42);
+  auto handler = std::make_unique<DefaultPullAckHandler>(
+      cq, mock, subscription, "test-ack-id", 42,
+      std::make_shared<MockPullLeaseManager>());
   EXPECT_EQ(handler->delivery_attempt(), 42);
   auto status = handler->ack();
   auto timer = aseq.PopFrontWithName();
@@ -115,12 +110,13 @@ TEST(PullAckHandlerTest, AckPermanentError) {
   auto request_matcher = AllOf(
       Property(&AcknowledgeRequest::ack_ids, ElementsAre("test-ack-id")),
       Property(&AcknowledgeRequest::subscription, subscription.FullName()));
-  EXPECT_CALL(*mock, AsyncAcknowledge(_, _, request_matcher))
+  EXPECT_CALL(*mock, AsyncAcknowledge(_, _, _, request_matcher))
       .WillOnce(Return(ByMove(make_ready_future(PermanentError()))));
   AsyncSequencer<bool> aseq;
   auto cq = MakeMockCompletionQueue(aseq);
-  auto handler = absl::make_unique<DefaultPullAckHandler>(
-      cq, mock, MakeTestOptions(), subscription, "test-ack-id", 42);
+  auto handler = std::make_unique<DefaultPullAckHandler>(
+      cq, mock, subscription, "test-ack-id", 42,
+      std::make_shared<MockPullLeaseManager>());
   EXPECT_EQ(handler->delivery_attempt(), 42);
   auto status = handler->ack();
   EXPECT_THAT(status.get(),
@@ -136,15 +132,16 @@ TEST(PullAckHandlerTest, NackSimple) {
       Property(&ModifyAckDeadlineRequest::ack_deadline_seconds, 0),
       Property(&ModifyAckDeadlineRequest::subscription,
                subscription.FullName()));
-  EXPECT_CALL(*mock, AsyncModifyAckDeadline(_, _, request_matcher))
+  EXPECT_CALL(*mock, AsyncModifyAckDeadline(_, _, _, request_matcher))
       .WillOnce(Return(ByMove(make_ready_future(TransientError()))))
       .WillOnce(
           Return(ByMove(make_ready_future(TransientError("test-ack-id")))))
       .WillOnce(Return(ByMove(make_ready_future(Status{}))));
   AsyncSequencer<bool> aseq;
   auto cq = MakeMockCompletionQueue(aseq);
-  auto handler = absl::make_unique<DefaultPullAckHandler>(
-      cq, mock, MakeTestOptions(), subscription, "test-ack-id", 42);
+  auto handler = std::make_unique<DefaultPullAckHandler>(
+      cq, mock, subscription, "test-ack-id", 42,
+      std::make_shared<MockPullLeaseManager>());
   EXPECT_EQ(handler->delivery_attempt(), 42);
   auto status = handler->nack();
   auto timer = aseq.PopFrontWithName();
@@ -165,16 +162,52 @@ TEST(PullAckHandlerTest, NackPermanentError) {
       Property(&ModifyAckDeadlineRequest::ack_deadline_seconds, 0),
       Property(&ModifyAckDeadlineRequest::subscription,
                subscription.FullName()));
-  EXPECT_CALL(*mock, AsyncModifyAckDeadline(_, _, request_matcher))
+  EXPECT_CALL(*mock, AsyncModifyAckDeadline(_, _, _, request_matcher))
       .WillOnce(Return(ByMove(make_ready_future(PermanentError()))));
   AsyncSequencer<bool> aseq;
   auto cq = MakeMockCompletionQueue(aseq);
-  auto handler = absl::make_unique<DefaultPullAckHandler>(
-      cq, mock, MakeTestOptions(), subscription, "test-ack-id", 42);
+  auto handler = std::make_unique<DefaultPullAckHandler>(
+      cq, mock, subscription, "test-ack-id", 42,
+      std::make_shared<MockPullLeaseManager>());
   EXPECT_EQ(handler->delivery_attempt(), 42);
   auto status = handler->nack();
   EXPECT_THAT(status.get(),
               StatusIs(StatusCode::kPermissionDenied, HasSubstr("uh-oh")));
+}
+
+TEST(PullAckHandlerTest, StartsLeaseManager) {
+  auto subscription = pubsub::Subscription("test-project", "test-subscription");
+
+  auto mock = std::make_shared<MockSubscriberStub>();
+  AsyncSequencer<bool> aseq;
+  auto cq = MakeMockCompletionQueue(aseq);
+  auto lm = std::make_shared<MockPullLeaseManager>();
+  EXPECT_CALL(*lm, StartLeaseLoop()).Times(1);
+  auto handler = std::make_unique<DefaultPullAckHandler>(cq, mock, subscription,
+                                                         "test-ack-id", 42, lm);
+}
+
+TEST(AckHandlerTest, Subscription) {
+  auto subscription = pubsub::Subscription("test-project", "test-subscription");
+  auto mock = std::make_shared<MockSubscriberStub>();
+  AsyncSequencer<bool> aseq;
+  auto cq = MakeMockCompletionQueue(aseq);
+  auto handler = std::make_unique<DefaultPullAckHandler>(
+      cq, mock, subscription, "test-ack-id", 42,
+      std::make_shared<MockPullLeaseManager>());
+
+  EXPECT_EQ(handler->subscription(), subscription);
+}
+
+TEST(AckHandlerTest, AckId) {
+  auto mock = std::make_shared<MockSubscriberStub>();
+  AsyncSequencer<bool> aseq;
+  auto cq = MakeMockCompletionQueue(aseq);
+  auto handler = std::make_unique<DefaultPullAckHandler>(
+      cq, mock, pubsub::Subscription("test-project", "test-subscription"),
+      "test-ack-id", 42, std::make_shared<MockPullLeaseManager>());
+
+  EXPECT_EQ(handler->ack_id(), "test-ack-id");
 }
 
 }  // namespace

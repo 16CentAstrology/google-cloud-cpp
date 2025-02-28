@@ -16,6 +16,7 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_PUBSUB_MESSAGE_H
 
 #include "google/cloud/pubsub/version.h"
+#include "absl/strings/string_view.h"
 #include <google/pubsub/v1/pubsub.pb.h>
 #include <chrono>
 #include <iosfwd>
@@ -36,9 +37,16 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 ::google::pubsub::v1::PubsubMessage const& ToProto(pubsub::Message const&);
 ::google::pubsub::v1::PubsubMessage&& ToProto(pubsub::Message&&);
 pubsub::Message FromProto(::google::pubsub::v1::PubsubMessage);
-
 /// Estimate the size of a message.
 std::size_t MessageSize(pubsub::Message const&);
+std::size_t MessageProtoSize(::google::pubsub::v1::PubsubMessage const& m);
+// For Open Telemetry tracing only. Inserts or sets an attribute on the message.
+void SetAttribute(std::string const& key, std::string value, pubsub::Message&);
+// For Open Telemetry tracing only. Returns the value for a given attribute key
+// on the message or the null string_view when not found. Note: the string_view
+// is only valid for the lifetime of the corresponding message.
+absl::string_view GetAttribute(std::string const& key, pubsub::Message& m);
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace pubsub_internal
 
@@ -65,8 +73,8 @@ class MessageBuilder;
  * write `std::string` where this type appears. For Google projects that must
  * compile both inside and outside Google, this alias may be convenient.
  */
-using PubsubMessageDataType = std::decay<
-    decltype(std::declval<google::pubsub::v1::PubsubMessage>().data())>::type;
+using PubsubMessageDataType = std::decay_t<
+    decltype(std::declval<google::pubsub::v1::PubsubMessage>().data())>;
 
 /**
  * The C++ representation for a Cloud Pub/Sub messages.
@@ -77,7 +85,7 @@ using PubsubMessageDataType = std::decay<
  */
 class Message {
  public:
-  //@{
+  ///@{
   /// @name accessors
   PubsubMessageDataType const& data() const& { return proto_.data(); }
   PubsubMessageDataType&& data() && {
@@ -93,17 +101,17 @@ class Message {
     }
     return r;
   }
-  //@}
+  ///@}
 
-  //@{
+  ///@{
   /// @name Copy and move
   Message(Message const&) = default;
   Message& operator=(Message const&) = default;
   Message(Message&&) = default;
   Message& operator=(Message&&) = default;
-  //@}
+  ///@}
 
-  //@{
+  ///@{
   /// @name Equality operators
   /// Compares two messages.
   friend bool operator==(Message const& a, Message const& b);
@@ -111,7 +119,7 @@ class Message {
   friend bool operator!=(Message const& a, Message const& b) {
     return !(a == b);
   }
-  //@}
+  ///@}
 
   /// Output in protobuf format, this is intended for debugging
   friend std::ostream& operator<<(std::ostream& os, Message const& rhs);
@@ -124,6 +132,11 @@ class Message {
   friend ::google::pubsub::v1::PubsubMessage&& pubsub_internal::ToProto(
       Message&& m);
   friend std::size_t pubsub_internal::MessageSize(Message const&);
+  friend void pubsub_internal::SetAttribute(std::string const& key,
+                                            std::string value,
+                                            pubsub::Message&);
+  friend absl::string_view pubsub_internal::GetAttribute(std::string const& key,
+                                                         pubsub::Message&);
 
   /// Construct `Message` objects.
   friend class MessageBuilder;
@@ -263,30 +276,6 @@ class MessageBuilder {
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace pubsub
-
-namespace pubsub_internal {
-GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
-inline ::google::pubsub::v1::PubsubMessage const& ToProto(
-    pubsub::Message const& m) {
-  return m.proto_;
-}
-
-inline ::google::pubsub::v1::PubsubMessage&& ToProto(pubsub::Message&& m) {
-  return std::move(m.proto_);
-}
-
-inline pubsub::Message FromProto(::google::pubsub::v1::PubsubMessage m) {
-  return pubsub::Message(std::move(m));
-}
-
-inline std::size_t MessageSize(pubsub::Message const& m) {
-  return m.MessageSize();
-}
-
-std::size_t MessageProtoSize(::google::pubsub::v1::PubsubMessage const& m);
-
-GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
-}  // namespace pubsub_internal
 }  // namespace cloud
 }  // namespace google
 

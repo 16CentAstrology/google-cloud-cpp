@@ -1,4 +1,4 @@
-// Copyright 2018 Google Inc.
+// Copyright 2018 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "google/cloud/bigtable/instance_admin.h"
+#include "google/cloud/location.h"
 #include <sstream>
 #include <string>
 #include <type_traits>
@@ -52,8 +53,8 @@ future<StatusOr<btadmin::Instance>> InstanceAdmin::CreateInstance(
   auto request = std::move(instance_config).as_proto();
   request.set_parent(project_name());
   for (auto& kv : *request.mutable_clusters()) {
-    kv.second.set_location(project_name() + "/locations/" +
-                           kv.second.location());
+    kv.second.set_location(
+        Location(project_id(), kv.second.location()).FullName());
   }
   return connection_->CreateInstance(request);
 }
@@ -63,7 +64,7 @@ future<StatusOr<btadmin::Cluster>> InstanceAdmin::CreateCluster(
     std::string const& cluster_id) {
   google::cloud::internal::OptionsSpan span(options_);
   auto cluster = std::move(cluster_config).as_proto();
-  cluster.set_location(project_name() + "/locations/" + cluster.location());
+  cluster.set_location(Location(project_id(), cluster.location()).FullName());
   btadmin::CreateClusterRequest request;
   request.mutable_cluster()->Swap(&cluster);
   request.set_parent(InstanceName(instance_id));

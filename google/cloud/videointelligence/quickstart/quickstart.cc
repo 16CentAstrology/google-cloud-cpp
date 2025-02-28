@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/videointelligence/video_intelligence_client.h"
+//! [all]
+#include "google/cloud/videointelligence/v1/video_intelligence_client.h"
 #include <google/protobuf/util/time_util.h>
 #include <iostream>
 
@@ -27,7 +28,7 @@ int main(int argc, char* argv[]) try {
   }
   auto uri = std::string{argc == 2 ? argv[1] : kDefaultUri};
 
-  namespace videointelligence = ::google::cloud::videointelligence;
+  namespace videointelligence = ::google::cloud::videointelligence_v1;
   auto client = videointelligence::VideoIntelligenceServiceClient(
       videointelligence::MakeVideoIntelligenceServiceConnection());
 
@@ -68,3 +69,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

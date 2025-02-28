@@ -18,6 +18,10 @@
 #include "google/cloud/internal/format_time_point.h"
 #include <nlohmann/json.hpp>
 #include <functional>
+#include <map>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -129,6 +133,20 @@ Status ParseRetentionExpirationTime(ObjectMetadata& meta,
   return Status{};
 }
 
+Status ParseRetention(ObjectMetadata& meta, nlohmann::json const& json) {
+  auto f = json.find("retention");
+  if (f == json.end()) return Status{};
+
+  auto ts = internal::ParseTimestampField(*f, "retainUntilTime");
+  if (!ts) return std::move(ts).status();
+
+  ObjectRetention retention;
+  retention.mode = f->value("mode", "");
+  retention.retain_until_time = *ts;
+  meta.set_retention(std::move(retention));
+  return Status{};
+}
+
 Status ParseSize(ObjectMetadata& meta, nlohmann::json const& json) {
   auto v = internal::ParseUnsignedLongField(json, "size");
   if (!v) return std::move(v).status();
@@ -172,11 +190,25 @@ Status ParseUpdated(ObjectMetadata& meta, nlohmann::json const& json) {
   return Status{};
 }
 
+Status ParseSoftDeleteTime(ObjectMetadata& meta, nlohmann::json const& json) {
+  auto v = ParseTimestampField(json, "softDeleteTime");
+  if (!v) return std::move(v).status();
+  meta.set_soft_delete_time(*std::move(v));
+  return Status{};
+}
+
+Status ParseHardDeleteTime(ObjectMetadata& meta, nlohmann::json const& json) {
+  auto v = ParseTimestampField(json, "hardDeleteTime");
+  if (!v) return std::move(v).status();
+  meta.set_hard_delete_time(*std::move(v));
+  return Status{};
+}
+
 }  // namespace
 
 StatusOr<ObjectMetadata> ObjectMetadataParser::FromJson(
     nlohmann::json const& json) {
-  if (!json.is_object()) return Status(StatusCode::kInvalidArgument, __func__);
+  if (!json.is_object()) return NotJsonObject(json, GCP_ERROR_INFO());
 
   using Parser = std::function<Status(ObjectMetadata&, nlohmann::json const&)>;
   Parser parsers[] = {
@@ -246,6 +278,7 @@ StatusOr<ObjectMetadata> ObjectMetadataParser::FromJson(
       },
       ParseOwner,
       ParseRetentionExpirationTime,
+      ParseRetention,
       [](ObjectMetadata& meta, nlohmann::json const& json) {
         meta.set_self_link(json.value("selfLink", ""));
         return Status{};
@@ -260,6 +293,8 @@ StatusOr<ObjectMetadata> ObjectMetadataParser::FromJson(
       ParseTimeDeleted,
       ParseTimeStorageClassUpdated,
       ParseUpdated,
+      ParseSoftDeleteTime,
+      ParseHardDeleteTime,
   };
   ObjectMetadata meta;
   for (auto const& p : parsers) {
@@ -313,6 +348,13 @@ nlohmann::json ObjectMetadataJsonForCompose(ObjectMetadata const& meta) {
         google::cloud::internal::FormatRfc3339(meta.custom_time());
   }
 
+  if (meta.has_retention()) {
+    metadata_as_json["retention"] = nlohmann::json{
+        {"mode", meta.retention().mode},
+        {"retainUntilTime", google::cloud::internal::FormatRfc3339(
+                                meta.retention().retain_until_time)}};
+  }
+
   return metadata_as_json;
 }
 
@@ -362,6 +404,13 @@ nlohmann::json ObjectMetadataJsonForUpdate(ObjectMetadata const& meta) {
   if (meta.has_custom_time()) {
     metadata_as_json["customTime"] =
         google::cloud::internal::FormatRfc3339(meta.custom_time());
+  }
+
+  if (meta.has_retention()) {
+    metadata_as_json["retention"] = nlohmann::json{
+        {"mode", meta.retention().mode},
+        {"retainUntilTime", google::cloud::internal::FormatRfc3339(
+                                meta.retention().retain_until_time)}};
   }
 
   return metadata_as_json;

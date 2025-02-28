@@ -13,10 +13,15 @@
 // limitations under the License.
 
 #include "google/cloud/storage/parallel_upload.h"
-#include "absl/memory/memory.h"
+#include "google/cloud/internal/make_status.h"
 #include <nlohmann/json.hpp>
 #include <algorithm>
+#include <memory>
+#include <mutex>
 #include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -26,14 +31,18 @@ namespace internal {
 
 class ParallelObjectWriteStreambuf : public ObjectWriteStreambuf {
  public:
-  ParallelObjectWriteStreambuf(
-      std::shared_ptr<ParallelUploadStateImpl> state, std::size_t stream_idx,
-      std::shared_ptr<RawClient> client, ResumableUploadRequest const& request,
-      std::string upload_id, std::uint64_t committed_size,
-      absl::optional<ObjectMetadata> metadata, std::size_t max_buffer_size)
+  ParallelObjectWriteStreambuf(std::shared_ptr<ParallelUploadStateImpl> state,
+                               std::size_t stream_idx,
+                               std::shared_ptr<StorageConnection> connection,
+                               ResumableUploadRequest const& request,
+                               std::string upload_id,
+                               std::uint64_t committed_size,
+                               absl::optional<ObjectMetadata> metadata,
+                               std::size_t max_buffer_size)
       : ObjectWriteStreambuf(
-            std::move(client), request, std::move(upload_id), committed_size,
-            std::move(metadata), max_buffer_size, CreateHashFunction(request),
+            std::move(connection), request, std::move(upload_id),
+            committed_size, std::move(metadata), max_buffer_size,
+            CreateHashFunction(request),
             internal::HashValues{
                 request.GetOption<Crc32cChecksumValue>().value_or(""),
                 request.GetOption<MD5HashValue>().value_or(""),
@@ -75,11 +84,11 @@ ParallelUploadStateImpl::~ParallelUploadStateImpl() {
 }
 
 StatusOr<ObjectWriteStream> ParallelUploadStateImpl::CreateStream(
-    std::shared_ptr<RawClient> raw_client,
+    std::shared_ptr<StorageConnection> connection,
     ResumableUploadRequest const& request) {
   // Normally this is done by `storage::Client`, but here we are bypassing it:
-  google::cloud::internal::OptionsSpan const span(raw_client->options());
-  auto create = internal::CreateOrResume(*raw_client, request);
+  google::cloud::internal::OptionsSpan const span(connection->options());
+  auto create = internal::CreateOrResume(*connection, request);
 
   std::unique_lock<std::mutex> lk(mu_);
   if (!create) {
@@ -91,14 +100,15 @@ StatusOr<ObjectWriteStream> ParallelUploadStateImpl::CreateStream(
   auto idx = streams_.size();
   ++num_unfinished_streams_;
   streams_.emplace_back(
+      // NOLINTNEXTLINE(modernize-use-emplace) - brace initialization
       StreamInfo{request.object_name(), create->upload_id, {}, false});
   assert(idx < streams_.size());
   lk.unlock();
-  return ObjectWriteStream(absl::make_unique<ParallelObjectWriteStreambuf>(
-      shared_from_this(), idx, std::move(raw_client), request,
+  auto const buffer_size = connection->options().get<UploadBufferSizeOption>();
+  return ObjectWriteStream(std::make_unique<ParallelObjectWriteStreambuf>(
+      shared_from_this(), idx, std::move(connection), request,
       std::move(create->upload_id), create->committed_size,
-      std::move(create->metadata),
-      raw_client->client_options().upload_buffer_size()));
+      std::move(create->metadata), buffer_size));
 }
 
 std::string ParallelUploadPersistentState::ToString() const {
@@ -123,85 +133,94 @@ ParallelUploadPersistentState::FromString(std::string const& json_rep) {
 
   auto json = nlohmann::json::parse(json_rep, nullptr, false);
   if (json.is_discarded()) {
-    return Status(StatusCode::kInternal,
-                  "Parallel upload state is not a valid JSON.");
+    return google::cloud::internal::InternalError(
+        "Parallel upload state is not a valid JSON.", GCP_ERROR_INFO());
   }
   if (!json.is_object()) {
-    return Status(StatusCode::kInternal,
-                  "Parallel upload state is not a JSON object.");
+    return google::cloud::internal::InternalError(
+        "Parallel upload state is not a JSON object.", GCP_ERROR_INFO());
   }
   // `nlohmann::json` doesn't allow for multiple keys with the same name, so
   // there are either 0 or 1 elements with the same key.
   if (json.count("destination") != 1) {
-    return Status(StatusCode::kInternal,
-                  "Parallel upload state doesn't contain a 'destination'.");
+    return google::cloud::internal::InternalError(
+        "Parallel upload state doesn't contain a 'destination'.",
+        GCP_ERROR_INFO());
   }
   auto& destination_json = json["destination"];
   if (!destination_json.is_string()) {
-    return Status(StatusCode::kInternal,
-                  "Parallel upload state's 'destination' is not a string.");
+    return google::cloud::internal::InternalError(
+        "Parallel upload state's 'destination' is not a string.",
+        GCP_ERROR_INFO());
   }
   res.destination_object_name = destination_json.get<std::string>();
   if (json.count("expected_generation") != 1) {
-    return Status(
-        StatusCode::kInternal,
-        "Parallel upload state doesn't contain a 'expected_generation'.");
+    return google::cloud::internal::InternalError(
+        "Parallel upload state doesn't contain a 'expected_generation'.",
+        GCP_ERROR_INFO());
   }
   auto& expected_generation_json = json["expected_generation"];
   if (!expected_generation_json.is_number()) {
-    return Status(
-        StatusCode::kInternal,
-        "Parallel upload state's 'expected_generation' is not a number.");
+    return google::cloud::internal::InternalError(
+        "Parallel upload state's 'expected_generation' is not a number.",
+        GCP_ERROR_INFO());
   }
   res.expected_generation = expected_generation_json;
   if (json.count("custom_data") > 0) {
     auto& custom_data_json = json["custom_data"];
     if (!custom_data_json.is_string()) {
-      return Status(StatusCode::kInternal,
-                    "Parallel upload state's 'custom_data' is not a string.");
+      return google::cloud::internal::InternalError(
+          "Parallel upload state's 'custom_data' is not a string.",
+          GCP_ERROR_INFO());
     }
     res.custom_data = custom_data_json.get<std::string>();
   }
   if (json.count("streams") != 1) {
-    return Status(StatusCode::kInternal,
-                  "Parallel upload state doesn't contain 'streams'.");
+    return google::cloud::internal::InternalError(
+        "Parallel upload state doesn't contain 'streams'.", GCP_ERROR_INFO());
   }
   auto& streams_json = json["streams"];
   if (!streams_json.is_array()) {
-    return Status(StatusCode::kInternal,
-                  "Parallel upload state's 'streams' is not an array.");
+    return google::cloud::internal::InternalError(
+        "Parallel upload state's 'streams' is not an array.", GCP_ERROR_INFO());
   }
   for (auto& stream_json : streams_json) {
     if (!stream_json.is_object()) {
-      return Status(StatusCode::kInternal,
-                    "Parallel upload state's 'stream' is not an object.");
+      return google::cloud::internal::InternalError(
+          "Parallel upload state's 'stream' is not an object.",
+          GCP_ERROR_INFO());
     }
     if (stream_json.count("name") != 1) {
-      return Status(StatusCode::kInternal,
-                    "Parallel upload state's stream doesn't contain a 'name'.");
+      return google::cloud::internal::InternalError(
+          "Parallel upload state's stream doesn't contain a 'name'.",
+          GCP_ERROR_INFO());
     }
     auto object_name_json = stream_json["name"];
     if (!object_name_json.is_string()) {
-      return Status(StatusCode::kInternal,
-                    "Parallel upload state's stream 'name' is not a string.");
+      return google::cloud::internal::InternalError(
+          "Parallel upload state's stream 'name' is not a string.",
+          GCP_ERROR_INFO());
     }
     if (stream_json.count("resumable_session_id") != 1) {
-      return Status(StatusCode::kInternal,
-                    "Parallel upload state's stream doesn't contain a "
-                    "'resumable_session_id'.");
+      return google::cloud::internal::InternalError(
+          "Parallel upload state's stream doesn't contain a "
+          "'resumable_session_id'.",
+          GCP_ERROR_INFO());
     }
     auto resumable_session_id_json = stream_json["resumable_session_id"];
     if (!resumable_session_id_json.is_string()) {
-      return Status(StatusCode::kInternal,
-                    "Parallel upload state's stream 'resumable_session_id' is "
-                    "not a string.");
+      return google::cloud::internal::InternalError(
+          "Parallel upload state's stream 'resumable_session_id' is "
+          "not a string.",
+          GCP_ERROR_INFO());
     }
     res.streams.emplace_back(ParallelUploadPersistentState::Stream{
         object_name_json, resumable_session_id_json});
   }
   if (res.streams.empty()) {
-    return Status(StatusCode::kInternal,
-                  "Parallel upload state's stream doesn't contain any streams");
+    return google::cloud::internal::InternalError(
+        "Parallel upload state's stream doesn't contain any streams",
+        GCP_ERROR_INFO());
   }
   return res;
 }
@@ -209,9 +228,10 @@ ParallelUploadPersistentState::FromString(std::string const& json_rep) {
 Status ParallelUploadStateImpl::EagerCleanup() {
   std::unique_lock<std::mutex> lk(mu_);
   if (!finished_) {
-    return Status(StatusCode::kFailedPrecondition,
-                  "Attempted to cleanup parallel upload state while it is "
-                  "still in progress");
+    return google::cloud::internal::FailedPreconditionError(
+        "Attempted to cleanup parallel upload state while it is "
+        "still in progress",
+        GCP_ERROR_INFO());
   }
   // Make sure that only one thread actually interacts with the deleter.
   if (deleter_) {
@@ -316,7 +336,8 @@ void ParallelUploadStateImpl::StreamDestroyed(std::size_t stream_idx) {
     // it had been `Suspend`ed, hence this parallel upload will never finish.
     if (!res_) {
       // Preserve the first error.
-      res_ = Status(StatusCode::kCancelled, "A stream has been suspended.");
+      res_ = google::cloud::internal::CancelledError(
+          "A stream has been suspended.", GCP_ERROR_INFO());
     }
     if (num_unfinished_streams_ == 0) {
       AllStreamsFinished(lk);
@@ -348,18 +369,19 @@ StatusOr<std::vector<std::uintmax_t>> ParallelFileUploadSplitPointsFromString(
     std::string const& s) {
   auto json = nlohmann::json::parse(s, nullptr, false);
   if (json.is_discarded()) {
-    return Status(StatusCode::kInternal,
-                  "Parallel upload file state is not a valid JSON.");
+    return google::cloud::internal::InternalError(
+        "Parallel upload file state is not a valid JSON.", GCP_ERROR_INFO());
   }
   if (!json.is_array()) {
-    return Status(StatusCode::kInternal,
-                  "Parallel upload file state is not an array.");
+    return google::cloud::internal::InternalError(
+        "Parallel upload file state is not an array.", GCP_ERROR_INFO());
   }
   std::vector<std::uintmax_t> res;
   for (auto const& split_point : json) {
     if (!split_point.is_number()) {
-      return Status(StatusCode::kInternal,
-                    "Parallel upload file state's item is not a number.");
+      return google::cloud::internal::InternalError(
+          "Parallel upload file state's item is not a number.",
+          GCP_ERROR_INFO());
     }
     res.emplace_back(split_point);
   }
@@ -372,9 +394,10 @@ ParallelUploadFileShard::~ParallelUploadFileShard() {
   // actually uploading the file. We should make sure we don't create the
   // destination object and instead fail the whole operation.
   if (state_ != nullptr && left_to_upload_ > 0) {
-    state_->Fail(Status(StatusCode::kCancelled,
-                        "Shard destroyed before calling "
-                        "ParallelUploadFileShard::Upload()."));
+    state_->Fail(google::cloud::internal::CancelledError(
+        "Shard destroyed before calling "
+        "ParallelUploadFileShard::Upload().",
+        GCP_ERROR_INFO()));
     std::move(ostream_).Suspend();
   }
 }
@@ -382,9 +405,7 @@ ParallelUploadFileShard::~ParallelUploadFileShard() {
 Status ParallelUploadFileShard::Upload() {
   std::vector<char> buf(upload_buffer_size_);
 
-  auto fail = [this](StatusCode error_code, std::string const& reason) {
-    Status status(error_code, "ParallelUploadFileShard::Upload(" + file_name_ +
-                                  "): " + reason);
+  auto fail = [this](Status status) {
     state_->Fail(status);
     std::move(ostream_).Suspend();
     left_to_upload_ = 0;
@@ -393,34 +414,46 @@ Status ParallelUploadFileShard::Upload() {
   auto const already_uploaded =
       static_cast<std::int64_t>(ostream_.next_expected_byte());
   if (already_uploaded > left_to_upload_) {
-    return fail(StatusCode::kInternal, "Corrupted upload state, uploaded " +
-                                           std::to_string(already_uploaded) +
-                                           " out of " +
-                                           std::to_string(left_to_upload_));
+    return fail(google::cloud::internal::InternalError(
+        "Corrupted upload state, uploaded " + std::to_string(already_uploaded) +
+            " out of " + std::to_string(left_to_upload_),
+        GCP_ERROR_INFO().WithMetadata("gl-cpp.parallel-upload.filename",
+                                      file_name_)));
   }
   left_to_upload_ -= already_uploaded;
   offset_in_file_ += already_uploaded;
   std::ifstream istream(file_name_, std::ios::binary);
   if (!istream.good()) {
-    return fail(StatusCode::kNotFound, "cannot open upload file source");
+    return fail(google::cloud::internal::NotFoundError(
+        "cannot open upload file source",
+        GCP_ERROR_INFO().WithMetadata("gl-cpp.parallel-upload.filename",
+                                      file_name_)));
   }
 
   istream.seekg(offset_in_file_);
   if (!istream.good()) {
-    return fail(StatusCode::kInternal, "file changed size during upload?");
+    return fail(google::cloud::internal::InternalError(
+        "file changed size during upload?",
+        GCP_ERROR_INFO().WithMetadata("gl-cpp.parallel-upload.filename",
+                                      file_name_)));
   }
   while (left_to_upload_ > 0) {
     auto const to_copy = static_cast<std::streamsize>(
         std::min<std::int64_t>(left_to_upload_, upload_buffer_size_));
     istream.read(buf.data(), to_copy);
     if (!istream.good()) {
-      return fail(StatusCode::kInternal, "cannot read from file source");
+      return fail(google::cloud::internal::InternalError(
+          "cannot read from file source",
+          GCP_ERROR_INFO().WithMetadata("gl-cpp.parallel-upload.filename",
+                                        file_name_)));
     }
     ostream_.write(buf.data(), to_copy);
     if (!ostream_.good()) {
-      return Status(StatusCode::kInternal,
-                    "Writing to output stream failed, look into whole parallel "
-                    "upload status for more information");
+      return google::cloud::internal::InternalError(
+          "Writing to output stream failed, look into whole parallel "
+          "upload status for more information",
+          GCP_ERROR_INFO().WithMetadata("gl-cpp.parallel-upload.filename",
+                                        file_name_));
     }
     left_to_upload_ -= to_copy;
   }
@@ -436,8 +469,8 @@ StatusOr<std::pair<std::string, std::int64_t>> ParseResumableSessionId(
   auto starts_with = [](std::string const& s, std::string const& prefix) {
     return s.substr(0, prefix.size()) == prefix;
   };
-  Status invalid(StatusCode::kInternal,
-                 "Not a valid parallel upload session ID");
+  auto invalid = google::cloud::internal::InternalError(
+      "Not a valid parallel upload session ID", GCP_ERROR_INFO());
 
   auto const prefix = ResumableParallelUploadState::session_id_prefix();
   if (!starts_with(session_id, prefix)) {

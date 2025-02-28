@@ -13,8 +13,8 @@
 // limitations under the License.
 
 #include "generator/integration_tests/golden/v1/internal/golden_thing_admin_round_robin_decorator.h"
-#include "google/cloud/testing_util/status_matchers.h"
 #include "generator/integration_tests/tests/mock_golden_thing_admin_stub.h"
+#include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
 #include <memory>
 
@@ -63,7 +63,8 @@ TEST(GoldenThingAdminRoundRobinDecoratorTest, AsyncCreateDatabase) {
   for (size_t i = 0; i != kRepeats * mocks.size(); ++i) {
     auto status =
         stub.AsyncCreateDatabase(
-                cq, absl::make_unique<grpc::ClientContext>(),
+                cq, std::make_shared<grpc::ClientContext>(),
+                internal::MakeImmutableOptions({}),
                 google::test::admin::database::v1::CreateDatabaseRequest{})
             .get();
     EXPECT_STATUS_OK(status);
@@ -83,8 +84,7 @@ TEST(GoldenThingAdminRoundRobinDecoratorTest, DropDatabase) {
   GoldenThingAdminRoundRobin stub(AsPlainStubs(mocks));
   for (size_t i = 0; i != kRepeats * mocks.size(); ++i) {
     grpc::ClientContext context;
-    auto status = stub.DropDatabase(
-        context, google::test::admin::database::v1::DropDatabaseRequest{});
+    auto status = stub.DropDatabase(context, Options{}, {});
     EXPECT_STATUS_OK(status);
   }
 }
@@ -105,7 +105,8 @@ TEST(GoldenThingAdminRoundRobinDecoratorTest, AsyncGetDatabase) {
   for (size_t i = 0; i != kRepeats * mocks.size(); ++i) {
     auto status =
         stub.AsyncGetDatabase(
-                cq, absl::make_unique<grpc::ClientContext>(),
+                cq, std::make_shared<grpc::ClientContext>(),
+                internal::MakeImmutableOptions({}),
                 google::test::admin::database::v1::GetDatabaseRequest{})
             .get();
     EXPECT_STATUS_OK(status);
@@ -127,7 +128,8 @@ TEST(GoldenThingAdminRoundRobinDecoratorTest, AsyncDropDatabase) {
   for (size_t i = 0; i != kRepeats * mocks.size(); ++i) {
     auto status =
         stub.AsyncDropDatabase(
-                cq, absl::make_unique<grpc::ClientContext>(),
+                cq, std::make_shared<grpc::ClientContext>(),
+                google::cloud::internal::MakeImmutableOptions({}),
                 google::test::admin::database::v1::DropDatabaseRequest{})
             .get();
     EXPECT_STATUS_OK(status);
@@ -149,7 +151,8 @@ TEST(GoldenThingAdminRoundRobinDecoratorTest, AsyncGetOperation) {
   GoldenThingAdminRoundRobin stub(AsPlainStubs(mocks));
   for (size_t i = 0; i != kRepeats * mocks.size(); ++i) {
     auto status =
-        stub.AsyncGetOperation(cq, absl::make_unique<grpc::ClientContext>(),
+        stub.AsyncGetOperation(cq, std::make_shared<grpc::ClientContext>(),
+                               internal::MakeImmutableOptions({}),
                                google::longrunning::GetOperationRequest{})
             .get();
     EXPECT_STATUS_OK(status);
@@ -170,7 +173,8 @@ TEST(GoldenThingAdminRoundRobinDecoratorTest, AsyncCancelOperation) {
   GoldenThingAdminRoundRobin stub(AsPlainStubs(mocks));
   for (size_t i = 0; i != kRepeats * mocks.size(); ++i) {
     auto status =
-        stub.AsyncCancelOperation(cq, absl::make_unique<grpc::ClientContext>(),
+        stub.AsyncCancelOperation(cq, std::make_shared<grpc::ClientContext>(),
+                                  internal::MakeImmutableOptions({}),
                                   google::longrunning::CancelOperationRequest{})
             .get();
     EXPECT_STATUS_OK(status);

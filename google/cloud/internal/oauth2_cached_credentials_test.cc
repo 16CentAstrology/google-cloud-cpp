@@ -27,27 +27,34 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
 using ::google::cloud::internal::UnavailableError;
+using ::google::cloud::testing_util::IsOkAndHolds;
 using ::google::cloud::testing_util::StatusIs;
+using ::testing::_;
 using ::testing::ElementsAreArray;
 using ::testing::Return;
 
 class MockCredentials : public Credentials {
  public:
-  MOCK_METHOD(StatusOr<internal::AccessToken>, GetToken,
+  MOCK_METHOD(StatusOr<AccessToken>, GetToken,
               (std::chrono::system_clock::time_point), (override));
   MOCK_METHOD(StatusOr<std::vector<std::uint8_t>>, SignBlob,
               (absl::optional<std::string> const&, std::string const&),
               (const, override));
   MOCK_METHOD(std::string, AccountEmail, (), (const, override));
   MOCK_METHOD(std::string, KeyId, (), (const, override));
+  MOCK_METHOD(StatusOr<std::string>, universe_domain, (), (const, override));
+  MOCK_METHOD(StatusOr<std::string>, universe_domain, (Options const&),
+              (const, override));
+  MOCK_METHOD(StatusOr<std::string>, project_id, (), (const, override));
+  MOCK_METHOD(StatusOr<std::string>, project_id, (Options const&),
+              (const, override));
 };
 
 TEST(CachedCredentials, GetTokenUncached) {
   auto mock = std::make_shared<MockCredentials>();
   auto const now = std::chrono::system_clock::now();
   auto const tp = now + std::chrono::seconds(123);
-  auto const expected =
-      internal::AccessToken{"test-token", now + std::chrono::hours(1)};
+  auto const expected = AccessToken{"test-token", now + std::chrono::hours(1)};
   EXPECT_CALL(*mock, GetToken(tp)).WillOnce(Return(expected));
   CachedCredentials tested(mock);
   auto actual = tested.GetToken(tp);
@@ -58,8 +65,7 @@ TEST(CachedCredentials, GetTokenUncached) {
 TEST(CachedCredentials, GetTokenReuseWhileNotExpired) {
   auto mock = std::make_shared<MockCredentials>();
   auto const now = std::chrono::system_clock::now();
-  auto const expected =
-      internal::AccessToken{"test-token", now + std::chrono::hours(1)};
+  auto const expected = AccessToken{"test-token", now + std::chrono::hours(1)};
   EXPECT_CALL(*mock, GetToken).WillOnce(Return(expected));
   CachedCredentials tested(mock);
   auto const stop =
@@ -77,11 +83,9 @@ TEST(CachedCredentials, GetTokenExpiredRefresh) {
   auto mock = std::make_shared<MockCredentials>();
   auto const now = std::chrono::system_clock::now();
   auto const tp1 = now;
-  auto const e1 =
-      internal::AccessToken{"test-token", now + std::chrono::hours(1)};
+  auto const e1 = AccessToken{"test-token", now + std::chrono::hours(1)};
   auto const tp2 = now + std::chrono::hours(1) + std::chrono::minutes(1);
-  auto const e2 =
-      internal::AccessToken{"test-token", now + std::chrono::hours(2)};
+  auto const e2 = AccessToken{"test-token", now + std::chrono::hours(2)};
   EXPECT_CALL(*mock, GetToken(tp1)).WillOnce(Return(e1));
   EXPECT_CALL(*mock, GetToken(tp2)).WillOnce(Return(e2));
   CachedCredentials tested(mock);
@@ -98,8 +102,7 @@ TEST(CachedCredentials, GetTokenExpiringReuseOnError) {
   auto mock = std::make_shared<MockCredentials>();
   auto const now = std::chrono::system_clock::now();
   auto const tp1 = now;
-  auto const e1 =
-      internal::AccessToken{"test-token", now + std::chrono::hours(1)};
+  auto const e1 = AccessToken{"test-token", now + std::chrono::hours(1)};
   auto const tp2 = e1.expiration - GoogleOAuthAccessTokenExpirationSlack() +
                    std::chrono::seconds(1);
   EXPECT_CALL(*mock, GetToken(tp1)).WillOnce(Return(e1));
@@ -118,8 +121,7 @@ TEST(CachedCredentials, GetTokenExpiringReuseOnError) {
 TEST(CachedCredentials, GetTokenExpiredWithError) {
   auto mock = std::make_shared<MockCredentials>();
   auto const now = std::chrono::system_clock::now();
-  auto const e1 =
-      internal::AccessToken{"test-token", now + std::chrono::hours(1)};
+  auto const e1 = AccessToken{"test-token", now + std::chrono::hours(1)};
   auto const tp1 = now;
   auto const tp2 = e1.expiration + std::chrono::seconds(1);
   EXPECT_CALL(*mock, GetToken(tp1)).WillOnce(Return(e1));
@@ -158,6 +160,38 @@ TEST(CachedCredentials, KeyId) {
   EXPECT_CALL(*mock, KeyId).WillOnce(Return("test-key-id"));
   CachedCredentials tested(mock);
   EXPECT_EQ(tested.KeyId(), "test-key-id");
+}
+
+TEST(CachedCredentials, UniverseDomain) {
+  auto mock = std::make_shared<MockCredentials>();
+  EXPECT_CALL(*mock, universe_domain())
+      .WillOnce(Return(StatusOr<std::string>("test-ud.net")));
+  CachedCredentials tested(mock);
+  EXPECT_THAT(tested.universe_domain(), IsOkAndHolds("test-ud.net"));
+}
+
+TEST(CachedCredentials, UniverseDomainWithOptions) {
+  auto mock = std::make_shared<MockCredentials>();
+  EXPECT_CALL(*mock, universe_domain(_))
+      .WillOnce(Return(StatusOr<std::string>("test-ud.net")));
+  CachedCredentials tested(mock);
+  EXPECT_THAT(tested.universe_domain(Options{}), IsOkAndHolds("test-ud.net"));
+}
+
+TEST(CachedCredentials, ProjectId) {
+  auto mock = std::make_shared<MockCredentials>();
+  EXPECT_CALL(*mock, project_id())
+      .WillOnce(Return(StatusOr<std::string>("test-project-id")));
+  CachedCredentials tested(mock);
+  EXPECT_THAT(tested.project_id(), IsOkAndHolds("test-project-id"));
+}
+
+TEST(CachedCredentials, ProjectIdWithOptions) {
+  auto mock = std::make_shared<MockCredentials>();
+  EXPECT_CALL(*mock, project_id(_))
+      .WillOnce(Return(StatusOr<std::string>("test-project-id")));
+  CachedCredentials tested(mock);
+  EXPECT_THAT(tested.project_id(Options{}), IsOkAndHolds("test-project-id"));
 }
 
 }  // namespace

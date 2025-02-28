@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,8 +51,8 @@ Mutation SetCell(Cell);
  * write `std::string` where this type appears. For Google projects that must
  * compile both inside and outside Google, this alias may be convenient.
  */
-using ColumnQualifierType = std::decay<
-    decltype(std::declval<google::bigtable::v2::Column>().qualifier())>::type;
+using ColumnQualifierType = std::decay_t<
+    decltype(std::declval<google::bigtable::v2::Column>().qualifier())>;
 
 /**
  * Defines the type for cell values.
@@ -73,8 +73,8 @@ using ColumnQualifierType = std::decay<
  * write `std::string` where this type appears. For Google projects that must
  * compile both inside and outside Google, this alias may be convenient.
  */
-using CellValueType = std::decay<
-    decltype(std::declval<google::bigtable::v2::Cell>().value())>::type;
+using CellValueType =
+    std::decay_t<decltype(std::declval<google::bigtable::v2::Cell>().value())>;
 
 /**
  * The in-memory representation of a Bigtable cell.
@@ -89,14 +89,18 @@ using CellValueType = std::decay<
  */
 class Cell {
  public:
-  /// Create a Cell and fill it with data.
+  /**
+   * Creates a Cell and fill it with data.
+   *
+   * This function does not participate in overload resolution if @p ValueType
+   * is not an integral type. The case for integral types is handled by a
+   * separate overload.
+   */
   template <typename KeyType, typename ColumnType, typename ValueType,
-            // This function does not participate in overload resolution if
-            // ValueType is not an integral type. The case for integral types is
-            // handled by the next overload, where the value is stored as a Big
-            // Endian number.
-            typename std::enable_if<!std::is_integral<ValueType>::value,
-                                    int>::type = 0>
+            /// @cond implementation_details
+            std::enable_if_t<!std::is_integral<ValueType>::value, int> = 0
+            /// @endcond
+            >
   Cell(KeyType&& row_key, std::string family_name,
        ColumnType&& column_qualifier, std::int64_t timestamp, ValueType&& value,
        std::vector<std::string> labels)

@@ -23,31 +23,16 @@ set(DOXYGEN_EXCLUDE_SYMBOLS "internal" "pubsublite_internal"
 set(DOXYGEN_EXAMPLE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/samples
                          ${CMAKE_CURRENT_SOURCE_DIR}/quickstart)
 
-# Creates the proto headers needed by doxygen.
-set(GOOGLE_CLOUD_CPP_DOXYGEN_DEPS google-cloud-cpp::pubsublite_protos)
+include(GoogleCloudCppDoxygen)
+set(GOOGLE_CLOUD_CPP_DOXYGEN_EXTRA_INCLUDES
+    "${PROJECT_BINARY_DIR}/google/cloud/pubsub")
+google_cloud_cpp_doxygen_targets("pubsublite" DEPENDS cloud-docs
+                                 google-cloud-cpp::pubsublite_protos)
 
 include(GoogleCloudCppCommon)
 
-set(EXTERNAL_GOOGLEAPIS_SOURCE
-    "${PROJECT_BINARY_DIR}/external/googleapis/src/googleapis_download")
-find_path(PROTO_INCLUDE_DIR google/protobuf/descriptor.proto)
-if (PROTO_INCLUDE_DIR)
-    list(INSERT PROTOBUF_IMPORT_DIRS 0 "${PROTO_INCLUDE_DIR}")
-endif ()
-
-include(CompileProtos)
-google_cloud_cpp_load_protolist(
-    proto_list
-    "${PROJECT_SOURCE_DIR}/external/googleapis/protolists/pubsublite.list")
-google_cloud_cpp_load_protodeps(
-    proto_deps
-    "${PROJECT_SOURCE_DIR}/external/googleapis/protodeps/pubsublite.deps")
-google_cloud_cpp_grpcpp_library(
-    google_cloud_cpp_pubsublite_protos # cmake-format: sort
-    ${proto_list} PROTO_PATH_DIRECTORIES "${EXTERNAL_GOOGLEAPIS_SOURCE}"
-    "${PROTO_INCLUDE_DIR}")
-external_googleapis_set_version_and_alias(pubsublite_protos)
-target_link_libraries(google_cloud_cpp_pubsublite_protos PUBLIC ${proto_deps})
+include(GoogleCloudCppLibrary)
+google_cloud_cpp_add_library_protos(pubsublite)
 
 add_library(
     google_cloud_cpp_pubsublite # cmake-format: sort
@@ -75,6 +60,10 @@ add_library(
     internal/admin_stub.h
     internal/admin_stub_factory.cc
     internal/admin_stub_factory.h
+    internal/admin_tracing_connection.cc
+    internal/admin_tracing_connection.h
+    internal/admin_tracing_stub.cc
+    internal/admin_tracing_stub.h
     internal/alarm_registry.h
     internal/alarm_registry_impl.cc
     internal/alarm_registry_impl.h
@@ -93,6 +82,8 @@ add_library(
     internal/cursor_stub.h
     internal/cursor_stub_factory.cc
     internal/cursor_stub_factory.h
+    internal/cursor_tracing_stub.cc
+    internal/cursor_tracing_stub.h
     internal/default_publish_message_transformer.cc
     internal/default_publish_message_transformer.h
     internal/default_routing_policy.cc
@@ -112,6 +103,8 @@ add_library(
     internal/partition_assignment_stub.h
     internal/partition_assignment_stub_factory.cc
     internal/partition_assignment_stub_factory.h
+    internal/partition_assignment_tracing_stub.cc
+    internal/partition_assignment_tracing_stub.h
     internal/partition_publisher.cc
     internal/partition_publisher.h
     internal/publisher.h
@@ -127,6 +120,8 @@ add_library(
     internal/publisher_stub.h
     internal/publisher_stub_factory.cc
     internal/publisher_stub_factory.h
+    internal/publisher_tracing_stub.cc
+    internal/publisher_tracing_stub.h
     internal/resumable_async_streaming_read_write_rpc.h
     internal/routing_policy.h
     internal/service.h
@@ -143,6 +138,8 @@ add_library(
     internal/subscriber_stub.h
     internal/subscriber_stub_factory.cc
     internal/subscriber_stub_factory.h
+    internal/subscriber_tracing_stub.cc
+    internal/subscriber_tracing_stub.h
     internal/topic_stats_auth_decorator.cc
     internal/topic_stats_auth_decorator.h
     internal/topic_stats_connection_impl.cc
@@ -158,6 +155,10 @@ add_library(
     internal/topic_stats_stub.h
     internal/topic_stats_stub_factory.cc
     internal/topic_stats_stub_factory.h
+    internal/topic_stats_tracing_connection.cc
+    internal/topic_stats_tracing_connection.h
+    internal/topic_stats_tracing_stub.cc
+    internal/topic_stats_tracing_stub.h
     message_metadata.cc
     message_metadata.h
     options.h
@@ -197,30 +198,90 @@ add_library(google-cloud-cpp::experimental-pubsublite ALIAS
 include(CreateBazelConfig)
 create_bazel_config(google_cloud_cpp_pubsublite YEAR "2021")
 
-# Create a header-only library for the mocks. We use a CMake `INTERFACE` library
-# for these, a regular library would not work on macOS (where the library needs
-# at least one .o file). Unfortunately INTERFACE libraries are a bit weird in
-# that they need absolute paths for their sources.
-add_library(google_cloud_cpp_pubsublite_mocks INTERFACE)
-target_sources(
-    google_cloud_cpp_pubsublite_mocks
-    INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/mocks/mock_admin_connection.h
-              ${CMAKE_CURRENT_SOURCE_DIR}/mocks/mock_topic_stats_connection.h)
-target_link_libraries(
-    google_cloud_cpp_pubsublite_mocks
-    INTERFACE google-cloud-cpp::experimental-pubsublite GTest::gmock_main
-              GTest::gmock GTest::gtest)
-set_target_properties(
-    google_cloud_cpp_pubsublite_mocks
-    PROPERTIES EXPORT_NAME google-cloud-cpp::experimental-pubsublite_mocks)
-create_bazel_config(google_cloud_cpp_pubsublite_mocks YEAR "2021")
-target_include_directories(
-    google_cloud_cpp_pubsublite_mocks
-    INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
-              $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>
-              $<INSTALL_INTERFACE:include>)
-target_compile_options(google_cloud_cpp_pubsublite_mocks
-                       INTERFACE ${GOOGLE_CLOUD_CPP_EXCEPTIONS_FLAG})
+# Get the destination directories based on the GNU recommendations.
+include(GNUInstallDirs)
+
+# Export the CMake targets to make it easy to create configuration files.
+install(
+    EXPORT google_cloud_cpp_pubsublite-targets
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/google_cloud_cpp_pubsublite"
+    COMPONENT google_cloud_cpp_development)
+
+# Install the libraries and headers in the locations determined by
+# GNUInstallDirs
+install(
+    TARGETS google_cloud_cpp_pubsublite google_cloud_cpp_pubsublite_protos
+    EXPORT google_cloud_cpp_pubsublite-targets
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+            COMPONENT google_cloud_cpp_runtime
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            COMPONENT google_cloud_cpp_runtime
+            NAMELINK_COMPONENT google_cloud_cpp_development
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            COMPONENT google_cloud_cpp_development)
+
+google_cloud_cpp_install_headers("google_cloud_cpp_pubsublite"
+                                 "include/google/cloud/pubsublite")
+
+google_cloud_cpp_add_pkgconfig(
+    pubsublite
+    "The Pub/Sub Lite API C++ Client Library"
+    "Provides C++ APIs to access Pub/Sub Lite API."
+    "google_cloud_cpp_grpc_utils"
+    "google_cloud_cpp_common"
+    "google_cloud_cpp_pubsublite_protos")
+
+# Create and install the CMake configuration files.
+include(CMakePackageConfigHelpers)
+configure_file("config.cmake.in" "google_cloud_cpp_pubsublite-config.cmake"
+               @ONLY)
+write_basic_package_version_file(
+    "google_cloud_cpp_pubsublite-config-version.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY ExactVersion)
+
+install(
+    FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/google_cloud_cpp_pubsublite-config.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/google_cloud_cpp_pubsublite-config-version.cmake"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/google_cloud_cpp_pubsublite"
+    COMPONENT google_cloud_cpp_development)
+
+if (GOOGLE_CLOUD_CPP_WITH_MOCKS)
+    # Create a header-only library for the mocks. We use a CMake `INTERFACE`
+    # library for these, a regular library would not work on macOS (where the
+    # library needs at least one .o file). Unfortunately INTERFACE libraries are
+    # a bit weird in that they need absolute paths for their sources.
+    add_library(google_cloud_cpp_pubsublite_mocks INTERFACE)
+    set(google_cloud_cpp_pubsublite_mocks_hdrs
+        # cmake-format: sort
+        mocks/mock_admin_connection.h mocks/mock_topic_stats_connection.h)
+    export_list_to_bazel("google_cloud_cpp_pubsublite_mocks.bzl"
+                         google_cloud_cpp_pubsublite_mocks_hdrs YEAR "2021")
+    foreach (file IN LISTS google_cloud_cpp_pubsublite_mocks_hdrs)
+        # We use a generator expression per the recommendation in:
+        # https://stackoverflow.com/a/62465051
+        list(APPEND mock_files
+             "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${file}>")
+    endforeach ()
+    target_sources(google_cloud_cpp_pubsublite_mocks INTERFACE ${mock_files})
+    target_link_libraries(
+        google_cloud_cpp_pubsublite_mocks
+        INTERFACE google-cloud-cpp::experimental-pubsublite GTest::gmock
+                  GTest::gtest)
+    set_target_properties(
+        google_cloud_cpp_pubsublite_mocks
+        PROPERTIES EXPORT_NAME google-cloud-cpp::experimental-pubsublite_mocks)
+    target_include_directories(
+        google_cloud_cpp_pubsublite_mocks
+        INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
+                  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>
+                  $<INSTALL_INTERFACE:include>)
+    target_compile_options(google_cloud_cpp_pubsublite_mocks
+                           INTERFACE ${GOOGLE_CLOUD_CPP_EXCEPTIONS_FLAG})
+
+    google_cloud_cpp_install_mocks(pubsublite "Pub/Sub Lite API")
+endif ()
 
 # Define the tests in a function so we have a new scope for variable names.
 function (google_cloud_cpp_pubsublite_client_define_tests)
@@ -234,7 +295,6 @@ function (google_cloud_cpp_pubsublite_client_define_tests)
         pubsublite_testing
         INTERFACE
             ${CMAKE_CURRENT_SOURCE_DIR}/testing/mock_alarm_registry.h
-            ${CMAKE_CURRENT_SOURCE_DIR}/testing/mock_async_reader_writer.h
             ${CMAKE_CURRENT_SOURCE_DIR}/testing/mock_publisher.h
             ${CMAKE_CURRENT_SOURCE_DIR}/testing/mock_resumable_async_reader_writer_stream.h
             ${CMAKE_CURRENT_SOURCE_DIR}/testing/mock_retry_policy.h
@@ -284,18 +344,12 @@ function (google_cloud_cpp_pubsublite_client_define_tests)
                     google_cloud_cpp_testing_grpc
                     google_cloud_cpp_pubsublite
                     google_cloud_cpp_pubsublite_mocks
+                    absl::memory
                     absl::str_format
                     GTest::gmock_main
                     GTest::gmock
                     GTest::gtest)
         google_cloud_cpp_add_common_options(${target})
-
-        # With googletest it is relatively easy to exceed the default number of
-        # sections (~65,000) in a single .obj file. Add the /bigobj option to
-        # all the tests, even if it is not needed.
-        if (MSVC)
-            target_compile_options(${target} PRIVATE "/bigobj")
-        endif ()
         add_test(NAME ${target} COMMAND ${target})
     endforeach ()
 endfunction ()
@@ -321,69 +375,3 @@ if (BUILD_TESTING AND GOOGLE_CLOUD_CPP_ENABLE_CXX_EXCEPTIONS)
     set_tests_properties(pubsublite_quickstart
                          PROPERTIES LABELS "integration-test;quickstart")
 endif ()
-
-# Get the destination directories based on the GNU recommendations.
-include(GNUInstallDirs)
-
-# Export the CMake targets to make it easy to create configuration files.
-install(
-    EXPORT google_cloud_cpp_pubsublite-targets
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/google_cloud_cpp_pubsublite"
-    COMPONENT google_cloud_cpp_development)
-
-# Install the libraries and headers in the locations determined by
-# GNUInstallDirs
-install(
-    TARGETS google_cloud_cpp_pubsublite google_cloud_cpp_pubsublite_protos
-    EXPORT google_cloud_cpp_pubsublite-targets
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-            COMPONENT google_cloud_cpp_runtime
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            COMPONENT google_cloud_cpp_runtime
-            NAMELINK_SKIP
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            COMPONENT google_cloud_cpp_development)
-# With CMake-3.12 and higher we could avoid this separate command (and the
-# duplication).
-install(
-    TARGETS google_cloud_cpp_pubsublite google_cloud_cpp_pubsublite_protos
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            COMPONENT google_cloud_cpp_development
-            NAMELINK_ONLY
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            COMPONENT google_cloud_cpp_development)
-
-google_cloud_cpp_install_proto_library_protos(
-    "google_cloud_cpp_pubsublite_protos" "${EXTERNAL_GOOGLEAPIS_SOURCE}")
-google_cloud_cpp_install_proto_library_headers(
-    "google_cloud_cpp_pubsublite_protos")
-google_cloud_cpp_install_headers("google_cloud_cpp_pubsublite"
-                                 "include/google/cloud/pubsublite")
-google_cloud_cpp_install_headers("google_cloud_cpp_pubsublite_mocks"
-                                 "include/google/cloud/pubsublite")
-
-google_cloud_cpp_add_pkgconfig(
-    pubsublite
-    "The Pub/Sub Lite API C++ Client Library"
-    "Provides C++ APIs to access Pub/Sub Lite API."
-    "google_cloud_cpp_grpc_utils"
-    " google_cloud_cpp_common"
-    " google_cloud_cpp_pubsublite_protos")
-
-# Create and install the CMake configuration files.
-include(CMakePackageConfigHelpers)
-configure_file("config.cmake.in" "google_cloud_cpp_pubsublite-config.cmake"
-               @ONLY)
-write_basic_package_version_file(
-    "google_cloud_cpp_pubsublite-config-version.cmake"
-    VERSION ${PROJECT_VERSION}
-    COMPATIBILITY ExactVersion)
-
-install(
-    FILES
-        "${CMAKE_CURRENT_BINARY_DIR}/google_cloud_cpp_pubsublite-config.cmake"
-        "${CMAKE_CURRENT_BINARY_DIR}/google_cloud_cpp_pubsublite-config-version.cmake"
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/google_cloud_cpp_pubsublite"
-    COMPONENT google_cloud_cpp_development)
-
-external_googleapis_install_pc("google_cloud_cpp_pubsublite_protos")

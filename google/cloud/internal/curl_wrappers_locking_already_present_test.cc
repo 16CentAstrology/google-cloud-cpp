@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef _WIN32
 #include "google/cloud/internal/curl_options.h"
 #include "google/cloud/internal/curl_wrappers.h"
 #include <gmock/gmock.h>
@@ -31,7 +32,7 @@ TEST(CurlWrappers, LockingDisabledTest) {
   // The test cannot execute in this case.
   if (!SslLibraryNeedsLocking(CurlSslLibraryId())) GTEST_SKIP();
   // Install a trivial callback, this should disable the installation of the
-  // normal callbacks in the the curl wrappers.
+  // normal callbacks in the curl wrappers.
   CRYPTO_set_locking_callback(test_cb);
   CurlInitializeOnce(Options{}.set<EnableCurlSslLockingOption>(true));
   EXPECT_FALSE(SslLockingCallbacksInstalled());
@@ -42,3 +43,4 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace rest_internal
 }  // namespace cloud
 }  // namespace google
+#endif  // _WIN32

@@ -19,6 +19,7 @@
 #include "google/cloud/dialogflow_es/internal/knowledge_bases_auth_decorator.h"
 #include <google/cloud/dialogflow/v2/knowledge_base.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -32,46 +33,88 @@ KnowledgeBasesAuth::KnowledgeBasesAuth(
 
 StatusOr<google::cloud::dialogflow::v2::ListKnowledgeBasesResponse>
 KnowledgeBasesAuth::ListKnowledgeBases(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::v2::ListKnowledgeBasesRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->ListKnowledgeBases(context, request);
+  return child_->ListKnowledgeBases(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::v2::KnowledgeBase>
 KnowledgeBasesAuth::GetKnowledgeBase(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::v2::GetKnowledgeBaseRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->GetKnowledgeBase(context, request);
+  return child_->GetKnowledgeBase(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::v2::KnowledgeBase>
 KnowledgeBasesAuth::CreateKnowledgeBase(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::v2::CreateKnowledgeBaseRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->CreateKnowledgeBase(context, request);
+  return child_->CreateKnowledgeBase(context, options, request);
 }
 
 Status KnowledgeBasesAuth::DeleteKnowledgeBase(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::v2::DeleteKnowledgeBaseRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->DeleteKnowledgeBase(context, request);
+  return child_->DeleteKnowledgeBase(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::v2::KnowledgeBase>
 KnowledgeBasesAuth::UpdateKnowledgeBase(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::v2::UpdateKnowledgeBaseRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->UpdateKnowledgeBase(context, request);
+  return child_->UpdateKnowledgeBase(context, options, request);
+}
+
+StatusOr<google::cloud::location::ListLocationsResponse>
+KnowledgeBasesAuth::ListLocations(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::ListLocationsRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ListLocations(context, options, request);
+}
+
+StatusOr<google::cloud::location::Location> KnowledgeBasesAuth::GetLocation(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::GetLocationRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetLocation(context, options, request);
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+KnowledgeBasesAuth::ListOperations(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::ListOperationsRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ListOperations(context, options, request);
+}
+
+StatusOr<google::longrunning::Operation> KnowledgeBasesAuth::GetOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::GetOperationRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetOperation(context, options, request);
+}
+
+Status KnowledgeBasesAuth::CancelOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::CancelOperationRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->CancelOperation(context, options, request);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

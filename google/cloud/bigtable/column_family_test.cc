@@ -1,4 +1,4 @@
-//   Copyright 2017 Google Inc.
+//   Copyright 2017 Google LLC
 //
 //   Licensed under the Apache License, Version 2.0 (the "License");
 //   you may not use this file except in compliance with the License.
@@ -22,12 +22,11 @@ namespace bigtable {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
-// NOLINTNEXTLINE
-using ::google::cloud::testing_util::chrono_literals::operator"" _min;
-using ::google::cloud::testing_util::chrono_literals::operator"" _h;   // NOLINT
-using ::google::cloud::testing_util::chrono_literals::operator"" _s;   // NOLINT
-using ::google::cloud::testing_util::chrono_literals::operator"" _us;  // NOLINT
-using ::google::cloud::testing_util::chrono_literals::operator"" _ns;  // NOLINT
+using ::google::cloud::testing_util::chrono_literals::operator""_min;
+using ::google::cloud::testing_util::chrono_literals::operator""_h;
+using ::google::cloud::testing_util::chrono_literals::operator""_s;
+using ::google::cloud::testing_util::chrono_literals::operator""_us;
+using ::google::cloud::testing_util::chrono_literals::operator""_ns;
 
 TEST(GcRule, Equality) {
   auto gc1 = GcRule::MaxNumVersions(3);

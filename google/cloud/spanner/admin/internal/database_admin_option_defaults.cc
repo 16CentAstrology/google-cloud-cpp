@@ -22,6 +22,7 @@
 #include "google/cloud/internal/populate_common_options.h"
 #include "google/cloud/internal/populate_grpc_options.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -33,12 +34,11 @@ auto constexpr kBackoffScaling = 2.0;
 }  // namespace
 
 Options DatabaseAdminDefaultOptions(Options options) {
-  options = google::cloud::internal::PopulateCommonOptions(
+  options = internal::PopulateCommonOptions(
       std::move(options), "GOOGLE_CLOUD_CPP_SPANNER_DEFAULT_ENDPOINT",
       "SPANNER_EMULATOR_HOST", "GOOGLE_CLOUD_CPP_SPANNER_DEFAULT_AUTHORITY",
       "spanner.googleapis.com");
-  options = google::cloud::internal::PopulateGrpcOptions(
-      std::move(options), "SPANNER_EMULATOR_HOST");
+  options = internal::PopulateGrpcOptions(std::move(options));
   if (!options.has<spanner_admin::DatabaseAdminRetryPolicyOption>()) {
     options.set<spanner_admin::DatabaseAdminRetryPolicyOption>(
         spanner_admin::DatabaseAdminLimitedTimeRetryPolicy(
@@ -47,8 +47,9 @@ Options DatabaseAdminDefaultOptions(Options options) {
   }
   if (!options.has<spanner_admin::DatabaseAdminBackoffPolicyOption>()) {
     options.set<spanner_admin::DatabaseAdminBackoffPolicyOption>(
-        ExponentialBackoffPolicy(std::chrono::seconds(1),
-                                 std::chrono::minutes(5), kBackoffScaling)
+        ExponentialBackoffPolicy(
+            std::chrono::seconds(0), std::chrono::seconds(1),
+            std::chrono::minutes(5), kBackoffScaling, kBackoffScaling)
             .clone());
   }
   if (!options.has<spanner_admin::DatabaseAdminPollingPolicyOption>()) {
@@ -58,8 +59,9 @@ Options DatabaseAdminDefaultOptions(Options options) {
             spanner_admin::DatabaseAdminBackoffPolicyOption::Type>(
             options.get<spanner_admin::DatabaseAdminRetryPolicyOption>()
                 ->clone(),
-            options.get<spanner_admin::DatabaseAdminBackoffPolicyOption>()
-                ->clone())
+            ExponentialBackoffPolicy(std::chrono::seconds(1),
+                                     std::chrono::minutes(5), kBackoffScaling)
+                .clone())
             .clone());
   }
   if (!options.has<
@@ -72,7 +74,6 @@ Options DatabaseAdminDefaultOptions(Options options) {
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
-namespace gcpcxxV1 = GOOGLE_CLOUD_CPP_NS;  // NOLINT(misc-unused-alias-decls)
 }  // namespace spanner_admin_internal
 }  // namespace cloud
 }  // namespace google

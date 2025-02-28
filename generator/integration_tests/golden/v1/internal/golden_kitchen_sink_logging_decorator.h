@@ -36,75 +36,108 @@ class GoldenKitchenSinkLogging : public GoldenKitchenSinkStub {
   ~GoldenKitchenSinkLogging() override = default;
   GoldenKitchenSinkLogging(std::shared_ptr<GoldenKitchenSinkStub> child,
                        TracingOptions tracing_options,
-                       std::set<std::string> components);
+                       std::set<std::string> const& components);
 
   StatusOr<google::test::admin::database::v1::GenerateAccessTokenResponse> GenerateAccessToken(
-    grpc::ClientContext& context,
-    google::test::admin::database::v1::GenerateAccessTokenRequest const& request) override;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::GenerateAccessTokenRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::GenerateIdTokenResponse> GenerateIdToken(
-    grpc::ClientContext& context,
-    google::test::admin::database::v1::GenerateIdTokenRequest const& request) override;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::GenerateIdTokenRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::WriteLogEntriesResponse> WriteLogEntries(
-    grpc::ClientContext& context,
-    google::test::admin::database::v1::WriteLogEntriesRequest const& request) override;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::WriteLogEntriesRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::ListLogsResponse> ListLogs(
-    grpc::ClientContext& context,
-    google::test::admin::database::v1::ListLogsRequest const& request) override;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::ListLogsRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::ListServiceAccountKeysResponse> ListServiceAccountKeys(
-    grpc::ClientContext& context,
-    google::test::admin::database::v1::ListServiceAccountKeysRequest const& request) override;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::ListServiceAccountKeysRequest const& request) override;
 
   Status DoNothing(
-    grpc::ClientContext& context,
-    google::protobuf::Empty const& request) override;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::protobuf::Empty const& request) override;
+
+  Status Deprecated2(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::GenerateAccessTokenRequest const& request) override;
 
   std::unique_ptr<google::cloud::internal::StreamingReadRpc<google::test::admin::database::v1::Response>>
   StreamingRead(
-    std::unique_ptr<grpc::ClientContext> context,
-    google::test::admin::database::v1::Request const& request) override;
+      std::shared_ptr<grpc::ClientContext> context,
+      Options const& options,
+      google::test::admin::database::v1::Request const& request) override;
 
   std::unique_ptr<::google::cloud::internal::StreamingWriteRpc<
       google::test::admin::database::v1::Request,
       google::test::admin::database::v1::Response>>
-   StreamingWrite(
-      std::unique_ptr<grpc::ClientContext> context) override;
+  StreamingWrite(
+      std::shared_ptr<grpc::ClientContext> context,
+      Options const& options) override;
 
   std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
       google::test::admin::database::v1::Request,
       google::test::admin::database::v1::Response>>
   AsyncStreamingReadWrite(
       google::cloud::CompletionQueue const& cq,
-      std::unique_ptr<grpc::ClientContext> context) override;
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options) override;
 
   Status ExplicitRouting1(
-    grpc::ClientContext& context,
-    google::test::admin::database::v1::ExplicitRoutingRequest const& request) override;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::ExplicitRoutingRequest const& request) override;
 
   Status ExplicitRouting2(
-    grpc::ClientContext& context,
-    google::test::admin::database::v1::ExplicitRoutingRequest const& request) override;
+      grpc::ClientContext& context,
+      Options const& options,
+      google::test::admin::database::v1::ExplicitRoutingRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::iam::v1::Policy> GetIamPolicy(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::iam::v1::GetIamPolicyRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context,
+      Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
 
   std::unique_ptr<::google::cloud::internal::AsyncStreamingReadRpc<
       google::test::admin::database::v1::Response>>
   AsyncStreamingRead(
       google::cloud::CompletionQueue const& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::test::admin::database::v1::Request const& request) override;
 
   std::unique_ptr<::google::cloud::internal::AsyncStreamingWriteRpc<
       google::test::admin::database::v1::Request, google::test::admin::database::v1::Response>>
   AsyncStreamingWrite(
       google::cloud::CompletionQueue const& cq,
-      std::unique_ptr<grpc::ClientContext> context) override;
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options) override;
 
  private:
   std::shared_ptr<GoldenKitchenSinkStub> child_;
   TracingOptions tracing_options_;
-  std::set<std::string> components_;
+  bool stream_logging_;
 };  // GoldenKitchenSinkLogging
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

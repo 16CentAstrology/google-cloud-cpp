@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 #include "google/cloud/bigtable/testing/mock_read_rows_reader.h"
 #include "google/cloud/bigtable/testing/table_test_fixture.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
 
 namespace google {
 namespace cloud {
@@ -127,7 +126,7 @@ TEST_F(TableReadRowsTest, ReadRowsCanReadWithRetries) {
 
 TEST_F(TableReadRowsTest, ReadRowsThrowsWhenTooManyErrors) {
   EXPECT_CALL(*client_, ReadRows).WillRepeatedly(WithoutArgs([] {
-    auto stream = absl::make_unique<MockReadRowsReader>(
+    auto stream = std::make_unique<MockReadRowsReader>(
         "google.bigtable.v2.Bigtable.ReadRows");
     EXPECT_CALL(*stream, Read).WillOnce(Return(false));
     EXPECT_CALL(*stream, Finish())

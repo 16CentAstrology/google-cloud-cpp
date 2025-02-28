@@ -58,11 +58,27 @@ class GoldenThingAdminConnectionImpl
   future<StatusOr<google::test::admin::database::v1::Database>>
   CreateDatabase(google::test::admin::database::v1::CreateDatabaseRequest const& request) override;
 
+  StatusOr<google::longrunning::Operation>
+  CreateDatabase(NoAwaitTag,
+      google::test::admin::database::v1::CreateDatabaseRequest const& request) override;
+
+  future<StatusOr<google::test::admin::database::v1::Database>>
+  CreateDatabase(
+      google::longrunning::Operation const& operation) override;
+
   StatusOr<google::test::admin::database::v1::Database>
   GetDatabase(google::test::admin::database::v1::GetDatabaseRequest const& request) override;
 
   future<StatusOr<google::test::admin::database::v1::UpdateDatabaseDdlMetadata>>
   UpdateDatabaseDdl(google::test::admin::database::v1::UpdateDatabaseDdlRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation>
+  UpdateDatabaseDdl(NoAwaitTag,
+      google::test::admin::database::v1::UpdateDatabaseDdlRequest const& request) override;
+
+  future<StatusOr<google::test::admin::database::v1::UpdateDatabaseDdlMetadata>>
+  UpdateDatabaseDdl(
+      google::longrunning::Operation const& operation) override;
 
   Status
   DropDatabase(google::test::admin::database::v1::DropDatabaseRequest const& request) override;
@@ -82,6 +98,14 @@ class GoldenThingAdminConnectionImpl
   future<StatusOr<google::test::admin::database::v1::Backup>>
   CreateBackup(google::test::admin::database::v1::CreateBackupRequest const& request) override;
 
+  StatusOr<google::longrunning::Operation>
+  CreateBackup(NoAwaitTag,
+      google::test::admin::database::v1::CreateBackupRequest const& request) override;
+
+  future<StatusOr<google::test::admin::database::v1::Backup>>
+  CreateBackup(
+      google::longrunning::Operation const& operation) override;
+
   StatusOr<google::test::admin::database::v1::Backup>
   GetBackup(google::test::admin::database::v1::GetBackupRequest const& request) override;
 
@@ -97,6 +121,14 @@ class GoldenThingAdminConnectionImpl
   future<StatusOr<google::test::admin::database::v1::Database>>
   RestoreDatabase(google::test::admin::database::v1::RestoreDatabaseRequest const& request) override;
 
+  StatusOr<google::longrunning::Operation>
+  RestoreDatabase(NoAwaitTag,
+      google::test::admin::database::v1::RestoreDatabaseRequest const& request) override;
+
+  future<StatusOr<google::test::admin::database::v1::Database>>
+  RestoreDatabase(
+      google::longrunning::Operation const& operation) override;
+
   StreamRange<google::longrunning::Operation>
   ListDatabaseOperations(google::test::admin::database::v1::ListDatabaseOperationsRequest request) override;
 
@@ -106,6 +138,20 @@ class GoldenThingAdminConnectionImpl
   future<StatusOr<google::test::admin::database::v1::Database>>
   LongRunningWithoutRouting(google::test::admin::database::v1::RestoreDatabaseRequest const& request) override;
 
+  StatusOr<google::longrunning::Operation>
+  LongRunningWithoutRouting(NoAwaitTag,
+      google::test::admin::database::v1::RestoreDatabaseRequest const& request) override;
+
+  future<StatusOr<google::test::admin::database::v1::Database>>
+  LongRunningWithoutRouting(
+      google::longrunning::Operation const& operation) override;
+
+  StatusOr<google::cloud::location::Location>
+  GetLocation(google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation>
+  ListOperations(google::longrunning::ListOperationsRequest request) override;
+
   future<StatusOr<google::test::admin::database::v1::Database>>
   AsyncGetDatabase(google::test::admin::database::v1::GetDatabaseRequest const& request) override;
 
@@ -113,39 +159,6 @@ class GoldenThingAdminConnectionImpl
   AsyncDropDatabase(google::test::admin::database::v1::DropDatabaseRequest const& request) override;
 
  private:
-  std::unique_ptr<golden_v1::GoldenThingAdminRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<golden_v1::GoldenThingAdminRetryPolicyOption>()) {
-      return options.get<golden_v1::GoldenThingAdminRetryPolicyOption>()->clone();
-    }
-    return options_.get<golden_v1::GoldenThingAdminRetryPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<golden_v1::GoldenThingAdminBackoffPolicyOption>()) {
-      return options.get<golden_v1::GoldenThingAdminBackoffPolicyOption>()->clone();
-    }
-    return options_.get<golden_v1::GoldenThingAdminBackoffPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<golden_v1::GoldenThingAdminConnectionIdempotencyPolicy> idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<golden_v1::GoldenThingAdminConnectionIdempotencyPolicyOption>()) {
-      return options.get<golden_v1::GoldenThingAdminConnectionIdempotencyPolicyOption>()->clone();
-    }
-    return options_.get<golden_v1::GoldenThingAdminConnectionIdempotencyPolicyOption>()->
-clone();
-  }
-
-  std::unique_ptr<PollingPolicy> polling_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<golden_v1::GoldenThingAdminPollingPolicyOption>()) {
-      return options.get<golden_v1::GoldenThingAdminPollingPolicyOption>()->clone();
-    }
-    return options_.get<golden_v1::GoldenThingAdminPollingPolicyOption>()->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<golden_v1_internal::GoldenThingAdminStub> stub_;
   Options options_;

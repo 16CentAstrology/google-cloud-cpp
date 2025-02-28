@@ -17,7 +17,6 @@
 // source: google/spanner/admin/database/v1/spanner_database_admin.proto
 
 #include "google/cloud/spanner/admin/database_admin_connection_idempotency_policy.h"
-#include "absl/memory/memory.h"
 #include <memory>
 
 namespace google {
@@ -32,7 +31,7 @@ DatabaseAdminConnectionIdempotencyPolicy::
 
 std::unique_ptr<DatabaseAdminConnectionIdempotencyPolicy>
 DatabaseAdminConnectionIdempotencyPolicy::clone() const {
-  return absl::make_unique<DatabaseAdminConnectionIdempotencyPolicy>(*this);
+  return std::make_unique<DatabaseAdminConnectionIdempotencyPolicy>(*this);
 }
 
 Idempotency DatabaseAdminConnectionIdempotencyPolicy::ListDatabases(
@@ -48,6 +47,11 @@ Idempotency DatabaseAdminConnectionIdempotencyPolicy::CreateDatabase(
 Idempotency DatabaseAdminConnectionIdempotencyPolicy::GetDatabase(
     google::spanner::admin::database::v1::GetDatabaseRequest const&) {
   return Idempotency::kIdempotent;
+}
+
+Idempotency DatabaseAdminConnectionIdempotencyPolicy::UpdateDatabase(
+    google::spanner::admin::database::v1::UpdateDatabaseRequest const&) {
+  return Idempotency::kNonIdempotent;
 }
 
 Idempotency DatabaseAdminConnectionIdempotencyPolicy::UpdateDatabaseDdl(
@@ -73,12 +77,12 @@ Idempotency DatabaseAdminConnectionIdempotencyPolicy::SetIamPolicy(
 
 Idempotency DatabaseAdminConnectionIdempotencyPolicy::GetIamPolicy(
     google::iam::v1::GetIamPolicyRequest const&) {
-  return Idempotency::kNonIdempotent;
+  return Idempotency::kIdempotent;
 }
 
 Idempotency DatabaseAdminConnectionIdempotencyPolicy::TestIamPermissions(
     google::iam::v1::TestIamPermissionsRequest const&) {
-  return Idempotency::kNonIdempotent;
+  return Idempotency::kIdempotent;
 }
 
 Idempotency DatabaseAdminConnectionIdempotencyPolicy::CreateBackup(
@@ -133,13 +137,63 @@ Idempotency DatabaseAdminConnectionIdempotencyPolicy::ListDatabaseRoles(
   return Idempotency::kIdempotent;
 }
 
+Idempotency DatabaseAdminConnectionIdempotencyPolicy::AddSplitPoints(
+    google::spanner::admin::database::v1::AddSplitPointsRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
+Idempotency DatabaseAdminConnectionIdempotencyPolicy::CreateBackupSchedule(
+    google::spanner::admin::database::v1::CreateBackupScheduleRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
+Idempotency DatabaseAdminConnectionIdempotencyPolicy::GetBackupSchedule(
+    google::spanner::admin::database::v1::GetBackupScheduleRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency DatabaseAdminConnectionIdempotencyPolicy::UpdateBackupSchedule(
+    google::spanner::admin::database::v1::UpdateBackupScheduleRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
+Idempotency DatabaseAdminConnectionIdempotencyPolicy::DeleteBackupSchedule(
+    google::spanner::admin::database::v1::DeleteBackupScheduleRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
+Idempotency DatabaseAdminConnectionIdempotencyPolicy::ListBackupSchedules(
+    google::spanner::admin::database::v1::
+        ListBackupSchedulesRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency DatabaseAdminConnectionIdempotencyPolicy::ListOperations(
+    google::longrunning::ListOperationsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency DatabaseAdminConnectionIdempotencyPolicy::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency DatabaseAdminConnectionIdempotencyPolicy::DeleteOperation(
+    google::longrunning::DeleteOperationRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
+Idempotency DatabaseAdminConnectionIdempotencyPolicy::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
 std::unique_ptr<DatabaseAdminConnectionIdempotencyPolicy>
 MakeDefaultDatabaseAdminConnectionIdempotencyPolicy() {
-  return absl::make_unique<DatabaseAdminConnectionIdempotencyPolicy>();
+  return std::make_unique<DatabaseAdminConnectionIdempotencyPolicy>();
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
-namespace gcpcxxV1 = GOOGLE_CLOUD_CPP_NS;  // NOLINT(misc-unused-alias-decls)
 }  // namespace spanner_admin
 }  // namespace cloud
 }  // namespace google

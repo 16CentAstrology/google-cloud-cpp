@@ -20,7 +20,9 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_PUBSUBLITE_INTERNAL_TOPIC_STATS_METADATA_DECORATOR_H
 
 #include "google/cloud/pubsublite/internal/topic_stats_stub.h"
+#include "google/cloud/options.h"
 #include "google/cloud/version.h"
+#include <map>
 #include <memory>
 #include <string>
 
@@ -32,33 +34,52 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 class TopicStatsServiceMetadata : public TopicStatsServiceStub {
  public:
   ~TopicStatsServiceMetadata() override = default;
-  explicit TopicStatsServiceMetadata(
-      std::shared_ptr<TopicStatsServiceStub> child);
+  TopicStatsServiceMetadata(
+      std::shared_ptr<TopicStatsServiceStub> child,
+      std::multimap<std::string, std::string> fixed_metadata,
+      std::string api_client_header = "");
 
   StatusOr<google::cloud::pubsublite::v1::ComputeMessageStatsResponse>
   ComputeMessageStats(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::ComputeMessageStatsRequest const& request)
       override;
 
   StatusOr<google::cloud::pubsublite::v1::ComputeHeadCursorResponse>
   ComputeHeadCursor(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::ComputeHeadCursorRequest const& request)
       override;
 
   StatusOr<google::cloud::pubsublite::v1::ComputeTimeCursorResponse>
   ComputeTimeCursor(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::ComputeTimeCursorRequest const& request)
       override;
 
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status DeleteOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::DeleteOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  void SetMetadata(grpc::ClientContext& context,
+  void SetMetadata(grpc::ClientContext& context, Options const& options,
                    std::string const& request_params);
-  void SetMetadata(grpc::ClientContext& context);
+  void SetMetadata(grpc::ClientContext& context, Options const& options);
 
   std::shared_ptr<TopicStatsServiceStub> child_;
+  std::multimap<std::string, std::string> fixed_metadata_;
   std::string api_client_header_;
 };
 

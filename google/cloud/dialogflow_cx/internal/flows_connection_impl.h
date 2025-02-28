@@ -72,6 +72,14 @@ class FlowsConnectionImpl : public dialogflow_cx::FlowsConnection {
       google::cloud::dialogflow::cx::v3::TrainFlowRequest const& request)
       override;
 
+  StatusOr<google::longrunning::Operation> TrainFlow(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::TrainFlowRequest const& request)
+      override;
+
+  future<StatusOr<google::protobuf::Struct>> TrainFlow(
+      google::longrunning::Operation const& operation) override;
+
   StatusOr<google::cloud::dialogflow::cx::v3::FlowValidationResult>
   ValidateFlow(google::cloud::dialogflow::cx::v3::ValidateFlowRequest const&
                    request) override;
@@ -85,48 +93,42 @@ class FlowsConnectionImpl : public dialogflow_cx::FlowsConnection {
   ImportFlow(google::cloud::dialogflow::cx::v3::ImportFlowRequest const&
                  request) override;
 
+  StatusOr<google::longrunning::Operation> ImportFlow(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::ImportFlowRequest const& request)
+      override;
+
+  future<StatusOr<google::cloud::dialogflow::cx::v3::ImportFlowResponse>>
+  ImportFlow(google::longrunning::Operation const& operation) override;
+
   future<StatusOr<google::cloud::dialogflow::cx::v3::ExportFlowResponse>>
   ExportFlow(google::cloud::dialogflow::cx::v3::ExportFlowRequest const&
                  request) override;
 
+  StatusOr<google::longrunning::Operation> ExportFlow(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::ExportFlowRequest const& request)
+      override;
+
+  future<StatusOr<google::cloud::dialogflow::cx::v3::ExportFlowResponse>>
+  ExportFlow(google::longrunning::Operation const& operation) override;
+
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_cx::FlowsRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::FlowsRetryPolicyOption>()) {
-      return options.get<dialogflow_cx::FlowsRetryPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_cx::FlowsRetryPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::FlowsBackoffPolicyOption>()) {
-      return options.get<dialogflow_cx::FlowsBackoffPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_cx::FlowsBackoffPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<dialogflow_cx::FlowsConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::FlowsConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_cx::FlowsConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_cx::FlowsConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<PollingPolicy> polling_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::FlowsPollingPolicyOption>()) {
-      return options.get<dialogflow_cx::FlowsPollingPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_cx::FlowsPollingPolicyOption>()->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_cx_internal::FlowsStub> stub_;
   Options options_;

@@ -65,10 +65,26 @@ class EnvironmentsConnectionImpl
       google::cloud::dialogflow::cx::v3::CreateEnvironmentRequest const&
           request) override;
 
+  StatusOr<google::longrunning::Operation> CreateEnvironment(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::CreateEnvironmentRequest const&
+          request) override;
+
+  future<StatusOr<google::cloud::dialogflow::cx::v3::Environment>>
+  CreateEnvironment(google::longrunning::Operation const& operation) override;
+
   future<StatusOr<google::cloud::dialogflow::cx::v3::Environment>>
   UpdateEnvironment(
       google::cloud::dialogflow::cx::v3::UpdateEnvironmentRequest const&
           request) override;
+
+  StatusOr<google::longrunning::Operation> UpdateEnvironment(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::UpdateEnvironmentRequest const&
+          request) override;
+
+  future<StatusOr<google::cloud::dialogflow::cx::v3::Environment>>
+  UpdateEnvironment(google::longrunning::Operation const& operation) override;
 
   Status DeleteEnvironment(
       google::cloud::dialogflow::cx::v3::DeleteEnvironmentRequest const&
@@ -84,6 +100,14 @@ class EnvironmentsConnectionImpl
       google::cloud::dialogflow::cx::v3::RunContinuousTestRequest const&
           request) override;
 
+  StatusOr<google::longrunning::Operation> RunContinuousTest(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::RunContinuousTestRequest const&
+          request) override;
+
+  future<StatusOr<google::cloud::dialogflow::cx::v3::RunContinuousTestResponse>>
+  RunContinuousTest(google::longrunning::Operation const& operation) override;
+
   StreamRange<google::cloud::dialogflow::cx::v3::ContinuousTestResult>
   ListContinuousTestResults(
       google::cloud::dialogflow::cx::v3::ListContinuousTestResultsRequest
@@ -93,51 +117,30 @@ class EnvironmentsConnectionImpl
   DeployFlow(google::cloud::dialogflow::cx::v3::DeployFlowRequest const&
                  request) override;
 
+  StatusOr<google::longrunning::Operation> DeployFlow(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::DeployFlowRequest const& request)
+      override;
+
+  future<StatusOr<google::cloud::dialogflow::cx::v3::DeployFlowResponse>>
+  DeployFlow(google::longrunning::Operation const& operation) override;
+
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_cx::EnvironmentsRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::EnvironmentsRetryPolicyOption>()) {
-      return options.get<dialogflow_cx::EnvironmentsRetryPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_cx::EnvironmentsRetryPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::EnvironmentsBackoffPolicyOption>()) {
-      return options.get<dialogflow_cx::EnvironmentsBackoffPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_cx::EnvironmentsBackoffPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<dialogflow_cx::EnvironmentsConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<
-            dialogflow_cx::EnvironmentsConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_cx::EnvironmentsConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_cx::EnvironmentsConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<PollingPolicy> polling_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::EnvironmentsPollingPolicyOption>()) {
-      return options.get<dialogflow_cx::EnvironmentsPollingPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_cx::EnvironmentsPollingPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_cx_internal::EnvironmentsStub> stub_;
   Options options_;

@@ -43,18 +43,35 @@ class CursorServiceAuth : public CursorServiceStub {
       google::cloud::pubsublite::v1::StreamingCommitCursorResponse>>
   AsyncStreamingCommitCursor(
       google::cloud::CompletionQueue const& cq,
-      std::unique_ptr<grpc::ClientContext> context) override;
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options) override;
 
   StatusOr<google::cloud::pubsublite::v1::CommitCursorResponse> CommitCursor(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::CommitCursorRequest const& request)
       override;
 
   StatusOr<google::cloud::pubsublite::v1::ListPartitionCursorsResponse>
   ListPartitionCursors(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::pubsublite::v1::ListPartitionCursorsRequest const& request)
       override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status DeleteOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::DeleteOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
 
  private:
   std::shared_ptr<google::cloud::internal::GrpcAuthenticationStrategy> auth_;

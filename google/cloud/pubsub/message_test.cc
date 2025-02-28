@@ -16,6 +16,7 @@
 #include "google/cloud/testing_util/is_proto_equal.h"
 #include <google/protobuf/text_format.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include <sstream>
 #include <tuple>
 
@@ -27,20 +28,24 @@ namespace {
 
 using ::google::cloud::testing_util::IsProtoEqual;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
+using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 
 TEST(Message, Empty) {
   auto const m = MessageBuilder{}.Build();
-  EXPECT_TRUE(m.data().empty());
-  EXPECT_TRUE(m.attributes().empty());
+  EXPECT_THAT(m.data(), IsEmpty());
+
+  EXPECT_THAT(m.attributes(), IsEmpty());
 }
 
 TEST(Message, SetDataSimple) {
   auto const m0 = MessageBuilder{}.SetData("contents-0").Build();
   EXPECT_EQ("contents-0", m0.data());
-  EXPECT_TRUE(m0.attributes().empty());
-  EXPECT_TRUE(m0.ordering_key().empty());
-  EXPECT_TRUE(m0.message_id().empty());
+  EXPECT_THAT(m0.attributes(), IsEmpty());
+  EXPECT_THAT(m0.ordering_key(), IsEmpty());
+
+  EXPECT_THAT(m0.message_id(), IsEmpty());
 
   auto const m1 = MessageBuilder{}.SetData("contents-1").Build();
   EXPECT_EQ("contents-1", m1.data());
@@ -55,9 +60,10 @@ TEST(Message, SetDataSimple) {
 TEST(Message, SetOrderingKey) {
   auto const m0 = MessageBuilder{}.SetOrderingKey("key-0").Build();
   EXPECT_EQ("key-0", m0.ordering_key());
-  EXPECT_TRUE(m0.attributes().empty());
-  EXPECT_TRUE(m0.data().empty());
-  EXPECT_TRUE(m0.message_id().empty());
+  EXPECT_THAT(m0.attributes(), IsEmpty());
+  EXPECT_THAT(m0.data(), IsEmpty());
+
+  EXPECT_THAT(m0.message_id(), IsEmpty());
 
   auto const m1 = MessageBuilder{}.SetOrderingKey("key-1").Build();
   EXPECT_EQ("key-1", m1.ordering_key());
@@ -75,12 +81,13 @@ TEST(Message, InsertAttributeSimple) {
                       .InsertAttribute("k2", "v2")
                       .InsertAttribute("k2", "v3")
                       .Build();
-  EXPECT_TRUE(m0.data().empty());
+  EXPECT_THAT(m0.data(), IsEmpty());
+
   EXPECT_THAT(m0.attributes(),
-              UnorderedElementsAre(std::make_pair("k1", "v1"),
-                                   std::make_pair("k2", "v2")));
-  EXPECT_TRUE(m0.ordering_key().empty());
-  EXPECT_TRUE(m0.message_id().empty());
+              UnorderedElementsAre(Pair("k1", "v1"), Pair("k2", "v2")));
+  EXPECT_THAT(m0.ordering_key(), IsEmpty());
+
+  EXPECT_THAT(m0.message_id(), IsEmpty());
 }
 
 TEST(Message, SetAttributeSimple) {
@@ -89,12 +96,13 @@ TEST(Message, SetAttributeSimple) {
                       .SetAttribute("k2", "v2")
                       .SetAttribute("k2", "v3")
                       .Build();
-  EXPECT_TRUE(m0.data().empty());
+  EXPECT_THAT(m0.data(), IsEmpty());
+
   EXPECT_THAT(m0.attributes(),
-              UnorderedElementsAre(std::make_pair("k1", "v1"),
-                                   std::make_pair("k2", "v3")));
-  EXPECT_TRUE(m0.ordering_key().empty());
-  EXPECT_TRUE(m0.message_id().empty());
+              UnorderedElementsAre(Pair("k1", "v1"), Pair("k2", "v3")));
+  EXPECT_THAT(m0.ordering_key(), IsEmpty());
+
+  EXPECT_THAT(m0.message_id(), IsEmpty());
 }
 
 TEST(Message, SetAttributesIteratorSimple) {
@@ -104,23 +112,25 @@ TEST(Message, SetAttributesIteratorSimple) {
   auto const m0 = MessageBuilder{}
                       .SetAttributes(attributes.begin(), attributes.end())
                       .Build();
-  EXPECT_TRUE(m0.data().empty());
+  EXPECT_THAT(m0.data(), IsEmpty());
+
   EXPECT_THAT(m0.attributes(),
-              UnorderedElementsAre(std::make_pair("k1", "v1"),
-                                   std::make_pair("k2", "v2")));
-  EXPECT_TRUE(m0.ordering_key().empty());
-  EXPECT_TRUE(m0.message_id().empty());
+              UnorderedElementsAre(Pair("k1", "v1"), Pair("k2", "v2")));
+  EXPECT_THAT(m0.ordering_key(), IsEmpty());
+
+  EXPECT_THAT(m0.message_id(), IsEmpty());
 }
 
 TEST(Message, SetAttributesVectorStdPairSimple) {
   auto const m0 =
       MessageBuilder{}.SetAttributes({{"k0", "v0"}, {"k1", "v1"}}).Build();
-  EXPECT_TRUE(m0.data().empty());
+  EXPECT_THAT(m0.data(), IsEmpty());
+
   EXPECT_THAT(m0.attributes(),
-              UnorderedElementsAre(std::make_pair("k0", "v0"),
-                                   std::make_pair("k1", "v1")));
-  EXPECT_TRUE(m0.ordering_key().empty());
-  EXPECT_TRUE(m0.message_id().empty());
+              UnorderedElementsAre(Pair("k0", "v0"), Pair("k1", "v1")));
+  EXPECT_THAT(m0.ordering_key(), IsEmpty());
+
+  EXPECT_THAT(m0.message_id(), IsEmpty());
 }
 
 TEST(Message, SetAttributesVectorStdTupleSimple) {
@@ -128,8 +138,7 @@ TEST(Message, SetAttributesVectorStdTupleSimple) {
   std::vector<tuple> const attributes({tuple("k1", "v1"), tuple("k2", "v2")});
   auto const m0 = MessageBuilder{}.SetAttributes(attributes).Build();
   EXPECT_THAT(m0.attributes(),
-              UnorderedElementsAre(std::make_pair("k1", "v1"),
-                                   std::make_pair("k2", "v2")));
+              UnorderedElementsAre(Pair("k1", "v1"), Pair("k2", "v2")));
 }
 
 TEST(Message, SetData) {
@@ -148,8 +157,7 @@ TEST(Message, SetAttributesIterator) {
                       .Build();
   EXPECT_EQ("original", m0.data());
   EXPECT_THAT(m0.attributes(),
-              UnorderedElementsAre(std::make_pair("k1", "v1"),
-                                   std::make_pair("k2", "v2")));
+              UnorderedElementsAre(Pair("k1", "v1"), Pair("k2", "v2")));
 }
 
 TEST(Message, SetAttributesVectorStdPair) {
@@ -162,8 +170,7 @@ TEST(Message, SetAttributesVectorStdPair) {
                       .Build();
   EXPECT_EQ("original", m0.data());
   EXPECT_THAT(m0.attributes(),
-              UnorderedElementsAre(std::make_pair("k1", "v1"),
-                                   std::make_pair("k2", "v2")));
+              UnorderedElementsAre(Pair("k1", "v1"), Pair("k2", "v2")));
 }
 
 TEST(Message, SetAttributesVectorStdTuple) {
@@ -176,8 +183,7 @@ TEST(Message, SetAttributesVectorStdTuple) {
                       .Build();
   EXPECT_EQ("original", m0.data());
   EXPECT_THAT(m0.attributes(),
-              UnorderedElementsAre(std::make_pair("k1", "v1"),
-                                   std::make_pair("k2", "v2")));
+              UnorderedElementsAre(Pair("k1", "v1"), Pair("k2", "v2")));
 }
 
 TEST(Message, DataMove) {
@@ -200,9 +206,8 @@ TEST(Message, FromProto) {
   auto const m = pubsub_internal::FromProto(expected);
 
   EXPECT_EQ("test-data", m.data());
-  EXPECT_THAT(m.attributes(),
-              UnorderedElementsAre(std::make_pair("key1", "label1"),
-                                   std::make_pair("key0", "label0")));
+  EXPECT_THAT(m.attributes(), UnorderedElementsAre(Pair("key1", "label1"),
+                                                   Pair("key0", "label0")));
   EXPECT_EQ("test-message-id", m.message_id());
   auto const epoch = std::chrono::system_clock::from_time_t(0);
   auto const expected_publish_time =
@@ -259,6 +264,26 @@ TEST(Message, SizeEstimation) {
   EXPECT_TRUE(google::protobuf::TextFormat::ParseFromString(kText, &expected));
   EXPECT_EQ(kMessageSizeOverhead + 4 + (2 + 5) + (2 + 5) + 10 + 4,
             pubsub_internal::MessageSize(pubsub_internal::FromProto(expected)));
+}
+
+TEST(Message, SetAttributeFriend) {
+  auto m0 = MessageBuilder{}.Build();
+  pubsub_internal::SetAttribute("k1", "v1", m0);
+  pubsub_internal::SetAttribute("k2", "v2", m0);
+  pubsub_internal::SetAttribute("k2", "v3", m0);
+
+  EXPECT_THAT(m0.attributes(),
+              UnorderedElementsAre(Pair("k1", "v1"), Pair("k2", "v3")));
+}
+
+TEST(Message, GetAttributeFriend) {
+  auto m0 = MessageBuilder{}.SetAttributes({{"k0", "v0"}}).Build();
+
+  auto const v0 = pubsub_internal::GetAttribute("k0", m0);
+  auto const v1 = pubsub_internal::GetAttribute("k1", m0);
+
+  EXPECT_EQ(std::string(v0.data(), v0.size()), "v0");
+  EXPECT_THAT(v1, IsEmpty());
 }
 
 }  // namespace

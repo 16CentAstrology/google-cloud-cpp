@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -88,11 +88,11 @@ google::cloud::StatusOr<LatencyBenchmarkResult> RunBenchmark(
     bigtable::benchmarks::Benchmark const& benchmark,
     std::chrono::seconds test_duration);
 
-//@{
+///@{
 /// @name Test constants.  Defined as requirements in the original bug (#189).
 /// How many times does each thread report progress.
 constexpr int kBenchmarkProgressMarks = 4;
-//@}
+///@}
 
 }  // anonymous namespace
 

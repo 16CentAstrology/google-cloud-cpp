@@ -1,4 +1,4 @@
-// Copyright 2022 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/bigtable/mocks/mock_row_reader.h"
+#ifndef GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_BIGTABLE_MOCKS_MOCK_ROW_READER_H
+#define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_BIGTABLE_MOCKS_MOCK_ROW_READER_H
+
+#include "google/cloud/bigtable/row_reader.h"
 #include "google/cloud/version.h"
 
 namespace google {
@@ -55,3 +58,5 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace bigtable_mocks
 }  // namespace cloud
 }  // namespace google
+
+#endif  // GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_BIGTABLE_MOCKS_MOCK_ROW_READER_H

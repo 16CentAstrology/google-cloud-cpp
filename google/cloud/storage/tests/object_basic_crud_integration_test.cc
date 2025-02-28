@@ -17,16 +17,19 @@
 #include "google/cloud/internal/getenv.h"
 #include "google/cloud/status.h"
 #include "google/cloud/status_or.h"
-#include "google/cloud/testing_util/contains_once.h"
 #include "google/cloud/testing_util/scoped_environment.h"
 #include "google/cloud/testing_util/status_matchers.h"
+#include "absl/strings/match.h"
 #include <gmock/gmock.h>
 #include <algorithm>
 #include <cstring>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <regex>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -34,24 +37,38 @@ namespace storage {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
-using ::google::cloud::testing_util::ContainsOnce;
 using ::testing::Contains;
 using ::testing::Not;
 using ::testing::UnorderedElementsAreArray;
-using ObjectBasicCRUDIntegrationTest =
-    ::google::cloud::storage::testing::ObjectIntegrationTest;
+
+struct ObjectBasicCRUDIntegrationTest
+    : public ::google::cloud::storage::testing::ObjectIntegrationTest {
+ public:
+  static Client MakeNonDefaultClient() {
+    // Use a different spelling of the default endpoint.
+    auto options = MakeTestOptions();
+    auto endpoint = options.get<RestEndpointOption>();
+    if (absl::StartsWith(endpoint, "https") &&
+        !absl::EndsWith(endpoint, ":443")) {
+      options.set<RestEndpointOption>(endpoint + ":443");
+    }
+    endpoint = options.get<EndpointOption>();
+    if (endpoint.empty()) {
+      options.set<EndpointOption>("storage.googleapis.com:443");
+    } else if (!absl::EndsWith(endpoint, ":443")) {
+      options.set<EndpointOption>(endpoint + ":443");
+    }
+    return MakeIntegrationTestClient(std::move(options));
+  }
+};
 
 /// @test Verify the Object CRUD (Create, Get, Update, Delete, List) operations.
 TEST_F(ObjectBasicCRUDIntegrationTest, BasicCRUD) {
-  // TODO(#9805) - restore gRPC integration tests against production
-  if (!UsingEmulator()) GTEST_SKIP();
-
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto list_object_names = [&client, this] {
     std::vector<std::string> names;
-    for (auto o : client->ListObjects(bucket_name_)) {
+    for (auto o : client.ListObjects(bucket_name_)) {
       EXPECT_STATUS_OK(o);
       if (!o) break;
       names.push_back(o->name());
@@ -66,12 +83,12 @@ TEST_F(ObjectBasicCRUDIntegrationTest, BasicCRUD) {
 
   // Create the object, but only if it does not exist already.
   StatusOr<ObjectMetadata> insert_meta =
-      client->InsertObject(bucket_name_, object_name, LoremIpsum(),
-                           IfGenerationMatch(0), Projection("full"));
+      client.InsertObject(bucket_name_, object_name, LoremIpsum(),
+                          IfGenerationMatch(0), Projection("full"));
   ASSERT_STATUS_OK(insert_meta);
-  EXPECT_THAT(list_object_names(), ContainsOnce(object_name));
+  EXPECT_THAT(list_object_names(), Contains(object_name).Times(1));
 
-  StatusOr<ObjectMetadata> get_meta = client->GetObjectMetadata(
+  StatusOr<ObjectMetadata> get_meta = client.GetObjectMetadata(
       bucket_name_, object_name, Generation(insert_meta->generation()),
       Projection("full"));
   ASSERT_STATUS_OK(get_meta);
@@ -87,7 +104,7 @@ TEST_F(ObjectBasicCRUDIntegrationTest, BasicCRUD) {
       .set_content_language("en")
       .set_content_type("plain/text");
   update.mutable_metadata().emplace("updated", "true");
-  StatusOr<ObjectMetadata> updated_meta = client->UpdateObject(
+  StatusOr<ObjectMetadata> updated_meta = client.UpdateObject(
       bucket_name_, object_name, update, Projection("full"));
   ASSERT_STATUS_OK(updated_meta);
 
@@ -121,12 +138,11 @@ TEST_F(ObjectBasicCRUDIntegrationTest, BasicCRUD) {
 
   ObjectMetadata desired_patch = *updated_meta;
   desired_patch.set_content_language("en");
-  // TODO(#9803) - enable once gRPC supports partial metadata updates.
-  if (!UsingGrpc()) desired_patch.mutable_metadata().erase("updated");
+  desired_patch.mutable_metadata().erase("updated");
   desired_patch.mutable_metadata().emplace("patched", "true");
   StatusOr<ObjectMetadata> patched_meta =
-      client->PatchObject(bucket_name_, object_name, *updated_meta,
-                          desired_patch, PredefinedAcl::Private());
+      client.PatchObject(bucket_name_, object_name, *updated_meta,
+                         desired_patch, PredefinedAcl::Private());
   ASSERT_STATUS_OK(patched_meta);
 
   EXPECT_EQ(desired_patch.metadata(), patched_meta->metadata())
@@ -135,33 +151,14 @@ TEST_F(ObjectBasicCRUDIntegrationTest, BasicCRUD) {
       << *patched_meta;
 
   // This is the test for Object CRUD, we cannot rely on `ScheduleForDelete()`.
-  auto status = client->DeleteObject(bucket_name_, object_name);
+  auto status = client.DeleteObject(bucket_name_, object_name);
   ASSERT_STATUS_OK(status);
   EXPECT_THAT(list_object_names(), Not(Contains(object_name)));
 }
 
-Client CreateNonDefaultClient() {
-  auto emulator =
-      google::cloud::internal::GetEnv("CLOUD_STORAGE_EMULATOR_ENDPOINT");
-  google::cloud::testing_util::ScopedEnvironment env(
-      "CLOUD_STORAGE_EMULATOR_ENDPOINT", {});
-  auto options = google::cloud::Options{};
-  if (!emulator) {
-    // Use a different spelling of the default endpoint. This disables the
-    // allegedly "slightly faster" XML endpoints, but should continue to work.
-    options.set<RestEndpointOption>("https://storage.googleapis.com:443");
-    options.set<UnifiedCredentialsOption>(MakeGoogleDefaultCredentials());
-  } else {
-    // Use the emulator endpoint, but not through the environment variable
-    options.set<RestEndpointOption>(*emulator);
-    options.set<UnifiedCredentialsOption>(MakeInsecureCredentials());
-  }
-  return Client(std::move(options));
-}
-
 /// @test Verify that the client works with non-default endpoints.
-TEST_F(ObjectBasicCRUDIntegrationTest, NonDefaultEndpointInsertJSON) {
-  auto client = CreateNonDefaultClient();
+TEST_F(ObjectBasicCRUDIntegrationTest, NonDefaultEndpointInsert) {
+  auto client = MakeNonDefaultClient();
   auto object_name = MakeRandomObjectName();
   auto const expected = LoremIpsum();
   auto insert = client.InsertObject(bucket_name_, object_name, expected);
@@ -175,23 +172,8 @@ TEST_F(ObjectBasicCRUDIntegrationTest, NonDefaultEndpointInsertJSON) {
 }
 
 /// @test Verify that the client works with non-default endpoints.
-TEST_F(ObjectBasicCRUDIntegrationTest, NonDefaultEndpointInsertXml) {
-  auto client = CreateNonDefaultClient();
-  auto object_name = MakeRandomObjectName();
-  auto const expected = LoremIpsum();
-  auto insert =
-      client.InsertObject(bucket_name_, object_name, expected, Fields(""));
-  ASSERT_STATUS_OK(insert);
-  ScheduleForDelete(*insert);
-  auto stream = client.ReadObject(bucket_name_, object_name);
-  EXPECT_STATUS_OK(stream.status());
-  std::string const actual(std::istreambuf_iterator<char>{stream}, {});
-  EXPECT_EQ(expected, actual);
-}
-
-/// @test Verify that the client works with non-default endpoints.
-TEST_F(ObjectBasicCRUDIntegrationTest, NonDefaultEndpointWriteJSON) {
-  auto client = CreateNonDefaultClient();
+TEST_F(ObjectBasicCRUDIntegrationTest, NonDefaultEndpointWrite) {
+  auto client = MakeNonDefaultClient();
   auto object_name = MakeRandomObjectName();
   auto const expected = LoremIpsum();
   auto writer = client.WriteObject(bucket_name_, object_name);
@@ -206,70 +188,52 @@ TEST_F(ObjectBasicCRUDIntegrationTest, NonDefaultEndpointWriteJSON) {
   EXPECT_EQ(expected, actual);
 }
 
-/// @test Verify that the client works with non-default endpoints.
-TEST_F(ObjectBasicCRUDIntegrationTest, NonDefaultEndpointWriteXml) {
-  auto client = CreateNonDefaultClient();
-  auto object_name = MakeRandomObjectName();
-  auto const expected = LoremIpsum();
-  auto writer = client.WriteObject(bucket_name_, object_name, Fields(""));
-  writer << expected;
-  writer.Close();
-  ASSERT_STATUS_OK(writer.metadata());
-  ScheduleForDelete(*writer.metadata());
-  auto stream = client.ReadObject(bucket_name_, object_name);
-  EXPECT_STATUS_OK(stream.status());
-  std::string const actual(std::istreambuf_iterator<char>{stream}, {});
-  EXPECT_EQ(expected, actual);
-}
-
 /// @test Verify inserting an object does not set the customTime attribute.
 TEST_F(ObjectBasicCRUDIntegrationTest, InsertWithoutCustomTime) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
-  auto insert = client->InsertObject(bucket_name_, object_name, LoremIpsum(),
-                                     IfGenerationMatch(0), Projection("full"));
+
+  auto insert = client.InsertObject(bucket_name_, object_name, LoremIpsum(),
+                                    IfGenerationMatch(0), Projection("full"));
   ASSERT_STATUS_OK(insert);
   EXPECT_FALSE(insert->has_custom_time());
 
-  auto get = client->GetObjectMetadata(bucket_name_, object_name);
+  auto get = client.GetObjectMetadata(bucket_name_, object_name);
   ASSERT_STATUS_OK(get);
   EXPECT_FALSE(get->has_custom_time());
 
-  auto patch = client->PatchObject(
+  auto patch = client.PatchObject(
       bucket_name_, object_name,
       ObjectMetadataPatchBuilder().SetContentType("text/plain"));
   ASSERT_STATUS_OK(patch);
   EXPECT_FALSE(patch->has_custom_time());
 
-  get = client->GetObjectMetadata(bucket_name_, object_name);
+  get = client.GetObjectMetadata(bucket_name_, object_name);
   ASSERT_STATUS_OK(get);
   EXPECT_FALSE(get->has_custom_time());
 
-  auto status = client->DeleteObject(bucket_name_, object_name);
+  auto status = client.DeleteObject(bucket_name_, object_name);
   ASSERT_STATUS_OK(status);
 }
 
 /// @test Verify writing an object does not set the customTime attribute.
 TEST_F(ObjectBasicCRUDIntegrationTest, WriteWithoutCustomTime) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto object_name = MakeRandomObjectName();
-  auto os = client->WriteObject(bucket_name_, object_name, IfGenerationMatch(0),
-                                Projection("full"));
+  auto os = client.WriteObject(bucket_name_, object_name, IfGenerationMatch(0),
+                               Projection("full"));
   os << LoremIpsum();
   os.Close();
   auto metadata = os.metadata();
   ASSERT_STATUS_OK(metadata);
   EXPECT_FALSE(metadata->has_custom_time());
 
-  auto get = client->GetObjectMetadata(bucket_name_, object_name);
+  auto get = client.GetObjectMetadata(bucket_name_, object_name);
   ASSERT_STATUS_OK(get);
   EXPECT_FALSE(get->has_custom_time());
 
-  auto status = client->DeleteObject(bucket_name_, object_name);
+  auto status = client.DeleteObject(bucket_name_, object_name);
   ASSERT_STATUS_OK(status);
 }
 

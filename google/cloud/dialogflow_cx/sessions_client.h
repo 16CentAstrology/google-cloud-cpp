@@ -25,7 +25,9 @@
 #include "google/cloud/polling_policy.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/version.h"
+#include <map>
 #include <memory>
+#include <string>
 
 namespace google {
 namespace cloud {
@@ -61,6 +63,9 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 /// and move-construction is a relatively efficient operation, consider using
 /// such a copy when using this class from multiple threads.
 ///
+/// [google.cloud.dialogflow.cx.v3.Sessions.DetectIntent]:
+/// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L73}
+///
 class SessionsClient {
  public:
   explicit SessionsClient(std::shared_ptr<SessionsConnection> connection,
@@ -68,7 +73,7 @@ class SessionsClient {
   ~SessionsClient();
 
   ///@{
-  // @name Copy and move support
+  /// @name Copy and move support
   SessionsClient(SessionsClient const&) = default;
   SessionsClient& operator=(SessionsClient const&) = default;
   SessionsClient(SessionsClient&&) = default;
@@ -76,7 +81,7 @@ class SessionsClient {
   ///@}
 
   ///@{
-  // @name Equality
+  /// @name Equality
   friend bool operator==(SessionsClient const& a, SessionsClient const& b) {
     return a.connection_ == b.connection_;
   }
@@ -85,6 +90,7 @@ class SessionsClient {
   }
   ///@}
 
+  // clang-format off
   ///
   /// Processes a natural language query and returns structured, actionable data
   /// as a result. This method is not idempotent, because it may cause session
@@ -95,23 +101,71 @@ class SessionsClient {
   /// See [Versions and
   /// environments](https://cloud.google.com/dialogflow/cx/docs/concept/version).
   ///
-  /// @param request
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::DetectIntentRequest,google/cloud/dialogflow/cx/v3/session.proto#L114}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.dialogflow.cx.v3.DetectIntentRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::DetectIntentResponse,google/cloud/dialogflow/cx/v3/session.proto#L149}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.dialogflow.cx.v3.DetectIntentResponse])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.cloud.dialogflow.cx.v3.DetectIntentRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L114}
-  /// [google.cloud.dialogflow.cx.v3.DetectIntentResponse]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L149}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.DetectIntentRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L216}
+  /// [google.cloud.dialogflow.cx.v3.DetectIntentResponse]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L252}
   ///
+  // clang-format on
   StatusOr<google::cloud::dialogflow::cx::v3::DetectIntentResponse>
   DetectIntent(
       google::cloud::dialogflow::cx::v3::DetectIntentRequest const& request,
       Options opts = {});
 
+  // clang-format off
+  ///
+  /// Processes a natural language query and returns structured, actionable data
+  /// as a result through server-side streaming. Server-side streaming allows
+  /// Dialogflow to send [partial
+  /// responses](https://cloud.google.com/dialogflow/cx/docs/concept/fulfillment#partial-response)
+  /// earlier in a single request.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.dialogflow.cx.v3.DetectIntentRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.dialogflow.cx.v3.DetectIntentResponse])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.DetectIntentRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L216}
+  /// [google.cloud.dialogflow.cx.v3.DetectIntentResponse]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L252}
+  ///
+  // clang-format on
+  StreamRange<google::cloud::dialogflow::cx::v3::DetectIntentResponse>
+  ServerStreamingDetectIntent(
+      google::cloud::dialogflow::cx::v3::DetectIntentRequest const& request,
+      Options opts = {});
+
+  // clang-format off
   ///
   /// Processes a natural language query in audio format in a streaming fashion
   /// and returns structured, actionable data as a result. This method is only
@@ -123,41 +177,63 @@ class SessionsClient {
   ///
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return A bidirectional streaming interface with request (write) type:
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::StreamingDetectIntentRequest,google/cloud/dialogflow/cx/v3/session.proto#L224}
-  /// and response (read) type:
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::StreamingDetectIntentResponse,google/cloud/dialogflow/cx/v3/session.proto#L285}
+  /// @return An object representing the bidirectional streaming
+  ///     RPC. Applications can send multiple request messages and receive
+  ///     multiple response messages through this API. Bidirectional streaming
+  ///     RPCs can impose restrictions on the sequence of request and response
+  ///     messages. Please consult the service documentation for details.
+  ///     The request message type ([google.cloud.dialogflow.cx.v3.StreamingDetectIntentRequest]) and response messages
+  ///     ([google.cloud.dialogflow.cx.v3.StreamingDetectIntentResponse]) are mapped to C++ classes using the
+  ///     [Protobuf mapping rules].
   ///
-  /// [google.cloud.dialogflow.cx.v3.StreamingDetectIntentRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L224}
-  /// [google.cloud.dialogflow.cx.v3.StreamingDetectIntentResponse]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L285}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.StreamingDetectIntentRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L332}
+  /// [google.cloud.dialogflow.cx.v3.StreamingDetectIntentResponse]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L465}
   ///
+  // clang-format on
   std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
       google::cloud::dialogflow::cx::v3::StreamingDetectIntentRequest,
       google::cloud::dialogflow::cx::v3::StreamingDetectIntentResponse>>
   AsyncStreamingDetectIntent(Options opts = {});
 
+  // clang-format off
   ///
   /// Returns preliminary intent match results, doesn't change the session
   /// status.
   ///
-  /// @param request
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::MatchIntentRequest,google/cloud/dialogflow/cx/v3/session.proto#L767}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.dialogflow.cx.v3.MatchIntentRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::MatchIntentResponse,google/cloud/dialogflow/cx/v3/session.proto#L795}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.dialogflow.cx.v3.MatchIntentResponse])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.cloud.dialogflow.cx.v3.MatchIntentRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L767}
-  /// [google.cloud.dialogflow.cx.v3.MatchIntentResponse]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L795}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.MatchIntentRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L1239}
+  /// [google.cloud.dialogflow.cx.v3.MatchIntentResponse]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L1271}
   ///
+  // clang-format on
   StatusOr<google::cloud::dialogflow::cx::v3::MatchIntentResponse> MatchIntent(
       google::cloud::dialogflow::cx::v3::MatchIntentRequest const& request,
       Options opts = {});
 
+  // clang-format off
   ///
   /// Fulfills a matched intent returned by
   /// [MatchIntent][google.cloud.dialogflow.cx.v3.Sessions.MatchIntent]. Must be
@@ -167,21 +243,349 @@ class SessionsClient {
   /// [MatchIntentResponse][google.cloud.dialogflow.cx.v3.MatchIntentResponse].
   /// Otherwise, the behavior is undefined.
   ///
-  /// @param request
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::FulfillIntentRequest,google/cloud/dialogflow/cx/v3/session.proto#L829}
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.dialogflow.cx.v3.FulfillIntentRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
   /// @param opts Optional. Override the class-level options, such as retry and
   ///     backoff policies.
-  /// @return
-  /// @googleapis_link{google::cloud::dialogflow::cx::v3::FulfillIntentResponse,google/cloud/dialogflow/cx/v3/session.proto#L842}
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.dialogflow.cx.v3.FulfillIntentResponse])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
   ///
-  /// [google.cloud.dialogflow.cx.v3.FulfillIntentRequest]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L829}
-  /// [google.cloud.dialogflow.cx.v3.FulfillIntentResponse]:
-  /// @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L842}
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.FulfillIntentRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L1306}
+  /// [google.cloud.dialogflow.cx.v3.FulfillIntentResponse]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L1319}
+  /// [google.cloud.dialogflow.cx.v3.MatchIntentResponse]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L1271}
+  /// [google.cloud.dialogflow.cx.v3.Sessions.MatchIntent]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L113}
   ///
+  // clang-format on
   StatusOr<google::cloud::dialogflow::cx::v3::FulfillIntentResponse>
   FulfillIntent(
       google::cloud::dialogflow::cx::v3::FulfillIntentRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// Updates the feedback received from the user for a single turn of the bot
+  /// response.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.dialogflow.cx.v3.SubmitAnswerFeedbackRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.dialogflow.cx.v3.AnswerFeedback])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.dialogflow.cx.v3.AnswerFeedback]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L154}
+  /// [google.cloud.dialogflow.cx.v3.SubmitAnswerFeedbackRequest]: @googleapis_reference_link{google/cloud/dialogflow/cx/v3/session.proto#L193}
+  ///
+  // clang-format on
+  StatusOr<google::cloud::dialogflow::cx::v3::AnswerFeedback>
+  SubmitAnswerFeedback(
+      google::cloud::dialogflow::cx::v3::SubmitAnswerFeedbackRequest const&
+          request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// Lists information about the supported locations for this service.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.location.ListLocationsRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [StreamRange](@ref google::cloud::StreamRange)
+  ///     to iterate of the results. See the documentation of this type for
+  ///     details. In brief, this class has `begin()` and `end()` member
+  ///     functions returning a iterator class meeting the
+  ///     [input iterator requirements]. The value type for this iterator is a
+  ///     [`StatusOr`] as the iteration may fail even after some values are
+  ///     retrieved successfully, for example, if there is a network disconnect.
+  ///     An empty set of results does not indicate an error, it indicates
+  ///     that there are no resources meeting the request criteria.
+  ///     On a successful iteration the `StatusOr<T>` contains elements of type
+  ///     [google.cloud.location.Location], or rather,
+  ///     the C++ class generated by Protobuf from that type. Please consult the
+  ///     Protobuf documentation for details on the [Protobuf mapping rules].
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.location.ListLocationsRequest]: @googleapis_reference_link{google/cloud/location/locations.proto#L58}
+  /// [google.cloud.location.Location]: @googleapis_reference_link{google/cloud/location/locations.proto#L88}
+  ///
+  // clang-format on
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Gets information about a location.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.cloud.location.GetLocationRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return the result of the RPC. The response message type
+  ///     ([google.cloud.location.Location])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.cloud.location.GetLocationRequest]: @googleapis_reference_link{google/cloud/location/locations.proto#L82}
+  /// [google.cloud.location.Location]: @googleapis_reference_link{google/cloud/location/locations.proto#L88}
+  ///
+  // clang-format on
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// Lists operations that match the specified filter in the request. If the
+  /// server doesn't support this method, it returns `UNIMPLEMENTED`.
+  ///
+  /// @param name  The name of the operation's parent resource.
+  /// @param filter  The standard list filter.
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [StreamRange](@ref google::cloud::StreamRange)
+  ///     to iterate of the results. See the documentation of this type for
+  ///     details. In brief, this class has `begin()` and `end()` member
+  ///     functions returning a iterator class meeting the
+  ///     [input iterator requirements]. The value type for this iterator is a
+  ///     [`StatusOr`] as the iteration may fail even after some values are
+  ///     retrieved successfully, for example, if there is a network disconnect.
+  ///     An empty set of results does not indicate an error, it indicates
+  ///     that there are no resources meeting the request criteria.
+  ///     On a successful iteration the `StatusOr<T>` contains elements of type
+  ///     [google.longrunning.Operation], or rather,
+  ///     the C++ class generated by Protobuf from that type. Please consult the
+  ///     Protobuf documentation for details on the [Protobuf mapping rules].
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.ListOperationsRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L167}
+  /// [google.longrunning.Operation]: @googleapis_reference_link{google/longrunning/operations.proto#L121}
+  ///
+  // clang-format on
+  StreamRange<google::longrunning::Operation> ListOperations(
+      std::string const& name, std::string const& filter, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Lists operations that match the specified filter in the request. If the
+  /// server doesn't support this method, it returns `UNIMPLEMENTED`.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.longrunning.ListOperationsRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [StreamRange](@ref google::cloud::StreamRange)
+  ///     to iterate of the results. See the documentation of this type for
+  ///     details. In brief, this class has `begin()` and `end()` member
+  ///     functions returning a iterator class meeting the
+  ///     [input iterator requirements]. The value type for this iterator is a
+  ///     [`StatusOr`] as the iteration may fail even after some values are
+  ///     retrieved successfully, for example, if there is a network disconnect.
+  ///     An empty set of results does not indicate an error, it indicates
+  ///     that there are no resources meeting the request criteria.
+  ///     On a successful iteration the `StatusOr<T>` contains elements of type
+  ///     [google.longrunning.Operation], or rather,
+  ///     the C++ class generated by Protobuf from that type. Please consult the
+  ///     Protobuf documentation for details on the [Protobuf mapping rules].
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.ListOperationsRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L167}
+  /// [google.longrunning.Operation]: @googleapis_reference_link{google/longrunning/operations.proto#L121}
+  ///
+  // clang-format on
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Gets the latest state of a long-running operation.  Clients can use this
+  /// method to poll the operation result at intervals as recommended by the API
+  /// service.
+  ///
+  /// @param name  The name of the operation resource.
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return the result of the RPC. The response message type
+  ///     ([google.longrunning.Operation])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.GetOperationRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L160}
+  /// [google.longrunning.Operation]: @googleapis_reference_link{google/longrunning/operations.proto#L121}
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> GetOperation(std::string const& name,
+                                                        Options opts = {});
+
+  // clang-format off
+  ///
+  /// Gets the latest state of a long-running operation.  Clients can use this
+  /// method to poll the operation result at intervals as recommended by the API
+  /// service.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.longrunning.GetOperationRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return the result of the RPC. The response message type
+  ///     ([google.longrunning.Operation])
+  ///     is mapped to a C++ class using the [Protobuf mapping rules].
+  ///     If the request fails, the [`StatusOr`] contains the error details.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.GetOperationRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L160}
+  /// [google.longrunning.Operation]: @googleapis_reference_link{google/longrunning/operations.proto#L121}
+  ///
+  // clang-format on
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request,
+      Options opts = {});
+
+  // clang-format off
+  ///
+  /// Starts asynchronous cancellation on a long-running operation.  The server
+  /// makes a best effort to cancel the operation, but success is not
+  /// guaranteed.  If the server doesn't support this method, it returns
+  /// `google.rpc.Code.UNIMPLEMENTED`.  Clients can use
+  /// [Operations.GetOperation][google.longrunning.Operations.GetOperation] or
+  /// other methods to check whether the cancellation succeeded or whether the
+  /// operation completed despite cancellation. On successful cancellation,
+  /// the operation is not deleted; instead, it becomes an operation with
+  /// an [Operation.error][google.longrunning.Operation.error] value with a
+  /// [google.rpc.Status.code][google.rpc.Status.code] of `1`, corresponding to
+  /// `Code.CANCELLED`.
+  ///
+  /// @param name  The name of the operation resource to be cancelled.
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [`Status`] object. If the request failed, the
+  ///     status contains the details of the failure.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.CancelOperationRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L193}
+  /// [google.longrunning.Operation.error]: @googleapis_reference_link{google/longrunning/operations.proto#L144}
+  /// [google.longrunning.Operations.GetOperation]: @googleapis_reference_link{google/longrunning/operations.proto#L70}
+  /// [google.rpc.Status.code]: @googleapis_reference_link{google/rpc/status.proto#L38}
+  ///
+  // clang-format on
+  Status CancelOperation(std::string const& name, Options opts = {});
+
+  // clang-format off
+  ///
+  /// Starts asynchronous cancellation on a long-running operation.  The server
+  /// makes a best effort to cancel the operation, but success is not
+  /// guaranteed.  If the server doesn't support this method, it returns
+  /// `google.rpc.Code.UNIMPLEMENTED`.  Clients can use
+  /// [Operations.GetOperation][google.longrunning.Operations.GetOperation] or
+  /// other methods to check whether the cancellation succeeded or whether the
+  /// operation completed despite cancellation. On successful cancellation,
+  /// the operation is not deleted; instead, it becomes an operation with
+  /// an [Operation.error][google.longrunning.Operation.error] value with a
+  /// [google.rpc.Status.code][google.rpc.Status.code] of `1`, corresponding to
+  /// `Code.CANCELLED`.
+  ///
+  /// @param request Unary RPCs, such as the one wrapped by this
+  ///     function, receive a single `request` proto message which includes all
+  ///     the inputs for the RPC. In this case, the proto message is a
+  ///     [google.longrunning.CancelOperationRequest].
+  ///     Proto messages are converted to C++ classes by Protobuf, using the
+  ///     [Protobuf mapping rules].
+  /// @param opts Optional. Override the class-level options, such as retry and
+  ///     backoff policies.
+  /// @return a [`Status`] object. If the request failed, the
+  ///     status contains the details of the failure.
+  ///
+  /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
+  /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
+  /// [`std::string`]: https://en.cppreference.com/w/cpp/string/basic_string
+  /// [`future`]: @ref google::cloud::future
+  /// [`StatusOr`]: @ref google::cloud::StatusOr
+  /// [`Status`]: @ref google::cloud::Status
+  /// [google.longrunning.CancelOperationRequest]: @googleapis_reference_link{google/longrunning/operations.proto#L193}
+  /// [google.longrunning.Operation.error]: @googleapis_reference_link{google/longrunning/operations.proto#L144}
+  /// [google.longrunning.Operations.GetOperation]: @googleapis_reference_link{google/longrunning/operations.proto#L70}
+  /// [google.rpc.Status.code]: @googleapis_reference_link{google/rpc/status.proto#L38}
+  ///
+  // clang-format on
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request,
       Options opts = {});
 
  private:

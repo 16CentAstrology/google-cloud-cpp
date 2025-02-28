@@ -20,6 +20,7 @@
 #include "google/cloud/bigtable/testing/random_names.h"
 #include "google/cloud/internal/absl_str_join_quiet.h"
 #include "google/cloud/internal/getenv.h"
+#include "google/cloud/location.h"
 #include "google/cloud/log.h"
 #include "google/cloud/project.h"
 #include <iterator>
@@ -34,12 +35,14 @@ void CreateInstance(
   //! [create instance] [START bigtable_create_prod_instance]
   namespace cbta = ::google::cloud::bigtable_admin;
   using ::google::cloud::future;
+  using ::google::cloud::Location;
   using ::google::cloud::Project;
   using ::google::cloud::StatusOr;
   [](cbta::BigtableInstanceAdminClient instance_admin,
      std::string const& project_id, std::string const& instance_id,
      std::string const& zone) {
-    std::string project_name = Project(project_id).FullName();
+    auto const project = Project(project_id);
+    std::string project_name = project.FullName();
     std::string cluster_id = instance_id + "-c1";
 
     google::bigtable::admin::v2::Instance in;
@@ -47,7 +50,7 @@ void CreateInstance(
     in.set_display_name("Put description here");
 
     google::bigtable::admin::v2::Cluster cluster;
-    cluster.set_location(project_name + "/locations/" + zone);
+    cluster.set_location(Location(project, zone).FullName());
     cluster.set_serve_nodes(3);
     cluster.set_default_storage_type(google::bigtable::admin::v2::HDD);
 
@@ -63,7 +66,7 @@ void CreateInstance(
     instance_future.wait_for(std::chrono::seconds(1));
     std::cout << '.' << std::flush;
     auto instance = instance_future.get();
-    if (!instance) throw std::runtime_error(instance.status().message());
+    if (!instance) throw std::move(instance).status();
     std::cout << "DONE, details=" << instance->DebugString() << "\n";
   }
   //! [create instance] [END bigtable_create_prod_instance]
@@ -76,13 +79,15 @@ void CreateDevInstance(
   //! [create dev instance] [START bigtable_create_dev_instance]
   namespace cbta = ::google::cloud::bigtable_admin;
   using ::google::cloud::future;
+  using ::google::cloud::Location;
   using ::google::cloud::Project;
   using ::google::cloud::StatusOr;
 
   [](cbta::BigtableInstanceAdminClient instance_admin,
      std::string const& project_id, std::string const& instance_id,
      std::string const& zone) {
-    std::string project_name = Project(project_id).FullName();
+    auto const project = Project(project_id);
+    std::string project_name = project.FullName();
     std::string cluster_id = instance_id + "-c1";
 
     google::bigtable::admin::v2::Instance in;
@@ -90,7 +95,7 @@ void CreateDevInstance(
     in.set_display_name("Put description here");
 
     google::bigtable::admin::v2::Cluster cluster;
-    cluster.set_location(project_name + "/locations/" + zone);
+    cluster.set_location(Location(project, zone).FullName());
     cluster.set_serve_nodes(0);
     cluster.set_default_storage_type(google::bigtable::admin::v2::HDD);
 
@@ -106,7 +111,7 @@ void CreateDevInstance(
     instance_future.wait_for(std::chrono::seconds(2));
     std::cout << '.' << std::flush;
     auto instance = instance_future.get();
-    if (!instance) throw std::runtime_error(instance.status().message());
+    if (!instance) throw std::move(instance).status();
     std::cout << "DONE, details=" << instance->DebugString() << "\n";
   }
   //! [create dev instance] [END bigtable_create_dev_instance]
@@ -119,13 +124,15 @@ void CreateReplicatedInstance(
   // [START bigtable_create_replicated_cluster]
   namespace cbta = ::google::cloud::bigtable_admin;
   using ::google::cloud::future;
+  using ::google::cloud::Location;
   using ::google::cloud::Project;
   using ::google::cloud::StatusOr;
 
   [](cbta::BigtableInstanceAdminClient instance_admin,
      std::string const& project_id, std::string const& instance_id,
      std::string const& zone_a, std::string const& zone_b) {
-    std::string project_name = Project(project_id).FullName();
+    auto const project = Project(project_id);
+    std::string project_name = project.FullName();
     std::string c1 = instance_id + "-c1";
     std::string c2 = instance_id + "-c2";
 
@@ -134,12 +141,12 @@ void CreateReplicatedInstance(
     in.set_display_name("Put description here");
 
     google::bigtable::admin::v2::Cluster cluster1;
-    cluster1.set_location(project_name + "/locations/" + zone_a);
+    cluster1.set_location(Location(project, zone_a).FullName());
     cluster1.set_serve_nodes(3);
     cluster1.set_default_storage_type(google::bigtable::admin::v2::HDD);
 
     google::bigtable::admin::v2::Cluster cluster2;
-    cluster2.set_location(project_name + "/locations/" + zone_b);
+    cluster2.set_location(Location(project, zone_b).FullName());
     cluster2.set_serve_nodes(3);
     cluster2.set_default_storage_type(google::bigtable::admin::v2::HDD);
 
@@ -155,7 +162,7 @@ void CreateReplicatedInstance(
     instance_future.wait_for(std::chrono::seconds(1));
     std::cout << '.' << std::flush;
     auto instance = instance_future.get();
-    if (!instance) throw std::runtime_error(instance.status().message());
+    if (!instance) throw std::move(instance).status();
     std::cout << "DONE, details=" << instance->DebugString() << "\n";
   }
   // [END bigtable_create_replicated_cluster]
@@ -175,7 +182,7 @@ void UpdateInstance(
     std::string instance_name = cbt::InstanceName(project_id, instance_id);
     StatusOr<google::bigtable::admin::v2::Instance> instance =
         instance_admin.GetInstance(instance_name);
-    if (!instance) throw std::runtime_error(instance.status().message());
+    if (!instance) throw std::move(instance).status();
     // Modify the instance and prepare the mask with the modified field
     instance->set_display_name("Modified Display Name");
     google::protobuf::FieldMask mask;
@@ -188,7 +195,7 @@ void UpdateInstance(
         .then([](future<StatusOr<google::bigtable::admin::v2::Instance>> f) {
           auto updated_instance = f.get();
           if (!updated_instance) {
-            throw std::runtime_error(updated_instance.status().message());
+            throw std::move(updated_instance).status();
           }
           std::cout << "UpdateInstance details : "
                     << updated_instance->DebugString() << "\n";
@@ -211,7 +218,7 @@ void ListInstances(
     std::string project_name = Project(project_id).FullName();
     StatusOr<google::bigtable::admin::v2::ListInstancesResponse> instances =
         instance_admin.ListInstances(project_name);
-    if (!instances) throw std::runtime_error(instances.status().message());
+    if (!instances) throw std::move(instances).status();
     for (auto const& instance : instances->instances()) {
       std::cout << instance.name() << "\n";
     }
@@ -244,7 +251,7 @@ void CheckInstanceExists(
         std::cout << "Instance " + instance_id + " does not exist\n";
         return;
       }
-      throw std::runtime_error(instance.status().message());
+      throw std::move(instance).status();
     }
     std::cout << "Instance " << instance->name() << " was found\n";
   }
@@ -264,7 +271,7 @@ void GetInstance(
     std::string instance_name = cbt::InstanceName(project_id, instance_id);
     StatusOr<google::bigtable::admin::v2::Instance> instance =
         instance_admin.GetInstance(instance_name);
-    if (!instance) throw std::runtime_error(instance.status().message());
+    if (!instance) throw std::move(instance).status();
     std::cout << "GetInstance details : " << instance->DebugString() << "\n";
   }
   //! [get instance] [END bigtable_get_instance]
@@ -296,16 +303,17 @@ void CreateCluster(
   namespace cbt = ::google::cloud::bigtable;
   namespace cbta = ::google::cloud::bigtable_admin;
   using ::google::cloud::future;
+  using ::google::cloud::Location;
   using ::google::cloud::Project;
   using ::google::cloud::StatusOr;
   [](cbta::BigtableInstanceAdminClient instance_admin,
      std::string const& project_id, std::string const& instance_id,
      std::string const& cluster_id, std::string const& zone) {
-    std::string project_name = Project(project_id).FullName();
+    auto const project = Project(project_id);
     std::string instance_name = cbt::InstanceName(project_id, instance_id);
 
     google::bigtable::admin::v2::Cluster c;
-    c.set_location(project_name + "/locations/" + zone);
+    c.set_location(Location(project, zone).FullName());
     c.set_serve_nodes(3);
     c.set_default_storage_type(google::bigtable::admin::v2::HDD);
 
@@ -314,7 +322,7 @@ void CreateCluster(
 
     // Applications can wait asynchronously, in this example we just block.
     auto cluster = cluster_future.get();
-    if (!cluster) throw std::runtime_error(cluster.status().message());
+    if (!cluster) throw std::move(cluster).status();
     std::cout << "Successfully created cluster " << cluster->name() << "\n";
   }
   //! [create cluster] [END bigtable_create_cluster]
@@ -333,7 +341,7 @@ void ListClusters(
     std::string instance_name = cbt::InstanceName(project_id, instance_id);
     StatusOr<google::bigtable::admin::v2::ListClustersResponse> clusters =
         instance_admin.ListClusters(instance_name);
-    if (!clusters) throw std::runtime_error(clusters.status().message());
+    if (!clusters) throw std::move(clusters).status();
     std::cout << "Cluster Name List\n";
     for (auto const& cluster : clusters->clusters()) {
       std::cout << "Cluster Name:" << cluster.name() << "\n";
@@ -363,7 +371,7 @@ void ListAllClusters(
     std::string instance_name = cbt::InstanceName(project_id, "-");
     StatusOr<google::bigtable::admin::v2::ListClustersResponse> clusters =
         instance_admin.ListClusters(instance_name);
-    if (!clusters) throw std::runtime_error(clusters.status().message());
+    if (!clusters) throw std::move(clusters).status();
     std::cout << "Cluster Name List\n";
     for (auto const& cluster : clusters->clusters()) {
       std::cout << "Cluster Name:" << cluster.name() << "\n";
@@ -396,7 +404,7 @@ void UpdateCluster(
     // GetCluster first and then modify it.
     StatusOr<google::bigtable::admin::v2::Cluster> cluster =
         instance_admin.GetCluster(cluster_name);
-    if (!cluster) throw std::runtime_error(cluster.status().message());
+    if (!cluster) throw std::move(cluster).status();
 
     // The state cannot be sent on updates, so clear it first.
     cluster->clear_state();
@@ -406,7 +414,7 @@ void UpdateCluster(
     auto modified_cluster =
         instance_admin.UpdateCluster(std::move(*cluster)).get();
     if (!modified_cluster) {
-      throw std::runtime_error(modified_cluster.status().message());
+      throw std::move(modified_cluster).status();
     }
     std::cout << "cluster details : " << cluster->DebugString() << "\n";
   }
@@ -428,7 +436,7 @@ void GetCluster(
         cbt::ClusterName(project_id, instance_id, cluster_id);
     StatusOr<google::bigtable::admin::v2::Cluster> cluster =
         instance_admin.GetCluster(cluster_name);
-    if (!cluster) throw std::runtime_error(cluster.status().message());
+    if (!cluster) throw std::move(cluster).status();
     std::cout << "GetCluster details : " << cluster->DebugString() << "\n";
   }
   //! [get cluster] [END bigtable_get_cluster]
@@ -472,7 +480,7 @@ void CreateAppProfile(
     StatusOr<google::bigtable::admin::v2::AppProfile> profile =
         instance_admin.CreateAppProfile(instance_name, profile_id,
                                         std::move(ap));
-    if (!profile) throw std::runtime_error(profile.status().message());
+    if (!profile) throw std::move(profile).status();
     std::cout << "New profile created with name=" << profile->name() << "\n";
   }
   //! [create app profile] [END bigtable_create_app_profile]
@@ -497,7 +505,7 @@ void CreateAppProfileCluster(
     StatusOr<google::bigtable::admin::v2::AppProfile> profile =
         instance_admin.CreateAppProfile(instance_name, profile_id,
                                         std::move(ap));
-    if (!profile) throw std::runtime_error(profile.status().message());
+    if (!profile) throw std::move(profile).status();
     std::cout << "New profile created with name=" << profile->name() << "\n";
   }
   //! [create app profile cluster]
@@ -518,7 +526,7 @@ void GetAppProfile(
         cbt::AppProfileName(project_id, instance_id, profile_id);
     StatusOr<google::bigtable::admin::v2::AppProfile> profile =
         instance_admin.GetAppProfile(profile_name);
-    if (!profile) throw std::runtime_error(profile.status().message());
+    if (!profile) throw std::move(profile).status();
     std::cout << "Application Profile details=" << profile->DebugString()
               << "\n";
   }
@@ -550,8 +558,7 @@ void UpdateAppProfileDescription(
     future<StatusOr<google::bigtable::admin::v2::AppProfile>> profile_future =
         instance_admin.UpdateAppProfile(std::move(profile), std::move(mask));
     auto modified_profile = profile_future.get();
-    if (!modified_profile)
-      throw std::runtime_error(modified_profile.status().message());
+    if (!modified_profile) throw std::move(modified_profile).status();
     std::cout << "Updated AppProfile: " << modified_profile->DebugString()
               << "\n";
   }
@@ -582,8 +589,7 @@ void UpdateAppProfileRoutingAny(
     future<StatusOr<google::bigtable::admin::v2::AppProfile>> profile_future =
         instance_admin.UpdateAppProfile(std::move(req));
     auto modified_profile = profile_future.get();
-    if (!modified_profile)
-      throw std::runtime_error(modified_profile.status().message());
+    if (!modified_profile) throw std::move(modified_profile).status();
     std::cout << "Updated AppProfile: " << modified_profile->DebugString()
               << "\n";
   }
@@ -615,8 +621,7 @@ void UpdateAppProfileRoutingSingleCluster(
     future<StatusOr<google::bigtable::admin::v2::AppProfile>> profile_future =
         instance_admin.UpdateAppProfile(std::move(req));
     auto modified_profile = profile_future.get();
-    if (!modified_profile)
-      throw std::runtime_error(modified_profile.status().message());
+    if (!modified_profile) throw std::move(modified_profile).status();
     std::cout << "Updated AppProfile: " << modified_profile->DebugString()
               << "\n";
   }
@@ -639,8 +644,8 @@ void ListAppProfiles(
     std::cout << "The " << instance_id << " instance has "
               << std::distance(profiles.begin(), profiles.end())
               << " application profiles\n";
-    for (auto const& profile : profiles) {
-      if (!profile) throw std::runtime_error(profile.status().message());
+    for (auto& profile : profiles) {
+      if (!profile) throw std::move(profile).status();
       std::cout << profile->DebugString() << "\n";
     }
   }
@@ -711,7 +716,7 @@ void GetIamPolicy(
     std::string instance_name = cbt::InstanceName(project_id, instance_id);
     StatusOr<google::iam::v1::Policy> policy =
         instance_admin.GetIamPolicy(instance_name);
-    if (!policy) throw std::runtime_error(policy.status().message());
+    if (!policy) throw std::move(policy).status();
     std::cout << "The IAM Policy for " << instance_id << " is\n"
               << policy->DebugString() << "\n";
   }
@@ -732,7 +737,7 @@ void SetIamPolicy(
     std::string instance_name = cbt::InstanceName(project_id, instance_id);
     StatusOr<google::iam::v1::Policy> current =
         instance_admin.GetIamPolicy(instance_name);
-    if (!current) throw std::runtime_error(current.status().message());
+    if (!current) throw std::move(current).status();
     // This example adds the member to all existing bindings for that role. If
     // there are no such bindings, it adds a new one. This might not be what the
     // user wants, e.g. in case of conditional bindings.
@@ -748,7 +753,7 @@ void SetIamPolicy(
     }
     StatusOr<google::iam::v1::Policy> policy =
         instance_admin.SetIamPolicy(instance_name, *current);
-    if (!policy) throw std::runtime_error(policy.status().message());
+    if (!policy) throw std::move(policy).status();
     std::cout << "The IAM Policy for " << instance_id << " is\n"
               << policy->DebugString() << "\n";
   }
@@ -782,7 +787,7 @@ void TestIamPermissions(std::vector<std::string> const& argv) {
      std::string const& resource_name,
      std::vector<std::string> const& permissions) {
     auto result = instance_admin.TestIamPermissions(resource_name, permissions);
-    if (!result) throw std::runtime_error(result.status().message());
+    if (!result) throw std::move(result).status();
     std::cout << "The current user has the following permissions [";
     std::cout << absl::StrJoin(result->permissions(), ", ");
     std::cout << "]\n";
@@ -904,7 +909,7 @@ void RunAll(std::vector<std::string> const& argv) {
   std::cout << "\nRunning DeleteAppProfile() example [2]" << std::endl;
   try {
     DeleteAppProfile({project_id, instance_id, "profile-p2", "invalid"});
-  } catch (Usage const&) {
+  } catch (Usage const&) {  // NOLINT(bugprone-empty-catch)
   }
 
   try {

@@ -19,6 +19,7 @@
 #include "google/cloud/dialogflow_es/internal/conversation_datasets_auth_decorator.h"
 #include <google/cloud/dialogflow/v2/conversation_dataset.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -33,117 +34,192 @@ ConversationDatasetsAuth::ConversationDatasetsAuth(
 future<StatusOr<google::longrunning::Operation>>
 ConversationDatasetsAuth::AsyncCreateConversationDataset(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::dialogflow::v2::CreateConversationDatasetRequest const&
         request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
-        return child->AsyncCreateConversationDataset(cq, *std::move(context),
-                                                     request);
+        return child->AsyncCreateConversationDataset(
+            cq, *std::move(context), std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation>
+ConversationDatasetsAuth::CreateConversationDataset(
+    grpc::ClientContext& context, Options options,
+    google::cloud::dialogflow::v2::CreateConversationDatasetRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->CreateConversationDataset(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::v2::ConversationDataset>
 ConversationDatasetsAuth::GetConversationDataset(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::v2::GetConversationDatasetRequest const&
         request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->GetConversationDataset(context, request);
+  return child_->GetConversationDataset(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::v2::ListConversationDatasetsResponse>
 ConversationDatasetsAuth::ListConversationDatasets(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::v2::ListConversationDatasetsRequest const&
         request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->ListConversationDatasets(context, request);
+  return child_->ListConversationDatasets(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 ConversationDatasetsAuth::AsyncDeleteConversationDataset(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::dialogflow::v2::DeleteConversationDatasetRequest const&
         request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
-        return child->AsyncDeleteConversationDataset(cq, *std::move(context),
-                                                     request);
+        return child->AsyncDeleteConversationDataset(
+            cq, *std::move(context), std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation>
+ConversationDatasetsAuth::DeleteConversationDataset(
+    grpc::ClientContext& context, Options options,
+    google::cloud::dialogflow::v2::DeleteConversationDatasetRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->DeleteConversationDataset(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 ConversationDatasetsAuth::AsyncImportConversationData(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::dialogflow::v2::ImportConversationDataRequest const&
         request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
         return child->AsyncImportConversationData(cq, *std::move(context),
-                                                  request);
+                                                  std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation>
+ConversationDatasetsAuth::ImportConversationData(
+    grpc::ClientContext& context, Options options,
+    google::cloud::dialogflow::v2::ImportConversationDataRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ImportConversationData(context, options, request);
+}
+
+StatusOr<google::cloud::location::ListLocationsResponse>
+ConversationDatasetsAuth::ListLocations(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::ListLocationsRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ListLocations(context, options, request);
+}
+
+StatusOr<google::cloud::location::Location>
+ConversationDatasetsAuth::GetLocation(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::GetLocationRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetLocation(context, options, request);
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+ConversationDatasetsAuth::ListOperations(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::ListOperationsRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ListOperations(context, options, request);
+}
+
+StatusOr<google::longrunning::Operation> ConversationDatasetsAuth::GetOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::GetOperationRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetOperation(context, options, request);
+}
+
+Status ConversationDatasetsAuth::CancelOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::CancelOperationRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->CancelOperation(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 ConversationDatasetsAuth::AsyncGetOperation(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::longrunning::GetOperationRequest const& request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
-        return child->AsyncGetOperation(cq, *std::move(context), request);
+        return child->AsyncGetOperation(cq, *std::move(context),
+                                        std::move(options), request);
       });
 }
 
 future<Status> ConversationDatasetsAuth::AsyncCancelOperation(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::longrunning::CancelOperationRequest const& request) {
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) return make_ready_future(std::move(context).status());
-        return child->AsyncCancelOperation(cq, *std::move(context), request);
+        return child->AsyncCancelOperation(cq, *std::move(context),
+                                           std::move(options), request);
       });
 }
 

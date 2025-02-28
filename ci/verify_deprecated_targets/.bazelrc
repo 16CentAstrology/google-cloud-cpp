@@ -12,11 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# To workaround a bug in Bazel [1], gRPC requires this flag on macOS builds,
-# and there is (AFAIK) no way to "inherit" their definitions.
-#   [1]: https://github.com/bazelbuild/bazel/issues/4341
-build --copt=-DGRPC_BAZEL_BUILD
-
 # Use host-OS-specific config lines from bazelrc files.
 build --enable_platform_specific_config=true
 
@@ -24,8 +19,19 @@ build --enable_platform_specific_config=true
 # disables C++14 features, even if the compilers defaults to C++ >= 14
 build:linux --cxxopt=-std=c++14
 build:macos --cxxopt=-std=c++14
+# Protobuf and gRPC require (or soon will require) C++14 to compile the "host"
+# targets, such as protoc and the grpc plugin.
+build:linux --host_cxxopt=-std=c++14
+build:macos --host_cxxopt=-std=c++14
 
 # Do not create the convenience links. They are inconvenient when the build
 # runs inside a docker image or if one builds a quickstart and then builds
 # the project separately.
 build --experimental_convenience_symlinks=ignore
+
+# TODO(#11485) - enable bzlmod once it works
+common --noenable_bzlmod
+
+# TODO(#13311) - remove once gRPC works with Bazel v7 or when gRPC stops using
+#     `apple_rules`.
+common:macos --repo_env=BAZEL_NO_APPLE_CPP_TOOLCHAIN=1

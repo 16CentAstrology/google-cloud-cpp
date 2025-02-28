@@ -19,6 +19,7 @@
 #include "google/cloud/internal/oauth2_http_client_factory.h"
 #include "google/cloud/status.h"
 #include "google/cloud/version.h"
+#include "absl/types/optional.h"
 #include <chrono>
 #include <mutex>
 #include <string>
@@ -32,6 +33,7 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 struct ServiceAccountMetadata {
   std::set<std::string> scopes;
   std::string email;
+  std::string universe_domain;
 };
 
 /// Parses a metadata server response JSON string into a ServiceAccountMetadata.
@@ -49,7 +51,7 @@ StatusOr<ServiceAccountMetadata> ParseMetadataServerResponse(
 ServiceAccountMetadata ParseMetadataServerResponse(std::string const& payload);
 
 /// Parses a refresh response JSON string into an access token.
-StatusOr<internal::AccessToken> ParseComputeEngineRefreshResponse(
+StatusOr<AccessToken> ParseComputeEngineRefreshResponse(
     rest_internal::RestResponse& response,
     std::chrono::system_clock::time_point now);
 
@@ -89,13 +91,32 @@ class ComputeEngineCredentials : public Credentials {
                                     Options options,
                                     HttpClientFactory client_factory);
 
-  StatusOr<internal::AccessToken> GetToken(
+  StatusOr<AccessToken> GetToken(
       std::chrono::system_clock::time_point tp) override;
 
   /**
    * Returns the current Service Account email.
    */
   std::string AccountEmail() const override;
+
+  /**
+   * Returns the universe domain from the Metadata Server (MDS).
+   * RPCs are made using `UniverseDomainRetryPolicyOption` and
+   * `UniverseDomainBackoffPolicyOption` if specified,
+   * preferring per call `Options` over `Options` used to construct the
+   * `ComputeEngineCredentials` instance. Otherwise, the default policies are
+   * used.
+   */
+  StatusOr<std::string> universe_domain() const override;
+  StatusOr<std::string> universe_domain(
+      google::cloud::Options const& options) const override;
+
+  /**
+   * Returns the project id from the Metadata Server (MDS).
+   */
+  StatusOr<std::string> project_id() const override;
+  StatusOr<std::string> project_id(
+      google::cloud::Options const& options) const override;
 
   /**
    * Returns the email or alias of this credential's service account.
@@ -128,13 +149,22 @@ class ComputeEngineCredentials : public Credentials {
   std::string RetrieveServiceAccountInfo() const;
   std::string RetrieveServiceAccountInfo(
       std::lock_guard<std::mutex> const&) const;
+  StatusOr<std::string> RetrieveUniverseDomain(
+      std::lock_guard<std::mutex> const&, Options const& options) const;
+
+  StatusOr<std::string> RetrieveProjectId(std::lock_guard<std::mutex> const&,
+                                          Options const& options) const;
 
   Options options_;
   HttpClientFactory client_factory_;
-  mutable std::mutex mu_;
-  mutable bool metadata_retrieved_ = false;
+  mutable std::mutex service_account_mu_;
+  mutable bool service_account_retrieved_ = false;
   mutable std::set<std::string> scopes_;
   mutable std::string service_account_email_;
+  mutable std::mutex universe_domain_mu_;
+  mutable absl::optional<std::string> universe_domain_;
+  mutable std::mutex project_id_mu_;
+  mutable absl::optional<std::string> project_id_;
 };
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

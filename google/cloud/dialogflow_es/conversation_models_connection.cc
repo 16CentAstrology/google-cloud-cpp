@@ -21,12 +21,15 @@
 #include "google/cloud/dialogflow_es/internal/conversation_models_connection_impl.h"
 #include "google/cloud/dialogflow_es/internal/conversation_models_option_defaults.h"
 #include "google/cloud/dialogflow_es/internal/conversation_models_stub_factory.h"
+#include "google/cloud/dialogflow_es/internal/conversation_models_tracing_connection.h"
 #include "google/cloud/background_threads.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/credentials.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/pagination_range.h"
+#include "google/cloud/internal/unified_grpc_credentials.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -38,6 +41,22 @@ ConversationModelsConnection::~ConversationModelsConnection() = default;
 future<StatusOr<google::cloud::dialogflow::v2::ConversationModel>>
 ConversationModelsConnection::CreateConversationModel(
     google::cloud::dialogflow::v2::CreateConversationModelRequest const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::dialogflow::v2::ConversationModel>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation>
+ConversationModelsConnection::CreateConversationModel(
+    NoAwaitTag,
+    google::cloud::dialogflow::v2::CreateConversationModelRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::cloud::dialogflow::v2::ConversationModel>>
+ConversationModelsConnection::CreateConversationModel(
+    google::longrunning::Operation const&) {
   return google::cloud::make_ready_future<
       StatusOr<google::cloud::dialogflow::v2::ConversationModel>>(
       Status(StatusCode::kUnimplemented, "not implemented"));
@@ -66,6 +85,23 @@ ConversationModelsConnection::DeleteConversationModel(
       Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
+StatusOr<google::longrunning::Operation>
+ConversationModelsConnection::DeleteConversationModel(
+    NoAwaitTag,
+    google::cloud::dialogflow::v2::DeleteConversationModelRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<
+    google::cloud::dialogflow::v2::DeleteConversationModelOperationMetadata>>
+ConversationModelsConnection::DeleteConversationModel(
+    google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<StatusOr<
+      google::cloud::dialogflow::v2::DeleteConversationModelOperationMetadata>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
 future<StatusOr<
     google::cloud::dialogflow::v2::DeployConversationModelOperationMetadata>>
 ConversationModelsConnection::DeployConversationModel(
@@ -75,10 +111,45 @@ ConversationModelsConnection::DeployConversationModel(
       Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
+StatusOr<google::longrunning::Operation>
+ConversationModelsConnection::DeployConversationModel(
+    NoAwaitTag,
+    google::cloud::dialogflow::v2::DeployConversationModelRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<
+    google::cloud::dialogflow::v2::DeployConversationModelOperationMetadata>>
+ConversationModelsConnection::DeployConversationModel(
+    google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<StatusOr<
+      google::cloud::dialogflow::v2::DeployConversationModelOperationMetadata>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
 future<StatusOr<
     google::cloud::dialogflow::v2::UndeployConversationModelOperationMetadata>>
 ConversationModelsConnection::UndeployConversationModel(
     google::cloud::dialogflow::v2::UndeployConversationModelRequest const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::dialogflow::v2::
+                   UndeployConversationModelOperationMetadata>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation>
+ConversationModelsConnection::UndeployConversationModel(
+    NoAwaitTag,
+    google::cloud::dialogflow::v2::UndeployConversationModelRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<
+    google::cloud::dialogflow::v2::UndeployConversationModelOperationMetadata>>
+ConversationModelsConnection::UndeployConversationModel(
+    google::longrunning::Operation const&) {
   return google::cloud::make_ready_future<
       StatusOr<google::cloud::dialogflow::v2::
                    UndeployConversationModelOperationMetadata>>(
@@ -109,6 +180,55 @@ ConversationModelsConnection::CreateConversationModelEvaluation(
       Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
+StatusOr<google::longrunning::Operation>
+ConversationModelsConnection::CreateConversationModelEvaluation(
+    NoAwaitTag, google::cloud::dialogflow::v2::
+                    CreateConversationModelEvaluationRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::cloud::dialogflow::v2::ConversationModelEvaluation>>
+ConversationModelsConnection::CreateConversationModelEvaluation(
+    google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+      StatusOr<google::cloud::dialogflow::v2::ConversationModelEvaluation>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StreamRange<google::cloud::location::Location>
+ConversationModelsConnection::ListLocations(
+    google::cloud::location::
+        ListLocationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::cloud::location::Location>>();
+}
+
+StatusOr<google::cloud::location::Location>
+ConversationModelsConnection::GetLocation(
+    google::cloud::location::GetLocationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+StreamRange<google::longrunning::Operation>
+ConversationModelsConnection::ListOperations(
+    google::longrunning::
+        ListOperationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::longrunning::Operation>>();
+}
+
+StatusOr<google::longrunning::Operation>
+ConversationModelsConnection::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+Status ConversationModelsConnection::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
 std::shared_ptr<ConversationModelsConnection> MakeConversationModelsConnection(
     std::string const& location, Options options) {
   internal::CheckExpectedOptions<CommonOptionList, GrpcOptionList,
@@ -118,11 +238,13 @@ std::shared_ptr<ConversationModelsConnection> MakeConversationModelsConnection(
   options = dialogflow_es_internal::ConversationModelsDefaultOptions(
       location, std::move(options));
   auto background = internal::MakeBackgroundThreadsFactory(options)();
+  auto auth = internal::CreateAuthenticationStrategy(background->cq(), options);
   auto stub = dialogflow_es_internal::CreateDefaultConversationModelsStub(
-      background->cq(), options);
-  return std::make_shared<
-      dialogflow_es_internal::ConversationModelsConnectionImpl>(
-      std::move(background), std::move(stub), std::move(options));
+      std::move(auth), options);
+  return dialogflow_es_internal::MakeConversationModelsTracingConnection(
+      std::make_shared<
+          dialogflow_es_internal::ConversationModelsConnectionImpl>(
+          std::move(background), std::move(stub), std::move(options)));
 }
 
 std::shared_ptr<ConversationModelsConnection> MakeConversationModelsConnection(

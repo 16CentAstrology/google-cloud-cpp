@@ -19,10 +19,13 @@
 #include "google/cloud/storage/testing/canonical_errors.h"
 #include "google/cloud/storage/testing/client_unit_test.h"
 #include "google/cloud/storage/testing/mock_client.h"
-#include "google/cloud/storage/testing/retry_tests.h"
 #include "google/cloud/storage/testing/temp_file.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -32,9 +35,7 @@ namespace {
 
 using ::google::cloud::internal::CurrentOptions;
 using ::google::cloud::storage::testing::TempFile;
-using ::google::cloud::storage::testing::canonical_errors::PermanentError;
 using ::google::cloud::storage::testing::canonical_errors::TransientError;
-using ::google::cloud::testing_util::StatusIs;
 using ::testing::ByMove;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
@@ -79,7 +80,7 @@ TEST_F(ObjectTest, InsertObjectMedia) {
         EXPECT_EQ(CurrentOptions().get<UserProjectOption>(), "u-p-test");
         EXPECT_EQ("test-bucket-name", request.bucket_name());
         EXPECT_EQ("test-object-name", request.object_name());
-        EXPECT_EQ("test object contents", request.contents());
+        EXPECT_EQ("test object contents", request.payload());
         return make_status_or(expected);
       });
 
@@ -89,37 +90,6 @@ TEST_F(ObjectTest, InsertObjectMedia) {
       Options{}.set<UserProjectOption>("u-p-test"));
   ASSERT_STATUS_OK(actual);
   EXPECT_EQ(expected, *actual);
-}
-
-TEST_F(ObjectTest, InsertObjectMediaTooManyFailures) {
-  testing::TooManyFailuresStatusTest<ObjectMetadata>(
-      mock_, EXPECT_CALL(*mock_, InsertObjectMedia),
-      [](Client& client) {
-        return client
-            .InsertObject("test-bucket-name", "test-object-name",
-                          "test object contents")
-            .status();
-      },
-      [](Client& client) {
-        return client
-            .InsertObject("test-bucket-name", "test-object-name",
-                          "test object contents", IfGenerationMatch(0))
-            .status();
-      },
-      "InsertObjectMedia");
-}
-
-TEST_F(ObjectTest, InsertObjectMediaPermanentFailure) {
-  auto client = ClientForMock();
-  testing::PermanentFailureStatusTest<ObjectMetadata>(
-      client, EXPECT_CALL(*mock_, InsertObjectMedia),
-      [](Client& client) {
-        return client
-            .InsertObject("test-bucket-name", "test-object-name",
-                          "test object contents")
-            .status();
-      },
-      "InsertObjectMedia");
 }
 
 TEST_F(ObjectTest, GetObjectMetadata) {
@@ -162,27 +132,6 @@ TEST_F(ObjectTest, GetObjectMetadata) {
                                Options{}.set<UserProjectOption>("u-p-test"));
   ASSERT_STATUS_OK(actual);
   EXPECT_EQ(expected, *actual);
-}
-
-TEST_F(ObjectTest, GetObjectMetadataTooManyFailures) {
-  testing::TooManyFailuresStatusTest<ObjectMetadata>(
-      mock_, EXPECT_CALL(*mock_, GetObjectMetadata),
-      [](Client& client) {
-        return client.GetObjectMetadata("test-bucket-name", "test-object-name")
-            .status();
-      },
-      "GetObjectMetadata");
-}
-
-TEST_F(ObjectTest, GetObjectMetadataPermanentFailure) {
-  auto client = ClientForMock();
-  testing::PermanentFailureStatusTest<ObjectMetadata>(
-      client, EXPECT_CALL(*mock_, GetObjectMetadata),
-      [](Client& client) {
-        return client.GetObjectMetadata("test-bucket-name", "test-object-name")
-            .status();
-      },
-      "GetObjectMetadata");
 }
 
 TEST_F(ObjectTest, ListObjects) {
@@ -241,7 +190,7 @@ TEST_F(ObjectTest, ReadObject) {
         EXPECT_EQ(CurrentOptions().get<UserProjectOption>(), "u-p-test");
         EXPECT_EQ("test-bucket-name", r.bucket_name());
         EXPECT_EQ("test-object-name", r.object_name());
-        auto read_source = absl::make_unique<testing::MockObjectReadSource>();
+        auto read_source = std::make_unique<testing::MockObjectReadSource>();
         EXPECT_CALL(*read_source, IsOpen()).WillRepeatedly(Return(true));
         EXPECT_CALL(*read_source, Read)
             .WillOnce(Return(internal::ReadSourceResult{1024, {}}));
@@ -256,47 +205,6 @@ TEST_F(ObjectTest, ReadObject) {
   std::vector<char> v(1024);
   actual.read(v.data(), v.size());
   EXPECT_EQ(actual.gcount(), 1024);
-}
-
-TEST_F(ObjectTest, ReadObjectTooManyFailures) {
-  // We cannot use google::cloud::storage::testing::TooManyFailuresStatusTest,
-  // because that assumes the type returned by the RawClient operation is
-  // copyable.
-  using ReturnType = std::unique_ptr<internal::ObjectReadSource>;
-
-  auto transient_error = [](internal::ReadObjectRangeRequest const&) {
-    return StatusOr<ReturnType>(TransientError());
-  };
-  EXPECT_CALL(*mock_, ReadObject)
-      .WillOnce(transient_error)
-      .WillOnce(transient_error)
-      .WillOnce(transient_error);
-
-  auto client = ClientForMock();
-  Status status =
-      client.ReadObject("test-bucket-name", "test-object-name").status();
-  EXPECT_EQ(TransientError().code(), status.code());
-  EXPECT_THAT(status.message(), HasSubstr("Retry policy exhausted"));
-  EXPECT_THAT(status.message(), HasSubstr("ReadObject"));
-}
-
-TEST_F(ObjectTest, ReadObjectPermanentFailure) {
-  // We cannot use google::cloud::storage::testing::PermanentFailureStatusTest,
-  // because that assumes the type returned by the RawClient operation is
-  // copyable.
-  using ReturnType = std::unique_ptr<internal::ObjectReadSource>;
-
-  auto permanent_error = [](internal::ReadObjectRangeRequest const&) {
-    return StatusOr<ReturnType>(PermanentError());
-  };
-  EXPECT_CALL(*mock_, ReadObject).WillOnce(permanent_error);
-
-  auto client = ClientForMock();
-  Status status =
-      client.ReadObject("test-bucket-name", "test-object-name").status();
-  EXPECT_EQ(PermanentError().code(), status.code());
-  EXPECT_THAT(status.message(), HasSubstr("Permanent error"));
-  EXPECT_THAT(status.message(), HasSubstr("ReadObject"));
 }
 
 TEST_F(ObjectTest, WriteObject) {
@@ -318,32 +226,6 @@ TEST_F(ObjectTest, WriteObject) {
   std::move(writer).Suspend();
 }
 
-TEST_F(ObjectTest, WriteObjectTooManyFailures) {
-  // We cannot use google::cloud::storage::testing::TooManyFailuresStatusTest.
-  // The types do not follow the normal pattern.
-  EXPECT_CALL(*mock_, CreateResumableUpload)
-      .Times(3)
-      .WillRepeatedly(Return(TransientError()));
-
-  auto client = ClientForMock();
-  Status status =
-      client.WriteObject("test-bucket-name", "test-object-name").last_status();
-  EXPECT_THAT(status, StatusIs(TransientError().code(),
-                               HasSubstr("Retry policy exhausted")));
-}
-
-TEST_F(ObjectTest, WriteObjectPermanentFailure) {
-  // We cannot use google::cloud::storage::testing::TooManyFailuresStatusTest.
-  // The types do not follow the normal pattern.
-  EXPECT_CALL(*mock_, CreateResumableUpload).WillOnce(Return(PermanentError()));
-
-  auto client = ClientForMock();
-  Status status =
-      client.WriteObject("test-bucket-name", "test-object-name").last_status();
-  EXPECT_THAT(status,
-              StatusIs(PermanentError().code(), HasSubstr("Permanent error")));
-}
-
 TEST_F(ObjectTest, UploadFile) {
   std::string text = R"""({
       "name": "test-bucket-name/test-object-name/1"
@@ -358,7 +240,7 @@ TEST_F(ObjectTest, UploadFile) {
         EXPECT_EQ(CurrentOptions().get<UserProjectOption>(), "u-p-test");
         EXPECT_EQ("test-bucket-name", request.bucket_name());
         EXPECT_EQ("test-object-name", request.object_name());
-        EXPECT_EQ(contents, request.contents());
+        EXPECT_EQ(contents, request.payload());
         return make_status_or(expected);
       });
 
@@ -387,25 +269,6 @@ TEST_F(ObjectTest, DeleteResumableUpload) {
   EXPECT_STATUS_OK(status);
 }
 
-TEST_F(ObjectTest, DeleteResumableUploadTooManyFailures) {
-  testing::TooManyFailuresStatusTest<internal::EmptyResponse>(
-      mock_, EXPECT_CALL(*mock_, DeleteResumableUpload),
-      [](Client& client) {
-        return client.DeleteResumableUpload("test-upload-id");
-      },
-      "DeleteResumableUpload");
-}
-
-TEST_F(ObjectTest, DeleteResumableUploadPermanentFailure) {
-  auto client = ClientForMock();
-  testing::PermanentFailureStatusTest<internal::EmptyResponse>(
-      client, EXPECT_CALL(*mock_, DeleteResumableUpload),
-      [](Client& client) {
-        return client.DeleteResumableUpload("test-bucket-name");
-      },
-      "DeleteResumableUpload");
-}
-
 TEST_F(ObjectTest, DownloadToFile) {
   auto const contents = std::string{"How vexingly quick daft zebras jump!"};
 
@@ -416,7 +279,7 @@ TEST_F(ObjectTest, DownloadToFile) {
         EXPECT_EQ(CurrentOptions().get<UserProjectOption>(), "u-p-test");
         EXPECT_EQ("test-bucket-name", r.bucket_name());
         EXPECT_EQ("test-object-name", r.object_name());
-        auto read_source = absl::make_unique<testing::MockObjectReadSource>();
+        auto read_source = std::make_unique<testing::MockObjectReadSource>();
         EXPECT_CALL(*read_source, IsOpen()).WillRepeatedly(Return(true));
         EXPECT_CALL(*read_source, Read)
             .WillOnce(Return(internal::ReadSourceResult{contents.size(), {}}))
@@ -450,29 +313,6 @@ TEST_F(ObjectTest, DeleteObject) {
       client.DeleteObject("test-bucket-name", "test-object-name",
                           Options{}.set<UserProjectOption>("u-p-test"));
   EXPECT_STATUS_OK(status);
-}
-
-TEST_F(ObjectTest, DeleteObjectTooManyFailures) {
-  testing::TooManyFailuresStatusTest<internal::EmptyResponse>(
-      mock_, EXPECT_CALL(*mock_, DeleteObject),
-      [](Client& client) {
-        return client.DeleteObject("test-bucket-name", "test-object-name");
-      },
-      [](Client& client) {
-        return client.DeleteObject("test-bucket-name", "test-object-name",
-                                   IfGenerationMatch(7));
-      },
-      "DeleteObject");
-}
-
-TEST_F(ObjectTest, DeleteObjectPermanentFailure) {
-  auto client = ClientForMock();
-  testing::PermanentFailureStatusTest<internal::EmptyResponse>(
-      client, EXPECT_CALL(*mock_, DeleteObject),
-      [](Client& client) {
-        return client.DeleteObject("test-bucket-name", "test-object-name");
-      },
-      "DeleteObject");
 }
 
 TEST_F(ObjectTest, UpdateObject) {
@@ -544,38 +384,6 @@ TEST_F(ObjectTest, UpdateObject) {
   EXPECT_EQ(expected, *actual);
 }
 
-TEST_F(ObjectTest, UpdateObjectTooManyFailures) {
-  testing::TooManyFailuresStatusTest<ObjectMetadata>(
-      mock_, EXPECT_CALL(*mock_, UpdateObject),
-      [](Client& client) {
-        return client
-            .UpdateObject("test-bucket-name", "test-object-name",
-                          ObjectMetadata().set_content_language("new-language"))
-            .status();
-      },
-      [](Client& client) {
-        return client
-            .UpdateObject("test-bucket-name", "test-object-name",
-                          ObjectMetadata().set_content_language("new-language"),
-                          IfMetagenerationMatch(42))
-            .status();
-      },
-      "UpdateObject");
-}
-
-TEST_F(ObjectTest, UpdateObjectPermanentFailure) {
-  auto client = ClientForMock();
-  testing::PermanentFailureStatusTest<ObjectMetadata>(
-      client, EXPECT_CALL(*mock_, UpdateObject),
-      [](Client& client) {
-        return client
-            .UpdateObject("test-bucket-name", "test-object-name",
-                          ObjectMetadata().set_content_language("new-language"))
-            .status();
-      },
-      "UpdateObject");
-}
-
 TEST_F(ObjectTest, PatchObject) {
   std::string text = R"""({
       "bucket": "test-bucket-name",
@@ -621,41 +429,6 @@ TEST_F(ObjectTest, PatchObject) {
                          Options{}.set<UserProjectOption>("u-p-test"));
   ASSERT_STATUS_OK(actual);
   EXPECT_EQ(expected, *actual);
-}
-
-TEST_F(ObjectTest, PatchObjectTooManyFailures) {
-  testing::TooManyFailuresStatusTest<ObjectMetadata>(
-      mock_, EXPECT_CALL(*mock_, PatchObject),
-      [](Client& client) {
-        return client
-            .PatchObject(
-                "test-bucket-name", "test-object-name",
-                ObjectMetadataPatchBuilder().SetContentLanguage("x-pig-latin"))
-            .status();
-      },
-      [](Client& client) {
-        return client
-            .PatchObject(
-                "test-bucket-name", "test-object-name",
-                ObjectMetadataPatchBuilder().SetContentLanguage("x-pig-latin"),
-                IfMetagenerationMatch(42))
-            .status();
-      },
-      "PatchObject");
-}
-
-TEST_F(ObjectTest, PatchObjectPermanentFailure) {
-  auto client = ClientForMock();
-  testing::PermanentFailureStatusTest<ObjectMetadata>(
-      client, EXPECT_CALL(*mock_, PatchObject),
-      [](Client& client) {
-        return client
-            .PatchObject(
-                "test-bucket-name", "test-object-name",
-                ObjectMetadataPatchBuilder().SetContentLanguage("x-pig-latin"))
-            .status();
-      },
-      "PatchObject");
 }
 
 }  // namespace

@@ -13,20 +13,27 @@
 // limitations under the License.
 
 #include "google/cloud/storage/internal/signed_url_requests.h"
-#include "google/cloud/storage/internal/curl_handle.h"
 #include "google/cloud/internal/absl_str_join_quiet.h"
+#include "google/cloud/internal/curl_handle.h"
 #include "google/cloud/internal/format_time_point.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/internal/sha256_hash.h"
 #include "absl/strings/str_split.h"
 #include <algorithm>
 #include <cctype>
+#include <map>
 #include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
 namespace storage {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace internal {
+
+using ::google::cloud::rest_internal::CurlHandle;
 
 void SignUrlRequestCommon::SetOption(AddExtensionHeaderOption const& o) {
   if (!o.has_value()) {
@@ -97,7 +104,8 @@ std::string V2SignUrlRequest::StringToSign() const {
 }
 
 std::ostream& operator<<(std::ostream& os, V2SignUrlRequest const& r) {
-  return os << "SingUrlRequest={" << r.StringToSign() << "}";
+  return os << "SingUrlRequest={" << r.endpoint_authority() << ","
+            << r.StringToSign() << "}";
 }
 
 namespace {
@@ -203,9 +211,10 @@ std::string V4SignUrlRequest::StringToSign(std::string const& client_id) const {
 
 Status V4SignUrlRequest::Validate() {
   if (virtual_host_name_ && domain_named_bucket_) {
-    return Status(StatusCode::kInvalidArgument,
-                  "VirtualHostname and BucketBoundHostname cannot be specified "
-                  "simultaneously");
+    return google::cloud::internal::InvalidArgumentError(
+        "VirtualHostname and BucketBoundHostname cannot be specified "
+        "simultaneously",
+        GCP_ERROR_INFO());
   }
   auto const& headers = common_request_.extension_headers();
   auto host_it = headers.find("host");
@@ -213,29 +222,32 @@ Status V4SignUrlRequest::Validate() {
     return Status();
   }
   if (virtual_host_name_ && host_it->second != Hostname()) {
-    return Status(StatusCode::kInvalidArgument,
-                  "specified 'host' (" + host_it->second +
-                      ") header stands in conflict with "
-                      "'VirtualHostname' option.");
+    return google::cloud::internal::InvalidArgumentError(
+        "specified 'host' (" + host_it->second +
+            ") header stands in conflict with "
+            "'VirtualHostname' option.",
+        GCP_ERROR_INFO());
   }
   if (domain_named_bucket_ && host_it->second != *domain_named_bucket_) {
-    return Status(StatusCode::kInvalidArgument,
-                  "specified 'host' (" + host_it->second +
-                      ") doesn't match domain specified in the "
-                      "'BucketBoundHostname' option (" +
-                      *domain_named_bucket_ + ").");
+    return google::cloud::internal::InvalidArgumentError(
+        "specified 'host' (" + host_it->second +
+            ") doesn't match domain specified in the "
+            "'BucketBoundHostname' option (" +
+            *domain_named_bucket_ + ").",
+        GCP_ERROR_INFO());
   }
   return Status();
 }
 
 std::string V4SignUrlRequest::Hostname() {
+  auto endpoint_authority = common_request_.endpoint_authority();
   if (virtual_host_name_) {
-    return common_request_.bucket_name() + ".storage.googleapis.com";
+    return common_request_.bucket_name() + "." + endpoint_authority;
   }
   if (domain_named_bucket_) {
     return *domain_named_bucket_;
   }
-  return "storage.googleapis.com";
+  return endpoint_authority;
 }
 
 std::string V4SignUrlRequest::HostnameWithBucket() {
@@ -312,7 +324,7 @@ std::string V4SignUrlRequest::PayloadHashValue() const {
 }
 
 std::ostream& operator<<(std::ostream& os, V4SignUrlRequest const& r) {
-  return os << "V4SignUrlRequest={"
+  return os << "V4SignUrlRequest={" << r.endpoint_authority() << ","
             << r.CanonicalRequest("placeholder-client-id") << ","
             << r.StringToSign("placeholder-client-id") << "}";
 }

@@ -20,9 +20,9 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_IAM_V2_POLICIES_CONNECTION_IDEMPOTENCY_POLICY_H
 
 #include "google/cloud/idempotency.h"
-#include "google/cloud/internal/retry_policy.h"
 #include "google/cloud/version.h"
 #include <google/iam/v2/policy.grpc.pb.h>
+#include <google/longrunning/operations.grpc.pb.h>
 #include <memory>
 
 namespace google {
@@ -51,6 +51,9 @@ class PoliciesConnectionIdempotencyPolicy {
 
   virtual google::cloud::Idempotency DeletePolicy(
       google::iam::v2::DeletePolicyRequest const& request);
+
+  virtual google::cloud::Idempotency GetOperation(
+      google::longrunning::GetOperationRequest const& request);
 };
 
 std::unique_ptr<PoliciesConnectionIdempotencyPolicy>

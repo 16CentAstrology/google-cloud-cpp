@@ -20,14 +20,22 @@
 #include "google/cloud/internal/absl_str_join_quiet.h"
 #include "google/cloud/internal/compute_engine_util.h"
 #include "google/cloud/internal/curl_options.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/internal/rest_client.h"
 #include "google/cloud/internal/throw_delegate.h"
 #include "google/cloud/options.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
 #include "absl/time/time.h"
+#include <algorithm>
+#include <functional>
 #include <future>
+#include <iostream>
+#include <iterator>
 #include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -91,8 +99,6 @@ char const* ToString(ApiName api) {
   switch (api) {
     case ApiName::kApiJson:
       return "JSON";
-    case ApiName::kApiXml:
-      return "XML";
     case ApiName::kApiGrpc:
       return "GRPC";
   }
@@ -100,28 +106,28 @@ char const* ToString(ApiName api) {
 }
 
 StatusOr<ApiName> ParseApiName(std::string const& val) {
-  for (auto a : {ApiName::kApiJson, ApiName::kApiXml, ApiName::kApiGrpc}) {
+  for (auto a : {ApiName::kApiJson, ApiName::kApiGrpc}) {
     if (val == ToString(a)) return a;
   }
-  return Status{StatusCode::kInvalidArgument, "unknown ApiName " + val};
+  return google::cloud::internal::InvalidArgumentError("unknown ApiName " + val,
+                                                       GCP_ERROR_INFO());
 }
 
 StatusOr<ExperimentLibrary> ParseExperimentLibrary(std::string const& val) {
   for (auto v : {ExperimentLibrary::kRaw, ExperimentLibrary::kCppClient}) {
     if (val == ToString(v)) return v;
   }
-  return Status{StatusCode::kInvalidArgument,
-                "unknown ExperimentLibrary " + val};
+  return google::cloud::internal::InvalidArgumentError(
+      "unknown ExperimentLibrary " + val, GCP_ERROR_INFO());
 }
 
 StatusOr<ExperimentTransport> ParseExperimentTransport(std::string const& val) {
   for (auto v : {ExperimentTransport::kDirectPath, ExperimentTransport::kGrpc,
-                 ExperimentTransport::kJson, ExperimentTransport::kXml,
-                 ExperimentTransport::kJsonV2, ExperimentTransport::kXmlV2}) {
+                 ExperimentTransport::kJson}) {
     if (val == ToString(v)) return v;
   }
-  return Status{StatusCode::kInvalidArgument,
-                "unknown ExperimentTransport " + val};
+  return google::cloud::internal::InvalidArgumentError(
+      "unknown ExperimentTransport " + val, GCP_ERROR_INFO());
 }
 
 std::string ToString(ExperimentLibrary v) {
@@ -142,12 +148,6 @@ std::string ToString(ExperimentTransport v) {
       return "Grpc";
     case ExperimentTransport::kJson:
       return "Json";
-    case ExperimentTransport::kXml:
-      return "Xml";
-    case ExperimentTransport::kJsonV2:
-      return "JsonV2";
-    case ExperimentTransport::kXmlV2:
-      return "XmlV2";
   }
   return "";
 }
@@ -182,6 +182,9 @@ void PrintOptions(std::ostream& os, std::string const& prefix,
   if (options.has<EndpointOption>()) {
     os << "\n# " << prefix
        << " Grpc Endpoint: " << options.get<EndpointOption>();
+  }
+  if (options.has<AuthorityOption>()) {
+    os << "\n# " << prefix << " Authority: " << options.get<AuthorityOption>();
   }
   if (options.has<gcs::ConnectionPoolSizeOption>()) {
     os << "\n# " << prefix << " REST Connection Pool Size: "
@@ -261,7 +264,8 @@ absl::optional<std::string> GetMetadata(RestClient& metadata_server,
                                         std::string const& path) {
   RestRequest request(path);
   request.AddHeader("Metadata-Flavor", "Google");
-  auto response_status = metadata_server.Get(request);
+  rest_internal::RestContext context;
+  auto response_status = metadata_server.Get(context, request);
   if (!response_status) return absl::nullopt;
   auto response = *std::move(response_status);
   auto const status_code = response->StatusCode();

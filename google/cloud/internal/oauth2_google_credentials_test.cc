@@ -20,6 +20,7 @@
 #include "google/cloud/internal/oauth2_compute_engine_credentials.h"
 #include "google/cloud/internal/oauth2_external_account_credentials.h"
 #include "google/cloud/internal/oauth2_google_application_default_credentials_file.h"
+#include "google/cloud/internal/oauth2_impersonate_service_account_credentials.h"
 #include "google/cloud/internal/oauth2_service_account_credentials.h"
 #include "google/cloud/internal/random.h"
 #include "google/cloud/testing_util/mock_rest_client.h"
@@ -91,6 +92,21 @@ auto constexpr kExternalAccountContents = R"""({
   "credential_source": {"url": "https://subject.example.com/"}
 })""";
 
+auto constexpr kImpersonatedServiceAccountContents = R"""({
+  "service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa3@developer.gserviceaccount.com:generateAccessToken",
+  "delegates": [
+    "sa1@developer.gserviceaccount.com",
+    "sa2@developer.gserviceaccount.com"
+  ],
+  "source_credentials": {
+    "client_id": "test-invalid-test-invalid.apps.googleusercontent.com",
+    "client_secret": "invalid-invalid-invalid",
+    "refresh_token": "1/test-test-test",
+    "type": "authorized_user"
+  },
+  "type": "impersonated_service_account"
+})""";
+
 std::string TempFileName() {
   static auto generator =
       google::cloud::internal::DefaultPRNG(std::random_device{}());
@@ -107,7 +123,7 @@ std::string TempFileName() {
  * This test only verifies the right type of object is created, the unit tests
  * for `AuthorizedUserCredentials` already check that once loaded the class
  * works correctly. Testing here would be redundant. Furthermore, calling
- * `AuthorizationHeader()` initiates the key verification workflow, that
+ * `AuthenticationHeader()` initiates the key verification workflow, that
  * requires valid keys and contacting Google's production servers, and would
  * make this an integration test.
  */
@@ -187,7 +203,7 @@ TEST_F(GoogleCredentialsTest,
  * This test only verifies the right type of object is created, the unit tests
  * for `ServiceAccountCredentials` already check that once loaded the class
  * works correctly. Testing here would be redundant. Furthermore, calling
- * `AuthorizationHeader()` initiates the key verification workflow, that
+ * `AuthenticationHeader()` initiates the key verification workflow, that
  * requires valid keys and contacting Google's production servers, and would
  * make this an integration test.
  */
@@ -225,6 +241,45 @@ TEST_F(GoogleCredentialsTest, LoadValidServiceAccountCredentialsViaGcloudFile) {
   ASSERT_STATUS_OK(creds);
   EXPECT_THAT(creds->get(),
               WhenDynamicCastTo<ServiceAccountCredentials*>(NotNull()));
+}
+
+TEST_F(GoogleCredentialsTest,
+       LoadValidImpersonatedServiceAccountCredentialsViaEnvVar) {
+  auto const filename = TempFileName();
+  std::ofstream(filename) << kImpersonatedServiceAccountContents;
+  auto const env = ScopedEnvironment(GoogleAdcEnvVar(), filename.c_str());
+
+  // Test that the impersonated service account credentials are loaded as the
+  // default when specified via the well-known environment variable.
+  MockHttpClientFactory client_factory;
+  EXPECT_CALL(client_factory, Call).Times(0);
+  auto creds =
+      GoogleDefaultCredentials(Options{}, client_factory.AsStdFunction());
+  (void)std::remove(filename.c_str());
+  ASSERT_STATUS_OK(creds);
+  EXPECT_THAT(
+      creds->get(),
+      WhenDynamicCastTo<ImpersonateServiceAccountCredentials*>(NotNull()));
+}
+
+TEST_F(GoogleCredentialsTest,
+       LoadValidImpersonatedServiceAccountCredentialsViaGcloudFile) {
+  auto const filename = TempFileName();
+  std::ofstream(filename) << kImpersonatedServiceAccountContents;
+  auto const env =
+      ScopedEnvironment(GoogleGcloudAdcFileEnvVar(), filename.c_str());
+
+  // Test that the impersonated service account credentials are loaded as the
+  // default when specified via the well-known environment variable.
+  MockHttpClientFactory client_factory;
+  EXPECT_CALL(client_factory, Call).Times(0);
+  auto creds =
+      GoogleDefaultCredentials(Options{}, client_factory.AsStdFunction());
+  (void)std::remove(filename.c_str());
+  ASSERT_STATUS_OK(creds);
+  EXPECT_THAT(
+      creds->get(),
+      WhenDynamicCastTo<ImpersonateServiceAccountCredentials*>(NotNull()));
 }
 
 TEST_F(GoogleCredentialsTest, LoadComputeEngineCredentialsFromADCFlow) {
@@ -298,6 +353,58 @@ TEST_F(GoogleCredentialsTest, LoadInvalidServiceAccountCredentialsViaADC) {
   (void)std::remove(filename.c_str());
 }
 
+TEST_F(GoogleCredentialsTest,
+       LoadInvalidImpersonatedServiceAccountCredentials) {
+  auto const filename = TempFileName();
+  std::ofstream(filename) << R"""({"type": "impersonated_service_account"})""";
+  auto const env = ScopedEnvironment(GoogleAdcEnvVar(), filename.c_str());
+
+  MockHttpClientFactory client_factory;
+  EXPECT_CALL(client_factory, Call).Times(0);
+  auto creds =
+      GoogleDefaultCredentials(Options{}, client_factory.AsStdFunction());
+  EXPECT_THAT(creds, StatusIs(StatusCode::kInvalidArgument));
+  (void)std::remove(filename.c_str());
+}
+
+TEST_F(GoogleCredentialsTest,
+       LoadImpersonatedServiceAccountCredentialsWithInvalidPathUrl) {
+  auto const filename = TempFileName();
+  std::ofstream(filename) << R"""({
+  "service_account_impersonation_url": "invalid-url",
+  "source_credentials": {},
+  "type": "impersonated_service_account"
+})""";
+  auto const env = ScopedEnvironment(GoogleAdcEnvVar(), filename.c_str());
+
+  MockHttpClientFactory client_factory;
+  EXPECT_CALL(client_factory, Call).Times(0);
+  auto creds =
+      GoogleDefaultCredentials(Options{}, client_factory.AsStdFunction());
+  EXPECT_THAT(creds, StatusIs(StatusCode::kInvalidArgument));
+  (void)std::remove(filename.c_str());
+}
+
+TEST_F(GoogleCredentialsTest,
+       LoadImpersonatedServiceAccountWithInvalidSourceCredentials) {
+  auto const filename = TempFileName();
+  std::ofstream(filename) << R"""({
+  "service_account_impersonation_url": "invalid-string",
+  "source_credentials": {
+    "type": "user_account"
+  },
+  "type": "impersonated_service_account"
+})""";
+  auto const env = ScopedEnvironment(GoogleAdcEnvVar(), filename.c_str());
+
+  MockHttpClientFactory client_factory;
+  EXPECT_CALL(client_factory, Call).Times(0);
+  auto creds =
+      GoogleDefaultCredentials(Options{}, client_factory.AsStdFunction());
+  EXPECT_THAT(creds, StatusIs(StatusCode::kInvalidArgument));
+  (void)std::remove(filename.c_str());
+}
+
 TEST_F(GoogleCredentialsTest, MissingCredentialsViaEnvVar) {
   auto const filename = TempFileName();
   auto const env = ScopedEnvironment(GoogleAdcEnvVar(), filename);
@@ -325,7 +432,7 @@ TEST_F(GoogleCredentialsTest, MissingCredentialsViaGcloudFilePath) {
   MockHttpClientFactory client_factory;
   EXPECT_CALL(client_factory, Call).WillRepeatedly([](Options const& o) {
     EXPECT_EQ(o.get<UserProjectOption>(), "test-only");
-    auto mock = absl::make_unique<MockRestClient>();
+    auto mock = std::make_unique<MockRestClient>();
     EXPECT_CALL(*mock, Get).WillOnce([] {
       return Status{StatusCode::kUnavailable, "bad hostname"};
     });

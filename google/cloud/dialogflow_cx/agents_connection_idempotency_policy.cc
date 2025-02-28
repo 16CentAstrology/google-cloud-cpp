@@ -17,7 +17,6 @@
 // source: google/cloud/dialogflow/cx/v3/agent.proto
 
 #include "google/cloud/dialogflow_cx/agents_connection_idempotency_policy.h"
-#include "absl/memory/memory.h"
 #include <memory>
 
 namespace google {
@@ -32,7 +31,7 @@ AgentsConnectionIdempotencyPolicy::~AgentsConnectionIdempotencyPolicy() =
 
 std::unique_ptr<AgentsConnectionIdempotencyPolicy>
 AgentsConnectionIdempotencyPolicy::clone() const {
-  return absl::make_unique<AgentsConnectionIdempotencyPolicy>(*this);
+  return std::make_unique<AgentsConnectionIdempotencyPolicy>(*this);
 }
 
 Idempotency AgentsConnectionIdempotencyPolicy::ListAgents(
@@ -80,9 +79,44 @@ Idempotency AgentsConnectionIdempotencyPolicy::GetAgentValidationResult(
   return Idempotency::kIdempotent;
 }
 
+Idempotency AgentsConnectionIdempotencyPolicy::GetGenerativeSettings(
+    google::cloud::dialogflow::cx::v3::GetGenerativeSettingsRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency AgentsConnectionIdempotencyPolicy::UpdateGenerativeSettings(
+    google::cloud::dialogflow::cx::v3::UpdateGenerativeSettingsRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
+Idempotency AgentsConnectionIdempotencyPolicy::ListLocations(
+    google::cloud::location::ListLocationsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency AgentsConnectionIdempotencyPolicy::GetLocation(
+    google::cloud::location::GetLocationRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency AgentsConnectionIdempotencyPolicy::ListOperations(
+    google::longrunning::ListOperationsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency AgentsConnectionIdempotencyPolicy::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency AgentsConnectionIdempotencyPolicy::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
 std::unique_ptr<AgentsConnectionIdempotencyPolicy>
 MakeDefaultAgentsConnectionIdempotencyPolicy() {
-  return absl::make_unique<AgentsConnectionIdempotencyPolicy>();
+  return std::make_unique<AgentsConnectionIdempotencyPolicy>();
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

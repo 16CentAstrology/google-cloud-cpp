@@ -36,17 +36,17 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * class. Then use the Google Test framework functions to program the behavior
  * of this mock.
  *
- * @see [This example][bq-mock] for how to test your application with
- * GoogleTest. While the example showcases types from the BigQuery library, the
- * underlying principles apply for any pair of `*Client` and `*Connection`.
+ * @see [This example][bq-mock] for how to test your application with GoogleTest.
+ * While the example showcases types from the BigQuery library, the underlying
+ * principles apply for any pair of `*Client` and `*Connection`.
  *
- * [bq-mock]: @googleapis_dev_link{bigquery,bigquery-read-mock.html}
+ * [bq-mock]: @cloud_cpp_docs_link{bigquery,bigquery-read-mock}
  */
 class MockPagesConnection : public dialogflow_cx::PagesConnection {
  public:
   MOCK_METHOD(Options, options, (), (override));
 
-  MOCK_METHOD(StreamRange<google::cloud::dialogflow::cx::v3::Page>, ListPages,
+  MOCK_METHOD((StreamRange<google::cloud::dialogflow::cx::v3::Page>), ListPages,
               (google::cloud::dialogflow::cx::v3::ListPagesRequest request),
               (override));
 
@@ -69,6 +69,25 @@ class MockPagesConnection : public dialogflow_cx::PagesConnection {
       Status, DeletePage,
       (google::cloud::dialogflow::cx::v3::DeletePageRequest const& request),
       (override));
+
+  MOCK_METHOD((StreamRange<google::cloud::location::Location>), ListLocations,
+              (google::cloud::location::ListLocationsRequest request),
+              (override));
+
+  MOCK_METHOD(StatusOr<google::cloud::location::Location>, GetLocation,
+              (google::cloud::location::GetLocationRequest const& request),
+              (override));
+
+  MOCK_METHOD((StreamRange<google::longrunning::Operation>), ListOperations,
+              (google::longrunning::ListOperationsRequest request), (override));
+
+  MOCK_METHOD(StatusOr<google::longrunning::Operation>, GetOperation,
+              (google::longrunning::GetOperationRequest const& request),
+              (override));
+
+  MOCK_METHOD(Status, CancelOperation,
+              (google::longrunning::CancelOperationRequest const& request),
+              (override));
 };
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

@@ -20,79 +20,18 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_TPU_MOCKS_MOCK_TPU_CONNECTION_H
 
 #include "google/cloud/tpu/tpu_connection.h"
-#include <gmock/gmock.h>
+#include "google/cloud/tpu/v1/mocks/mock_tpu_connection.h"
 
 namespace google {
 namespace cloud {
+/// @deprecated This namespace exists for backwards compatibility. Use the
+///     types defined in tpu_v1_mocks instead of the aliases
+///     defined in this namespace.
 namespace tpu_mocks {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
-/**
- * A class to mock `TpuConnection`.
- *
- * Application developers may want to test their code with simulated responses,
- * including errors, from an object of type `TpuClient`. To do so,
- * construct an object of type `TpuClient` with an instance of this
- * class. Then use the Google Test framework functions to program the behavior
- * of this mock.
- *
- * @see [This example][bq-mock] for how to test your application with
- * GoogleTest. While the example showcases types from the BigQuery library, the
- * underlying principles apply for any pair of `*Client` and `*Connection`.
- *
- * [bq-mock]: @googleapis_dev_link{bigquery,bigquery-read-mock.html}
- */
-class MockTpuConnection : public tpu::TpuConnection {
- public:
-  MOCK_METHOD(Options, options, (), (override));
-
-  MOCK_METHOD(StreamRange<google::cloud::tpu::v1::Node>, ListNodes,
-              (google::cloud::tpu::v1::ListNodesRequest request), (override));
-
-  MOCK_METHOD(StatusOr<google::cloud::tpu::v1::Node>, GetNode,
-              (google::cloud::tpu::v1::GetNodeRequest const& request),
-              (override));
-
-  MOCK_METHOD(future<StatusOr<google::cloud::tpu::v1::Node>>, CreateNode,
-              (google::cloud::tpu::v1::CreateNodeRequest const& request),
-              (override));
-
-  MOCK_METHOD(future<StatusOr<google::cloud::tpu::v1::Node>>, DeleteNode,
-              (google::cloud::tpu::v1::DeleteNodeRequest const& request),
-              (override));
-
-  MOCK_METHOD(future<StatusOr<google::cloud::tpu::v1::Node>>, ReimageNode,
-              (google::cloud::tpu::v1::ReimageNodeRequest const& request),
-              (override));
-
-  MOCK_METHOD(future<StatusOr<google::cloud::tpu::v1::Node>>, StopNode,
-              (google::cloud::tpu::v1::StopNodeRequest const& request),
-              (override));
-
-  MOCK_METHOD(future<StatusOr<google::cloud::tpu::v1::Node>>, StartNode,
-              (google::cloud::tpu::v1::StartNodeRequest const& request),
-              (override));
-
-  MOCK_METHOD(StreamRange<google::cloud::tpu::v1::TensorFlowVersion>,
-              ListTensorFlowVersions,
-              (google::cloud::tpu::v1::ListTensorFlowVersionsRequest request),
-              (override));
-
-  MOCK_METHOD(
-      StatusOr<google::cloud::tpu::v1::TensorFlowVersion>, GetTensorFlowVersion,
-      (google::cloud::tpu::v1::GetTensorFlowVersionRequest const& request),
-      (override));
-
-  MOCK_METHOD(StreamRange<google::cloud::tpu::v1::AcceleratorType>,
-              ListAcceleratorTypes,
-              (google::cloud::tpu::v1::ListAcceleratorTypesRequest request),
-              (override));
-
-  MOCK_METHOD(
-      StatusOr<google::cloud::tpu::v1::AcceleratorType>, GetAcceleratorType,
-      (google::cloud::tpu::v1::GetAcceleratorTypeRequest const& request),
-      (override));
-};
+/// @deprecated Use tpu_v1_mocks::MockTpuConnection directly.
+using ::google::cloud::tpu_v1_mocks::MockTpuConnection;
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace tpu_mocks

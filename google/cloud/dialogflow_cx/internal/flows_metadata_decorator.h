@@ -20,8 +20,10 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_DIALOGFLOW_CX_INTERNAL_FLOWS_METADATA_DECORATOR_H
 
 #include "google/cloud/dialogflow_cx/internal/flows_stub.h"
+#include "google/cloud/options.h"
 #include "google/cloud/version.h"
 #include <google/longrunning/operations.grpc.pb.h>
+#include <map>
 #include <memory>
 #include <string>
 
@@ -33,77 +35,120 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 class FlowsMetadata : public FlowsStub {
  public:
   ~FlowsMetadata() override = default;
-  explicit FlowsMetadata(std::shared_ptr<FlowsStub> child);
+  FlowsMetadata(std::shared_ptr<FlowsStub> child,
+                std::multimap<std::string, std::string> fixed_metadata,
+                std::string api_client_header = "");
 
   StatusOr<google::cloud::dialogflow::cx::v3::Flow> CreateFlow(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::CreateFlowRequest const& request)
       override;
 
-  Status DeleteFlow(grpc::ClientContext& context,
+  Status DeleteFlow(grpc::ClientContext& context, Options const& options,
                     google::cloud::dialogflow::cx::v3::DeleteFlowRequest const&
                         request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::ListFlowsResponse> ListFlows(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::ListFlowsRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Flow> GetFlow(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetFlowRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Flow> UpdateFlow(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::UpdateFlowRequest const& request)
       override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncTrainFlow(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::dialogflow::cx::v3::TrainFlowRequest const& request)
+      override;
+
+  StatusOr<google::longrunning::Operation> TrainFlow(
+      grpc::ClientContext& context, Options options,
       google::cloud::dialogflow::cx::v3::TrainFlowRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::FlowValidationResult>
-  ValidateFlow(grpc::ClientContext& context,
+  ValidateFlow(grpc::ClientContext& context, Options const& options,
                google::cloud::dialogflow::cx::v3::ValidateFlowRequest const&
                    request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::FlowValidationResult>
   GetFlowValidationResult(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetFlowValidationResultRequest const&
           request) override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncImportFlow(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::dialogflow::cx::v3::ImportFlowRequest const& request)
+      override;
+
+  StatusOr<google::longrunning::Operation> ImportFlow(
+      grpc::ClientContext& context, Options options,
       google::cloud::dialogflow::cx::v3::ImportFlowRequest const& request)
       override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncExportFlow(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::cloud::dialogflow::cx::v3::ExportFlowRequest const& request)
       override;
 
+  StatusOr<google::longrunning::Operation> ExportFlow(
+      grpc::ClientContext& context, Options options,
+      google::cloud::dialogflow::cx::v3::ExportFlowRequest const& request)
+      override;
+
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
+
   future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::GetOperationRequest const& request) override;
 
   future<Status> AsyncCancelOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::CancelOperationRequest const& request) override;
 
  private:
-  void SetMetadata(grpc::ClientContext& context,
+  void SetMetadata(grpc::ClientContext& context, Options const& options,
                    std::string const& request_params);
-  void SetMetadata(grpc::ClientContext& context);
+  void SetMetadata(grpc::ClientContext& context, Options const& options);
 
   std::shared_ptr<FlowsStub> child_;
+  std::multimap<std::string, std::string> fixed_metadata_;
   std::string api_client_header_;
 };
 

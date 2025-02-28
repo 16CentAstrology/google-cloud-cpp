@@ -18,6 +18,8 @@
 #include "google/cloud/pubsublite/testing/mock_publisher.h"
 #include "google/cloud/pubsublite/testing/mock_routing_policy.h"
 #include "google/cloud/testing_util/is_proto_equal.h"
+#include "google/cloud/testing_util/status_matchers.h"
+#include "absl/memory/memory.h"
 #include <limits>
 
 namespace google {
@@ -28,10 +30,11 @@ namespace {
 
 using ::google::cloud::pubsublite::MessageMetadata;
 using ::google::cloud::pubsublite_mocks::MockAdminServiceConnection;
-
 using ::google::cloud::testing_util::IsProtoEqual;
+using ::google::cloud::testing_util::StatusIs;
 using ::testing::_;
 using ::testing::ByMove;
+using ::testing::HasSubstr;
 using ::testing::InSequence;
 using ::testing::Mock;
 using ::testing::MockFunction;
@@ -83,13 +86,14 @@ class MultipartitionPublisherNoneInitializedTest : public ::testing::Test {
             StrictMock<MockAdminServiceConnection>>()},
         alarm_token_{*(new StrictMock<MockAlarmRegistryCancelToken>())},
         routing_policy_{*(new StrictMock<MockRoutingPolicy>())} {
+    EXPECT_CALL(*admin_connection_, options).WillRepeatedly(Return(Options{}));
     EXPECT_CALL(alarm_registry_, RegisterAlarm(kAlarmDuration, _))
         .WillOnce(WithArg<1>([&](std::function<void()> on_alarm) {
           on_alarm_ = std::move(on_alarm);
           return absl::WrapUnique(&alarm_token_);
         }));
 
-    multipartition_publisher_ = absl::make_unique<MultipartitionPublisher>(
+    multipartition_publisher_ = std::make_unique<MultipartitionPublisher>(
         partition_publisher_factory_.AsStdFunction(), admin_connection_,
         alarm_registry_, absl::WrapUnique(&routing_policy_), ExampleTopic());
   }
@@ -124,9 +128,9 @@ TEST_F(MultipartitionPublisherNoneInitializedTest, PublishAfterShutdown) {
 
   shutdown.get();
 
-  EXPECT_EQ(multipartition_publisher_->Publish(PubSubMessage{}).get().status(),
-            (Status{StatusCode::kAborted, "`Shutdown` called"}));
-
+  EXPECT_THAT(
+      multipartition_publisher_->Publish(PubSubMessage{}).get().status(),
+      StatusIs(StatusCode::kAborted, "`Shutdown` called"));
   EXPECT_EQ(start.get(), Status());
 }
 
@@ -140,10 +144,10 @@ TEST_F(MultipartitionPublisherNoneInitializedTest,
           Return(ByMove(ReadyTopicPartitionsFuture(kOutOfBoundsPartition))));
   auto start = multipartition_publisher_->Start();
 
-  EXPECT_EQ(start.get(), Status(StatusCode::kInternal,
-                                "Returned partition count is too big: " +
-                                    std::to_string(kOutOfBoundsPartition)));
-
+  EXPECT_THAT(start.get(),
+              StatusIs(StatusCode::kInternal,
+                       HasSubstr("Returned partition count is too big: " +
+                                 std::to_string(kOutOfBoundsPartition))));
   EXPECT_CALL(alarm_token_, Destroy);
   multipartition_publisher_->Shutdown().get();
 }
@@ -163,16 +167,18 @@ TEST_F(MultipartitionPublisherNoneInitializedTest,
   future<StatusOr<MessageMetadata>> message0 =
       multipartition_publisher_->Publish(m0);
 
-  Status expected_status =
-      Status(StatusCode::kInternal, "Returned partition count is too big: " +
-                                        std::to_string(kOutOfBoundsPartition));
-
-  EXPECT_EQ(start.get(), expected_status);
+  EXPECT_THAT(start.get(),
+              StatusIs(StatusCode::kInternal,
+                       HasSubstr("Returned partition count is too big: " +
+                                 std::to_string(kOutOfBoundsPartition))));
 
   EXPECT_CALL(alarm_token_, Destroy);
   multipartition_publisher_->Shutdown().get();
 
-  EXPECT_EQ(message0.get().status(), expected_status);
+  EXPECT_THAT(message0.get().status(),
+              StatusIs(StatusCode::kInternal,
+                       HasSubstr("Returned partition count is too big: " +
+                                 std::to_string(kOutOfBoundsPartition))));
 }
 
 TEST_F(MultipartitionPublisherNoneInitializedTest,
@@ -202,10 +208,10 @@ TEST_F(MultipartitionPublisherNoneInitializedTest,
   num_partitions.set_value(
       ExamplePartitionsResponse(1));  // shouldn't do anything
 
-  EXPECT_EQ(message0.get().status(),
-            (Status{StatusCode::kAborted, "`Shutdown` called"}));
-  EXPECT_EQ(message1.get().status(),
-            (Status{StatusCode::kAborted, "`Shutdown` called"}));
+  EXPECT_THAT(message0.get().status(),
+              StatusIs(StatusCode::kAborted, HasSubstr("`Shutdown` called")));
+  EXPECT_THAT(message1.get().status(),
+              StatusIs(StatusCode::kAborted, HasSubstr("`Shutdown` called")));
 
   EXPECT_EQ(start.get(), Status());
 }
@@ -596,7 +602,7 @@ TEST_F(InitializedMultipartitionPublisherTest, InitializesNewPartitions) {
   on_alarm_();
 
   auto partition_publisher_2 =
-      absl::make_unique<StrictMock<MockPublisher<Cursor>>>();
+      std::make_unique<StrictMock<MockPublisher<Cursor>>>();
   auto& partition_publisher_2_ref = *partition_publisher_2;
   EXPECT_CALL(partition_publisher_factory_, Call(2))
       .WillOnce(Return(ByMove(std::move(partition_publisher_2))));

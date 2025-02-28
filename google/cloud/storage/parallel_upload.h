@@ -23,12 +23,12 @@
 #include "google/cloud/internal/filesystem.h"
 #include "google/cloud/internal/type_list.h"
 #include "google/cloud/status_or.h"
-#include "absl/memory/memory.h"
 #include "absl/types/optional.h"
 #include <condition_variable>
 #include <cstddef>
 #include <fstream>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <tuple>
@@ -86,9 +86,8 @@ struct ExtractFirstOccurrenceOfTypeImpl {
 template <typename T, typename... Options>
 struct ExtractFirstOccurrenceOfTypeImpl<
     T, std::tuple<Options...>,
-    typename std::enable_if<
-        Among<typename std::decay<Options>::type...>::template TPred<
-            typename std::decay<T>::type>::value>::type> {
+    std::enable_if_t<Among<std::decay_t<Options>...>::template TPred<
+        std::decay_t<T>>::value>> {
   absl::optional<T> operator()(std::tuple<Options...> const& tuple) {
     return std::get<0>(StaticTupleFilter<Among<T>::template TPred>(tuple));
   }
@@ -160,7 +159,7 @@ class ParallelUploadStateImpl
   ~ParallelUploadStateImpl();
 
   StatusOr<ObjectWriteStream> CreateStream(
-      std::shared_ptr<RawClient> raw_client,
+      std::shared_ptr<StorageConnection> connection,
       ResumableUploadRequest const& request);
 
   void AllStreamsFinished(std::unique_lock<std::mutex>& lk);
@@ -603,10 +602,10 @@ class ResumableParallelUploadState {
  * on the first request that fails.
  */
 template <typename... Options,
-          typename std::enable_if<
-              NotAmong<typename std::decay<Options>::type...>::template TPred<
-                  UseResumableUploadSession>::value,
-              int>::type EnableIfNotResumable = 0>
+          std::enable_if_t<NotAmong<std::decay_t<Options>...>::template TPred<
+                               UseResumableUploadSession>::value,
+                           int>
+              EnableIfNotResumable = 0>
 StatusOr<NonResumableParallelUploadState> PrepareParallelUpload(
     Client client, std::string const& bucket_name,
     std::string const& object_name, std::size_t num_shards,
@@ -618,10 +617,10 @@ StatusOr<NonResumableParallelUploadState> PrepareParallelUpload(
 }
 
 template <typename... Options,
-          typename std::enable_if<
-              Among<typename std::decay<Options>::type...>::template TPred<
-                  UseResumableUploadSession>::value,
-              int>::type EnableIfResumable = 0>
+          std::enable_if_t<Among<std::decay_t<Options>...>::template TPred<
+                               UseResumableUploadSession>::value,
+                           int>
+              EnableIfResumable = 0>
 StatusOr<ResumableParallelUploadState> PrepareParallelUpload(
     Client client, std::string const& bucket_name,
     std::string const& object_name, std::size_t num_shards,
@@ -709,7 +708,7 @@ NonResumableParallelUploadState::Create(Client client,
     google::cloud::internal::apply(SetOptionsApplyHelper(request),
                                    upload_options);
     auto stream = internal_state->CreateStream(
-        internal::ClientImplDetails::GetRawClient(client), request);
+        internal::ClientImplDetails::GetConnection(client), request);
     if (!stream) {
       return stream.status();
     }
@@ -815,7 +814,7 @@ StatusOr<ResumableParallelUploadState> ResumableParallelUploadState::CreateNew(
     google::cloud::internal::apply(SetOptionsApplyHelper(request),
                                    upload_options);
     auto stream = internal_state->CreateStream(
-        internal::ClientImplDetails::GetRawClient(client), request);
+        internal::ClientImplDetails::GetConnection(client), request);
     if (!stream) {
       return stream.status();
     }
@@ -881,18 +880,20 @@ StatusOr<ResumableParallelUploadState> ResumableParallelUploadState::Resume(
   }
 
   if (persistent_state->destination_object_name != object_name) {
-    return Status(StatusCode::kInternal,
-                  "Specified resumable session ID is doesn't match the "
-                  "destination object name (" +
-                      object_name + " vs " +
-                      persistent_state->destination_object_name + ")");
+    return google::cloud::internal::InternalError(
+        "Specified resumable session ID is doesn't match the "
+        "destination object name (" +
+            object_name + " vs " + persistent_state->destination_object_name +
+            ")",
+        GCP_ERROR_INFO());
   }
   if (persistent_state->streams.size() != num_shards && num_shards != 0) {
-    return Status(StatusCode::kInternal,
-                  "Specified resumable session ID is doesn't match the "
-                  "previously specified number of shards (" +
-                      std::to_string(num_shards) + " vs " +
-                      std::to_string(persistent_state->streams.size()) + ")");
+    return google::cloud::internal::InternalError(
+        "Specified resumable session ID is doesn't match the "
+        "previously specified number of shards (" +
+            std::to_string(num_shards) + " vs " +
+            std::to_string(persistent_state->streams.size()) + ")",
+        GCP_ERROR_INFO());
   }
 
   auto deleter = CreateDeleter(client, bucket_name, options);
@@ -924,7 +925,7 @@ StatusOr<ResumableParallelUploadState> ResumableParallelUploadState::Resume(
                        std::make_tuple(UseResumableUploadSession(
                            std::move(stream_desc.resumable_session_id)))));
     auto stream = internal_state->CreateStream(
-        internal::ClientImplDetails::GetRawClient(client), request);
+        internal::ClientImplDetails::GetConnection(client), request);
     if (!stream) {
       internal_state->AllowFinishing();
       return stream.status();
@@ -991,10 +992,10 @@ StatusOr<std::vector<std::uintmax_t>> ParallelFileUploadSplitPointsFromString(
 struct PrepareParallelUploadApplyHelper {
   // Some gcc versions crash on using decltype for return type here.
   template <typename... Options>
-  StatusOr<typename std::conditional<
-      Among<typename std::decay<Options>::type...>::template TPred<
-          UseResumableUploadSession>::value,
-      ResumableParallelUploadState, NonResumableParallelUploadState>::type>
+  StatusOr<std::conditional_t<Among<std::decay_t<Options>...>::template TPred<
+                                  UseResumableUploadSession>::value,
+                              ResumableParallelUploadState,
+                              NonResumableParallelUploadState>>
   operator()(Options&&... options) {
     return PrepareParallelUpload(std::move(client), bucket_name, object_name,
                                  num_shards, prefix,
@@ -1071,7 +1072,8 @@ struct CreateParallelUploadShards {
     std::error_code size_err;
     auto file_size = google::cloud::internal::file_size(file_name, size_err);
     if (size_err) {
-      return Status(StatusCode::kNotFound, size_err.message());
+      return google::cloud::internal::NotFoundError(size_err.message(),
+                                                    GCP_ERROR_INFO());
     }
 
     auto const resumable_session_id_arg =
@@ -1117,10 +1119,10 @@ struct CreateParallelUploadShards {
     // Everything ready - we've got the shared state and the files open, let's
     // prepare the returned objects.
     auto upload_buffer_size =
-        google::cloud::storage::internal::ClientImplDetails::GetRawClient(
+        google::cloud::storage::internal::ClientImplDetails::GetConnection(
             client)
-            ->client_options()
-            .upload_buffer_size();
+            ->options()
+            .get<UploadBufferSizeOption>();
 
     file_split_points.emplace_back(file_size);
     assert(file_split_points.size() == state->shards().size());

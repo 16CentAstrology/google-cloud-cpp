@@ -13,15 +13,14 @@
 // limitations under the License.
 
 #include "generator/integration_tests/golden/v1/internal/golden_kitchen_sink_metadata_decorator.h"
+#include "generator/integration_tests/tests/mock_golden_kitchen_sink_stub.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/internal/api_client_header.h"
 #include "google/cloud/internal/async_streaming_read_rpc_impl.h"
 #include "google/cloud/internal/async_streaming_write_rpc_impl.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include "google/cloud/testing_util/validate_metadata.h"
-#include "absl/memory/memory.h"
 #include "absl/strings/str_split.h"
-#include "generator/integration_tests/tests/mock_golden_kitchen_sink_stub.h"
 #include <gmock/gmock.h>
 #include <memory>
 
@@ -40,11 +39,14 @@ using ::google::cloud::testing_util::ValidateMetadataFixture;
 using ::google::test::admin::database::v1::Request;
 using ::google::test::admin::database::v1::Response;
 using ::testing::_;
+using ::testing::AllOf;
 using ::testing::AnyOf;
 using ::testing::Contains;
 using ::testing::Not;
 using ::testing::Pair;
 using ::testing::Return;
+using ::testing::UnorderedElementsAre;
+using ::testing::VariantWith;
 
 class MetadataDecoratorTest : public ::testing::Test {
  protected:
@@ -60,7 +62,7 @@ class MetadataDecoratorTest : public ::testing::Test {
                         google::protobuf::Message const& request) {
     return validate_metadata_fixture_.IsContextMDValid(
         context, method, request,
-        google::cloud::internal::ApiClientHeader("generator"));
+        google::cloud::internal::GeneratedLibClientHeader());
   }
 
   std::multimap<std::string, std::string> GetMetadata(
@@ -74,19 +76,39 @@ class MetadataDecoratorTest : public ::testing::Test {
   ValidateMetadataFixture validate_metadata_fixture_;
 };
 
+TEST_F(MetadataDecoratorTest, ExplicitApiClientHeader) {
+  // We use knowledge of the implementation to assert that testing a single RPC
+  // is sufficient.
+  EXPECT_CALL(*mock_, GenerateAccessToken)
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
+                       google::test::admin::database::v1::
+                           GenerateAccessTokenRequest const&) {
+        auto metadata = GetMetadata(context);
+        EXPECT_THAT(metadata,
+                    Contains(Pair("x-goog-api-client", "test-client-header")));
+        return TransientError();
+      });
+
+  GoldenKitchenSinkMetadata stub(mock_, {}, "test-client-header");
+  grpc::ClientContext context;
+  google::test::admin::database::v1::GenerateAccessTokenRequest request;
+  auto status = stub.GenerateAccessToken(context, Options{}, request);
+  EXPECT_EQ(TransientError(), status.status());
+}
+
 /// Verify the x-goog-user-project metadata is set.
 TEST_F(MetadataDecoratorTest, UserProject) {
-  // We do this for a single RPC, we are using some knowledge of the
-  // implementation to assert that this is enough.
+  // We use knowledge of the implementation to assert that testing a single RPC
+  // is sufficient.
   EXPECT_CALL(*mock_, GenerateAccessToken)
-      .WillOnce([this](grpc::ClientContext& context,
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
                        google::test::admin::database::v1::
                            GenerateAccessTokenRequest const&) {
         auto metadata = GetMetadata(context);
         EXPECT_THAT(metadata, Not(Contains(Pair("x-goog-user-project", _))));
         return TransientError();
       })
-      .WillOnce([this](grpc::ClientContext& context,
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
                        google::test::admin::database::v1::
                            GenerateAccessTokenRequest const&) {
         auto metadata = GetMetadata(context);
@@ -95,29 +117,78 @@ TEST_F(MetadataDecoratorTest, UserProject) {
         return TransientError();
       });
 
-  GoldenKitchenSinkMetadata stub(mock_);
+  GoldenKitchenSinkMetadata stub(mock_, {});
   // First try without any UserProjectOption
   {
-    internal::OptionsSpan span(Options{});
     grpc::ClientContext context;
     google::test::admin::database::v1::GenerateAccessTokenRequest request;
-    auto status = stub.GenerateAccessToken(context, request);
+    auto status = stub.GenerateAccessToken(context, Options{}, request);
     EXPECT_EQ(TransientError(), status.status());
   }
   // Then try with a UserProjectOption
   {
-    internal::OptionsSpan span(
-        Options{}.set<UserProjectOption>("test-user-project"));
     grpc::ClientContext context;
     google::test::admin::database::v1::GenerateAccessTokenRequest request;
-    auto status = stub.GenerateAccessToken(context, request);
+    auto status = stub.GenerateAccessToken(
+        context, Options{}.set<UserProjectOption>("test-user-project"),
+        request);
+    EXPECT_EQ(TransientError(), status.status());
+  }
+}
+
+TEST_F(MetadataDecoratorTest, CustomHeaders) {
+  // We use knowledge of the implementation to assert that testing a single RPC
+  // is sufficient.
+  EXPECT_CALL(*mock_, GenerateAccessToken)
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
+                       google::test::admin::database::v1::
+                           GenerateAccessTokenRequest const&) {
+        auto metadata = GetMetadata(context);
+        EXPECT_THAT(metadata, ::testing::UnorderedElementsAre(
+                                  Pair("x-goog-api-version", _),
+                                  Pair("x-goog-request-params", _),
+                                  Pair("x-goog-api-client", _)));
+        return TransientError();
+      })
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
+                       google::test::admin::database::v1::
+                           GenerateAccessTokenRequest const&) {
+        auto metadata = GetMetadata(context);
+        EXPECT_THAT(metadata,
+                    UnorderedElementsAre(Pair("x-goog-api-version", _),
+                                         Pair("x-goog-request-params", _),
+                                         Pair("x-goog-api-client", _),
+                                         Pair("header-key0", "header-value0"),
+                                         Pair("header-key1", "header-value1"),
+                                         Pair("header-key1", "header-value2")));
+        return TransientError();
+      });
+
+  GoldenKitchenSinkMetadata stub(mock_, {});
+  // First try without any CustomHeadersOption
+  {
+    grpc::ClientContext context;
+    google::test::admin::database::v1::GenerateAccessTokenRequest request;
+    auto status = stub.GenerateAccessToken(context, Options{}, request);
+    EXPECT_EQ(TransientError(), status.status());
+  }
+  // Then try with a CustomHeadersOption
+  {
+    grpc::ClientContext context;
+    google::test::admin::database::v1::GenerateAccessTokenRequest request;
+    auto status = stub.GenerateAccessToken(
+        context,
+        Options{}.set<CustomHeadersOption>({{"header-key0", "header-value0"},
+                                            {"header-key1", "header-value1"},
+                                            {"header-key1", "header-value2"}}),
+        request);
     EXPECT_EQ(TransientError(), status.status());
   }
 }
 
 TEST_F(MetadataDecoratorTest, GenerateAccessToken) {
   EXPECT_CALL(*mock_, GenerateAccessToken)
-      .WillOnce([this](grpc::ClientContext& context,
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
                        google::test::admin::database::v1::
                            GenerateAccessTokenRequest const& request) {
         IsContextMDValid(context,
@@ -127,17 +198,17 @@ TEST_F(MetadataDecoratorTest, GenerateAccessToken) {
         return TransientError();
       });
 
-  GoldenKitchenSinkMetadata stub(mock_);
+  GoldenKitchenSinkMetadata stub(mock_, {});
   grpc::ClientContext context;
   google::test::admin::database::v1::GenerateAccessTokenRequest request;
   request.set_name("projects/-/serviceAccounts/foo@bar.com");
-  auto status = stub.GenerateAccessToken(context, request);
+  auto status = stub.GenerateAccessToken(context, Options{}, request);
   EXPECT_EQ(TransientError(), status.status());
 }
 
 TEST_F(MetadataDecoratorTest, GenerateIdToken) {
   EXPECT_CALL(*mock_, GenerateIdToken)
-      .WillOnce([this](grpc::ClientContext& context,
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
                        google::test::admin::database::v1::
                            GenerateIdTokenRequest const& request) {
         IsContextMDValid(
@@ -147,17 +218,17 @@ TEST_F(MetadataDecoratorTest, GenerateIdToken) {
         return TransientError();
       });
 
-  GoldenKitchenSinkMetadata stub(mock_);
+  GoldenKitchenSinkMetadata stub(mock_, {});
   grpc::ClientContext context;
   google::test::admin::database::v1::GenerateIdTokenRequest request;
   request.set_name("projects/-/serviceAccounts/foo@bar.com");
-  auto status = stub.GenerateIdToken(context, request);
+  auto status = stub.GenerateIdToken(context, Options{}, request);
   EXPECT_EQ(TransientError(), status.status());
 }
 
 TEST_F(MetadataDecoratorTest, WriteLogEntries) {
   EXPECT_CALL(*mock_, WriteLogEntries)
-      .WillOnce([this](grpc::ClientContext& context,
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
                        google::test::admin::database::v1::
                            WriteLogEntriesRequest const& request) {
         IsContextMDValid(
@@ -167,16 +238,16 @@ TEST_F(MetadataDecoratorTest, WriteLogEntries) {
         return TransientError();
       });
 
-  GoldenKitchenSinkMetadata stub(mock_);
+  GoldenKitchenSinkMetadata stub(mock_, {});
   grpc::ClientContext context;
   google::test::admin::database::v1::WriteLogEntriesRequest request;
-  auto status = stub.WriteLogEntries(context, request);
+  auto status = stub.WriteLogEntries(context, Options{}, request);
   EXPECT_EQ(TransientError(), status.status());
 }
 
 TEST_F(MetadataDecoratorTest, ListLogs) {
   EXPECT_CALL(*mock_, ListLogs)
-      .WillOnce([this](grpc::ClientContext& context,
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
                        google::test::admin::database::v1::ListLogsRequest const&
                            request) {
         IsContextMDValid(
@@ -185,17 +256,17 @@ TEST_F(MetadataDecoratorTest, ListLogs) {
         return TransientError();
       });
 
-  GoldenKitchenSinkMetadata stub(mock_);
+  GoldenKitchenSinkMetadata stub(mock_, {});
   grpc::ClientContext context;
   google::test::admin::database::v1::ListLogsRequest request;
   request.set_parent("projects/my_project");
-  auto status = stub.ListLogs(context, request);
+  auto status = stub.ListLogs(context, Options{}, request);
   EXPECT_EQ(TransientError(), status.status());
 }
 
 TEST_F(MetadataDecoratorTest, ListServiceAccountKeys) {
   EXPECT_CALL(*mock_, ListServiceAccountKeys)
-      .WillOnce([this](grpc::ClientContext& context,
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
                        google::test::admin::database::v1::
                            ListServiceAccountKeysRequest const& request) {
         IsContextMDValid(context,
@@ -205,19 +276,18 @@ TEST_F(MetadataDecoratorTest, ListServiceAccountKeys) {
         return TransientError();
       });
 
-  GoldenKitchenSinkMetadata stub(mock_);
+  GoldenKitchenSinkMetadata stub(mock_, {});
   grpc::ClientContext context;
   google::test::admin::database::v1::ListServiceAccountKeysRequest request;
   request.set_name("projects/my-project/serviceAccounts/foo@bar.com");
-  auto status = stub.ListServiceAccountKeys(context, request);
+  auto status = stub.ListServiceAccountKeys(context, Options{}, request);
   EXPECT_EQ(TransientError(), status.status());
 }
 
 TEST_F(MetadataDecoratorTest, StreamingRead) {
   EXPECT_CALL(*mock_, StreamingRead)
-      .WillOnce([this](std::unique_ptr<grpc::ClientContext> context,
-                       Request const& request) {
-        auto mock_response = absl::make_unique<MockStreamingReadRpc>();
+      .WillOnce([this](auto context, Options const&, Request const& request) {
+        auto mock_response = std::make_unique<MockStreamingReadRpc>();
         EXPECT_CALL(*mock_response, Read)
             .WillOnce(Return(Status(StatusCode::kPermissionDenied, "uh-oh")));
         IsContextMDValid(
@@ -226,21 +296,21 @@ TEST_F(MetadataDecoratorTest, StreamingRead) {
             request);
         return mock_response;
       });
-  GoldenKitchenSinkMetadata stub(mock_);
-  auto response =
-      stub.StreamingRead(absl::make_unique<grpc::ClientContext>(), Request{});
-  EXPECT_THAT(absl::get<Status>(response->Read()), Not(IsOk()));
+  GoldenKitchenSinkMetadata stub(mock_, {});
+  auto response = stub.StreamingRead(std::make_shared<grpc::ClientContext>(),
+                                     Options{}, Request{});
+  EXPECT_THAT(response->Read(), VariantWith<Status>(Not(IsOk())));
 }
 
 TEST_F(MetadataDecoratorTest, StreamingWrite) {
   EXPECT_CALL(*mock_, StreamingWrite)
-      .WillOnce([this](std::unique_ptr<grpc::ClientContext> context) {
+      .WillOnce([this](auto context, Options const&) {
         IsContextMDValid(
             *context,
             "google.test.admin.database.v1.GoldenKitchenSink.StreamingWrite",
             Request{});
 
-        auto stream = absl::make_unique<MockStreamingWriteRpc>();
+        auto stream = std::make_unique<MockStreamingWriteRpc>();
         EXPECT_CALL(*stream, Write)
             .WillOnce(Return(true))
             .WillOnce(Return(false));
@@ -250,8 +320,9 @@ TEST_F(MetadataDecoratorTest, StreamingWrite) {
         return stream;
       });
 
-  GoldenKitchenSinkMetadata stub(mock_);
-  auto stream = stub.StreamingWrite(absl::make_unique<grpc::ClientContext>());
+  GoldenKitchenSinkMetadata stub(mock_, {});
+  auto stream =
+      stub.StreamingWrite(std::make_shared<grpc::ClientContext>(), Options{});
   EXPECT_TRUE(stream->Write(Request{}, grpc::WriteOptions()));
   EXPECT_FALSE(stream->Write(Request{}, grpc::WriteOptions()));
   auto response = stream->Close();
@@ -261,23 +332,23 @@ TEST_F(MetadataDecoratorTest, StreamingWrite) {
 
 TEST_F(MetadataDecoratorTest, AsyncStreamingRead) {
   EXPECT_CALL(*mock_, AsyncStreamingRead)
-      .WillOnce([this](google::cloud::CompletionQueue const&,
-                       std::unique_ptr<grpc::ClientContext> context,
-                       Request const& request) {
+      .WillOnce([this](google::cloud::CompletionQueue const&, auto context,
+                       auto, Request const& request) {
         IsContextMDValid(
             *context,
             "google.test.admin.database.v1.GoldenKitchenSink.StreamingRead",
             request);
         using ErrorStream =
             ::google::cloud::internal::AsyncStreamingReadRpcError<Response>;
-        return absl::make_unique<ErrorStream>(
+        return std::make_unique<ErrorStream>(
             Status(StatusCode::kAborted, "uh-oh"));
       });
-  GoldenKitchenSinkMetadata stub(mock_);
+  GoldenKitchenSinkMetadata stub(mock_, {});
 
   google::cloud::CompletionQueue cq;
   auto stream = stub.AsyncStreamingRead(
-      cq, absl::make_unique<grpc::ClientContext>(), Request{});
+      cq, std::make_shared<grpc::ClientContext>(),
+      google::cloud::internal::MakeImmutableOptions({}), Request{});
 
   auto start = stream->Start().get();
   EXPECT_FALSE(start);
@@ -287,8 +358,8 @@ TEST_F(MetadataDecoratorTest, AsyncStreamingRead) {
 
 TEST_F(MetadataDecoratorTest, AsyncStreamingWrite) {
   EXPECT_CALL(*mock_, AsyncStreamingWrite)
-      .WillOnce([this](google::cloud::CompletionQueue const&,
-                       std::unique_ptr<grpc::ClientContext> context) {
+      .WillOnce([this](google::cloud::CompletionQueue const&, auto context,
+                       auto) {
         IsContextMDValid(
             *context,
             "google.test.admin.database.v1.GoldenKitchenSink.StreamingWrite",
@@ -296,14 +367,15 @@ TEST_F(MetadataDecoratorTest, AsyncStreamingWrite) {
         using ErrorStream =
             ::google::cloud::internal::AsyncStreamingWriteRpcError<Request,
                                                                    Response>;
-        return absl::make_unique<ErrorStream>(
+        return std::make_unique<ErrorStream>(
             Status(StatusCode::kAborted, "uh-oh"));
       });
-  GoldenKitchenSinkMetadata stub(mock_);
+  GoldenKitchenSinkMetadata stub(mock_, {});
 
   google::cloud::CompletionQueue cq;
-  auto stream =
-      stub.AsyncStreamingWrite(cq, absl::make_unique<grpc::ClientContext>());
+  auto stream = stub.AsyncStreamingWrite(
+      cq, std::make_shared<grpc::ClientContext>(),
+      google::cloud::internal::MakeImmutableOptions({}));
 
   auto start = stream->Start().get();
   EXPECT_FALSE(start);
@@ -318,7 +390,7 @@ TEST_F(MetadataDecoratorTest, ExplicitRouting) {
   // In this test, we will use the request message provided in the
   // `google.api.routing` examples:
   //
-  // https://github.com/googleapis/googleapis/blob/f46dc249e1987a6bef1a70a371e8288ea4c17481/google/api/routing.proto#L57-L60
+  // https://github.com/googleapis/googleapis/blob/70147caca58ebf4c8cd7b96f5d569a72723e11c1/google/api/routing.proto#L57-L60
   google::test::admin::database::v1::ExplicitRoutingRequest request;
   request.set_table_name(
       "projects/proj_foo/instances/instance_bar/tables/table_baz");
@@ -327,12 +399,12 @@ TEST_F(MetadataDecoratorTest, ExplicitRouting) {
   // We verify the routing metadata against the expectations provided in
   // `google.api.routing` for Example 9:
   //
-  // https://github.com/googleapis/googleapis/blob/f46dc249e1987a6bef1a70a371e8288ea4c17481/google/api/routing.proto#L387-L390
-  std::string expected1 = "table_location=instances/instance_bar";
+  // https://github.com/googleapis/googleapis/blob/70147caca58ebf4c8cd7b96f5d569a72723e11c1/google/api/routing.proto#L387-L390
+  std::string expected1 = "table_location=instances%2Finstance_bar";
   std::string expected2 = "routing_id=prof_qux";
 
   EXPECT_CALL(*mock_, ExplicitRouting1)
-      .WillOnce([this](grpc::ClientContext& context,
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
                        google::test::admin::database::v1::
                            ExplicitRoutingRequest const& request) {
         IsContextMDValid(
@@ -341,7 +413,7 @@ TEST_F(MetadataDecoratorTest, ExplicitRouting) {
             request);
         return Status();
       })
-      .WillOnce([&, this](grpc::ClientContext& context,
+      .WillOnce([&, this](grpc::ClientContext& context, Options const&,
                           google::test::admin::database::v1::
                               ExplicitRoutingRequest const&) {
         auto headers = GetMetadata(context);
@@ -354,7 +426,7 @@ TEST_F(MetadataDecoratorTest, ExplicitRouting) {
         return Status();
       });
 
-  GoldenKitchenSinkMetadata stub(mock_);
+  GoldenKitchenSinkMetadata stub(mock_, {});
   grpc::ClientContext context1;
   grpc::ClientContext context2;
   // We make the same call twice. In the first call, we use `IsContextMDValid`
@@ -363,13 +435,13 @@ TEST_F(MetadataDecoratorTest, ExplicitRouting) {
   // which is reasonably complex, but untested. (We cannot do them both in the
   // same call, because the `grpc::ClientContext` is consumed in order to
   // extract its metadata).
-  (void)stub.ExplicitRouting1(context1, request);
-  (void)stub.ExplicitRouting1(context2, request);
+  (void)stub.ExplicitRouting1(context1, Options{}, request);
+  (void)stub.ExplicitRouting1(context2, Options{}, request);
 }
 
 TEST_F(MetadataDecoratorTest, ExplicitRoutingDoesNotSendEmptyParams) {
   EXPECT_CALL(*mock_, ExplicitRouting1)
-      .WillOnce([this](grpc::ClientContext& context,
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
                        google::test::admin::database::v1::
                            ExplicitRoutingRequest const& request) {
         IsContextMDValid(
@@ -378,7 +450,7 @@ TEST_F(MetadataDecoratorTest, ExplicitRoutingDoesNotSendEmptyParams) {
             request);
         return Status();
       })
-      .WillOnce([this](grpc::ClientContext& context,
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
                        google::test::admin::database::v1::
                            ExplicitRoutingRequest const&) {
         auto headers = GetMetadata(context);
@@ -386,7 +458,7 @@ TEST_F(MetadataDecoratorTest, ExplicitRoutingDoesNotSendEmptyParams) {
         return Status();
       });
 
-  GoldenKitchenSinkMetadata stub(mock_);
+  GoldenKitchenSinkMetadata stub(mock_, {});
   grpc::ClientContext context1;
   grpc::ClientContext context2;
   google::test::admin::database::v1::ExplicitRoutingRequest request;
@@ -397,13 +469,13 @@ TEST_F(MetadataDecoratorTest, ExplicitRoutingDoesNotSendEmptyParams) {
   // which is reasonably complex, but untested. (We cannot do them both in the
   // same call, because the `grpc::ClientContext` is consumed in order to
   // extract its metadata).
-  (void)stub.ExplicitRouting1(context1, request);
-  (void)stub.ExplicitRouting1(context2, request);
+  (void)stub.ExplicitRouting1(context1, Options{}, request);
+  (void)stub.ExplicitRouting1(context2, Options{}, request);
 }
 
 TEST_F(MetadataDecoratorTest, ExplicitRoutingNoRegexNeeded) {
   EXPECT_CALL(*mock_, ExplicitRouting2)
-      .WillOnce([this](grpc::ClientContext& context,
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
                        google::test::admin::database::v1::
                            ExplicitRoutingRequest const& request) {
         IsContextMDValid(
@@ -412,7 +484,7 @@ TEST_F(MetadataDecoratorTest, ExplicitRoutingNoRegexNeeded) {
             request);
         return Status();
       })
-      .WillOnce([this](grpc::ClientContext& context,
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
                        google::test::admin::database::v1::
                            ExplicitRoutingRequest const&) {
         auto headers = GetMetadata(context);
@@ -421,7 +493,7 @@ TEST_F(MetadataDecoratorTest, ExplicitRoutingNoRegexNeeded) {
         return Status();
       });
 
-  GoldenKitchenSinkMetadata stub(mock_);
+  GoldenKitchenSinkMetadata stub(mock_, {});
   grpc::ClientContext context1;
   grpc::ClientContext context2;
   // Note that the `app_profile_id` field is not set.
@@ -434,13 +506,13 @@ TEST_F(MetadataDecoratorTest, ExplicitRoutingNoRegexNeeded) {
   // which is reasonably complex, but untested. (We cannot do them both in the
   // same call, because the `grpc::ClientContext` is consumed in order to
   // extract its metadata).
-  (void)stub.ExplicitRouting2(context1, request);
-  (void)stub.ExplicitRouting2(context2, request);
+  (void)stub.ExplicitRouting2(context1, Options{}, request);
+  (void)stub.ExplicitRouting2(context2, Options{}, request);
 }
 
 TEST_F(MetadataDecoratorTest, ExplicitRoutingNestedField) {
   EXPECT_CALL(*mock_, ExplicitRouting2)
-      .WillOnce([this](grpc::ClientContext& context,
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
                        google::test::admin::database::v1::
                            ExplicitRoutingRequest const& request) {
         IsContextMDValid(
@@ -449,7 +521,7 @@ TEST_F(MetadataDecoratorTest, ExplicitRoutingNestedField) {
             request);
         return Status();
       })
-      .WillOnce([this](grpc::ClientContext& context,
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
                        google::test::admin::database::v1::
                            ExplicitRoutingRequest const&) {
         auto headers = GetMetadata(context);
@@ -458,7 +530,7 @@ TEST_F(MetadataDecoratorTest, ExplicitRoutingNestedField) {
         return Status();
       });
 
-  GoldenKitchenSinkMetadata stub(mock_);
+  GoldenKitchenSinkMetadata stub(mock_, {});
   grpc::ClientContext context1;
   grpc::ClientContext context2;
   google::test::admin::database::v1::ExplicitRoutingRequest request;
@@ -469,8 +541,65 @@ TEST_F(MetadataDecoratorTest, ExplicitRoutingNestedField) {
   // which is reasonably complex, but untested. (We cannot do them both in the
   // same call, because the `grpc::ClientContext` is consumed in order to
   // extract its metadata).
-  (void)stub.ExplicitRouting2(context1, request);
-  (void)stub.ExplicitRouting2(context2, request);
+  (void)stub.ExplicitRouting2(context1, Options{}, request);
+  (void)stub.ExplicitRouting2(context2, Options{}, request);
+}
+
+TEST_F(MetadataDecoratorTest, UrlEncodeRoutingParam) {
+  EXPECT_CALL(*mock_, ExplicitRouting2)
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
+                       google::test::admin::database::v1::
+                           ExplicitRoutingRequest const& request) {
+        IsContextMDValid(
+            context,
+            "google.test.admin.database.v1.GoldenKitchenSink.ExplicitRouting2",
+            request);
+        return Status();
+      })
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
+                       google::test::admin::database::v1::
+                           ExplicitRoutingRequest const&) {
+        auto headers = GetMetadata(context);
+        EXPECT_THAT(headers, Contains(Pair("x-goog-request-params",
+                                           "routing_id=%2Fvalue")));
+        return Status();
+      });
+
+  GoldenKitchenSinkMetadata stub(mock_, {});
+  grpc::ClientContext context1;
+  grpc::ClientContext context2;
+  google::test::admin::database::v1::ExplicitRoutingRequest request;
+  request.mutable_nested1()->mutable_nested2()->set_value("/value");
+  // We make the same call twice. In the first call, we use `IsContextMDValid`
+  // to verify expectations. In the second call, we verify the routing
+  // parameters by hand. This gives us extra confidence in `IsContextMDValid`
+  // which is reasonably complex, but untested. (We cannot do them both in the
+  // same call, because the `grpc::ClientContext` is consumed in order to
+  // extract its metadata).
+  (void)stub.ExplicitRouting2(context1, Options{}, request);
+  (void)stub.ExplicitRouting2(context2, Options{}, request);
+}
+
+TEST_F(MetadataDecoratorTest, FixedMetadata) {
+  // We use knowledge of the implementation to assert that testing a single RPC
+  // is sufficient.
+  EXPECT_CALL(*mock_, GenerateAccessToken)
+      .WillOnce([this](grpc::ClientContext& context, Options const&,
+                       google::test::admin::database::v1::
+                           GenerateAccessTokenRequest const&) {
+        auto metadata = GetMetadata(context);
+        EXPECT_THAT(metadata,
+                    AllOf(Contains(Pair("test-key-1", "test-value-1")),
+                          Contains(Pair("test-key-2", "test-value-2"))));
+        return TransientError();
+      });
+
+  GoldenKitchenSinkMetadata stub(
+      mock_, {{"test-key-1", "test-value-1"}, {"test-key-2", "test-value-2"}});
+  grpc::ClientContext context;
+  google::test::admin::database::v1::GenerateAccessTokenRequest request;
+  auto status = stub.GenerateAccessToken(context, Options{}, request);
+  EXPECT_EQ(TransientError(), status.status());
 }
 
 }  // namespace

@@ -37,74 +37,119 @@ class EnvironmentsLogging : public EnvironmentsStub {
   ~EnvironmentsLogging() override = default;
   EnvironmentsLogging(std::shared_ptr<EnvironmentsStub> child,
                       TracingOptions tracing_options,
-                      std::set<std::string> components);
+                      std::set<std::string> const& components);
 
   StatusOr<google::cloud::dialogflow::cx::v3::ListEnvironmentsResponse>
   ListEnvironments(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::ListEnvironmentsRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Environment> GetEnvironment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetEnvironmentRequest const& request)
       override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncCreateEnvironment(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::dialogflow::cx::v3::CreateEnvironmentRequest const&
+          request) override;
+
+  StatusOr<google::longrunning::Operation> CreateEnvironment(
+      grpc::ClientContext& context, Options options,
       google::cloud::dialogflow::cx::v3::CreateEnvironmentRequest const&
           request) override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncUpdateEnvironment(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::dialogflow::cx::v3::UpdateEnvironmentRequest const&
+          request) override;
+
+  StatusOr<google::longrunning::Operation> UpdateEnvironment(
+      grpc::ClientContext& context, Options options,
       google::cloud::dialogflow::cx::v3::UpdateEnvironmentRequest const&
           request) override;
 
   Status DeleteEnvironment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::DeleteEnvironmentRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::LookupEnvironmentHistoryResponse>
   LookupEnvironmentHistory(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::LookupEnvironmentHistoryRequest const&
           request) override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncRunContinuousTest(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::dialogflow::cx::v3::RunContinuousTestRequest const&
+          request) override;
+
+  StatusOr<google::longrunning::Operation> RunContinuousTest(
+      grpc::ClientContext& context, Options options,
       google::cloud::dialogflow::cx::v3::RunContinuousTestRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::ListContinuousTestResultsResponse>
   ListContinuousTestResults(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::ListContinuousTestResultsRequest const&
           request) override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncDeployFlow(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::cloud::dialogflow::cx::v3::DeployFlowRequest const& request)
       override;
 
+  StatusOr<google::longrunning::Operation> DeployFlow(
+      grpc::ClientContext& context, Options options,
+      google::cloud::dialogflow::cx::v3::DeployFlowRequest const& request)
+      override;
+
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
+
   future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::GetOperationRequest const& request) override;
 
   future<Status> AsyncCancelOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::CancelOperationRequest const& request) override;
 
  private:
   std::shared_ptr<EnvironmentsStub> child_;
   TracingOptions tracing_options_;
-  std::set<std::string> components_;
 };  // EnvironmentsLogging
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

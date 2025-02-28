@@ -18,13 +18,12 @@
 #include "google/cloud/internal/background_threads_impl.h"
 #include "google/cloud/internal/getenv.h"
 #include "google/cloud/internal/random.h"
+#include "google/cloud/location.h"
 #include "google/cloud/status_or.h"
-#include "google/cloud/testing_util/contains_once.h"
 #include "google/cloud/testing_util/integration_test.h"
 #include "google/cloud/testing_util/scoped_environment.h"
 #include "google/cloud/testing_util/scoped_log.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
 #include <google/protobuf/text_format.h>
 #include <gmock/gmock.h>
 
@@ -36,7 +35,7 @@ namespace {
 
 using ::google::cloud::bigtable::testing::RandomInstanceId;
 using ::google::cloud::internal::GetEnv;
-using ::google::cloud::testing_util::ContainsOnce;
+using ::testing::AnyOf;
 using ::testing::Contains;
 using ::testing::HasSubstr;
 using ::testing::Not;
@@ -66,7 +65,7 @@ class InstanceAdminIntegrationTest
 
     auto instance_admin_client = bigtable::MakeInstanceAdminClient(project_id_);
     instance_admin_ =
-        absl::make_unique<bigtable::InstanceAdmin>(instance_admin_client);
+        std::make_unique<bigtable::InstanceAdmin>(instance_admin_client);
   }
 
   std::string project_id_;
@@ -127,8 +126,8 @@ TEST_F(InstanceAdminIntegrationTest, ListAllClustersTest) {
   // Wait for instance creation
   auto instance_1 = instance_1_fut.get();
   auto instance_2 = instance_2_fut.get();
-  EXPECT_STATUS_OK(instance_1);
-  EXPECT_STATUS_OK(instance_2);
+  ASSERT_STATUS_OK(instance_1);
+  ASSERT_STATUS_OK(instance_2);
 
   EXPECT_EQ(instance_1->name(), name_1);
   EXPECT_EQ(instance_2->name(), name_2);
@@ -192,8 +191,8 @@ TEST_F(InstanceAdminIntegrationTest, CreateListGetDeleteAppProfile) {
 
   profiles = instance_admin_->ListAppProfiles(instance_id);
   ASSERT_STATUS_OK(profiles);
-  EXPECT_THAT(profile_names(*profiles), ContainsOnce(name_1));
-  EXPECT_THAT(profile_names(*profiles), ContainsOnce(name_2));
+  EXPECT_THAT(profile_names(*profiles), Contains(name_1).Times(1));
+  EXPECT_THAT(profile_names(*profiles), Contains(name_2).Times(1));
 
   profile_1 = instance_admin_->GetAppProfile(instance_id, id_1);
   ASSERT_STATUS_OK(profile_1);
@@ -220,7 +219,7 @@ TEST_F(InstanceAdminIntegrationTest, CreateListGetDeleteAppProfile) {
   profiles = instance_admin_->ListAppProfiles(instance_id);
   ASSERT_STATUS_OK(profiles);
   EXPECT_THAT(profile_names(*profiles), Not(Contains(name_1)));
-  EXPECT_THAT(profile_names(*profiles), ContainsOnce(name_2));
+  EXPECT_THAT(profile_names(*profiles), Contains(name_2).Times(1));
 
   ASSERT_STATUS_OK(instance_admin_->DeleteAppProfile(instance_id, id_2, true));
   profiles = instance_admin_->ListAppProfiles(instance_id);
@@ -241,10 +240,17 @@ TEST_F(InstanceAdminIntegrationTest, CreateListGetDeleteInstanceTest) {
   auto instance = instance_admin_->CreateInstance(config).get();
   ASSERT_STATUS_OK(instance);
 
+  auto const zone_a = Location(instance_admin_->project_name(), zone_a_);
+  auto const zone_b = Location(instance_admin_->project_name(), zone_b_);
+
   // List instances
   auto instances = instance_admin_->ListInstances();
   ASSERT_STATUS_OK(instances);
-  ASSERT_TRUE(instances->failed_locations.empty());
+  // If either zone_a_ or zone_b_ are in the list of failed locations then we
+  // cannot proceed.
+  ASSERT_THAT(
+      instances->failed_locations,
+      Not(AnyOf(Contains(zone_a.FullName()), Contains(zone_b.FullName()))));
   EXPECT_TRUE(IsInstancePresent(instances->instances, instance->name()));
 
   // Get instance
@@ -271,7 +277,11 @@ TEST_F(InstanceAdminIntegrationTest, CreateListGetDeleteInstanceTest) {
   // Verify delete
   instances = instance_admin_->ListInstances();
   ASSERT_STATUS_OK(instances);
-  ASSERT_TRUE(instances->failed_locations.empty());
+  // If either zone_a_ or zone_b_ are in the list of failed locations then we
+  // cannot proceed.
+  ASSERT_THAT(
+      instances->failed_locations,
+      Not(AnyOf(Contains(zone_a.FullName()), Contains(zone_b.FullName()))));
   EXPECT_FALSE(IsInstancePresent(instances->instances, instance_name));
 }
 
@@ -374,9 +384,12 @@ TEST_F(InstanceAdminIntegrationTest,
   auto const instance_name = bigtable::InstanceName(project_id_, instance_id);
 
   auto instance_admin_client = bigtable::MakeInstanceAdminClient(
-      project_id_, Options{}.set<TracingComponentsOption>({"rpc"}));
+      project_id_, Options{}.set<LoggingComponentsOption>({"rpc"}));
   auto instance_admin =
-      absl::make_unique<bigtable::InstanceAdmin>(instance_admin_client);
+      std::make_unique<bigtable::InstanceAdmin>(instance_admin_client);
+
+  auto const zone_a = Location(instance_admin_->project_name(), zone_a_);
+  auto const zone_b = Location(instance_admin_->project_name(), zone_b_);
 
   // Create instance
   auto config = IntegrationTestConfig(instance_id, zone_a_);
@@ -386,7 +399,11 @@ TEST_F(InstanceAdminIntegrationTest,
   // Verify create
   auto instances = instance_admin->ListInstances();
   ASSERT_STATUS_OK(instances);
-  ASSERT_TRUE(instances->failed_locations.empty());
+  // If either zone_a_ or zone_b_ are in the list of failed locations then we
+  // cannot proceed.
+  ASSERT_THAT(
+      instances->failed_locations,
+      Not(AnyOf(Contains(zone_a.FullName()), Contains(zone_b.FullName()))));
   EXPECT_TRUE(IsInstancePresent(instances->instances, instance->name()));
 
   // Get instance
@@ -413,7 +430,11 @@ TEST_F(InstanceAdminIntegrationTest,
   // Verify delete
   instances = instance_admin->ListInstances();
   ASSERT_STATUS_OK(instances);
-  ASSERT_TRUE(instances->failed_locations.empty());
+  // If either zone_a_ or zone_b_ are in the list of failed locations then we
+  // cannot proceed.
+  ASSERT_THAT(
+      instances->failed_locations,
+      Not(AnyOf(Contains(zone_a.FullName()), Contains(zone_b.FullName()))));
   EXPECT_FALSE(IsInstancePresent(instances->instances, instance_name));
 
   auto const log_lines = log.ExtractLines();
@@ -433,10 +454,8 @@ TEST_F(InstanceAdminIntegrationTest, CustomWorkers) {
   CompletionQueue cq;
   auto instance_admin_client = bigtable::MakeInstanceAdminClient(
       project_id_, Options{}.set<GrpcCompletionQueueOption>(cq));
-  instance_admin_ = absl::make_unique<bigtable::InstanceAdmin>(
-      instance_admin_client,
-      *DefaultRPCRetryPolicy({std::chrono::seconds(1), std::chrono::seconds(1),
-                              std::chrono::seconds(1)}));
+  instance_admin_ =
+      std::make_unique<bigtable::InstanceAdmin>(instance_admin_client);
 
   // CompletionQueue `cq` is not being `Run()`, so this should never finish.
   auto const instance_id = RandomInstanceId(generator_);

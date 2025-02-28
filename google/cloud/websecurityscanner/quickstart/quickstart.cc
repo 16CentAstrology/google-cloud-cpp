@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/websecurityscanner/web_security_scanner_client.h"
+//! [all]
+#include "google/cloud/websecurityscanner/v1/web_security_scanner_client.h"
 #include "google/cloud/project.h"
 #include <iostream>
 
@@ -22,7 +23,7 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace websecurityscanner = ::google::cloud::websecurityscanner;
+  namespace websecurityscanner = ::google::cloud::websecurityscanner_v1;
   auto client = websecurityscanner::WebSecurityScannerClient(
       websecurityscanner::MakeWebSecurityScannerConnection());
   auto const project = google::cloud::Project(argv[1]);
@@ -38,3 +39,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

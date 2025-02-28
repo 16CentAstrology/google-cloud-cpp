@@ -19,9 +19,11 @@
 #include "google/cloud/speech/v2/internal/speech_option_defaults.h"
 #include "google/cloud/speech/v2/speech_connection.h"
 #include "google/cloud/speech/v2/speech_options.h"
+#include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/populate_common_options.h"
 #include "google/cloud/internal/populate_grpc_options.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -32,12 +34,13 @@ namespace {
 auto constexpr kBackoffScaling = 2.0;
 }  // namespace
 
-Options SpeechDefaultOptions(Options options) {
-  options = google::cloud::internal::PopulateCommonOptions(
+Options SpeechDefaultOptions(std::string const& location, Options options) {
+  options = internal::PopulateCommonOptions(
       std::move(options), "GOOGLE_CLOUD_CPP_SPEECH_ENDPOINT", "",
-      "GOOGLE_CLOUD_CPP_SPEECH_AUTHORITY", "speech.googleapis.com");
-  options =
-      google::cloud::internal::PopulateGrpcOptions(std::move(options), "");
+      "GOOGLE_CLOUD_CPP_SPEECH_AUTHORITY",
+      absl::StrCat(location, location.empty() ? "" : "-",
+                   "speech.googleapis.com"));
+  options = internal::PopulateGrpcOptions(std::move(options));
   if (!options.has<speech_v2::SpeechRetryPolicyOption>()) {
     options.set<speech_v2::SpeechRetryPolicyOption>(
         speech_v2::SpeechLimitedTimeRetryPolicy(std::chrono::minutes(30))
@@ -45,8 +48,9 @@ Options SpeechDefaultOptions(Options options) {
   }
   if (!options.has<speech_v2::SpeechBackoffPolicyOption>()) {
     options.set<speech_v2::SpeechBackoffPolicyOption>(
-        ExponentialBackoffPolicy(std::chrono::seconds(1),
-                                 std::chrono::minutes(5), kBackoffScaling)
+        ExponentialBackoffPolicy(
+            std::chrono::seconds(0), std::chrono::seconds(1),
+            std::chrono::minutes(5), kBackoffScaling, kBackoffScaling)
             .clone());
   }
   if (!options.has<speech_v2::SpeechPollingPolicyOption>()) {
@@ -54,7 +58,9 @@ Options SpeechDefaultOptions(Options options) {
         GenericPollingPolicy<speech_v2::SpeechRetryPolicyOption::Type,
                              speech_v2::SpeechBackoffPolicyOption::Type>(
             options.get<speech_v2::SpeechRetryPolicyOption>()->clone(),
-            options.get<speech_v2::SpeechBackoffPolicyOption>()->clone())
+            ExponentialBackoffPolicy(std::chrono::seconds(1),
+                                     std::chrono::minutes(5), kBackoffScaling)
+                .clone())
             .clone());
   }
   if (!options.has<speech_v2::SpeechConnectionIdempotencyPolicyOption>()) {

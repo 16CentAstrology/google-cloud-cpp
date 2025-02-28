@@ -20,8 +20,10 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_DIALOGFLOW_ES_INTERNAL_CONVERSATION_PROFILES_METADATA_DECORATOR_H
 
 #include "google/cloud/dialogflow_es/internal/conversation_profiles_stub.h"
+#include "google/cloud/options.h"
 #include "google/cloud/version.h"
 #include <google/longrunning/operations.grpc.pb.h>
+#include <map>
 #include <memory>
 #include <string>
 
@@ -33,68 +35,105 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 class ConversationProfilesMetadata : public ConversationProfilesStub {
  public:
   ~ConversationProfilesMetadata() override = default;
-  explicit ConversationProfilesMetadata(
-      std::shared_ptr<ConversationProfilesStub> child);
+  ConversationProfilesMetadata(
+      std::shared_ptr<ConversationProfilesStub> child,
+      std::multimap<std::string, std::string> fixed_metadata,
+      std::string api_client_header = "");
 
   StatusOr<google::cloud::dialogflow::v2::ListConversationProfilesResponse>
   ListConversationProfiles(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::ListConversationProfilesRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::v2::ConversationProfile>
   GetConversationProfile(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::GetConversationProfileRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::v2::ConversationProfile>
   CreateConversationProfile(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::CreateConversationProfileRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::v2::ConversationProfile>
   UpdateConversationProfile(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::UpdateConversationProfileRequest const&
           request) override;
 
   Status DeleteConversationProfile(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::DeleteConversationProfileRequest const&
           request) override;
 
   future<StatusOr<google::longrunning::Operation>>
   AsyncSetSuggestionFeatureConfig(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::dialogflow::v2::SetSuggestionFeatureConfigRequest const&
+          request) override;
+
+  StatusOr<google::longrunning::Operation> SetSuggestionFeatureConfig(
+      grpc::ClientContext& context, Options options,
       google::cloud::dialogflow::v2::SetSuggestionFeatureConfigRequest const&
           request) override;
 
   future<StatusOr<google::longrunning::Operation>>
   AsyncClearSuggestionFeatureConfig(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::cloud::dialogflow::v2::ClearSuggestionFeatureConfigRequest const&
           request) override;
 
+  StatusOr<google::longrunning::Operation> ClearSuggestionFeatureConfig(
+      grpc::ClientContext& context, Options options,
+      google::cloud::dialogflow::v2::ClearSuggestionFeatureConfigRequest const&
+          request) override;
+
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
+
   future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::GetOperationRequest const& request) override;
 
   future<Status> AsyncCancelOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::CancelOperationRequest const& request) override;
 
  private:
-  void SetMetadata(grpc::ClientContext& context,
+  void SetMetadata(grpc::ClientContext& context, Options const& options,
                    std::string const& request_params);
-  void SetMetadata(grpc::ClientContext& context);
+  void SetMetadata(grpc::ClientContext& context, Options const& options);
 
   std::shared_ptr<ConversationProfilesStub> child_;
+  std::multimap<std::string, std::string> fixed_metadata_;
   std::string api_client_header_;
 };
 

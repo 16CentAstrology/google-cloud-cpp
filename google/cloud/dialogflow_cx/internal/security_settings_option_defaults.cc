@@ -23,6 +23,7 @@
 #include "google/cloud/internal/populate_common_options.h"
 #include "google/cloud/internal/populate_grpc_options.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -35,13 +36,12 @@ auto constexpr kBackoffScaling = 2.0;
 
 Options SecuritySettingsServiceDefaultOptions(std::string const& location,
                                               Options options) {
-  options = google::cloud::internal::PopulateCommonOptions(
+  options = internal::PopulateCommonOptions(
       std::move(options), "GOOGLE_CLOUD_CPP_SECURITY_SETTINGS_SERVICE_ENDPOINT",
       "", "GOOGLE_CLOUD_CPP_SECURITY_SETTINGS_SERVICE_AUTHORITY",
       absl::StrCat(location, location.empty() ? "" : "-",
                    "dialogflow.googleapis.com"));
-  options =
-      google::cloud::internal::PopulateGrpcOptions(std::move(options), "");
+  options = internal::PopulateGrpcOptions(std::move(options));
   if (!options.has<dialogflow_cx::SecuritySettingsServiceRetryPolicyOption>()) {
     options.set<dialogflow_cx::SecuritySettingsServiceRetryPolicyOption>(
         dialogflow_cx::SecuritySettingsServiceLimitedTimeRetryPolicy(
@@ -51,8 +51,9 @@ Options SecuritySettingsServiceDefaultOptions(std::string const& location,
   if (!options
            .has<dialogflow_cx::SecuritySettingsServiceBackoffPolicyOption>()) {
     options.set<dialogflow_cx::SecuritySettingsServiceBackoffPolicyOption>(
-        ExponentialBackoffPolicy(std::chrono::seconds(1),
-                                 std::chrono::minutes(5), kBackoffScaling)
+        ExponentialBackoffPolicy(
+            std::chrono::seconds(0), std::chrono::seconds(1),
+            std::chrono::minutes(5), kBackoffScaling, kBackoffScaling)
             .clone());
   }
   if (!options.has<

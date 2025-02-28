@@ -21,12 +21,15 @@
 #include "generator/integration_tests/golden/v1/internal/golden_thing_admin_connection_impl.h"
 #include "generator/integration_tests/golden/v1/internal/golden_thing_admin_option_defaults.h"
 #include "generator/integration_tests/golden/v1/internal/golden_thing_admin_stub_factory.h"
+#include "generator/integration_tests/golden/v1/internal/golden_thing_admin_tracing_connection.h"
 #include "google/cloud/background_threads.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/credentials.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/pagination_range.h"
+#include "google/cloud/internal/unified_grpc_credentials.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -49,6 +52,22 @@ GoldenThingAdminConnection::CreateDatabase(
     Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
+StatusOr<google::longrunning::Operation>
+GoldenThingAdminConnection::CreateDatabase(
+    NoAwaitTag,
+    google::test::admin::database::v1::CreateDatabaseRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+    Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::test::admin::database::v1::Database>>
+GoldenThingAdminConnection::CreateDatabase(
+    google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+    StatusOr<google::test::admin::database::v1::Database>>(
+    Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
 StatusOr<google::test::admin::database::v1::Database>
 GoldenThingAdminConnection::GetDatabase(
     google::test::admin::database::v1::GetDatabaseRequest const&) {
@@ -58,6 +77,22 @@ GoldenThingAdminConnection::GetDatabase(
 future<StatusOr<google::test::admin::database::v1::UpdateDatabaseDdlMetadata>>
 GoldenThingAdminConnection::UpdateDatabaseDdl(
     google::test::admin::database::v1::UpdateDatabaseDdlRequest const&) {
+  return google::cloud::make_ready_future<
+    StatusOr<google::test::admin::database::v1::UpdateDatabaseDdlMetadata>>(
+    Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation>
+GoldenThingAdminConnection::UpdateDatabaseDdl(
+    NoAwaitTag,
+    google::test::admin::database::v1::UpdateDatabaseDdlRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+    Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::test::admin::database::v1::UpdateDatabaseDdlMetadata>>
+GoldenThingAdminConnection::UpdateDatabaseDdl(
+    google::longrunning::Operation const&) {
   return google::cloud::make_ready_future<
     StatusOr<google::test::admin::database::v1::UpdateDatabaseDdlMetadata>>(
     Status(StatusCode::kUnimplemented, "not implemented"));
@@ -101,6 +136,22 @@ GoldenThingAdminConnection::CreateBackup(
     Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
+StatusOr<google::longrunning::Operation>
+GoldenThingAdminConnection::CreateBackup(
+    NoAwaitTag,
+    google::test::admin::database::v1::CreateBackupRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+    Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::test::admin::database::v1::Backup>>
+GoldenThingAdminConnection::CreateBackup(
+    google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+    StatusOr<google::test::admin::database::v1::Backup>>(
+    Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
 StatusOr<google::test::admin::database::v1::Backup>
 GoldenThingAdminConnection::GetBackup(
     google::test::admin::database::v1::GetBackupRequest const&) {
@@ -133,6 +184,22 @@ GoldenThingAdminConnection::RestoreDatabase(
     Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
+StatusOr<google::longrunning::Operation>
+GoldenThingAdminConnection::RestoreDatabase(
+    NoAwaitTag,
+    google::test::admin::database::v1::RestoreDatabaseRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+    Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::test::admin::database::v1::Database>>
+GoldenThingAdminConnection::RestoreDatabase(
+    google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+    StatusOr<google::test::admin::database::v1::Database>>(
+    Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
 StreamRange<google::longrunning::Operation> GoldenThingAdminConnection::ListDatabaseOperations(
     google::test::admin::database::v1::ListDatabaseOperationsRequest) {  // NOLINT(performance-unnecessary-value-param)
   return google::cloud::internal::MakeUnimplementedPaginationRange<
@@ -151,6 +218,34 @@ GoldenThingAdminConnection::LongRunningWithoutRouting(
   return google::cloud::make_ready_future<
     StatusOr<google::test::admin::database::v1::Database>>(
     Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::longrunning::Operation>
+GoldenThingAdminConnection::LongRunningWithoutRouting(
+    NoAwaitTag,
+    google::test::admin::database::v1::RestoreDatabaseRequest const&) {
+  return StatusOr<google::longrunning::Operation>(
+    Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+future<StatusOr<google::test::admin::database::v1::Database>>
+GoldenThingAdminConnection::LongRunningWithoutRouting(
+    google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+    StatusOr<google::test::admin::database::v1::Database>>(
+    Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+StatusOr<google::cloud::location::Location>
+GoldenThingAdminConnection::GetLocation(
+    google::cloud::location::GetLocationRequest const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+
+StreamRange<google::longrunning::Operation> GoldenThingAdminConnection::ListOperations(
+    google::longrunning::ListOperationsRequest) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<google::longrunning::Operation>>();
 }
 
 future<StatusOr<google::test::admin::database::v1::Database>>
@@ -176,10 +271,12 @@ std::shared_ptr<GoldenThingAdminConnection> MakeGoldenThingAdminConnection(
   options = golden_v1_internal::GoldenThingAdminDefaultOptions(
       std::move(options));
   auto background = internal::MakeBackgroundThreadsFactory(options)();
+  auto auth = internal::CreateAuthenticationStrategy(background->cq(), options);
   auto stub = golden_v1_internal::CreateDefaultGoldenThingAdminStub(
-    background->cq(), options);
-  return std::make_shared<golden_v1_internal::GoldenThingAdminConnectionImpl>(
-      std::move(background), std::move(stub), std::move(options));
+    std::move(auth), options);
+  return golden_v1_internal::MakeGoldenThingAdminTracingConnection(
+      std::make_shared<golden_v1_internal::GoldenThingAdminConnectionImpl>(
+      std::move(background), std::move(stub), std::move(options)));
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

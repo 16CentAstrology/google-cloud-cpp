@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/monitoring/alert_policy_client.h"
+//! [all]
+#include "google/cloud/monitoring/v3/alert_policy_client.h"
 #include "google/cloud/project.h"
 #include <iostream>
 
@@ -22,7 +23,7 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace monitoring = ::google::cloud::monitoring;
+  namespace monitoring = ::google::cloud::monitoring_v3;
   auto client = monitoring::AlertPolicyServiceClient(
       monitoring::MakeAlertPolicyServiceConnection());
 
@@ -37,3 +38,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

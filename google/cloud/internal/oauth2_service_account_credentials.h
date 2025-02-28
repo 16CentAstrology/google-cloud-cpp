@@ -31,6 +31,8 @@ namespace cloud {
 namespace oauth2_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+inline char const* P12PrivateKeyIdMarker() { return "--unknown--"; }
+
 /**
  * Overrides the token uri provided by the service account credentials key
  * file.
@@ -50,15 +52,13 @@ struct ServiceAccountCredentialsInfo {
   // See https://developers.google.com/identity/protocols/OAuth2ServiceAccount.
   absl::optional<std::string> subject;
   bool enable_self_signed_jwt;
+  absl::optional<std::string> universe_domain;
+  absl::optional<std::string> project_id;
 };
 
 /// Indicates whether or not to use a self-signed JWT or issue a request to
 /// OAuth2.
 bool ServiceAccountUseOAuth(ServiceAccountCredentialsInfo const& info);
-
-/// Parses the contents of a P12 keyfile into a ServiceAccountCredentialsInfo.
-StatusOr<ServiceAccountCredentialsInfo> ParseServiceAccountP12File(
-    std::string const& source);
 
 /// Parses the contents of a JSON keyfile into a ServiceAccountCredentialsInfo.
 StatusOr<ServiceAccountCredentialsInfo> ParseServiceAccountCredentials(
@@ -66,7 +66,7 @@ StatusOr<ServiceAccountCredentialsInfo> ParseServiceAccountCredentials(
     std::string const& default_token_uri = GoogleOAuthRefreshEndpoint());
 
 /// Parses a refresh response JSON string to create an access token.
-StatusOr<internal::AccessToken> ParseServiceAccountRefreshResponse(
+StatusOr<AccessToken> ParseServiceAccountRefreshResponse(
     rest_internal::RestResponse& response,
     std::chrono::system_clock::time_point now);
 
@@ -174,8 +174,8 @@ StatusOr<std::string> MakeSelfSignedJWT(
  * variable can be used to prefer OAuth-based access tokens.
  *
  * Since access tokens are relatively expensive to create this class caches the
- * access tokens until they are about to expire. Use the `AuthorizationHeader()`
- * to get the current access token.
+ * access tokens until they are about to expire. Use the
+ * `AuthenticationHeader()` to get the current access token.
  *
  * [aip/4111]: https://google.aip.dev/auth/4111
  * [aip/4112]: https://google.aip.dev/auth/4112
@@ -208,7 +208,7 @@ class ServiceAccountCredentials : public oauth2_internal::Credentials {
   /**
    * Returns a key value pair for an "Authorization" header.
    */
-  StatusOr<internal::AccessToken> GetToken(
+  StatusOr<AccessToken> GetToken(
       std::chrono::system_clock::time_point tp) override;
 
   /**
@@ -230,11 +230,17 @@ class ServiceAccountCredentials : public oauth2_internal::Credentials {
 
   std::string KeyId() const override { return info_.private_key_id; }
 
+  StatusOr<std::string> universe_domain() const override;
+  StatusOr<std::string> universe_domain(Options const&) const override;
+
+  StatusOr<std::string> project_id() const override;
+  StatusOr<std::string> project_id(Options const&) const override;
+
  private:
   bool UseOAuth();
-  StatusOr<internal::AccessToken> GetTokenOAuth(
+  StatusOr<AccessToken> GetTokenOAuth(
       std::chrono::system_clock::time_point tp) const;
-  StatusOr<internal::AccessToken> GetTokenSelfSigned(
+  StatusOr<AccessToken> GetTokenSelfSigned(
       std::chrono::system_clock::time_point tp) const;
 
   ServiceAccountCredentialsInfo info_;

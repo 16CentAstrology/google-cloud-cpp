@@ -16,7 +16,6 @@
 #include "google/cloud/spanner/timestamp.h"
 #include "google/cloud/spanner/transaction.h"
 #include "google/cloud/internal/port_platform.h"
-#include "absl/memory/memory.h"
 #include <gmock/gmock.h>
 #include <chrono>
 #include <ctime>
@@ -117,7 +116,7 @@ ResultSet Client::Read(SessionHolder& session,
                        std::string const&, KeySet const&,
                        std::vector<std::string> const&) {
   // when we mark a transaction invalid, we use this Status.
-  const Status failed_txn_status(StatusCode::kInternal, "Bad transaction");
+  Status const failed_txn_status(StatusCode::kInternal, "Bad transaction");
 
   bool fail_with_throw = false;
   EXPECT_THAT(tag, IsEmpty());

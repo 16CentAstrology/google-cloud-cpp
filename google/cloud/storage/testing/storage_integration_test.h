@@ -22,9 +22,11 @@
 #include "google/cloud/testing_util/integration_test.h"
 #include <gmock/gmock.h>
 #include <algorithm>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace google {
@@ -40,14 +42,37 @@ class StorageIntegrationTest
   ~StorageIntegrationTest() override;
 
   /**
+   * Returns the recommended options to run integration tests.
+   *
+   * Most tests should use these options or call `MakeIntegrationTestClient()`.
+   */
+  static Options MakeTestOptions(Options opts = {});
+
+  /**
+   * Create options suitable for Bucket integration tests.
+   *
+   * Buckets need longer initial backoffs.
+   */
+  static Options MakeBucketTestOptions();
+
+  /**
    * Return a client suitable for most integration tests.
    *
    * Most integration tests, particularly when running against the emulator,
    * should use short backoff and retry periods. This returns a client so
    * configured.
    */
-  static google::cloud::StatusOr<google::cloud::storage::Client>
-  MakeIntegrationTestClient();
+  static google::cloud::storage::Client MakeIntegrationTestClient(
+      Options opts = {});
+
+  /**
+   * Create a gRPC or JSON client.
+   *
+   * If @p use_grpc is `true` and gRPC is not compiled-in, it creates a JSON
+   * client.
+   */
+  static google::cloud::storage::Client MakeIntegrationTestClient(
+      bool use_grpc, Options opts = {});
 
   /**
    * Return a client with retry policies suitable for CreateBucket() class.
@@ -57,17 +82,7 @@ class StorageIntegrationTest
    * one bucket every two seconds, suggesting that the default backoff should be
    * at least that long.
    */
-  static google::cloud::StatusOr<google::cloud::storage::Client>
-  MakeBucketIntegrationTestClient();
-
-  /// Like MakeIntegrationTestClient() but with a custom retry policy
-  static google::cloud::StatusOr<google::cloud::storage::Client>
-  MakeIntegrationTestClient(std::unique_ptr<RetryPolicy> retry_policy);
-
-  /// Like MakeIntegrationTestClient() but with custom retry and bucket policies
-  static google::cloud::StatusOr<google::cloud::storage::Client>
-  MakeIntegrationTestClient(std::unique_ptr<RetryPolicy> retry_policy,
-                            std::unique_ptr<BackoffPolicy> backoff_policy);
+  static google::cloud::storage::Client MakeBucketIntegrationTestClient();
 
   static std::unique_ptr<BackoffPolicy> TestBackoffPolicy();
   static std::unique_ptr<RetryPolicy> TestRetryPolicy();
@@ -107,30 +122,6 @@ class StorageIntegrationTest
   void ScheduleForDelete(BucketMetadata meta) {
     std::lock_guard<std::mutex> lk(mu_);
     buckets_to_delete_.push_back(std::move(meta));
-  }
-
-  struct ApiSwitch {
-    Fields for_insert;
-    IfMetagenerationNotMatch for_streaming_read;
-  };
-
-  static ApiSwitch RestApiFlags(std::string const& api) {
-    if (api == "XML") {
-      return ApiSwitch{
-          // enables XML: this filters-out all metadata fields from
-          // the InsertObject() response. JSON and XML are equivalent when no
-          // metadata fields are requested, and we default to XML in that case.
-          Fields(""),
-          // empty option has no effect, and the default is XML
-          IfMetagenerationNotMatch()};
-    }
-    return ApiSwitch{
-        // empty option has no effect, and the default is JSON since only JSON
-        // can provide all metadata fields.
-        Fields(),
-        // disables XML (the default) as it does not support
-        // metageneration-not-match
-        IfMetagenerationNotMatch(0)};
   }
 
   /**

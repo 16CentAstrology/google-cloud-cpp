@@ -81,9 +81,11 @@ StatusOr<ReadPartition> DeserializeReadPartition(
  * The `ReadPartition` class is a regular type that represents a single
  * slice of a parallel Read operation.
  *
- * Instances of `ReadPartition` are created by `Client::PartitionRead`. Once
- * created, `ReadPartition` objects can be serialized, transmitted to separate
- * process, and used to read data in parallel using `Client::Read`.
+ * Instances of `ReadPartition` are created by `Client::PartitionRead`.
+ * Once created, `ReadPartition` objects can be serialized, transmitted to
+ * separate processes, and used to read data in parallel using `Client::Read`.
+ * If `data_boost` is set, those requests will be executed using the
+ * independent compute resources of Cloud Spanner Data Boost.
  */
 class ReadPartition {
  public:
@@ -113,7 +115,9 @@ class ReadPartition {
   /// @name Equality
   ///@{
   friend bool operator==(ReadPartition const& lhs, ReadPartition const& rhs);
-  friend bool operator!=(ReadPartition const& lhs, ReadPartition const& rhs);
+  friend bool operator!=(ReadPartition const& lhs, ReadPartition const& rhs) {
+    return !(lhs == rhs);
+  }
   ///@}
 
  private:
@@ -126,20 +130,23 @@ class ReadPartition {
 
   explicit ReadPartition(google::spanner::v1::ReadRequest proto)
       : proto_(std::move(proto)) {}
-  ReadPartition(std::string transaction_id, std::string transaction_tag,
-                std::string session_id, std::string partition_token,
-                std::string table_name, google::cloud::spanner::KeySet key_set,
-                std::vector<std::string> column_names,
+  ReadPartition(std::string transaction_id, bool route_to_leader,
+                std::string transaction_tag, std::string session_id,
+                std::string partition_token, std::string table_name,
+                google::cloud::spanner::KeySet key_set,
+                std::vector<std::string> column_names, bool data_boost,
                 google::cloud::spanner::ReadOptions read_options);
 
   // Accessor methods for use by friends.
-  std::string PartitionToken() const { return proto_.partition_token(); }
-  std::string SessionId() const { return proto_.session(); }
   std::string TransactionId() const { return proto_.transaction().id(); }
+  bool RouteToLeader() const;
   std::string TransactionTag() const {
     return proto_.request_options().transaction_tag();
   }
+  std::string SessionId() const { return proto_.session(); }
+  std::string PartitionToken() const { return proto_.partition_token(); }
   google::spanner::v1::KeySet KeySet() const { return proto_.key_set(); }
+  bool DataBoost() const { return proto_.data_boost_enabled(); }
 
   google::spanner::v1::ReadRequest proto_;
 };
@@ -153,46 +160,53 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 struct ReadPartitionInternals {
   static spanner::ReadPartition MakeReadPartition(
-      std::string transaction_id, std::string transaction_tag,
-      std::string session_id, std::string partition_token,
-      std::string table_name, spanner::KeySet key_set,
-      std::vector<std::string> column_names,
-      spanner::ReadOptions read_options) {
+      std::string transaction_id, bool route_to_leader,
+      std::string transaction_tag, std::string session_id,
+      std::string partition_token, std::string table_name,
+      spanner::KeySet key_set, std::vector<std::string> column_names,
+      bool data_boost, spanner::ReadOptions read_options) {
     return spanner::ReadPartition(
-        std::move(transaction_id), std::move(transaction_tag),
+        std::move(transaction_id), route_to_leader, std::move(transaction_tag),
         std::move(session_id), std::move(partition_token),
         std::move(table_name), std::move(key_set), std::move(column_names),
-        std::move(read_options));
+        data_boost, std::move(read_options));
   }
 
   static spanner::Connection::ReadParams MakeReadParams(
-      spanner::ReadPartition const& read_partition) {
+      spanner::ReadPartition const& read_partition,
+      spanner::DirectedReadOption::Type directed_read_option) {
     return spanner::Connection::ReadParams{
-        MakeTransactionFromIds(read_partition.SessionId(),
-                               read_partition.TransactionId(),
-                               read_partition.TransactionTag()),
+        MakeTransactionFromIds(
+            read_partition.SessionId(), read_partition.TransactionId(),
+            read_partition.RouteToLeader(), read_partition.TransactionTag()),
         read_partition.TableName(),
         FromProto(read_partition.KeySet()),
         read_partition.ColumnNames(),
         read_partition.ReadOptions(),
-        read_partition.PartitionToken()};
+        read_partition.PartitionToken(),
+        read_partition.DataBoost(),
+        std::move(directed_read_option)};
   }
 };
 
 inline spanner::ReadPartition MakeReadPartition(
-    std::string transaction_id, std::string transaction_tag,
-    std::string session_id, std::string partition_token, std::string table_name,
+    std::string transaction_id, bool route_to_leader,
+    std::string transaction_tag, std::string session_id,
+    std::string partition_token, std::string table_name,
     spanner::KeySet key_set, std::vector<std::string> column_names,
-    spanner::ReadOptions read_options) {
+    bool data_boost, spanner::ReadOptions read_options) {
   return ReadPartitionInternals::MakeReadPartition(
-      std::move(transaction_id), std::move(transaction_tag),
+      std::move(transaction_id), route_to_leader, std::move(transaction_tag),
       std::move(session_id), std::move(partition_token), std::move(table_name),
-      std::move(key_set), std::move(column_names), std::move(read_options));
+      std::move(key_set), std::move(column_names), data_boost,
+      std::move(read_options));
 }
 
 inline spanner::Connection::ReadParams MakeReadParams(
-    spanner::ReadPartition const& read_partition) {
-  return ReadPartitionInternals::MakeReadParams(read_partition);
+    spanner::ReadPartition const& read_partition,
+    spanner::DirectedReadOption::Type directed_read_option) {
+  return ReadPartitionInternals::MakeReadParams(
+      read_partition, std::move(directed_read_option));
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

@@ -22,7 +22,7 @@
 #include "google/cloud/internal/rest_response.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/version.h"
-#include "google/protobuf/util/json_util.h"
+#include <google/protobuf/util/json_util.h>
 #include <string>
 
 namespace google {
@@ -30,11 +30,27 @@ namespace cloud {
 namespace rest_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+struct EmptyResponseType {};
+
+std::vector<std::pair<std::string, std::string>> TrimEmptyQueryParameters(
+    std::vector<std::pair<std::string, std::string>> query_params);
+
 Status RestResponseToProto(google::protobuf::Message& destination,
                            RestResponse&& rest_response);
 
-Status ProtoRequestToJsonPayload(google::protobuf::Message const& request,
-                                 std::string& json_payload);
+StatusOr<std::string> ProtoRequestToJsonPayload(
+    google::protobuf::Message const& request, bool preserve_proto_field_names);
+
+rest_internal::RestRequest CreateRestRequest(
+    std::string path,
+    std::vector<std::pair<std::string, std::string>> query_params);
+
+inline std::string const& DetermineApiVersion(
+    std::string const& default_version, Options const& opts) {
+  return opts.has<rest_internal::TargetApiVersionOption>()
+             ? opts.get<rest_internal::TargetApiVersionOption>()
+             : default_version;
+}
 
 template <typename Response>
 StatusOr<Response> RestResponseToProto(RestResponse&& rest_response) {
@@ -44,24 +60,30 @@ StatusOr<Response> RestResponseToProto(RestResponse&& rest_response) {
   return destination;
 }
 
-template <typename Request>
-Status Delete(rest_internal::RestClient& client,
-              rest_internal::RestContext& rest_context, Request const&,
-              std::string path) {
-  rest_internal::RestRequest rest_request(rest_context);
-  rest_request.SetPath(std::move(path));
-  auto response = client.Delete(rest_request);
+template <
+    typename Response, typename Request,
+    std::enable_if_t<std::is_same<Response, EmptyResponseType>::value, int> = 0>
+Status Delete(
+    rest_internal::RestClient& client, rest_internal::RestContext& rest_context,
+    Request const&, bool, std::string path,
+    std::vector<std::pair<std::string, std::string>> query_params = {}) {
+  auto rest_request =
+      CreateRestRequest(std::move(path), std::move(query_params));
+  auto response = client.Delete(rest_context, rest_request);
   if (!response.ok()) return response.status();
   return AsStatus(std::move(**response));
 }
 
-template <typename Response, typename Request>
-StatusOr<Response> Delete(rest_internal::RestClient& client,
-                          rest_internal::RestContext& rest_context,
-                          Request const&, std::string path) {
-  rest_internal::RestRequest rest_request(rest_context);
-  rest_request.SetPath(std::move(path));
-  auto response = client.Delete(rest_request);
+template <typename Response, typename Request,
+          std::enable_if_t<!std::is_same<Response, EmptyResponseType>::value,
+                           int> = 0>
+StatusOr<Response> Delete(
+    rest_internal::RestClient& client, rest_internal::RestContext& rest_context,
+    Request const&, bool, std::string path,
+    std::vector<std::pair<std::string, std::string>> query_params = {}) {
+  auto rest_request =
+      CreateRestRequest(std::move(path), std::move(query_params));
+  auto response = client.Delete(rest_context, rest_request);
   if (!response.ok()) return response.status();
   return RestResponseToProto<Response>(std::move(**response));
 }
@@ -69,85 +91,83 @@ StatusOr<Response> Delete(rest_internal::RestClient& client,
 template <typename Response, typename Request>
 StatusOr<Response> Get(
     rest_internal::RestClient& client, rest_internal::RestContext& rest_context,
-    Request const&, std::string path,
+    Request const&, bool, std::string path,
     std::vector<std::pair<std::string, std::string>> query_params = {}) {
-  rest_internal::RestRequest rest_request(rest_context);
-  for (auto& p : query_params) {
-    rest_request.AddQueryParameter(std::move(p));
-  }
-  rest_request.SetPath(std::move(path));
-  auto response = client.Get(rest_request);
+  auto rest_request =
+      CreateRestRequest(std::move(path), std::move(query_params));
+  auto response = client.Get(rest_context, rest_request);
   if (!response.ok()) return response.status();
   return RestResponseToProto<Response>(std::move(**response));
 }
 
 template <typename Response, typename Request>
-StatusOr<Response> Patch(rest_internal::RestClient& client,
-                         rest_internal::RestContext& rest_context,
-                         Request const& request, std::string path) {
-  std::string json_payload;
-  auto status = ProtoRequestToJsonPayload(request, json_payload);
-  if (!status.ok()) return status;
-  rest_internal::RestRequest rest_request(rest_context);
-  rest_request.SetPath(std::move(path));
+StatusOr<Response> Patch(
+    rest_internal::RestClient& client, rest_internal::RestContext& rest_context,
+    Request const& request, bool preserve_proto_field_names, std::string path,
+    std::vector<std::pair<std::string, std::string>> query_params = {}) {
+  auto json_payload =
+      ProtoRequestToJsonPayload(request, preserve_proto_field_names);
+  if (!json_payload.ok()) return std::move(json_payload).status();
+  auto rest_request =
+      CreateRestRequest(std::move(path), std::move(query_params));
   rest_request.AddHeader("content-type", "application/json");
-  auto response =
-      client.Patch(rest_request, {absl::MakeConstSpan(json_payload)});
+  auto response = client.Patch(rest_context, rest_request,
+                               {absl::MakeConstSpan(*json_payload)});
   if (!response.ok()) return response.status();
   return RestResponseToProto<Response>(std::move(**response));
 }
 
-template <typename Response, typename Request>
+template <typename Response, typename Request,
+          std::enable_if_t<!std::is_same<Response, EmptyResponseType>::value,
+                           int> = 0>
 StatusOr<Response> Post(
     rest_internal::RestClient& client, rest_internal::RestContext& rest_context,
-    Request const& request, std::string path,
+    Request const& request, bool preserve_proto_field_names, std::string path,
     std::vector<std::pair<std::string, std::string>> query_params = {}) {
-  std::string json_payload;
-  auto status = ProtoRequestToJsonPayload(request, json_payload);
-  if (!status.ok()) return status;
-  rest_internal::RestRequest rest_request(rest_context);
-  rest_request.SetPath(std::move(path));
-  for (auto& p : query_params) {
-    rest_request.AddQueryParameter(std::move(p));
-  }
+  auto json_payload =
+      ProtoRequestToJsonPayload(request, preserve_proto_field_names);
+  if (!json_payload.ok()) return std::move(json_payload).status();
+  auto rest_request =
+      CreateRestRequest(std::move(path), std::move(query_params));
   rest_request.AddHeader("content-type", "application/json");
-  auto response =
-      client.Post(rest_request, {absl::MakeConstSpan(json_payload)});
+  auto response = client.Post(rest_context, rest_request,
+                              {absl::MakeConstSpan(*json_payload)});
   if (!response.ok()) return response.status();
   return RestResponseToProto<Response>(std::move(**response));
 }
 
-template <typename Request>
+template <
+    typename Response, typename Request,
+    std::enable_if_t<std::is_same<Response, EmptyResponseType>::value, int> = 0>
 Status Post(
     rest_internal::RestClient& client, rest_internal::RestContext& rest_context,
-    Request const& request, std::string path,
+    Request const& request, bool preserve_proto_field_names, std::string path,
     std::vector<std::pair<std::string, std::string>> query_params = {}) {
-  std::string json_payload;
-  auto status = ProtoRequestToJsonPayload(request, json_payload);
-  if (!status.ok()) return status;
-  rest_internal::RestRequest rest_request(rest_context);
-  rest_request.SetPath(std::move(path));
-  for (auto& p : query_params) {
-    rest_request.AddQueryParameter(std::move(p));
-  }
+  auto json_payload =
+      ProtoRequestToJsonPayload(request, preserve_proto_field_names);
+  if (!json_payload.ok()) return std::move(json_payload).status();
+  auto rest_request =
+      CreateRestRequest(std::move(path), std::move(query_params));
   rest_request.AddHeader("content-type", "application/json");
-  auto response =
-      client.Post(rest_request, {absl::MakeConstSpan(json_payload)});
+  auto response = client.Post(rest_context, rest_request,
+                              {absl::MakeConstSpan(*json_payload)});
   if (!response.ok()) return response.status();
   return AsStatus(std::move(**response));
 }
 
 template <typename Response, typename Request>
-StatusOr<Response> Put(rest_internal::RestClient& client,
-                       rest_internal::RestContext& rest_context,
-                       Request const& request, std::string path) {
-  std::string json_payload;
-  auto status = ProtoRequestToJsonPayload(request, json_payload);
-  if (!status.ok()) return status;
-  rest_internal::RestRequest rest_request(rest_context);
-  rest_request.SetPath(std::move(path));
+StatusOr<Response> Put(
+    rest_internal::RestClient& client, rest_internal::RestContext& rest_context,
+    Request const& request, bool preserve_proto_field_names, std::string path,
+    std::vector<std::pair<std::string, std::string>> query_params = {}) {
+  auto json_payload =
+      ProtoRequestToJsonPayload(request, preserve_proto_field_names);
+  if (!json_payload.ok()) return std::move(json_payload).status();
+  auto rest_request =
+      CreateRestRequest(std::move(path), std::move(query_params));
   rest_request.AddHeader("content-type", "application/json");
-  auto response = client.Put(rest_request, {absl::MakeConstSpan(json_payload)});
+  auto response = client.Put(rest_context, rest_request,
+                             {absl::MakeConstSpan(*json_payload)});
   if (!response.ok()) return response.status();
   return RestResponseToProto<Response>(std::move(**response));
 }

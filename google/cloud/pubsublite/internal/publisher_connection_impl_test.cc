@@ -16,6 +16,7 @@
 #include "google/cloud/pubsublite/testing/mock_publisher.h"
 #include "google/cloud/testing_util/is_proto_equal.h"
 #include "google/cloud/testing_util/status_matchers.h"
+#include "absl/memory/memory.h"
 #include <gmock/gmock.h>
 
 namespace google {
@@ -49,8 +50,16 @@ class PublisherConnectionImplTest : public ::testing::Test {
       : publisher_ref_{*new StrictMock<MockPublisher<MessageMetadata>>()} {
     EXPECT_CALL(publisher_ref_, Start)
         .WillOnce(Return(ByMove(status_promise_.get_future())));
-    conn_ = absl::make_unique<PublisherConnectionImpl>(
+    conn_ = std::make_unique<PublisherConnectionImpl>(
         absl::WrapUnique(&publisher_ref_), transformer_.AsStdFunction());
+  }
+  ~PublisherConnectionImplTest() override {
+    // We must set a final value, or the program aborts when exceptions are
+    // disabled. Without a final value the promise is "abandoned", that sets
+    // the future to throw an exception, and with exceptions disabled that is
+    // a complicated way to call `std::abort()`. In non-test programs, the
+    // completion queue does this automatically as part of its shutdown.
+    status_promise_.set_value(Status{StatusCode::kCancelled, "dtor"});
   }
 
   promise<Status> status_promise_;

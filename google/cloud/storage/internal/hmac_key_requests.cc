@@ -14,7 +14,10 @@
 
 #include "google/cloud/storage/internal/hmac_key_requests.h"
 #include "google/cloud/storage/internal/hmac_key_metadata_parser.h"
+#include "google/cloud/storage/internal/metadata_parser.h"
 #include <iostream>
+#include <string>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -32,9 +35,7 @@ std::ostream& operator<<(std::ostream& os, CreateHmacKeyRequest const& r) {
 StatusOr<CreateHmacKeyResponse> CreateHmacKeyResponse::FromHttpResponse(
     std::string const& payload) {
   auto json = nlohmann::json::parse(payload, nullptr, false);
-  if (!json.is_object()) {
-    return Status(StatusCode::kInvalidArgument, __func__);
-  }
+  if (!json.is_object()) return ExpectedJsonObject(payload, GCP_ERROR_INFO());
 
   CreateHmacKeyResponse result;
   result.kind = json.value("kind", "");
@@ -69,9 +70,7 @@ std::ostream& operator<<(std::ostream& os, ListHmacKeysRequest const& r) {
 StatusOr<ListHmacKeysResponse> ListHmacKeysResponse::FromHttpResponse(
     std::string const& payload) {
   auto json = nlohmann::json::parse(payload, nullptr, false);
-  if (!json.is_object()) {
-    return Status(StatusCode::kInvalidArgument, __func__);
-  }
+  if (!json.is_object()) return ExpectedJsonObject(payload, GCP_ERROR_INFO());
 
   ListHmacKeysResponse result;
   result.next_page_token = json.value("nextPageToken", "");

@@ -36,37 +36,56 @@ class WebhooksLogging : public WebhooksStub {
   ~WebhooksLogging() override = default;
   WebhooksLogging(std::shared_ptr<WebhooksStub> child,
                   TracingOptions tracing_options,
-                  std::set<std::string> components);
+                  std::set<std::string> const& components);
 
   StatusOr<google::cloud::dialogflow::cx::v3::ListWebhooksResponse>
-  ListWebhooks(grpc::ClientContext& context,
+  ListWebhooks(grpc::ClientContext& context, Options const& options,
                google::cloud::dialogflow::cx::v3::ListWebhooksRequest const&
                    request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Webhook> GetWebhook(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetWebhookRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Webhook> CreateWebhook(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::CreateWebhookRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Webhook> UpdateWebhook(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::UpdateWebhookRequest const& request)
       override;
 
   Status DeleteWebhook(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::DeleteWebhookRequest const& request)
       override;
+
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
 
  private:
   std::shared_ptr<WebhooksStub> child_;
   TracingOptions tracing_options_;
-  std::set<std::string> components_;
 };  // WebhooksLogging
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

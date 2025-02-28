@@ -18,17 +18,18 @@
 #include "google/cloud/log.h"
 #include "google/cloud/status.h"
 #include "google/cloud/status_or.h"
-#include "google/cloud/testing_util/contains_once.h"
 #include "google/cloud/testing_util/expect_exception.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
 #include <gmock/gmock.h>
-#include <sys/types.h>
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -37,7 +38,6 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
 using ::google::cloud::storage::testing::AclEntityNames;
-using ::google::cloud::testing_util::ContainsOnce;
 using ::google::cloud::testing_util::IsOk;
 using ::google::cloud::testing_util::StatusIs;
 using ::testing::AnyOf;
@@ -50,14 +50,13 @@ using ObjectIntegrationTest =
     ::google::cloud::storage::testing::ObjectIntegrationTest;
 
 TEST_F(ObjectIntegrationTest, FullPatch) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto object_name = MakeRandomObjectName();
   // Create the object, but only if it does not exist already.
   StatusOr<ObjectMetadata> original =
-      client->InsertObject(bucket_name_, object_name, LoremIpsum(),
-                           IfGenerationMatch(0), Projection("full"));
+      client.InsertObject(bucket_name_, object_name, LoremIpsum(),
+                          IfGenerationMatch(0), Projection("full"));
   ASSERT_STATUS_OK(original);
   ScheduleForDelete(*original);
 
@@ -102,13 +101,13 @@ TEST_F(ObjectIntegrationTest, FullPatch) {
   }
 
   StatusOr<ObjectMetadata> patched =
-      client->PatchObject(bucket_name_, object_name, *original, desired);
+      client.PatchObject(bucket_name_, object_name, *original, desired);
   ASSERT_STATUS_OK(patched);
 
   // acl() - cannot compare for equality because many fields are updated with
   // unknown values (entity_id, etag, etc)
   EXPECT_THAT(AclEntityNames(patched->acl()),
-              ContainsOnce("allAuthenticatedUsers"));
+              Contains("allAuthenticatedUsers").Times(1));
 
   EXPECT_EQ(desired.cache_control(), patched->cache_control());
   EXPECT_EQ(desired.content_disposition(), patched->content_disposition());
@@ -119,20 +118,19 @@ TEST_F(ObjectIntegrationTest, FullPatch) {
 }
 
 TEST_F(ObjectIntegrationTest, ListObjectsDelimiter) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto object_prefix = MakeRandomObjectName();
   for (auto const* suffix :
        {"/foo", "/foo/bar", "/foo/baz", "/qux/quux", "/something"}) {
     auto meta =
-        client->InsertObject(bucket_name_, object_prefix + suffix, LoremIpsum(),
-                             storage::IfGenerationMatch(0));
+        client.InsertObject(bucket_name_, object_prefix + suffix, LoremIpsum(),
+                            storage::IfGenerationMatch(0));
     ASSERT_STATUS_OK(meta);
     ScheduleForDelete(*meta);
   }
 
-  ListObjectsReader reader = client->ListObjects(
+  ListObjectsReader reader = client.ListObjects(
       bucket_name_, Prefix(object_prefix + "/"), Delimiter("/"));
   std::vector<std::string> actual;
   for (auto& it : reader) {
@@ -142,24 +140,23 @@ TEST_F(ObjectIntegrationTest, ListObjectsDelimiter) {
   }
   EXPECT_THAT(actual, UnorderedElementsAre(object_prefix + "/foo",
                                            object_prefix + "/something"));
-  reader = client->ListObjects(bucket_name_, Prefix(object_prefix));
+  reader = client.ListObjects(bucket_name_, Prefix(object_prefix));
 }
 
 TEST_F(ObjectIntegrationTest, ListObjectsAndPrefixes) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto object_prefix = MakeRandomObjectName();
   for (auto const* suffix :
        {"/foo", "/foo/bar", "/foo/baz", "/qux/quux", "/something"}) {
     auto meta =
-        client->InsertObject(bucket_name_, object_prefix + suffix, LoremIpsum(),
-                             storage::IfGenerationMatch(0));
+        client.InsertObject(bucket_name_, object_prefix + suffix, LoremIpsum(),
+                            storage::IfGenerationMatch(0));
     ASSERT_STATUS_OK(meta);
     ScheduleForDelete(*meta);
   }
 
-  ListObjectsAndPrefixesReader reader = client->ListObjectsAndPrefixes(
+  ListObjectsAndPrefixesReader reader = client.ListObjectsAndPrefixes(
       bucket_name_, Prefix(object_prefix + "/"), Delimiter("/"));
   std::vector<std::string> prefixes;
   std::vector<std::string> objects;
@@ -179,21 +176,54 @@ TEST_F(ObjectIntegrationTest, ListObjectsAndPrefixes) {
                                             object_prefix + "/foo"));
 }
 
-TEST_F(ObjectIntegrationTest, ListObjectsStartEndOffset) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+TEST_F(ObjectIntegrationTest, ListObjectsAndPrefixesWithFolders) {
+  auto client = MakeIntegrationTestClient();
 
   auto object_prefix = MakeRandomObjectName();
   for (auto const* suffix :
        {"/foo", "/foo/bar", "/foo/baz", "/qux/quux", "/something"}) {
     auto meta =
-        client->InsertObject(bucket_name_, object_prefix + suffix, LoremIpsum(),
-                             storage::IfGenerationMatch(0));
+        client.InsertObject(bucket_name_, object_prefix + suffix, LoremIpsum(),
+                            storage::IfGenerationMatch(0));
     ASSERT_STATUS_OK(meta);
     ScheduleForDelete(*meta);
   }
 
-  ListObjectsAndPrefixesReader reader = client->ListObjectsAndPrefixes(
+  auto reader = client.ListObjectsAndPrefixes(
+      bucket_name_, IncludeFoldersAsPrefixes(true), Prefix(object_prefix + "/"),
+      Delimiter("/"));
+  std::vector<std::string> prefixes;
+  std::vector<std::string> objects;
+  for (auto& it : reader) {
+    auto const& result = it.value();
+    if (absl::holds_alternative<std::string>(result)) {
+      prefixes.push_back(absl::get<std::string>(result));
+    } else {
+      auto const& meta = absl::get<ObjectMetadata>(result);
+      EXPECT_EQ(bucket_name_, meta.bucket());
+      objects.push_back(meta.name());
+    }
+  }
+  EXPECT_THAT(prefixes, UnorderedElementsAre(object_prefix + "/qux/",
+                                             object_prefix + "/foo/"));
+  EXPECT_THAT(objects, UnorderedElementsAre(object_prefix + "/something",
+                                            object_prefix + "/foo"));
+}
+
+TEST_F(ObjectIntegrationTest, ListObjectsStartEndOffset) {
+  auto client = MakeIntegrationTestClient();
+
+  auto object_prefix = MakeRandomObjectName();
+  for (auto const* suffix :
+       {"/foo", "/foo/bar", "/foo/baz", "/qux/quux", "/something"}) {
+    auto meta =
+        client.InsertObject(bucket_name_, object_prefix + suffix, LoremIpsum(),
+                            storage::IfGenerationMatch(0));
+    ASSERT_STATUS_OK(meta);
+    ScheduleForDelete(*meta);
+  }
+
+  ListObjectsAndPrefixesReader reader = client.ListObjectsAndPrefixes(
       bucket_name_, Prefix(object_prefix + "/"), Delimiter("/"),
       StartOffset(object_prefix + "/foo"), EndOffset(object_prefix + "/qux"));
   std::vector<std::string> prefixes;
@@ -212,21 +242,44 @@ TEST_F(ObjectIntegrationTest, ListObjectsStartEndOffset) {
   EXPECT_THAT(objects, UnorderedElementsAre(object_prefix + "/foo"));
 }
 
+TEST_F(ObjectIntegrationTest, ListObjectsMatchGlob) {
+  auto client = MakeIntegrationTestClient();
+
+  auto object_prefix = MakeRandomObjectName();
+  for (auto const* suffix :
+       {"/foo/1.txt", "/foo/bar/1.txt", "/foo/bar/2.cc", "/qux/quux/3.cc"}) {
+    auto meta =
+        client.InsertObject(bucket_name_, object_prefix + suffix, LoremIpsum(),
+                            storage::IfGenerationMatch(0));
+    ASSERT_STATUS_OK(meta);
+    ScheduleForDelete(*meta);
+  }
+
+  auto reader = client.ListObjects(bucket_name_, Prefix(object_prefix),
+                                   MatchGlob("**/*.cc"));
+  std::vector<std::string> objects;
+  for (auto& o : reader) {
+    ASSERT_STATUS_OK(o);
+    objects.push_back(o->name());
+  }
+  EXPECT_THAT(objects, UnorderedElementsAre(object_prefix + "/foo/bar/2.cc",
+                                            object_prefix + "/qux/quux/3.cc"));
+}
+
 TEST_F(ObjectIntegrationTest, ListObjectsIncludeTrailingDelimiter) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto object_prefix = MakeRandomObjectName();
   for (auto const* suffix : {"/foo", "/foo/", "/foo/bar", "/foo/baz", "/qux/",
                              "/qux/quux", "/something", "/something/"}) {
     auto meta =
-        client->InsertObject(bucket_name_, object_prefix + suffix, LoremIpsum(),
-                             storage::IfGenerationMatch(0));
+        client.InsertObject(bucket_name_, object_prefix + suffix, LoremIpsum(),
+                            storage::IfGenerationMatch(0));
     ASSERT_STATUS_OK(meta);
     ScheduleForDelete(*meta);
   }
 
-  ListObjectsAndPrefixesReader reader = client->ListObjectsAndPrefixes(
+  ListObjectsAndPrefixesReader reader = client.ListObjectsAndPrefixes(
       bucket_name_, Prefix(object_prefix + "/"), Delimiter("/"),
       IncludeTrailingDelimiter(true));
   std::vector<std::string> prefixes;
@@ -252,15 +305,14 @@ TEST_F(ObjectIntegrationTest, ListObjectsIncludeTrailingDelimiter) {
 }
 
 TEST_F(ObjectIntegrationTest, BasicReadWrite) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto object_name = MakeRandomObjectName();
 
   std::string expected = LoremIpsum();
 
   // Create the object, but only if it does not exist already.
-  StatusOr<ObjectMetadata> meta = client->InsertObject(
+  StatusOr<ObjectMetadata> meta = client.InsertObject(
       bucket_name_, object_name, expected, IfGenerationMatch(0));
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
@@ -269,14 +321,13 @@ TEST_F(ObjectIntegrationTest, BasicReadWrite) {
   EXPECT_EQ(bucket_name_, meta->bucket());
 
   // Create a iostream to read the object back.
-  auto stream = client->ReadObject(bucket_name_, object_name);
+  auto stream = client.ReadObject(bucket_name_, object_name);
   std::string actual(std::istreambuf_iterator<char>{stream}, {});
   EXPECT_EQ(expected, actual);
 }
 
 TEST_F(ObjectIntegrationTest, BasicReadWriteBinary) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto object_name = MakeRandomObjectName();
   auto const expected = [] {
@@ -293,7 +344,7 @@ TEST_F(ObjectIntegrationTest, BasicReadWriteBinary) {
   }();
 
   // Create the object, but only if it does not exist already.
-  StatusOr<ObjectMetadata> meta = client->InsertObject(
+  StatusOr<ObjectMetadata> meta = client.InsertObject(
       bucket_name_, object_name, expected, IfGenerationMatch(0));
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
@@ -302,14 +353,16 @@ TEST_F(ObjectIntegrationTest, BasicReadWriteBinary) {
   EXPECT_EQ(bucket_name_, meta->bucket());
 
   // Create a iostream to read the object back.
-  auto stream = client->ReadObject(bucket_name_, object_name);
+  auto stream = client.ReadObject(bucket_name_, object_name);
   std::string actual(std::istreambuf_iterator<char>{stream}, {});
   EXPECT_EQ(expected, actual);
 }
 
 TEST_F(ObjectIntegrationTest, EncryptedReadWrite) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  // TODO(#14385) - the emulator does not support this feature for gRPC.
+  if (UsingEmulator() && UsingGrpc()) GTEST_SKIP();
+
+  auto client = MakeIntegrationTestClient();
 
   auto object_name = MakeRandomObjectName();
 
@@ -318,8 +371,8 @@ TEST_F(ObjectIntegrationTest, EncryptedReadWrite) {
 
   // Create the object, but only if it does not exist already.
   StatusOr<ObjectMetadata> meta =
-      client->InsertObject(bucket_name_, object_name, expected,
-                           IfGenerationMatch(0), EncryptionKey(key));
+      client.InsertObject(bucket_name_, object_name, expected,
+                          IfGenerationMatch(0), EncryptionKey(key));
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
 
@@ -331,19 +384,18 @@ TEST_F(ObjectIntegrationTest, EncryptedReadWrite) {
 
   // Create a iostream to read the object back.
   auto stream =
-      client->ReadObject(bucket_name_, object_name, EncryptionKey(key));
+      client.ReadObject(bucket_name_, object_name, EncryptionKey(key));
   std::string actual(std::istreambuf_iterator<char>{stream}, {});
   EXPECT_EQ(expected, actual);
 }
 
 TEST_F(ObjectIntegrationTest, ReadNotFound) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto object_name = MakeRandomObjectName();
 
   // Create a iostream to read the object back.
-  auto stream = client->ReadObject(bucket_name_, object_name);
+  auto stream = client.ReadObject(bucket_name_, object_name);
   EXPECT_FALSE(stream.status().ok());
   EXPECT_FALSE(stream.IsOpen());
   EXPECT_EQ(StatusCode::kNotFound, stream.status().code())
@@ -352,14 +404,12 @@ TEST_F(ObjectIntegrationTest, ReadNotFound) {
 }
 
 TEST_F(ObjectIntegrationTest, StreamingWrite) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto object_name = MakeRandomObjectName();
 
   // Create the object, but only if it does not exist already.
-  auto os =
-      client->WriteObject(bucket_name_, object_name, IfGenerationMatch(0));
+  auto os = client.WriteObject(bucket_name_, object_name, IfGenerationMatch(0));
   os.exceptions(std::ios_base::failbit);
   // We will construct the expected response while streaming the data up.
   std::ostringstream expected;
@@ -374,7 +424,7 @@ TEST_F(ObjectIntegrationTest, StreamingWrite) {
   ASSERT_EQ(expected_str.size(), meta.size());
 
   // Create a iostream to read the object back.
-  auto stream = client->ReadObject(bucket_name_, object_name);
+  auto stream = client.ReadObject(bucket_name_, object_name);
   std::string actual(std::istreambuf_iterator<char>{stream}, {});
   ASSERT_FALSE(actual.empty());
   EXPECT_EQ(expected_str.size(), actual.size()) << " meta=" << meta;
@@ -382,16 +432,15 @@ TEST_F(ObjectIntegrationTest, StreamingWrite) {
 }
 
 TEST_F(ObjectIntegrationTest, StreamingResumableWriteSizeMismatch) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto object_name = MakeRandomObjectName();
 
   // Create the object, but only if it does not exist already. Expect its length
   // to be 3 bytes.
   auto os =
-      client->WriteObject(bucket_name_, object_name, IfGenerationMatch(0),
-                          NewResumableUploadSession(), UploadContentLength(3));
+      client.WriteObject(bucket_name_, object_name, IfGenerationMatch(0),
+                         NewResumableUploadSession(), UploadContentLength(3));
 
   // Write much more than 3 bytes.
   std::ostringstream expected;
@@ -406,8 +455,7 @@ TEST_F(ObjectIntegrationTest, StreamingResumableWriteSizeMismatch) {
 }
 
 TEST_F(ObjectIntegrationTest, StreamingWriteAutoClose) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto object_name = MakeRandomObjectName();
 
@@ -417,28 +465,26 @@ TEST_F(ObjectIntegrationTest, StreamingWriteAutoClose) {
   {
     // Create the object, but only if it does not exist already.
     auto os =
-        client->WriteObject(bucket_name_, object_name, IfGenerationMatch(0));
+        client.WriteObject(bucket_name_, object_name, IfGenerationMatch(0));
     os << expected;
   }
   // Create a iostream to read the object back.
-  auto stream = client->ReadObject(bucket_name_, object_name);
+  auto stream = client.ReadObject(bucket_name_, object_name);
   std::string actual(std::istreambuf_iterator<char>{stream}, {});
   ASSERT_FALSE(actual.empty());
   EXPECT_EQ(expected, actual);
 
-  auto status = client->DeleteObject(bucket_name_, object_name);
+  auto status = client.DeleteObject(bucket_name_, object_name);
   ASSERT_STATUS_OK(status);
 }
 
 TEST_F(ObjectIntegrationTest, StreamingWriteEmpty) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto object_name = MakeRandomObjectName();
 
   // Create the object, but only if it does not exist already.
-  auto os =
-      client->WriteObject(bucket_name_, object_name, IfGenerationMatch(0));
+  auto os = client.WriteObject(bucket_name_, object_name, IfGenerationMatch(0));
   os.Close();
   ASSERT_STATUS_OK(os.metadata());
   ObjectMetadata meta = os.metadata().value();
@@ -448,136 +494,74 @@ TEST_F(ObjectIntegrationTest, StreamingWriteEmpty) {
   ASSERT_EQ(0U, meta.size());
 
   // Create a iostream to read the object back.
-  auto stream = client->ReadObject(bucket_name_, object_name);
+  auto stream = client.ReadObject(bucket_name_, object_name);
   std::string actual(std::istreambuf_iterator<char>{stream}, {});
   ASSERT_TRUE(actual.empty());
 }
 
-TEST_F(ObjectIntegrationTest, XmlStreamingWrite) {
-  // This test makes no sense when using the gRPC API.
-  if (UsingGrpc()) GTEST_SKIP();
-
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
-  auto object_name = MakeRandomObjectName();
-
-  // Create the object, but only if it does not exist already.
-  auto os = client->WriteObject(bucket_name_, object_name, IfGenerationMatch(0),
-                                Fields(""));
-  os.exceptions(std::ios_base::failbit);
-  // We will construct the expected response while streaming the data up.
-  std::ostringstream expected;
-
-  WriteRandomLines(os, expected);
-
-  os.Close();
-  ObjectMetadata meta = os.metadata().value();
-  ScheduleForDelete(meta);
-  // When asking for an empty list of fields we should not expect any values:
-  EXPECT_TRUE(meta.bucket().empty());
-  EXPECT_TRUE(meta.name().empty());
-
-  // Create a iostream to read the object back.
-  auto stream = client->ReadObject(bucket_name_, object_name);
-  std::string actual(std::istreambuf_iterator<char>{stream}, {});
-  ASSERT_FALSE(actual.empty());
-  auto expected_str = expected.str();
-  EXPECT_EQ(expected_str.size(), actual.size()) << " meta=" << meta;
-  EXPECT_EQ(expected_str, actual);
-}
-
-TEST_F(ObjectIntegrationTest, XmlReadWrite) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
-  auto object_name = MakeRandomObjectName();
-
-  std::string expected = LoremIpsum();
-
-  // Create the object, but only if it does not exist already.
-  StatusOr<ObjectMetadata> meta = client->InsertObject(
-      bucket_name_, object_name, expected, IfGenerationMatch(0), Fields(""));
-  ASSERT_STATUS_OK(meta);
-  ScheduleForDelete(*meta);
-
-  EXPECT_EQ(object_name, meta->name());
-  EXPECT_EQ(bucket_name_, meta->bucket());
-
-  // Create a iostream to read the object back.
-  auto stream = client->ReadObject(bucket_name_, object_name);
-  std::string actual(std::istreambuf_iterator<char>{stream}, {});
-  EXPECT_EQ(expected, actual);
-}
-
 TEST_F(ObjectIntegrationTest, AccessControlCRUD) {
-  // TODO(#9800) - enable in production.
-  if (UsingGrpc() && !UsingEmulator()) GTEST_SKIP();
-
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto object_name = MakeRandomObjectName();
 
   // Create the object, but only if it does not exist already.
-  auto insert = client->InsertObject(bucket_name_, object_name, LoremIpsum(),
-                                     IfGenerationMatch(0));
+  auto insert = client.InsertObject(bucket_name_, object_name, LoremIpsum(),
+                                    IfGenerationMatch(0));
   ASSERT_STATUS_OK(insert);
   ScheduleForDelete(*insert);
 
   auto entity_name = MakeEntityName();
   StatusOr<std::vector<ObjectAccessControl>> initial_acl =
-      client->ListObjectAcl(bucket_name_, object_name);
+      client.ListObjectAcl(bucket_name_, object_name);
   ASSERT_STATUS_OK(initial_acl);
   ASSERT_THAT(AclEntityNames(*initial_acl), Not(Contains(entity_name)))
       << "Test aborted. The entity <" << entity_name << "> already exists."
       << "This is unexpected as the test generates a random object name.";
 
   StatusOr<ObjectAccessControl> result =
-      client->CreateObjectAcl(bucket_name_, object_name, entity_name, "OWNER");
+      client.CreateObjectAcl(bucket_name_, object_name, entity_name, "OWNER");
   ASSERT_STATUS_OK(result);
   EXPECT_EQ("OWNER", result->role());
-  auto current_acl = client->ListObjectAcl(bucket_name_, object_name);
+  auto current_acl = client.ListObjectAcl(bucket_name_, object_name);
   ASSERT_STATUS_OK(current_acl);
   // Search using the entity name returned by the request, because we use
   // 'project-editors-<project_id>' this different than the original entity
   // name, the server "translates" the project id to a project number.
-  EXPECT_THAT(AclEntityNames(*current_acl), ContainsOnce(result->entity()));
+  EXPECT_THAT(AclEntityNames(*current_acl),
+              Contains(result->entity()).Times(1));
 
-  auto get_result =
-      client->GetObjectAcl(bucket_name_, object_name, entity_name);
+  auto get_result = client.GetObjectAcl(bucket_name_, object_name, entity_name);
   ASSERT_STATUS_OK(get_result);
   EXPECT_EQ(*get_result, *result);
 
   ObjectAccessControl new_acl = *get_result;
   new_acl.set_role("READER");
   auto updated_result =
-      client->UpdateObjectAcl(bucket_name_, object_name, new_acl);
+      client.UpdateObjectAcl(bucket_name_, object_name, new_acl);
   ASSERT_STATUS_OK(updated_result);
   EXPECT_EQ("READER", updated_result->role());
-  get_result = client->GetObjectAcl(bucket_name_, object_name, entity_name);
+  get_result = client.GetObjectAcl(bucket_name_, object_name, entity_name);
   EXPECT_EQ(*get_result, *updated_result);
 
   new_acl = *get_result;
   new_acl.set_role("OWNER");
   // Because this is a freshly created object, with a random name, we do not
   // worry about implementing optimistic concurrency control.
-  get_result = client->PatchObjectAcl(bucket_name_, object_name, entity_name,
-                                      *get_result, new_acl);
+  get_result = client.PatchObjectAcl(bucket_name_, object_name, entity_name,
+                                     *get_result, new_acl);
   ASSERT_STATUS_OK(get_result);
   EXPECT_EQ(get_result->role(), new_acl.role());
 
   // Remove an entity and verify it is no longer in the ACL.
-  auto status = client->DeleteObjectAcl(bucket_name_, object_name, entity_name);
+  auto status = client.DeleteObjectAcl(bucket_name_, object_name, entity_name);
   ASSERT_STATUS_OK(status);
-  current_acl = client->ListObjectAcl(bucket_name_, object_name);
+  current_acl = client.ListObjectAcl(bucket_name_, object_name);
   ASSERT_STATUS_OK(current_acl);
   EXPECT_THAT(AclEntityNames(*current_acl), Not(Contains(result->entity())));
 }
 
 TEST_F(ObjectIntegrationTest, WriteWithContentType) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto object_name = MakeRandomObjectName();
 
@@ -585,8 +569,8 @@ TEST_F(ObjectIntegrationTest, WriteWithContentType) {
   std::ostringstream expected;
 
   // Create the object, but only if it does not exist already.
-  auto os = client->WriteObject(bucket_name_, object_name, IfGenerationMatch(0),
-                                ContentType("text/plain"));
+  auto os = client.WriteObject(bucket_name_, object_name, IfGenerationMatch(0),
+                               ContentType("text/plain"));
   os.exceptions(std::ios_base::failbit);
   os << LoremIpsum();
   os.Close();
@@ -599,27 +583,25 @@ TEST_F(ObjectIntegrationTest, WriteWithContentType) {
 }
 
 TEST_F(ObjectIntegrationTest, GetObjectMetadataFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto object_name = MakeRandomObjectName();
 
   // This operation should fail because the source object does not exist.
-  auto meta = client->GetObjectMetadata(bucket_name_, object_name);
+  auto meta = client.GetObjectMetadata(bucket_name_, object_name);
   EXPECT_THAT(meta, Not(IsOk())) << "value=" << meta.value();
 }
 
 #if GOOGLE_CLOUD_CPP_HAVE_EXCEPTIONS
 TEST_F(ObjectIntegrationTest, StreamingWriteFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto object_name = MakeRandomObjectName();
 
   std::string expected = LoremIpsum();
 
   // Create the object, but only if it does not exist already.
-  StatusOr<ObjectMetadata> meta = client->InsertObject(
+  StatusOr<ObjectMetadata> meta = client.InsertObject(
       bucket_name_, object_name, expected, IfGenerationMatch(0));
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
@@ -627,8 +609,7 @@ TEST_F(ObjectIntegrationTest, StreamingWriteFailure) {
   EXPECT_EQ(object_name, meta->name());
   EXPECT_EQ(bucket_name_, meta->bucket());
 
-  auto os =
-      client->WriteObject(bucket_name_, object_name, IfGenerationMatch(0));
+  auto os = client.WriteObject(bucket_name_, object_name, IfGenerationMatch(0));
   os.exceptions(std::ios_base::badbit | std::ios_base::failbit);
   os << "Expected failure data:\n" << LoremIpsum();
 
@@ -642,15 +623,13 @@ TEST_F(ObjectIntegrationTest, StreamingWriteFailure) {
 #endif  // GOOGLE_CLOUD_CPP_HAVE_EXCEPTIONS
 
 TEST_F(ObjectIntegrationTest, StreamingWriteFailureNoex) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
 
   std::string expected = LoremIpsum();
 
   // Create the object, but only if it does not exist already.
-  StatusOr<ObjectMetadata> meta = client->InsertObject(
+  StatusOr<ObjectMetadata> meta = client.InsertObject(
       bucket_name_, object_name, expected, IfGenerationMatch(0));
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
@@ -658,8 +637,7 @@ TEST_F(ObjectIntegrationTest, StreamingWriteFailureNoex) {
   EXPECT_EQ(object_name, meta->name());
   EXPECT_EQ(bucket_name_, meta->bucket());
 
-  auto os =
-      client->WriteObject(bucket_name_, object_name, IfGenerationMatch(0));
+  auto os = client.WriteObject(bucket_name_, object_name, IfGenerationMatch(0));
   os << "Expected failure data:\n" << LoremIpsum();
 
   // This operation should fail because the object already exists.
@@ -675,143 +653,122 @@ TEST_F(ObjectIntegrationTest, StreamingWriteFailureNoex) {
 
 TEST_F(ObjectIntegrationTest, ListObjectsFailure) {
   auto bucket_name = MakeRandomBucketName();
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   // This operation should fail because the bucket does not exist.
-  ListObjectsReader reader = client->ListObjects(bucket_name, Versions(true));
+  ListObjectsReader reader = client.ListObjects(bucket_name, Versions(true));
   auto it = reader.begin();
   ASSERT_TRUE(it != reader.end());
   EXPECT_THAT(*it, Not(IsOk()));
 }
 
 TEST_F(ObjectIntegrationTest, DeleteObjectFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
 
   // This operation should fail because the source object does not exist.
-  auto status = client->DeleteObject(bucket_name_, object_name);
+  auto status = client.DeleteObject(bucket_name_, object_name);
   ASSERT_FALSE(status.ok());
 }
 
 TEST_F(ObjectIntegrationTest, UpdateObjectFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
 
   // This operation should fail because the source object does not exist.
   auto update =
-      client->UpdateObject(bucket_name_, object_name, ObjectMetadata());
+      client.UpdateObject(bucket_name_, object_name, ObjectMetadata());
   EXPECT_THAT(update, Not(IsOk())) << "value=" << update.value();
 }
 
 TEST_F(ObjectIntegrationTest, PatchObjectFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
 
   // This operation should fail because the source object does not exist.
-  auto patch = client->PatchObject(bucket_name_, object_name,
-                                   ObjectMetadataPatchBuilder());
+  auto patch = client.PatchObject(bucket_name_, object_name,
+                                  ObjectMetadataPatchBuilder());
   EXPECT_THAT(patch, Not(IsOk())) << "value=" << patch.value();
 }
 
 TEST_F(ObjectIntegrationTest, ListAccessControlFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
 
   // This operation should fail because the source object does not exist.
-  auto list = client->ListObjectAcl(bucket_name_, object_name);
+  auto list = client.ListObjectAcl(bucket_name_, object_name);
   ASSERT_FALSE(list.ok()) << "list[0]=" << list.value().front();
 }
 
 TEST_F(ObjectIntegrationTest, CreateAccessControlFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
   auto entity_name = MakeEntityName();
 
   // This operation should fail because the source object does not exist.
   auto acl =
-      client->CreateObjectAcl(bucket_name_, object_name, entity_name, "READER");
+      client.CreateObjectAcl(bucket_name_, object_name, entity_name, "READER");
   ASSERT_FALSE(acl.ok()) << "value=" << acl.value();
 }
 
 TEST_F(ObjectIntegrationTest, GetAccessControlFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
   auto entity_name = MakeEntityName();
 
   // This operation should fail because the source object does not exist.
-  auto acl = client->GetObjectAcl(bucket_name_, object_name, entity_name);
+  auto acl = client.GetObjectAcl(bucket_name_, object_name, entity_name);
   ASSERT_FALSE(acl.ok()) << "value=" << acl.value();
 }
 
 TEST_F(ObjectIntegrationTest, UpdateAccessControlFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
   auto entity_name = MakeEntityName();
 
   // This operation should fail because the source object does not exist.
-  auto acl = client->UpdateObjectAcl(
+  auto acl = client.UpdateObjectAcl(
       bucket_name_, object_name,
       ObjectAccessControl().set_entity(entity_name).set_role("READER"));
   ASSERT_FALSE(acl.ok()) << "value=" << acl.value();
 }
 
 TEST_F(ObjectIntegrationTest, PatchAccessControlFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
   auto entity_name = MakeEntityName();
 
   // This operation should fail because the source object does not exist.
-  auto acl = client->PatchObjectAcl(
+  auto acl = client.PatchObjectAcl(
       bucket_name_, object_name, entity_name, ObjectAccessControl(),
       ObjectAccessControl().set_entity(entity_name).set_role("READER"));
   ASSERT_FALSE(acl.ok()) << "value=" << acl.value();
 }
 
 TEST_F(ObjectIntegrationTest, DeleteAccessControlFailure) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient();
 
   auto object_name = MakeRandomObjectName();
   auto entity_name = MakeEntityName();
 
   // This operation should fail because the source object does not exist.
-  auto status = client->DeleteObjectAcl(bucket_name_, object_name, entity_name);
+  auto status = client.DeleteObjectAcl(bucket_name_, object_name, entity_name);
   ASSERT_FALSE(status.ok());
 }
 
 TEST_F(ObjectIntegrationTest, DeleteResumableUpload) {
-  // TODO(#9804) - enable in production.
-  if (!UsingEmulator()) GTEST_SKIP();
-  StatusOr<Client> client = MakeIntegrationTestClient(
-      absl::make_unique<LimitedErrorCountRetryPolicy>(1));
-  ASSERT_STATUS_OK(client);
+  auto client = MakeIntegrationTestClient(Options{}.set<RetryPolicyOption>(
+      LimitedErrorCountRetryPolicy(1).clone()));
 
   auto object_name = MakeRandomObjectName();
-  auto stream = client->WriteObject(bucket_name_, object_name,
-                                    NewResumableUploadSession());
+  auto stream = client.WriteObject(bucket_name_, object_name,
+                                   NewResumableUploadSession());
   auto session_id = stream.resumable_session_id();
 
   stream << "This data will not get uploaded, it is too small\n";
   std::move(stream).Suspend();
 
-  auto status = client->DeleteResumableUpload(session_id);
+  auto status = client.DeleteResumableUpload(session_id);
   EXPECT_STATUS_OK(status);
 
   Client client_resumable(Options{}.set<MaximumSimpleUploadSizeOption>(0));
@@ -823,17 +780,14 @@ TEST_F(ObjectIntegrationTest, DeleteResumableUpload) {
 }
 
 TEST_F(ObjectIntegrationTest, InsertWithCustomTime) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
-
   std::string expected = LoremIpsum();
 
   // Create the object, but only if it does not exist already.
   using std::chrono::seconds;
   auto const custom_time = std::chrono::system_clock::now() + seconds(5);
-  StatusOr<ObjectMetadata> meta = client->InsertObject(
+  StatusOr<ObjectMetadata> meta = client.InsertObject(
       bucket_name_, object_name, expected, IfGenerationMatch(0),
       WithObjectMetadata(ObjectMetadata{}.set_custom_time(custom_time)));
   ASSERT_STATUS_OK(meta);
@@ -845,17 +799,14 @@ TEST_F(ObjectIntegrationTest, InsertWithCustomTime) {
 }
 
 TEST_F(ObjectIntegrationTest, WriteWithCustomTime) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
-
   std::string expected = LoremIpsum();
 
   // Create the object, but only if it does not exist already.
   using std::chrono::seconds;
   auto const custom_time = std::chrono::system_clock::now() + seconds(5);
-  auto stream = client->WriteObject(
+  auto stream = client.WriteObject(
       bucket_name_, object_name, IfGenerationMatch(0),
       WithObjectMetadata(ObjectMetadata{}.set_custom_time(custom_time)));
   stream << expected;
@@ -867,6 +818,57 @@ TEST_F(ObjectIntegrationTest, WriteWithCustomTime) {
   EXPECT_EQ(object_name, meta->name());
   EXPECT_EQ(bucket_name_, meta->bucket());
   EXPECT_EQ(custom_time, meta->custom_time());
+}
+
+TEST_F(ObjectIntegrationTest, RestoreObject) {
+  auto client = MakeIntegrationTestClient();
+  auto object_name = MakeRandomObjectName();
+  std::string expected = LoremIpsum();
+
+  auto bucket_metadata = client.PatchBucket(
+      bucket_name_,
+      google::cloud::storage::BucketMetadataPatchBuilder().SetSoftDeletePolicy(
+          std::chrono::seconds(7 * 24 * 60 * 60)));
+  ASSERT_STATUS_OK(bucket_metadata);
+
+  auto stream =
+      client.WriteObject(bucket_name_, object_name, IfGenerationMatch(0));
+  stream << expected;
+  stream.Close();
+  auto metadata = stream.metadata();
+  ASSERT_STATUS_OK(metadata);
+
+  auto delete_obj = client.DeleteObject(bucket_name_, object_name);
+  ASSERT_STATUS_OK(delete_obj);
+
+  auto restore = client.RestoreObject(bucket_name_, object_name,
+                                      metadata.value().generation());
+  ASSERT_STATUS_OK(restore);
+
+  EXPECT_NE(metadata.value().generation(), restore.value().generation());
+  EXPECT_EQ(restore.value().metageneration(), 1);
+}
+
+TEST_F(ObjectIntegrationTest, MoveObject) {
+  auto client = MakeIntegrationTestClient();
+  auto src_object_name = MakeRandomObjectName();
+  auto dst_object_name = MakeRandomObjectName();
+  std::string expected = LoremIpsum();
+
+  auto stream = client.WriteObject(folder_enabled_bucket_name_, src_object_name,
+                                   IfGenerationMatch(0));
+  stream << expected;
+  stream.Close();
+  auto metadata = stream.metadata();
+  ASSERT_STATUS_OK(metadata);
+  ScheduleForDelete(*metadata);
+
+  auto move = client.MoveObject(folder_enabled_bucket_name_, src_object_name,
+                                dst_object_name);
+  ASSERT_STATUS_OK(move);
+
+  EXPECT_NE(metadata.value().generation(), move.value().generation());
+  EXPECT_EQ(move.value().metageneration(), 1);
 }
 
 }  // anonymous namespace

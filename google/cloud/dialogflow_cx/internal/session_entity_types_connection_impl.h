@@ -73,45 +73,22 @@ class SessionEntityTypesConnectionImpl
       google::cloud::dialogflow::cx::v3::DeleteSessionEntityTypeRequest const&
           request) override;
 
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_cx::SessionEntityTypesRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::SessionEntityTypesRetryPolicyOption>()) {
-      return options.get<dialogflow_cx::SessionEntityTypesRetryPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_cx::SessionEntityTypesRetryPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_cx::SessionEntityTypesBackoffPolicyOption>()) {
-      return options
-          .get<dialogflow_cx::SessionEntityTypesBackoffPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_cx::SessionEntityTypesBackoffPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<dialogflow_cx::SessionEntityTypesConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options
-            .has<dialogflow_cx::
-                     SessionEntityTypesConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_cx::
-                   SessionEntityTypesConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_cx::
-                 SessionEntityTypesConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_cx_internal::SessionEntityTypesStub> stub_;
   Options options_;

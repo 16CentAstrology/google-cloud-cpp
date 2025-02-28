@@ -13,12 +13,13 @@
 // limitations under the License.
 
 #include "generator/internal/idempotency_policy_generator.h"
-#include "google/cloud/internal/absl_str_cat_quiet.h"
-#include "absl/memory/memory.h"
 #include "generator/internal/codegen_utils.h"
 #include "generator/internal/descriptor_utils.h"
+#include "generator/internal/pagination.h"
 #include "generator/internal/predicate_utils.h"
 #include "generator/internal/printer.h"
+#include "generator/internal/request_id.h"
+#include "google/cloud/internal/absl_str_cat_quiet.h"
 #include <google/protobuf/descriptor.h>
 
 namespace google {
@@ -29,11 +30,12 @@ IdempotencyPolicyGenerator::IdempotencyPolicyGenerator(
     google::protobuf::ServiceDescriptor const* service_descriptor,
     VarsDictionary service_vars,
     std::map<std::string, VarsDictionary> service_method_vars,
-    google::protobuf::compiler::GeneratorContext* context)
-    : ServiceCodeGenerator("idempotency_policy_header_path",
-                           "idempotency_policy_cc_path", service_descriptor,
-                           std::move(service_vars),
-                           std::move(service_method_vars), context) {}
+    google::protobuf::compiler::GeneratorContext* context,
+    std::vector<MixinMethod> const& mixin_methods)
+    : ServiceCodeGenerator(
+          "idempotency_policy_header_path", "idempotency_policy_cc_path",
+          service_descriptor, std::move(service_vars),
+          std::move(service_method_vars), context, mixin_methods) {}
 
 Status IdempotencyPolicyGenerator::GenerateHeader() {
   HeaderPrint(CopyrightLicenseFileHeader());
@@ -49,10 +51,11 @@ Status IdempotencyPolicyGenerator::GenerateHeader() {
 
   // includes
   HeaderPrint("\n");
-  HeaderLocalIncludes({"google/cloud/idempotency.h",
-                       "google/cloud/internal/retry_policy.h",
-                       "google/cloud/version.h"});
-  HeaderSystemIncludes({vars("proto_grpc_header_path"), "memory"});
+  HeaderLocalIncludes({"google/cloud/idempotency.h", "google/cloud/version.h"});
+
+  auto headers = GetMixinPbIncludeByTransport();
+  headers.insert(headers.end(), {GetPbIncludeByTransport(), "memory"});
+  HeaderSystemIncludes(headers);
 
   auto result = HeaderOpenNamespaces();
   if (!result.ok()) return result;
@@ -124,8 +127,7 @@ Status IdempotencyPolicyGenerator::GenerateCc() {
 
   // includes
   CcPrint("\n");
-  CcLocalIncludes(
-      {vars("idempotency_policy_header_path"), "absl/memory/memory.h"});
+  CcLocalIncludes({vars("idempotency_policy_header_path")});
   CcSystemIncludes({"memory"});
 
   auto result = CcOpenNamespaces();
@@ -143,7 +145,7 @@ $idempotency_class_name$::~$idempotency_class_name$() = default;
 
 std::unique_ptr<$idempotency_class_name$>
 $idempotency_class_name$::clone() const {
-  return absl::make_unique<$idempotency_class_name$>(*this);
+  return std::make_unique<$idempotency_class_name$>(*this);
 }
 )""");
 
@@ -168,9 +170,28 @@ Idempotency $idempotency_class_name$::$method_name$(
 
     // TODO(#9982) - we should pass `$request_type$ const&` here
     if (IsPaginated(method)) {
-      CcPrintMethod(method, __FILE__, __LINE__, R"""(
+      if (HasRequestId(method)) {
+        CcPrintMethod(method, __FILE__, __LINE__, R"""(
+Idempotency $idempotency_class_name$::$method_name$($request_type$ request) { // NOLINT
+  if (!request.$request_id_field_name$().empty()) return Idempotency::kIdempotent;
+  return Idempotency::$idempotency$;
+}
+)""");
+      } else {
+        CcPrintMethod(method, __FILE__, __LINE__, R"""(
 Idempotency $idempotency_class_name$::$method_name$($request_type$) {  // NOLINT
-  return Idempotency::$default_idempotency$;
+  return Idempotency::$idempotency$;
+}
+)""");
+      }
+      continue;
+    }
+
+    if (HasRequestId(method)) {
+      CcPrintMethod(method, __FILE__, __LINE__, R"""(
+Idempotency $idempotency_class_name$::$method_name$($request_type$ const& request) {
+  if (!request.$request_id_field_name$().empty()) return Idempotency::kIdempotent;
+  return Idempotency::$idempotency$;
 }
 )""");
       continue;
@@ -178,7 +199,7 @@ Idempotency $idempotency_class_name$::$method_name$($request_type$) {  // NOLINT
 
     CcPrintMethod(method, __FILE__, __LINE__, R"""(
 Idempotency $idempotency_class_name$::$method_name$($request_type$ const&) {
-  return Idempotency::$default_idempotency$;
+  return Idempotency::$idempotency$;
 }
 )""");
   }
@@ -187,7 +208,7 @@ Idempotency $idempotency_class_name$::$method_name$($request_type$ const&) {
       "\n"
       "std::unique_ptr<$idempotency_class_name$>\n"
       "    MakeDefault$idempotency_class_name$() {\n"
-      "  return absl::make_unique<$idempotency_class_name$>();\n"
+      "  return std::make_unique<$idempotency_class_name$>();\n"
       "}\n");
   // clang-format on
 

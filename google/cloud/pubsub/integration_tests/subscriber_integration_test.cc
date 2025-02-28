@@ -12,20 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "google/cloud/pubsub/admin/subscription_admin_client.h"
+#include "google/cloud/pubsub/admin/topic_admin_client.h"
+#include "google/cloud/pubsub/internal/batch_callback.h"
+#include "google/cloud/pubsub/internal/default_batch_callback.h"
 #include "google/cloud/pubsub/internal/defaults.h"
+#include "google/cloud/pubsub/internal/message_callback.h"
+#include "google/cloud/pubsub/internal/noop_message_callback.h"
 #include "google/cloud/pubsub/internal/streaming_subscription_batch_source.h"
 #include "google/cloud/pubsub/internal/subscriber_stub_factory.h"
 #include "google/cloud/pubsub/publisher.h"
 #include "google/cloud/pubsub/subscriber.h"
 #include "google/cloud/pubsub/subscription.h"
-#include "google/cloud/pubsub/subscription_admin_client.h"
 #include "google/cloud/pubsub/testing/random_names.h"
 #include "google/cloud/pubsub/testing/test_retry_policies.h"
-#include "google/cloud/pubsub/topic_admin_client.h"
 #include "google/cloud/pubsub/version.h"
 #include "google/cloud/credentials.h"
 #include "google/cloud/internal/getenv.h"
 #include "google/cloud/internal/random.h"
+#include "google/cloud/internal/status_utils.h"
+#include "google/cloud/opentelemetry_options.h"
 #include "google/cloud/testing_util/integration_test.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
@@ -41,6 +47,10 @@ namespace pubsub {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
+using ::google::cloud::pubsub_admin::MakeSubscriptionAdminConnection;
+using ::google::cloud::pubsub_admin::MakeTopicAdminConnection;
+using ::google::cloud::pubsub_admin::SubscriptionAdminClient;
+using ::google::cloud::pubsub_admin::TopicAdminClient;
 using ::google::cloud::testing_util::IsOk;
 using ::google::cloud::testing_util::StatusIs;
 using ::testing::AnyOf;
@@ -68,31 +78,36 @@ class SubscriberIntegrationTest
     auto subscription_admin =
         SubscriptionAdminClient(MakeSubscriptionAdminConnection());
 
-    auto topic_metadata = topic_admin.CreateTopic(TopicBuilder(topic_));
+    auto topic_metadata = topic_admin.CreateTopic(topic_.FullName());
     ASSERT_THAT(topic_metadata,
                 AnyOf(IsOk(), StatusIs(StatusCode::kAlreadyExists)));
 
-    auto subscription_metadata = subscription_admin.CreateSubscription(
-        topic_, subscription_,
-        SubscriptionBuilder{}.set_ack_deadline(std::chrono::seconds(10)));
+    google::pubsub::v1::Subscription request;
+    request.set_name(subscription_.FullName());
+    request.set_topic(topic_.FullName());
+    request.set_ack_deadline_seconds(10);
+    auto subscription_metadata = subscription_admin.CreateSubscription(request);
     ASSERT_THAT(subscription_metadata,
                 AnyOf(IsOk(), StatusIs(StatusCode::kAlreadyExists)));
 
-    auto ordered_subscription_metadata = subscription_admin.CreateSubscription(
-        topic_, ordered_subscription_,
-        SubscriptionBuilder{}
-            .set_ack_deadline(std::chrono::seconds(30))
-            .enable_message_ordering(true));
+    google::pubsub::v1::Subscription ordered_request;
+    ordered_request.set_name(ordered_subscription_.FullName());
+    ordered_request.set_topic(topic_.FullName());
+    ordered_request.set_ack_deadline_seconds(30);
+    ordered_request.set_enable_message_ordering(true);
+    auto ordered_subscription_metadata =
+        subscription_admin.CreateSubscription(ordered_request);
     ASSERT_THAT(ordered_subscription_metadata,
                 AnyOf(IsOk(), StatusIs(StatusCode::kAlreadyExists)));
 
+    google::pubsub::v1::Subscription exactly_once_request;
+    exactly_once_request.set_topic(topic_.FullName());
+    exactly_once_request.set_name(exactly_once_subscription_.FullName());
+    exactly_once_request.set_ack_deadline_seconds(30);
+    exactly_once_request.set_enable_exactly_once_delivery(true);
     auto exactly_once_subscription_metadata =
-        subscription_admin.CreateSubscription(
-            topic_, exactly_once_subscription_,
-            SubscriptionBuilder{}
-                .set_ack_deadline(std::chrono::seconds(30))
-                .enable_exactly_once_delivery(true));
-    ASSERT_THAT(ordered_subscription_metadata,
+        subscription_admin.CreateSubscription(exactly_once_request);
+    ASSERT_THAT(exactly_once_subscription_metadata,
                 AnyOf(IsOk(), StatusIs(StatusCode::kAlreadyExists)));
   }
 
@@ -102,18 +117,19 @@ class SubscriberIntegrationTest
         SubscriptionAdminClient(MakeSubscriptionAdminConnection());
 
     auto delete_exactly_once_subscription =
-        subscription_admin.DeleteSubscription(exactly_once_subscription_);
+        subscription_admin.DeleteSubscription(
+            exactly_once_subscription_.FullName());
     EXPECT_THAT(delete_exactly_once_subscription,
                 AnyOf(IsOk(), StatusIs(StatusCode::kNotFound)));
     auto delete_ordered_subscription =
-        subscription_admin.DeleteSubscription(ordered_subscription_);
+        subscription_admin.DeleteSubscription(ordered_subscription_.FullName());
     EXPECT_THAT(delete_ordered_subscription,
                 AnyOf(IsOk(), StatusIs(StatusCode::kNotFound)));
     auto delete_subscription =
-        subscription_admin.DeleteSubscription(subscription_);
+        subscription_admin.DeleteSubscription(subscription_.FullName());
     EXPECT_THAT(delete_subscription,
                 AnyOf(IsOk(), StatusIs(StatusCode::kNotFound)));
-    auto delete_topic = topic_admin.DeleteTopic(topic_);
+    auto delete_topic = topic_admin.DeleteTopic(topic_.FullName());
     EXPECT_THAT(delete_topic, AnyOf(IsOk(), StatusIs(StatusCode::kNotFound)));
   }
 
@@ -168,12 +184,12 @@ void TestRoundtrip(pubsub::Publisher publisher, pubsub::Subscriber subscriber) {
   EXPECT_STATUS_OK(result.get());
 }
 
-TEST_F(SubscriberIntegrationTest, RawStub) {
+TEST_F(SubscriberIntegrationTest, Stub) {
   auto publisher = Publisher(MakePublisherConnection(topic_));
 
   internal::AutomaticallyCreatedBackgroundThreads background(4);
-  auto stub = pubsub_internal::CreateDefaultSubscriberStub(
-      pubsub_internal::DefaultCommonOptions({}), 0);
+  auto stub = pubsub_internal::MakeRoundRobinSubscriberStub(
+      background.cq(), pubsub_internal::DefaultCommonOptions({}));
   google::pubsub::v1::StreamingPullRequest request;
   request.set_client_id("test-client-0001");
   request.set_subscription(subscription_.FullName());
@@ -181,9 +197,9 @@ TEST_F(SubscriberIntegrationTest, RawStub) {
   request.set_stream_ack_deadline_seconds(600);
 
   auto stream = [&stub](CompletionQueue const& cq) {
-    auto context = absl::make_unique<grpc::ClientContext>();
-
-    return stub->AsyncStreamingPull(cq, std::move(context));
+    return stub->AsyncStreamingPull(
+        cq, std::make_shared<grpc::ClientContext>(),
+        google::cloud::internal::MakeImmutableOptions({}));
   }(background.cq());
 
   ASSERT_TRUE(stream->Start().get());
@@ -250,8 +266,8 @@ TEST_F(SubscriberIntegrationTest, StreamingSubscriptionBatchSource) {
       topic_, Options{}.set<GrpcBackgroundThreadPoolSizeOption>(2)));
 
   internal::AutomaticallyCreatedBackgroundThreads background(4);
-  auto stub = pubsub_internal::CreateDefaultSubscriberStub(
-      pubsub_internal::DefaultCommonOptions({}), 0);
+  auto stub = pubsub_internal::MakeRoundRobinSubscriberStub(
+      background.cq(), pubsub_internal::DefaultCommonOptions({}));
 
   auto shutdown = std::make_shared<pubsub_internal::SessionShutdownManager>();
   auto source =
@@ -265,31 +281,34 @@ TEST_F(SubscriberIntegrationTest, StreamingSubscriptionBatchSource) {
 
   // This must be declared after `source` as it captures it and uses it to send
   // back acknowledgements.
-  auto callback =
-      [&](StatusOr<google::pubsub::v1::StreamingPullResponse> const& response) {
-        ASSERT_STATUS_OK(response);
-        {
-          std::lock_guard<std::mutex> lk(callback_mu);
-          for (auto const& m : response->received_messages()) {
-            received_ids.insert(m.message().message_id());
-          }
-          ++callback_count;
-          for (auto const& m : response->received_messages()) {
-            source->AckMessage(m.ack_id());
-          }
-          ack_count += response->received_messages_size();
-          std::cout << "callback(" << response->received_messages_size() << ")"
-                    << ", ack_count=" << ack_count
-                    << ", received_ids.size()=" << received_ids.size()
-                    << std::endl;
-        }
-        // This condition variable must have a lifetime longer than the thread
-        // pools.
-        callback_cv.notify_one();
-      };
+  std::shared_ptr<pubsub_internal::BatchCallback> batch_callback =
+      std::make_shared<pubsub_internal::DefaultBatchCallback>(
+          [&](pubsub_internal::BatchCallback::StreamingPullResponse r) {
+            ASSERT_STATUS_OK(r.response);
+            {
+              std::lock_guard<std::mutex> lk(callback_mu);
+              for (auto const& m : r.response->received_messages()) {
+                received_ids.insert(m.message().message_id());
+              }
+              ++callback_count;
+              for (auto const& m : r.response->received_messages()) {
+                source->AckMessage(m.ack_id());
+              }
+              ack_count += r.response->received_messages_size();
+              std::cout << "callback(" << r.response->received_messages_size()
+                        << ")"
+                        << ", ack_count=" << ack_count
+                        << ", received_ids.size()=" << received_ids.size()
+                        << std::endl;
+            }
+            // This condition variable must have a lifetime longer than the
+            // thread pools.
+            callback_cv.notify_one();
+          },
+          std::make_shared<pubsub_internal::NoopMessageCallback>());
 
   auto done = shutdown->Start({});
-  source->Start(std::move(callback));
+  source->Start(batch_callback);
 
   auto constexpr kPublishCount = 1000;
   auto const expected_ids = [&] {
@@ -457,22 +476,6 @@ TEST_F(SubscriberIntegrationTest, PublishOrdered) {
   EXPECT_STATUS_OK(result.get());
 }
 
-TEST_F(SubscriberIntegrationTest, UnifiedCredentials) {
-  auto options =
-      Options{}.set<UnifiedCredentialsOption>(MakeGoogleDefaultCredentials());
-  auto const using_emulator =
-      internal::GetEnv("PUBSUB_EMULATOR_HOST").has_value();
-  if (using_emulator) {
-    options = Options{}
-                  .set<UnifiedCredentialsOption>(MakeInsecureCredentials())
-                  .set<internal::UseInsecureChannelOption>(true);
-  }
-  auto publisher = Publisher(MakePublisherConnection(topic_, options));
-  auto subscriber =
-      Subscriber(MakeSubscriberConnection(subscription_, options));
-  ASSERT_NO_FATAL_FAILURE(TestRoundtrip(publisher, subscriber));
-}
-
 TEST_F(SubscriberIntegrationTest, ExactlyOnce) {
   auto publisher = Publisher(MakePublisherConnection(topic_));
   auto subscriber =
@@ -492,6 +495,7 @@ TEST_F(SubscriberIntegrationTest, ExactlyOnce) {
   EXPECT_FALSE(ids.empty());
 
   promise<void> ids_empty;
+  auto ids_empty_future = ids_empty.get_future();
   auto callback = [&](pubsub::Message const& m, ExactlyOnceAckHandler h) {
     SCOPED_TRACE("Search for message " + m.message_id());
     std::unique_lock<std::mutex> lk(mu);
@@ -507,18 +511,20 @@ TEST_F(SubscriberIntegrationTest, ExactlyOnce) {
       return;
     }
     ids.erase(i);
-    if (ids.empty()) ids_empty.set_value();
+    auto const empty = ids.empty();
     lk.unlock();
-    std::move(h).ack().then([id = m.message_id()](auto f) {
+    auto done = std::move(h).ack().then([id = m.message_id()](auto f) {
       auto status = f.get();
       ASSERT_STATUS_OK(status) << " ack() failed for id=" << id;
     });
+    if (!empty) return;
+    done.then([p = std::move(ids_empty)](auto) mutable { p.set_value(); });
   };
 
   auto result = subscriber.Subscribe(callback);
   // Wait until there are no more ids pending, then cancel the subscription and
   // get its status.
-  ids_empty.get_future().get();
+  ids_empty_future.get();
   result.cancel();
   EXPECT_STATUS_OK(result.get());
 }
@@ -527,6 +533,68 @@ TEST_F(SubscriberIntegrationTest, BlockingPull) {
   auto publisher = Publisher(MakePublisherConnection(topic_));
   auto subscriber =
       Subscriber(MakeSubscriberConnection(exactly_once_subscription_));
+
+  std::set<std::string> ids;
+  for (auto const* data : {"message-0", "message-1", "message-2"}) {
+    auto response =
+        publisher.Publish(MessageBuilder{}.SetData(data).Build()).get();
+    EXPECT_STATUS_OK(response);
+    if (response) ids.insert(*std::move(response));
+  }
+  EXPECT_THAT(ids, Not(IsEmpty()));
+
+  auto const count = 2 * ids.size();
+  for (std::size_t i = 0; i != count && !ids.empty(); ++i) {
+    auto response = subscriber.Pull();
+    EXPECT_STATUS_OK(response);
+    if (!response) continue;
+    auto ack = std::move(response->handler).ack().get();
+    EXPECT_STATUS_OK(ack);
+    ids.erase(response->message.message_id());
+  }
+  EXPECT_THAT(ids, IsEmpty());
+}
+
+TEST_F(SubscriberIntegrationTest, TracingEnabledPublishStreamingPullAck) {
+  auto publisher = Publisher(MakePublisherConnection(topic_));
+  auto subscriber = Subscriber(MakeSubscriberConnection(
+      subscription_,
+      google::cloud::Options{}.set<OpenTelemetryTracingOption>(true)));
+  ASSERT_NO_FATAL_FAILURE(TestRoundtrip(publisher, subscriber));
+}
+
+TEST_F(SubscriberIntegrationTest, TracingEnabledBlockingPull) {
+  auto publisher = Publisher(MakePublisherConnection(topic_));
+  auto subscriber = Subscriber(MakeSubscriberConnection(
+      exactly_once_subscription_,
+      google::cloud::Options{}.set<OpenTelemetryTracingOption>(true)));
+
+  std::set<std::string> ids;
+  for (auto const* data : {"message-0", "message-1", "message-2"}) {
+    auto response =
+        publisher.Publish(MessageBuilder{}.SetData(data).Build()).get();
+    EXPECT_STATUS_OK(response);
+    if (response) ids.insert(*std::move(response));
+  }
+  EXPECT_THAT(ids, Not(IsEmpty()));
+
+  auto const count = 2 * ids.size();
+  for (std::size_t i = 0; i != count && !ids.empty(); ++i) {
+    auto response = subscriber.Pull();
+    EXPECT_STATUS_OK(response);
+    if (!response) continue;
+    auto ack = std::move(response->handler).ack().get();
+    EXPECT_STATUS_OK(ack);
+    ids.erase(response->message.message_id());
+  }
+  EXPECT_THAT(ids, IsEmpty());
+}
+
+TEST_F(SubscriberIntegrationTest, TracingDisabledBlockingPull) {
+  auto publisher = Publisher(MakePublisherConnection(topic_));
+  auto subscriber = Subscriber(MakeSubscriberConnection(
+      exactly_once_subscription_,
+      google::cloud::Options{}.set<OpenTelemetryTracingOption>(false)));
 
   std::set<std::string> ids;
   for (auto const* data : {"message-0", "message-1", "message-2"}) {

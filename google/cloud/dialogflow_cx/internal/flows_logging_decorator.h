@@ -36,75 +36,114 @@ class FlowsLogging : public FlowsStub {
  public:
   ~FlowsLogging() override = default;
   FlowsLogging(std::shared_ptr<FlowsStub> child, TracingOptions tracing_options,
-               std::set<std::string> components);
+               std::set<std::string> const& components);
 
   StatusOr<google::cloud::dialogflow::cx::v3::Flow> CreateFlow(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::CreateFlowRequest const& request)
       override;
 
-  Status DeleteFlow(grpc::ClientContext& context,
+  Status DeleteFlow(grpc::ClientContext& context, Options const& options,
                     google::cloud::dialogflow::cx::v3::DeleteFlowRequest const&
                         request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::ListFlowsResponse> ListFlows(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::ListFlowsRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Flow> GetFlow(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetFlowRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Flow> UpdateFlow(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::UpdateFlowRequest const& request)
       override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncTrainFlow(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::dialogflow::cx::v3::TrainFlowRequest const& request)
+      override;
+
+  StatusOr<google::longrunning::Operation> TrainFlow(
+      grpc::ClientContext& context, Options options,
       google::cloud::dialogflow::cx::v3::TrainFlowRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::FlowValidationResult>
-  ValidateFlow(grpc::ClientContext& context,
+  ValidateFlow(grpc::ClientContext& context, Options const& options,
                google::cloud::dialogflow::cx::v3::ValidateFlowRequest const&
                    request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::FlowValidationResult>
   GetFlowValidationResult(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetFlowValidationResultRequest const&
           request) override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncImportFlow(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::dialogflow::cx::v3::ImportFlowRequest const& request)
+      override;
+
+  StatusOr<google::longrunning::Operation> ImportFlow(
+      grpc::ClientContext& context, Options options,
       google::cloud::dialogflow::cx::v3::ImportFlowRequest const& request)
       override;
 
   future<StatusOr<google::longrunning::Operation>> AsyncExportFlow(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::cloud::dialogflow::cx::v3::ExportFlowRequest const& request)
       override;
 
+  StatusOr<google::longrunning::Operation> ExportFlow(
+      grpc::ClientContext& context, Options options,
+      google::cloud::dialogflow::cx::v3::ExportFlowRequest const& request)
+      override;
+
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
+
   future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::GetOperationRequest const& request) override;
 
   future<Status> AsyncCancelOperation(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       google::longrunning::CancelOperationRequest const& request) override;
 
  private:
   std::shared_ptr<FlowsStub> child_;
   TracingOptions tracing_options_;
-  std::set<std::string> components_;
 };  // FlowsLogging
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

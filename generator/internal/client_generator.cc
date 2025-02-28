@@ -13,12 +13,14 @@
 // limitations under the License.
 
 #include "generator/internal/client_generator.h"
-#include "google/cloud/internal/absl_str_cat_quiet.h"
-#include "absl/memory/memory.h"
 #include "generator/internal/codegen_utils.h"
 #include "generator/internal/descriptor_utils.h"
+#include "generator/internal/format_method_comments.h"
+#include "generator/internal/longrunning.h"
+#include "generator/internal/pagination.h"
 #include "generator/internal/predicate_utils.h"
 #include "generator/internal/printer.h"
+#include "google/cloud/internal/absl_str_cat_quiet.h"
 #include <google/api/client.pb.h>
 #include <google/protobuf/descriptor.h>
 
@@ -30,10 +32,12 @@ ClientGenerator::ClientGenerator(
     google::protobuf::ServiceDescriptor const* service_descriptor,
     VarsDictionary service_vars,
     std::map<std::string, VarsDictionary> service_method_vars,
-    google::protobuf::compiler::GeneratorContext* context)
+    google::protobuf::compiler::GeneratorContext* context,
+    std::vector<MixinMethod> const& mixin_methods)
     : ServiceCodeGenerator("client_header_path", "client_cc_path",
                            service_descriptor, std::move(service_vars),
-                           std::move(service_method_vars), context) {
+                           std::move(service_method_vars), context,
+                           mixin_methods) {
   // Remember if there are methods from google.iam.v1.GetIamPolicyRequest and
   // google.iam.v1.SetIamPolicyRequest to google.iam.v1.Policy with signature
   // extensions. If so, we'll generate a "set" wrapper method to help prevent
@@ -71,28 +75,45 @@ Status ClientGenerator::GenerateHeader() {
 
   // includes
   HeaderPrint("\n");
+
   HeaderLocalIncludes(
-      {vars("connection_header_path"),
+      {HasGenerateGrpcTransport() ? vars("connection_header_path")
+                                  : vars("connection_rest_header_path"),
+       HasLongrunningMethod() ? "google/cloud/no_await_tag.h" : "",
        IsExperimental() ? "google/cloud/experimental_tag.h" : "",
        "google/cloud/future.h", "google/cloud/options.h",
-       "google/cloud/polling_policy.h", "google/cloud/status_or.h",
-       "google/cloud/version.h"});
+       "google/cloud/polling_policy.h",
+       HasIamPolicyExtension() ? "google/cloud/internal/make_status.h" : "",
+       "google/cloud/status_or.h", "google/cloud/version.h"});
   if (get_iam_policy_extension_ && set_iam_policy_extension_) {
     HeaderLocalIncludes({"google/cloud/iam_updater.h"});
   }
   HeaderSystemIncludes(MethodSignatureWellKnownProtobufTypeIncludes());
   HeaderSystemIncludes(
-      {HasLongrunningMethod() ? "google/longrunning/operations.grpc.pb.h" : "",
-       HasMessageWithMapField() ? "map" : "", "memory"});
+      {HasGRPCLongrunningOperation() ? "google/longrunning/operations.grpc.pb.h"
+                                     : "",
+       HasMessageWithMapField() ? "map" : "", "memory", "string"});
 
   auto result = HeaderOpenNamespaces();
   if (!result.ok()) return result;
 
   // Client Class
+  if (IsDeprecated()) {
+    HeaderPrint(R"""(
+$class_comment_block$
+class
+ GOOGLE_CLOUD_CPP_DEPRECATED(
+      "$service_name$ has been deprecated and will be turned down in the future."
+)
+$client_class_name$ {)""");
+  } else {
+    HeaderPrint(
+        R"""(
+$class_comment_block$
+class $client_class_name$ {)""");
+  }
   HeaderPrint(
       R"""(
-$class_comment_block$
-class $client_class_name$ {
  public:
   explicit $client_class_name$()""");
   if (IsExperimental()) HeaderPrint("ExperimentalTag, ");
@@ -101,7 +122,7 @@ class $client_class_name$ {
   ~$client_class_name$();
 
   ///@{
-  // @name Copy and move support
+  /// @name Copy and move support
   $client_class_name$($client_class_name$ const&) = default;
   $client_class_name$& operator=($client_class_name$ const&) = default;
   $client_class_name$($client_class_name$&&) = default;
@@ -109,7 +130,7 @@ class $client_class_name$ {
   ///@}
 
   ///@{
-  // @name Equality
+  /// @name Equality
   friend bool operator==($client_class_name$ const& a, $client_class_name$ const& b) {
     return a.connection_ == b.connection_;
   }
@@ -119,13 +140,23 @@ class $client_class_name$ {
   ///@}
 )""");
 
+  auto constexpr kDeprecationMacro =
+      R"""(  GOOGLE_CLOUD_CPP_DEPRECATED("This RPC is deprecated.")
+)""";
+
   for (google::protobuf::MethodDescriptor const& method : methods()) {
+    bool is_method_deprecated =
+        method.options().has_deprecated() && method.options().deprecated();
+    std::string const deprecation_macro =
+        is_method_deprecated ? kDeprecationMacro : "";
     if (IsBidirStreaming(method)) {
       HeaderPrintMethod(
           method, __FILE__, __LINE__,
           absl::StrCat(
-              "\n", FormatMethodComments(method, ""),
+              "\n",
+              FormatMethodComments(method, "", IsDiscoveryDocumentProto()),
               // clang-format off
+              deprecation_macro,
 R"""(  std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
       $request_type$,
       $response_type$>>
@@ -140,34 +171,47 @@ R"""(  std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
       if (OmitMethodSignature(method, i)) continue;
       std::string const method_string = absl::StrCat(
           "  $method_name$($method_signature", i, "$Options opts = {});\n");
+      std::string const start_method_string =
+          absl::StrCat("  $method_name$(NoAwaitTag, $method_signature", i,
+                       "$Options opts = {});\n");
       std::string const signature = method_signature_extension[i];
       HeaderPrintMethod(
           method,
-          {MethodPattern(
-               {{"\n"},
-                {FormatMethodCommentsMethodSignature(method, signature)},
-                {IsResponseTypeEmpty,
-                 // clang-format off
-                   "  Status\n",
-                   "  StatusOr<$response_type$>\n"},
-                // clang-format on
-                {method_string}},
-               All(IsNonStreaming, Not(IsLongrunningOperation),
-                   Not(IsPaginated))),
+          {MethodPattern({{"\n"},
+                          {FormatMethodCommentsMethodSignature(
+                              method, signature, IsDiscoveryDocumentProto())},
+                          {deprecation_macro},
+                          {"  $return_type$\n"},
+                          {method_string}},
+                         All(IsNonStreaming, Not(IsLongrunningOperation),
+                             Not(IsPaginated))),
            MethodPattern(
                {{"\n"},
-                {FormatMethodCommentsMethodSignature(method, signature)},
+                {FormatMethodCommentsMethodSignature(
+                    method, signature, IsDiscoveryDocumentProto())},
+                {deprecation_macro},
                 {IsResponseTypeEmpty,
                  // clang-format off
                     "  future<Status>\n",
                     "  future<StatusOr<$longrunning_deduced_response_type$>>\n"},
                 // clang-format on
-                {method_string}},
+                {method_string},
+                {"\n"},
+                {FormatStartMethodComments(is_method_deprecated)},
+                {deprecation_macro},
+                {IsResponseTypeEmpty,
+                 // clang-format off
+                    "  Status\n",
+                    "  StatusOr<$longrunning_operation_type$>\n"},
+                // clang-format on
+                {start_method_string}},
                All(IsNonStreaming, IsLongrunningOperation, Not(IsPaginated))),
            MethodPattern(
                {
                    {"\n"},
-                   {FormatMethodCommentsMethodSignature(method, signature)},
+                   {FormatMethodCommentsMethodSignature(
+                       method, signature, IsDiscoveryDocumentProto())},
+                   {deprecation_macro},
                    {"  StreamRange<$range_output_type$>\n"},
                    {method_string},
                },
@@ -175,7 +219,9 @@ R"""(  std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
            MethodPattern(
                {
                    {"\n"},
-                   {FormatMethodCommentsMethodSignature(method, signature)},
+                   {FormatMethodCommentsMethodSignature(
+                       method, signature, IsDiscoveryDocumentProto())},
+                   {deprecation_macro},
                    {"  StreamRange<$response_type$>\n"},
                    {method_string},
                },
@@ -185,8 +231,8 @@ R"""(  std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
       if (get_iam_policy_extension_ && set_iam_policy_extension_ == &method) {
         auto response_type = ProtoNameToCppName(
             set_iam_policy_extension_->output_type()->full_name());
-        auto set_method_name = set_iam_policy_extension_->name();
-        auto get_method_name = get_iam_policy_extension_->name();
+        std::string set_method_name{set_iam_policy_extension_->name()};
+        std::string get_method_name{get_iam_policy_extension_->name()};
         HeaderPrint({
             PredicatedFragment<void>(""),
             {R"""(
@@ -224,32 +270,51 @@ R"""(  std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
         {MethodPattern(
              {
                  {"\n"},
-                 {FormatMethodCommentsProtobufRequest(method)},
-                 {IsResponseTypeEmpty,
-                  // clang-format off
-    "  Status\n",
-    "  StatusOr<$response_type$>\n"},
-   {"  $method_name$($request_type$ const& request, Options opts = {});\n"}
-                 // clang-format on
+                 {FormatMethodCommentsProtobufRequest(
+                     method, IsDiscoveryDocumentProto())},
+                 {deprecation_macro},
+                 {"  $return_type$\n"},
+                 // clang-format off
+   {"  $method_name$($request_type$ const& request, Options opts = {});\n"}  // clang-format on
              },
              All(IsNonStreaming, Not(IsLongrunningOperation),
                  Not(IsPaginated))),
          MethodPattern(
              {
                  {"\n"},
-                 {FormatMethodCommentsProtobufRequest(method)},
+                 {FormatMethodCommentsProtobufRequest(
+                     method, IsDiscoveryDocumentProto())},
+                 {deprecation_macro},
                  {IsResponseTypeEmpty,
                   // clang-format off
     "  future<Status>\n",
     "  future<StatusOr<$longrunning_deduced_response_type$>>\n"},
-   {"  $method_name$($request_type$ const& request, Options opts = {});\n"}
+   {"  $method_name$($request_type$ const& request, Options opts = {});\n"},
+   {"\n"},
+                {FormatStartMethodComments(is_method_deprecated)},
+                {deprecation_macro},
                  // clang-format on
+                 {IsResponseTypeEmpty,
+                  // clang-format off
+    "  Status\n",
+    "  StatusOr<$longrunning_operation_type$>\n"},
+   {"  $method_name$(NoAwaitTag, $request_type$ const& request, Options opts = {});\n\n"},
+                 // clang-format on
+                 {FormatAwaitMethodComments(is_method_deprecated)},
+                 {deprecation_macro},
+                 {IsResponseTypeEmpty,
+                  // clang-format off
+    "  future<Status>\n",
+    "  future<StatusOr<$longrunning_deduced_response_type$>>\n"},
+   {"  $method_name$($longrunning_operation_type$ const& operation, Options opts = {});\n"}  // clang-format on
              },
              All(IsNonStreaming, IsLongrunningOperation, Not(IsPaginated))),
          MethodPattern(
              {
                  {"\n"},
-                 {FormatMethodCommentsProtobufRequest(method)},
+                 {FormatMethodCommentsProtobufRequest(
+                     method, IsDiscoveryDocumentProto())},
+                 {deprecation_macro},
                  // clang-format off
    {"  StreamRange<$range_output_type$>\n"
     "  $method_name$($request_type$ request, Options opts = {});\n"},
@@ -259,7 +324,9 @@ R"""(  std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
          MethodPattern(
              {
                  {"\n"},
-                 {FormatMethodCommentsProtobufRequest(method)},
+                 {FormatMethodCommentsProtobufRequest(
+                     method, IsDiscoveryDocumentProto())},
+                 {deprecation_macro},
                  // clang-format off
    {"  StreamRange<$response_type$>\n"
     "  $method_name$($request_type$ const& request, Options opts = {});\n"},
@@ -272,6 +339,10 @@ R"""(  std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
   for (google::protobuf::MethodDescriptor const& method : async_methods()) {
     if (IsStreamingRead(method)) continue;
     if (IsStreamingWrite(method)) continue;
+    bool is_method_deprecated =
+        method.options().has_deprecated() && method.options().deprecated();
+    std::string const deprecation_macro =
+        is_method_deprecated ? kDeprecationMacro : "";
     auto method_signature_extension =
         method.options().GetRepeatedExtension(google::api::method_signature);
     for (int i = 0; i < method_signature_extension.size(); ++i) {
@@ -281,17 +352,14 @@ R"""(  std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
       std::string const signature = method_signature_extension[i];
       HeaderPrintMethod(
           method,
-          {MethodPattern(
-              {{"\n"},
-               {FormatMethodCommentsMethodSignature(method, signature)},
-               {IsResponseTypeEmpty,
-                // clang-format off
-                   "  future<Status>\n",
-                   "  future<StatusOr<$response_type$>>\n"},
-               // clang-format on
-               {method_string}},
-              All(IsNonStreaming, Not(IsLongrunningOperation),
-                  Not(IsPaginated)))},
+          {MethodPattern({{"\n"},
+                          {FormatMethodCommentsMethodSignature(
+                              method, signature, IsDiscoveryDocumentProto())},
+                          {deprecation_macro},
+                          {"  future<$return_type$>\n"},
+                          {method_string}},
+                         All(IsNonStreaming, Not(IsLongrunningOperation),
+                             Not(IsPaginated)))},
           __FILE__, __LINE__);
     }
     HeaderPrintMethod(
@@ -299,13 +367,12 @@ R"""(  std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
         {MethodPattern(
             {
                 {"\n"},
-                {FormatMethodCommentsProtobufRequest(method)},
-                {IsResponseTypeEmpty,
-                 // clang-format off
-    "  future<Status>\n",
-    "  future<StatusOr<$response_type$>>\n"},
-   {"  Async$method_name$($request_type$ const& request, Options opts = {});\n"}
-                // clang-format on
+                {FormatMethodCommentsProtobufRequest(
+                    method, IsDiscoveryDocumentProto())},
+                {deprecation_macro},
+                {"  future<$return_type$>\n"},
+                // clang-format off
+   {"  Async$method_name$($request_type$ const& request, Options opts = {});\n"}  // clang-format on
             },
             All(IsNonStreaming, Not(IsLongrunningOperation),
                 Not(IsPaginated)))},
@@ -339,12 +406,16 @@ Status ClientGenerator::GenerateCc() {
 
   // includes
   CcPrint("\n");
+  if (MethodSignatureUsesDeprecatedField()) {
+    CcLocalIncludes({"google/cloud/internal/disable_deprecation_warnings.inc"});
+  }
   CcLocalIncludes({vars("client_header_path")});
   CcSystemIncludes({"memory"});
   if (get_iam_policy_extension_ && set_iam_policy_extension_) {
     CcLocalIncludes({vars("options_header_path")});
     CcSystemIncludes({"thread"});
   }
+  CcSystemIncludes({"utility"});
 
   auto result = CcOpenNamespaces();
   if (!result.ok()) return result;
@@ -383,24 +454,24 @@ $client_class_name$::Async$method_name$(Options opts) {
       std::string method_string =
           absl::StrCat("$client_class_name$::$method_name$($method_signature",
                        i, "$Options opts) {\n");
+      std::string start_method_string = absl::StrCat(
+          "$client_class_name$::$method_name$(NoAwaitTag, $method_signature", i,
+          "$Options opts) {\n");
       std::string method_request_string =
           absl::StrCat("$method_request_setters", i, "$");
       CcPrintMethod(
           method,
           {MethodPattern(
                {
-                   {IsResponseTypeEmpty,
-                    // clang-format off
-                   "\nStatus\n",
-                   "\nStatusOr<$response_type$>\n"},
+                   {"\n$return_type$\n"},
+                   // clang-format off
                   {method_string},
                   {"  internal::OptionsSpan span(internal::MergeOptions("
                    "std::move(opts), options_));\n"},
                   {"  $request_type$ request;\n"},
                    {method_request_string},
                   {"  return connection_->$method_name$(request);\n"
-                   "}\n"}
-                   // clang-format on
+                   "}\n"}  // clang-format on
                },
                All(IsNonStreaming, Not(IsLongrunningOperation),
                    Not(IsPaginated))),
@@ -416,8 +487,19 @@ $client_class_name$::Async$method_name$(Options opts) {
                   {"  $request_type$ request;\n"},
                    {method_request_string},
                   {"  return connection_->$method_name$(request);\n"
-                  "}\n"}
+                  "}\n"},
                    // clang-format on
+                   {IsResponseTypeEmpty,
+                    // clang-format off
+                    "\nStatus\n",
+                    "\nStatusOr<$longrunning_operation_type$>\n"},
+                  {start_method_string},
+                  {"  internal::OptionsSpan span(internal::MergeOptions("
+                   "std::move(opts), options_));\n"},
+                  {"  $request_type$ request;\n"},
+                   {method_request_string},
+                  {"  return connection_->$method_name$(NoAwaitTag{}, request);\n"
+                  "}\n"}  // clang-format on
                },
                All(IsNonStreaming, IsLongrunningOperation, Not(IsPaginated))),
            MethodPattern(
@@ -430,8 +512,7 @@ $client_class_name$::Async$method_name$(Options opts) {
                   {"  $request_type$ request;\n"},
                    {method_request_string},
                   {"  return connection_->$method_name$(request);\n"
-                  "}\n"}
-                   // clang-format on
+                  "}\n"}  // clang-format on
                },
                All(IsNonStreaming, Not(IsLongrunningOperation), IsPaginated)),
            MethodPattern(
@@ -444,8 +525,7 @@ $client_class_name$::Async$method_name$(Options opts) {
                   {"  $request_type$ request;\n"},
                    {method_request_string},
                   {"  return connection_->$method_name$(request);\n"
-                  "}\n"}
-                   // clang-format on
+                  "}\n"}  // clang-format on
                },
                IsStreamingRead)},
           __FILE__, __LINE__);
@@ -453,8 +533,8 @@ $client_class_name$::Async$method_name$(Options opts) {
       if (get_iam_policy_extension_ && set_iam_policy_extension_ == &method) {
         auto response_type = ProtoNameToCppName(
             set_iam_policy_extension_->output_type()->full_name());
-        auto set_method_name = set_iam_policy_extension_->name();
-        auto get_method_name = get_iam_policy_extension_->name();
+        std::string set_method_name{set_iam_policy_extension_->name()};
+        std::string get_method_name{get_iam_policy_extension_->name()};
         CcPrint({
             PredicatedFragment<void>(""),
             {"\nStatusOr<" + response_type + ">\n"},
@@ -489,8 +569,10 @@ $client_class_name$::Async$method_name$(Options opts) {
              "    }\n"
              "    auto policy = updater(*std::move(recent));\n"
              "    if (!policy) {\n"
-             "      return Status(StatusCode::kCancelled,"
-             " \"updater did not yield a policy\");\n"
+             "      return internal::CancelledError(\n"
+             "          \"updater did not yield a policy\",\n"
+             "          GCP_ERROR_INFO().WithMetadata("
+             "\"gl-cpp.error.origin\", \"client\"));\n"
              "    }\n"
              "    *set_request.mutable_policy() = *std::move(policy);\n"
              "    auto result = connection_->"},
@@ -511,17 +593,14 @@ $client_class_name$::Async$method_name$(Options opts) {
         method,
         {MethodPattern(
              {
-                 {IsResponseTypeEmpty,
-                  // clang-format off
-    "\nStatus\n",
-    "\nStatusOr<$response_type$>\n"},
+                 {"\n$return_type$\n"},
+                 // clang-format off
    {"$client_class_name$::$method_name$($request_type$ const& request"
     ", Options opts) {\n"
     "  internal::OptionsSpan span(internal::MergeOptions("
     "std::move(opts), options_));\n"
     "  return connection_->$method_name$(request);\n"
-    "}\n"}
-                 // clang-format on
+    "}\n"}  // clang-format on
              },
              All(IsNonStreaming, Not(IsLongrunningOperation),
                  Not(IsPaginated))),
@@ -536,8 +615,30 @@ $client_class_name$::Async$method_name$(Options opts) {
     "  internal::OptionsSpan span(internal::MergeOptions("
     "std::move(opts), options_));\n"
     "  return connection_->$method_name$(request);\n"
-    "}\n"}
+    "}\n"},
                  // clang-format on
+                 {IsResponseTypeEmpty,
+                  // clang-format off
+    "\nStatus\n",
+    "\nStatusOr<$longrunning_operation_type$>\n"},
+   {"$client_class_name$::$method_name$(NoAwaitTag"
+    ", $request_type$ const& request"
+    ", Options opts) {\n"
+    "  internal::OptionsSpan span(internal::MergeOptions("
+    "std::move(opts), options_));\n"
+    "  return connection_->$method_name$(NoAwaitTag{}, request);\n"
+    "}\n"},
+                 // clang-format on
+                 {IsResponseTypeEmpty,
+                  // clang-format off
+    "\nfuture<Status>\n",
+    "\nfuture<StatusOr<$longrunning_deduced_response_type$>>\n"},
+   {"$client_class_name$::$method_name$("
+    "$longrunning_operation_type$ const& operation, Options opts) {\n"
+    "  internal::OptionsSpan span(internal::MergeOptions("
+    "std::move(opts), options_));\n"
+    "  return connection_->$method_name$(operation);\n"},
+   {"}\n"}  // clang-format on
              },
              All(IsNonStreaming, IsLongrunningOperation, Not(IsPaginated))),
          MethodPattern(
@@ -549,8 +650,7 @@ $client_class_name$::Async$method_name$(Options opts) {
     "  internal::OptionsSpan span(internal::MergeOptions("
     "std::move(opts), options_));\n"
     "  return connection_->$method_name$(std::move(request));\n"
-    "}\n"}
-                 // clang-format on
+    "}\n"}  // clang-format on
              },
              All(IsNonStreaming, Not(IsLongrunningOperation), IsPaginated)),
          MethodPattern(
@@ -562,8 +662,7 @@ $client_class_name$::Async$method_name$(Options opts) {
     "  internal::OptionsSpan span(internal::MergeOptions("
     "std::move(opts), options_));\n"
     "  return connection_->$method_name$(request);\n"
-    "}\n"}
-                 // clang-format on
+    "}\n"}  // clang-format on
              },
              IsStreamingRead)},
         __FILE__, __LINE__);
@@ -584,18 +683,15 @@ $client_class_name$::Async$method_name$(Options opts) {
           method,
           {MethodPattern(
               {
-                  {IsResponseTypeEmpty,
-                   // clang-format off
-                   "\nfuture<Status>\n",
-                   "\nfuture<StatusOr<$response_type$>>\n"},
+                  {"\nfuture<$return_type$>\n"},
+                  // clang-format off
                   {method_string},
                   {"  internal::OptionsSpan span(internal::MergeOptions("
                    "std::move(opts), options_));\n"},
                   {"  $request_type$ request;\n"},
                    {method_request_string},
                   {"  return connection_->Async$method_name$(request);\n"
-                   "}\n"}
-                  // clang-format on
+                   "}\n"}  // clang-format on
               },
               All(IsNonStreaming, Not(IsLongrunningOperation),
                   Not(IsPaginated)))},
@@ -605,17 +701,14 @@ $client_class_name$::Async$method_name$(Options opts) {
         method,
         {MethodPattern(
             {
-                {IsResponseTypeEmpty,
-                 // clang-format off
-    "\nfuture<Status>\n",
-    "\nfuture<StatusOr<$response_type$>>\n"},
+                {"\nfuture<$return_type$>\n"},
+                // clang-format off
    {"$client_class_name$::Async$method_name$($request_type$ const& request"
     ", Options opts) {\n"
     "  internal::OptionsSpan span(internal::MergeOptions("
     "std::move(opts), options_));\n"
     "  return connection_->Async$method_name$(request);\n"
-    "}\n"}
-                // clang-format on
+    "}\n"}  // clang-format on
             },
             All(IsNonStreaming, Not(IsLongrunningOperation),
                 Not(IsPaginated)))},
@@ -624,6 +717,11 @@ $client_class_name$::Async$method_name$(Options opts) {
 
   CcCloseNamespaces();
   return {};
+}
+
+bool ClientGenerator::HasIamPolicyExtension() {
+  return get_iam_policy_extension_ != nullptr &&
+         set_iam_policy_extension_ != nullptr;
 }
 
 }  // namespace generator_internal

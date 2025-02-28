@@ -21,6 +21,7 @@
 #include "google/cloud/status_or.h"
 #include <google/cloud/dialogflow/v2/conversation.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -31,11 +32,10 @@ ConversationsStub::~ConversationsStub() = default;
 
 StatusOr<google::cloud::dialogflow::v2::Conversation>
 DefaultConversationsStub::CreateConversation(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::CreateConversationRequest const& request) {
   google::cloud::dialogflow::v2::Conversation response;
-  auto status =
-      grpc_stub_->CreateConversation(&client_context, request, &response);
+  auto status = grpc_stub_->CreateConversation(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -44,11 +44,10 @@ DefaultConversationsStub::CreateConversation(
 
 StatusOr<google::cloud::dialogflow::v2::ListConversationsResponse>
 DefaultConversationsStub::ListConversations(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::ListConversationsRequest const& request) {
   google::cloud::dialogflow::v2::ListConversationsResponse response;
-  auto status =
-      grpc_stub_->ListConversations(&client_context, request, &response);
+  auto status = grpc_stub_->ListConversations(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -57,11 +56,10 @@ DefaultConversationsStub::ListConversations(
 
 StatusOr<google::cloud::dialogflow::v2::Conversation>
 DefaultConversationsStub::GetConversation(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::GetConversationRequest const& request) {
   google::cloud::dialogflow::v2::Conversation response;
-  auto status =
-      grpc_stub_->GetConversation(&client_context, request, &response);
+  auto status = grpc_stub_->GetConversation(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -70,11 +68,10 @@ DefaultConversationsStub::GetConversation(
 
 StatusOr<google::cloud::dialogflow::v2::Conversation>
 DefaultConversationsStub::CompleteConversation(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::CompleteConversationRequest const& request) {
   google::cloud::dialogflow::v2::Conversation response;
-  auto status =
-      grpc_stub_->CompleteConversation(&client_context, request, &response);
+  auto status = grpc_stub_->CompleteConversation(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -83,14 +80,126 @@ DefaultConversationsStub::CompleteConversation(
 
 StatusOr<google::cloud::dialogflow::v2::ListMessagesResponse>
 DefaultConversationsStub::ListMessages(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::v2::ListMessagesRequest const& request) {
   google::cloud::dialogflow::v2::ListMessagesResponse response;
-  auto status = grpc_stub_->ListMessages(&client_context, request, &response);
+  auto status = grpc_stub_->ListMessages(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
   return response;
+}
+
+StatusOr<google::cloud::dialogflow::v2::SuggestConversationSummaryResponse>
+DefaultConversationsStub::SuggestConversationSummary(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::dialogflow::v2::SuggestConversationSummaryRequest const&
+        request) {
+  google::cloud::dialogflow::v2::SuggestConversationSummaryResponse response;
+  auto status =
+      grpc_stub_->SuggestConversationSummary(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::cloud::dialogflow::v2::GenerateStatelessSummaryResponse>
+DefaultConversationsStub::GenerateStatelessSummary(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::dialogflow::v2::GenerateStatelessSummaryRequest const&
+        request) {
+  google::cloud::dialogflow::v2::GenerateStatelessSummaryResponse response;
+  auto status =
+      grpc_stub_->GenerateStatelessSummary(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::cloud::dialogflow::v2::GenerateStatelessSuggestionResponse>
+DefaultConversationsStub::GenerateStatelessSuggestion(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::dialogflow::v2::GenerateStatelessSuggestionRequest const&
+        request) {
+  google::cloud::dialogflow::v2::GenerateStatelessSuggestionResponse response;
+  auto status =
+      grpc_stub_->GenerateStatelessSuggestion(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::cloud::dialogflow::v2::SearchKnowledgeResponse>
+DefaultConversationsStub::SearchKnowledge(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::dialogflow::v2::SearchKnowledgeRequest const& request) {
+  google::cloud::dialogflow::v2::SearchKnowledgeResponse response;
+  auto status = grpc_stub_->SearchKnowledge(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::cloud::location::ListLocationsResponse>
+DefaultConversationsStub::ListLocations(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::location::ListLocationsRequest const& request) {
+  google::cloud::location::ListLocationsResponse response;
+  auto status = locations_stub_->ListLocations(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::cloud::location::Location>
+DefaultConversationsStub::GetLocation(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::location::GetLocationRequest const& request) {
+  google::cloud::location::Location response;
+  auto status = locations_stub_->GetLocation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+DefaultConversationsStub::ListOperations(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::ListOperationsRequest const& request) {
+  google::longrunning::ListOperationsResponse response;
+  auto status = operations_stub_->ListOperations(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::longrunning::Operation> DefaultConversationsStub::GetOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::GetOperationRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = operations_stub_->GetOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+Status DefaultConversationsStub::CancelOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::CancelOperationRequest const& request) {
+  google::protobuf::Empty response;
+  auto status = operations_stub_->CancelOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return google::cloud::Status();
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

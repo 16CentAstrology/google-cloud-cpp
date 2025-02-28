@@ -13,15 +13,15 @@
 // limitations under the License.
 
 #include "generator/integration_tests/golden/v1/golden_thing_admin_client.h"
+#include "generator/integration_tests/golden/v1/golden_thing_admin_options.h"
+#include "generator/integration_tests/golden/v1/internal/golden_thing_admin_option_defaults.h"
+#include "generator/integration_tests/golden/v1/mocks/mock_golden_thing_admin_connection.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/pagination_range.h"
 #include "google/cloud/internal/time_utils.h"
 #include "google/cloud/testing_util/is_proto_equal.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "generator/integration_tests/golden/v1/golden_thing_admin_options.h"
-#include "generator/integration_tests/golden/v1/internal/golden_thing_admin_option_defaults.h"
-#include "generator/integration_tests/golden/v1/mocks/mock_golden_thing_admin_connection.h"
 #include <google/iam/v1/policy.pb.h>
 #include <google/protobuf/util/field_mask_util.h>
 #include <gmock/gmock.h>
@@ -36,10 +36,13 @@ namespace {
 using ::google::cloud::testing_util::IsOk;
 using ::google::cloud::testing_util::IsProtoEqual;
 using ::google::cloud::testing_util::StatusIs;
+using ::testing::_;
+using ::testing::A;
 using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Not;
+using ::testing::Pair;
 
 TEST(GoldenThingAdminClientTest, CopyMoveEquality) {
   auto conn1 =
@@ -150,7 +153,10 @@ TEST(GoldenThingAdminClientTest, CreateDatabase) {
         .set<EndpointOption>("override-me")
         .set<UserAgentProductsOption>({"override-me"});
   });
-  EXPECT_CALL(*mock, CreateDatabase)
+  EXPECT_CALL(
+      *mock,
+      CreateDatabase(
+          A<google::test::admin::database::v1::CreateDatabaseRequest const&>()))
       .Times(2)
       .WillRepeatedly(
           [expected_instance](
@@ -192,6 +198,118 @@ TEST(GoldenThingAdminClientTest, CreateDatabase) {
   request.set_parent(expected_instance);
   request.set_create_statement("create database test-db");
   fut = client.CreateDatabase(request, options);
+  ASSERT_EQ(std::future_status::ready, fut.wait_for(std::chrono::seconds(0)));
+  db = fut.get();
+  EXPECT_STATUS_OK(db);
+  EXPECT_EQ(expected_database, db->name());
+  EXPECT_EQ(::google::test::admin::database::v1::Database::CREATING,
+            db->state());
+}
+
+TEST(GoldenThingAdminClientTest, StartCreateDatabase) {
+  auto mock =
+      std::make_shared<golden_v1_mocks::MockGoldenThingAdminConnection>();
+  std::string expected_instance =
+      "/projects/test-project/instances/test-instance";
+  std::string expected_operation_name = "test-op";
+  EXPECT_CALL(*mock, options).WillRepeatedly([] {
+    return Options{}
+        .set<GrpcTracingOptionsOption>(
+            TracingOptions().SetOptions("truncate_string_field_longer_than=64"))
+        .set<EndpointOption>("override-me")
+        .set<UserAgentProductsOption>({"override-me"});
+  });
+  EXPECT_CALL(*mock, CreateDatabase(A<NoAwaitTag>(), _))
+      .Times(2)
+      .WillRepeatedly(
+          [&](NoAwaitTag,
+              ::google::test::admin::database::v1::CreateDatabaseRequest const&
+                  r) {
+            auto const& current = internal::CurrentOptions();
+            EXPECT_TRUE(current.has<EndpointOption>());
+            EXPECT_TRUE(current.has<GrpcTracingOptionsOption>());
+            EXPECT_TRUE(current.has<UserAgentProductsOption>());
+            EXPECT_EQ(current.get<EndpointOption>(), "test-endpoint");
+            EXPECT_EQ(current.get<GrpcTracingOptionsOption>()
+                          .truncate_string_field_longer_than(),
+                      64);
+            EXPECT_THAT(current.get<UserAgentProductsOption>(),
+                        Contains("test-only/1.0"));
+            EXPECT_EQ(expected_instance, r.parent());
+            EXPECT_THAT(r.create_statement(),
+                        HasSubstr("create database test-db"));
+            google::longrunning::Operation operation;
+            operation.set_name(expected_operation_name);
+            return make_status_or(operation);
+          });
+  GoldenThingAdminClient client(
+      std::move(mock), Options{}
+                           .set<EndpointOption>("test-endpoint")
+                           .set<UserAgentProductsOption>({"override-me-too"}));
+  auto options = Options{}.set<UserAgentProductsOption>({"test-only/1.0"});
+  auto operation = client.CreateDatabase(NoAwaitTag{}, expected_instance,
+                                         "create database test-db", options);
+  EXPECT_STATUS_OK(operation);
+  EXPECT_EQ(operation->name(), expected_operation_name);
+
+  ::google::test::admin::database::v1::CreateDatabaseRequest request;
+  request.set_parent(expected_instance);
+  request.set_create_statement("create database test-db");
+  operation = client.CreateDatabase(NoAwaitTag{}, request, options);
+  EXPECT_STATUS_OK(operation);
+  EXPECT_EQ(operation->name(), expected_operation_name);
+}
+
+TEST(GoldenThingAdminClientTest, AwaitCreateDatabase) {
+  auto mock =
+      std::make_shared<golden_v1_mocks::MockGoldenThingAdminConnection>();
+  std::string expected_instance =
+      "/projects/test-project/instances/test-instance";
+  std::string expected_database =
+      "/projects/test-project/instances/test-instance/databases/test-db";
+  std::string expected_operation_name = "test-op";
+  EXPECT_CALL(*mock, options).WillRepeatedly([] {
+    return Options{}
+        .set<GrpcTracingOptionsOption>(
+            TracingOptions().SetOptions("truncate_string_field_longer_than=64"))
+        .set<EndpointOption>("override-me")
+        .set<UserAgentProductsOption>({"override-me"});
+  });
+  EXPECT_CALL(*mock, CreateDatabase(A<google::longrunning::Operation const&>()))
+      .Times(2)
+      .WillRepeatedly([&](google::longrunning::Operation const& op) {
+        auto const& current = internal::CurrentOptions();
+        EXPECT_TRUE(current.has<EndpointOption>());
+        EXPECT_TRUE(current.has<GrpcTracingOptionsOption>());
+        EXPECT_TRUE(current.has<UserAgentProductsOption>());
+        EXPECT_EQ(current.get<EndpointOption>(), "test-endpoint");
+        EXPECT_EQ(current.get<GrpcTracingOptionsOption>()
+                      .truncate_string_field_longer_than(),
+                  64);
+        EXPECT_THAT(current.get<UserAgentProductsOption>(),
+                    Contains("test-only/1.0"));
+        EXPECT_EQ(op.name(), expected_operation_name);
+        ::google::test::admin::database::v1::Database database;
+        database.set_name(expected_instance + "/databases/test-db");
+        database.set_state(
+            ::google::test::admin::database::v1::Database::CREATING);
+        return make_ready_future(make_status_or(database));
+      });
+  GoldenThingAdminClient client(
+      std::move(mock), Options{}
+                           .set<EndpointOption>("test-endpoint")
+                           .set<UserAgentProductsOption>({"override-me-too"}));
+  auto options = Options{}.set<UserAgentProductsOption>({"test-only/1.0"});
+  google::longrunning::Operation operation;
+  operation.set_name(expected_operation_name);
+  auto fut = client.CreateDatabase(operation, options);
+  ASSERT_EQ(std::future_status::ready, fut.wait_for(std::chrono::seconds(0)));
+  auto db = fut.get();
+  EXPECT_STATUS_OK(db);
+  EXPECT_EQ(expected_database, db->name());
+  EXPECT_EQ(::google::test::admin::database::v1::Database::CREATING,
+            db->state());
+  fut = client.CreateDatabase(operation, options);
   ASSERT_EQ(std::future_status::ready, fut.wait_for(std::chrono::seconds(0)));
   db = fut.get();
   EXPECT_STATUS_OK(db);
@@ -256,7 +374,9 @@ TEST(GoldenThingAdminClientTest, UpdateDatabase) {
   EXPECT_CALL(*mock, options).WillRepeatedly([] {
     return golden_v1_internal::GoldenThingAdminDefaultOptions(Options{});
   });
-  EXPECT_CALL(*mock, UpdateDatabaseDdl)
+  EXPECT_CALL(*mock,
+              UpdateDatabaseDdl(A<google::test::admin::database::v1::
+                                      UpdateDatabaseDdlRequest const&>()))
       .Times(2)
       .WillRepeatedly([expected_database](
                           ::google::test::admin::database::v1::
@@ -483,6 +603,8 @@ TEST(GoldenThingAdminClientTest, SetIamPolicyUpdaterCancelled) {
       });
   ASSERT_THAT(response, Not(IsOk()));
   EXPECT_THAT(response, StatusIs(StatusCode::kCancelled));
+  EXPECT_THAT(response.status().error_info().metadata(),
+              Contains(Pair("gl-cpp.error.origin", "client")));
 }
 
 TEST(GoldenThingAdminClientTest, SetIamPolicyUpdaterSetFailure) {
@@ -666,7 +788,10 @@ TEST(GoldenThingAdminClientTest, CreateBackup) {
   EXPECT_CALL(*mock, options).WillRepeatedly([] {
     return golden_v1_internal::GoldenThingAdminDefaultOptions(Options{});
   });
-  EXPECT_CALL(*mock, CreateBackup)
+  EXPECT_CALL(
+      *mock,
+      CreateBackup(
+          A<google::test::admin::database::v1::CreateBackupRequest const&>()))
       .Times(2)
       .WillRepeatedly(
           [expected_database, expire_time, backup_id, expected_backup_name](
@@ -872,7 +997,8 @@ TEST(GoldenThingAdminClientTest, RestoreDatabase) {
   EXPECT_CALL(*mock, options).WillRepeatedly([] {
     return golden_v1_internal::GoldenThingAdminDefaultOptions(Options{});
   });
-  EXPECT_CALL(*mock, RestoreDatabase)
+  EXPECT_CALL(*mock, RestoreDatabase(A<google::test::admin::database::v1::
+                                           RestoreDatabaseRequest const&>()))
       .Times(2)
       .WillRepeatedly([expected_backup_name, expected_database,
                        expected_instance](::google::test::admin::database::v1::

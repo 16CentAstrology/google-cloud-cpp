@@ -21,14 +21,16 @@
 
 #include "google/cloud/bigtable/admin/bigtable_table_admin_connection_idempotency_policy.h"
 #include "google/cloud/bigtable/admin/internal/bigtable_table_admin_retry_traits.h"
-#include "google/cloud/bigtable/admin/internal/bigtable_table_admin_stub.h"
 #include "google/cloud/backoff_policy.h"
 #include "google/cloud/future.h"
+#include "google/cloud/internal/retry_policy_impl.h"
+#include "google/cloud/no_await_tag.h"
 #include "google/cloud/options.h"
 #include "google/cloud/polling_policy.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/stream_range.h"
 #include "google/cloud/version.h"
+#include <google/bigtable/admin/v2/bigtable_table_admin.pb.h>
 #include <google/longrunning/operations.grpc.pb.h>
 #include <memory>
 
@@ -37,17 +39,139 @@ namespace cloud {
 namespace bigtable_admin {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
-using BigtableTableAdminRetryPolicy =
-    ::google::cloud::internal::TraitBasedRetryPolicy<
-        bigtable_admin_internal::BigtableTableAdminRetryTraits>;
+/// The retry policy for `BigtableTableAdminConnection`.
+class BigtableTableAdminRetryPolicy : public ::google::cloud::RetryPolicy {
+ public:
+  /// Creates a new instance of the policy, reset to the initial state.
+  virtual std::unique_ptr<BigtableTableAdminRetryPolicy> clone() const = 0;
+};
 
-using BigtableTableAdminLimitedTimeRetryPolicy =
-    ::google::cloud::internal::LimitedTimeRetryPolicy<
-        bigtable_admin_internal::BigtableTableAdminRetryTraits>;
+/**
+ * A retry policy for `BigtableTableAdminConnection` based on counting errors.
+ *
+ * This policy stops retrying if:
+ * - An RPC returns a non-transient error.
+ * - More than a prescribed number of transient failures is detected.
+ *
+ * In this class the following status codes are treated as transient errors:
+ * - [`kAborted`](@ref google::cloud::StatusCode)
+ * - [`kUnavailable`](@ref google::cloud::StatusCode)
+ */
+class BigtableTableAdminLimitedErrorCountRetryPolicy
+    : public BigtableTableAdminRetryPolicy {
+ public:
+  /**
+   * Create an instance that tolerates up to @p maximum_failures transient
+   * errors.
+   *
+   * @note Disable the retry loop by providing an instance of this policy with
+   *     @p maximum_failures == 0.
+   */
+  explicit BigtableTableAdminLimitedErrorCountRetryPolicy(int maximum_failures)
+      : impl_(maximum_failures) {}
 
-using BigtableTableAdminLimitedErrorCountRetryPolicy =
-    ::google::cloud::internal::LimitedErrorCountRetryPolicy<
-        bigtable_admin_internal::BigtableTableAdminRetryTraits>;
+  BigtableTableAdminLimitedErrorCountRetryPolicy(
+      BigtableTableAdminLimitedErrorCountRetryPolicy&& rhs) noexcept
+      : BigtableTableAdminLimitedErrorCountRetryPolicy(rhs.maximum_failures()) {
+  }
+  BigtableTableAdminLimitedErrorCountRetryPolicy(
+      BigtableTableAdminLimitedErrorCountRetryPolicy const& rhs) noexcept
+      : BigtableTableAdminLimitedErrorCountRetryPolicy(rhs.maximum_failures()) {
+  }
+
+  int maximum_failures() const { return impl_.maximum_failures(); }
+
+  bool OnFailure(Status const& status) override {
+    return impl_.OnFailure(status);
+  }
+  bool IsExhausted() const override { return impl_.IsExhausted(); }
+  bool IsPermanentFailure(Status const& status) const override {
+    return impl_.IsPermanentFailure(status);
+  }
+  std::unique_ptr<BigtableTableAdminRetryPolicy> clone() const override {
+    return std::make_unique<BigtableTableAdminLimitedErrorCountRetryPolicy>(
+        maximum_failures());
+  }
+
+  // This is provided only for backwards compatibility.
+  using BaseType = BigtableTableAdminRetryPolicy;
+
+ private:
+  google::cloud::internal::LimitedErrorCountRetryPolicy<
+      bigtable_admin_internal::BigtableTableAdminRetryTraits>
+      impl_;
+};
+
+/**
+ * A retry policy for `BigtableTableAdminConnection` based on elapsed time.
+ *
+ * This policy stops retrying if:
+ * - An RPC returns a non-transient error.
+ * - The elapsed time in the retry loop exceeds a prescribed duration.
+ *
+ * In this class the following status codes are treated as transient errors:
+ * - [`kAborted`](@ref google::cloud::StatusCode)
+ * - [`kUnavailable`](@ref google::cloud::StatusCode)
+ */
+class BigtableTableAdminLimitedTimeRetryPolicy
+    : public BigtableTableAdminRetryPolicy {
+ public:
+  /**
+   * Constructor given a `std::chrono::duration<>` object.
+   *
+   * @tparam DurationRep a placeholder to match the `Rep` tparam for @p
+   *     duration's type. The semantics of this template parameter are
+   *     documented in `std::chrono::duration<>`. In brief, the underlying
+   *     arithmetic type used to store the number of ticks. For our purposes it
+   *     is simply a formal parameter.
+   * @tparam DurationPeriod a placeholder to match the `Period` tparam for @p
+   *     duration's type. The semantics of this template parameter are
+   *     documented in `std::chrono::duration<>`. In brief, the length of the
+   *     tick in seconds, expressed as a `std::ratio<>`. For our purposes it is
+   *     simply a formal parameter.
+   * @param maximum_duration the maximum time allowed before the policy expires.
+   *     While the application can express this time in any units they desire,
+   *     the class truncates to milliseconds.
+   *
+   * @see https://en.cppreference.com/w/cpp/chrono/duration for more information
+   *     about `std::chrono::duration`.
+   */
+  template <typename DurationRep, typename DurationPeriod>
+  explicit BigtableTableAdminLimitedTimeRetryPolicy(
+      std::chrono::duration<DurationRep, DurationPeriod> maximum_duration)
+      : impl_(maximum_duration) {}
+
+  BigtableTableAdminLimitedTimeRetryPolicy(
+      BigtableTableAdminLimitedTimeRetryPolicy&& rhs) noexcept
+      : BigtableTableAdminLimitedTimeRetryPolicy(rhs.maximum_duration()) {}
+  BigtableTableAdminLimitedTimeRetryPolicy(
+      BigtableTableAdminLimitedTimeRetryPolicy const& rhs) noexcept
+      : BigtableTableAdminLimitedTimeRetryPolicy(rhs.maximum_duration()) {}
+
+  std::chrono::milliseconds maximum_duration() const {
+    return impl_.maximum_duration();
+  }
+
+  bool OnFailure(Status const& status) override {
+    return impl_.OnFailure(status);
+  }
+  bool IsExhausted() const override { return impl_.IsExhausted(); }
+  bool IsPermanentFailure(Status const& status) const override {
+    return impl_.IsPermanentFailure(status);
+  }
+  std::unique_ptr<BigtableTableAdminRetryPolicy> clone() const override {
+    return std::make_unique<BigtableTableAdminLimitedTimeRetryPolicy>(
+        maximum_duration());
+  }
+
+  // This is provided only for backwards compatibility.
+  using BaseType = BigtableTableAdminRetryPolicy;
+
+ private:
+  google::cloud::internal::LimitedTimeRetryPolicy<
+      bigtable_admin_internal::BigtableTableAdminRetryTraits>
+      impl_;
+};
 
 /**
  * The `BigtableTableAdminConnection` object for `BigtableTableAdminClient`.
@@ -79,11 +203,58 @@ class BigtableTableAdminConnection {
   virtual future<StatusOr<google::bigtable::admin::v2::Table>> UpdateTable(
       google::bigtable::admin::v2::UpdateTableRequest const& request);
 
+  virtual StatusOr<google::longrunning::Operation> UpdateTable(
+      NoAwaitTag,
+      google::bigtable::admin::v2::UpdateTableRequest const& request);
+
+  virtual future<StatusOr<google::bigtable::admin::v2::Table>> UpdateTable(
+      google::longrunning::Operation const& operation);
+
   virtual Status DeleteTable(
       google::bigtable::admin::v2::DeleteTableRequest const& request);
 
   virtual future<StatusOr<google::bigtable::admin::v2::Table>> UndeleteTable(
       google::bigtable::admin::v2::UndeleteTableRequest const& request);
+
+  virtual StatusOr<google::longrunning::Operation> UndeleteTable(
+      NoAwaitTag,
+      google::bigtable::admin::v2::UndeleteTableRequest const& request);
+
+  virtual future<StatusOr<google::bigtable::admin::v2::Table>> UndeleteTable(
+      google::longrunning::Operation const& operation);
+
+  virtual future<StatusOr<google::bigtable::admin::v2::AuthorizedView>>
+  CreateAuthorizedView(
+      google::bigtable::admin::v2::CreateAuthorizedViewRequest const& request);
+
+  virtual StatusOr<google::longrunning::Operation> CreateAuthorizedView(
+      NoAwaitTag,
+      google::bigtable::admin::v2::CreateAuthorizedViewRequest const& request);
+
+  virtual future<StatusOr<google::bigtable::admin::v2::AuthorizedView>>
+  CreateAuthorizedView(google::longrunning::Operation const& operation);
+
+  virtual StreamRange<google::bigtable::admin::v2::AuthorizedView>
+  ListAuthorizedViews(
+      google::bigtable::admin::v2::ListAuthorizedViewsRequest request);
+
+  virtual StatusOr<google::bigtable::admin::v2::AuthorizedView>
+  GetAuthorizedView(
+      google::bigtable::admin::v2::GetAuthorizedViewRequest const& request);
+
+  virtual future<StatusOr<google::bigtable::admin::v2::AuthorizedView>>
+  UpdateAuthorizedView(
+      google::bigtable::admin::v2::UpdateAuthorizedViewRequest const& request);
+
+  virtual StatusOr<google::longrunning::Operation> UpdateAuthorizedView(
+      NoAwaitTag,
+      google::bigtable::admin::v2::UpdateAuthorizedViewRequest const& request);
+
+  virtual future<StatusOr<google::bigtable::admin::v2::AuthorizedView>>
+  UpdateAuthorizedView(google::longrunning::Operation const& operation);
+
+  virtual Status DeleteAuthorizedView(
+      google::bigtable::admin::v2::DeleteAuthorizedViewRequest const& request);
 
   virtual StatusOr<google::bigtable::admin::v2::Table> ModifyColumnFamilies(
       google::bigtable::admin::v2::ModifyColumnFamiliesRequest const& request);
@@ -104,6 +275,13 @@ class BigtableTableAdminConnection {
   virtual future<StatusOr<google::bigtable::admin::v2::Backup>> CreateBackup(
       google::bigtable::admin::v2::CreateBackupRequest const& request);
 
+  virtual StatusOr<google::longrunning::Operation> CreateBackup(
+      NoAwaitTag,
+      google::bigtable::admin::v2::CreateBackupRequest const& request);
+
+  virtual future<StatusOr<google::bigtable::admin::v2::Backup>> CreateBackup(
+      google::longrunning::Operation const& operation);
+
   virtual StatusOr<google::bigtable::admin::v2::Backup> GetBackup(
       google::bigtable::admin::v2::GetBackupRequest const& request);
 
@@ -118,6 +296,23 @@ class BigtableTableAdminConnection {
 
   virtual future<StatusOr<google::bigtable::admin::v2::Table>> RestoreTable(
       google::bigtable::admin::v2::RestoreTableRequest const& request);
+
+  virtual StatusOr<google::longrunning::Operation> RestoreTable(
+      NoAwaitTag,
+      google::bigtable::admin::v2::RestoreTableRequest const& request);
+
+  virtual future<StatusOr<google::bigtable::admin::v2::Table>> RestoreTable(
+      google::longrunning::Operation const& operation);
+
+  virtual future<StatusOr<google::bigtable::admin::v2::Backup>> CopyBackup(
+      google::bigtable::admin::v2::CopyBackupRequest const& request);
+
+  virtual StatusOr<google::longrunning::Operation> CopyBackup(
+      NoAwaitTag,
+      google::bigtable::admin::v2::CopyBackupRequest const& request);
+
+  virtual future<StatusOr<google::bigtable::admin::v2::Backup>> CopyBackup(
+      google::longrunning::Operation const& operation);
 
   virtual StatusOr<google::iam::v1::Policy> GetIamPolicy(
       google::iam::v1::GetIamPolicyRequest const& request);

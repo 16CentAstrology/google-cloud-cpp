@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/privateca/certificate_authority_client.h"
+//! [all]
+#include "google/cloud/privateca/v1/certificate_authority_client.h"
+#include "google/cloud/location.h"
 #include <iostream>
 
 int main(int argc, char* argv[]) try {
@@ -21,15 +23,15 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace privateca = ::google::cloud::privateca;
+  auto const location = google::cloud::Location(argv[1], argv[2]);
+
+  namespace privateca = ::google::cloud::privateca_v1;
   auto client = privateca::CertificateAuthorityServiceClient(
       privateca::MakeCertificateAuthorityServiceConnection());
 
-  auto const ca_pool =
-      "projects/" + std::string(argv[1]) + "/locations/" + std::string(argv[2]);
-  for (auto r : client.ListCaPools(ca_pool)) {
-    if (!r) throw std::move(r).status();
-    std::cout << r->DebugString() << "\n";
+  for (auto ca_pool : client.ListCaPools(location.FullName())) {
+    if (!ca_pool) throw std::move(ca_pool).status();
+    std::cout << ca_pool->DebugString() << "\n";
   }
 
   return 0;
@@ -37,3 +39,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

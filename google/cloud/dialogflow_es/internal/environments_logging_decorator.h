@@ -36,43 +36,62 @@ class EnvironmentsLogging : public EnvironmentsStub {
   ~EnvironmentsLogging() override = default;
   EnvironmentsLogging(std::shared_ptr<EnvironmentsStub> child,
                       TracingOptions tracing_options,
-                      std::set<std::string> components);
+                      std::set<std::string> const& components);
 
   StatusOr<google::cloud::dialogflow::v2::ListEnvironmentsResponse>
-  ListEnvironments(grpc::ClientContext& context,
+  ListEnvironments(grpc::ClientContext& context, Options const& options,
                    google::cloud::dialogflow::v2::ListEnvironmentsRequest const&
                        request) override;
 
   StatusOr<google::cloud::dialogflow::v2::Environment> GetEnvironment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::GetEnvironmentRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::v2::Environment> CreateEnvironment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::CreateEnvironmentRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::v2::Environment> UpdateEnvironment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::UpdateEnvironmentRequest const& request)
       override;
 
   Status DeleteEnvironment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::DeleteEnvironmentRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::v2::EnvironmentHistory>
   GetEnvironmentHistory(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::GetEnvironmentHistoryRequest const&
           request) override;
+
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
 
  private:
   std::shared_ptr<EnvironmentsStub> child_;
   TracingOptions tracing_options_;
-  std::set<std::string> components_;
 };  // EnvironmentsLogging
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "google/cloud/internal/async_connection_ready.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/options.h"
 
 namespace google {
@@ -33,9 +34,9 @@ future<Status> AsyncConnectionReadyFuture::Start() {
 
 void AsyncConnectionReadyFuture::Notify(bool ok) {
   if (!ok) {
-    promise_.set_value(
-        Status(StatusCode::kDeadlineExceeded,
-               "Connection couldn't connect before requested deadline"));
+    promise_.set_value(internal::DeadlineExceededError(
+        "Connection couldn't connect before requested deadline",
+        GCP_ERROR_INFO()));
     return;
   }
   auto state = channel_->GetState(true);
@@ -44,9 +45,9 @@ void AsyncConnectionReadyFuture::Notify(bool ok) {
     return;
   }
   if (state == GRPC_CHANNEL_SHUTDOWN) {
-    promise_.set_value(
-        Status(StatusCode::kCancelled,
-               "Connection will never succeed because it's shut down."));
+    promise_.set_value(internal::CancelledError(
+        "Connection will never succeed because it's shut down.",
+        GCP_ERROR_INFO()));
     return;
   }
   // If connection was idle, GetState(true) triggered an attempt to connect.
@@ -56,7 +57,6 @@ void AsyncConnectionReadyFuture::Notify(bool ok) {
 }
 
 void AsyncConnectionReadyFuture::RunIteration() {
-  auto options = CurrentOptions();
   // If the connection is ready, we do not need to wait for a state change.
   auto state = channel_->GetState(true);
   if (state == GRPC_CHANNEL_READY) {
@@ -64,8 +64,8 @@ void AsyncConnectionReadyFuture::RunIteration() {
     return;
   }
   NotifyOnStateChange::Start(cq_, channel_, deadline_, state)
-      .then([s = shared_from_this(), o = std::move(options)](auto f) {
-        OptionsSpan span(o);
+      .then([s = shared_from_this(), c = CallContext{}](auto f) {
+        ScopedCallContext scope(std::move(c));
         s->Notify(f.get());
       });
 }
@@ -91,7 +91,7 @@ future<bool> NotifyOnStateChange::Start(
 }
 
 bool NotifyOnStateChange::Notify(bool ok) {
-  OptionsSpan span(options_);
+  ScopedCallContext scope(call_context_);
   promise_.set_value(ok);
   return true;
 }

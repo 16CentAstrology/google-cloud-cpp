@@ -15,11 +15,15 @@
 #ifndef GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_STORAGE_TESTING_MOCK_HTTP_REQUEST_H
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_STORAGE_TESTING_MOCK_HTTP_REQUEST_H
 
-#include "google/cloud/storage/internal/curl_handle_factory.h"
-#include "google/cloud/storage/internal/curl_request.h"
+#include "google/cloud/storage/internal/http_response.h"
+#include "google/cloud/storage/well_known_parameters.h"
+#include "google/cloud/internal/curl_handle_factory.h"
+#include "google/cloud/status_or.h"
 #include <gmock/gmock.h>
 #include <nlohmann/json.hpp>
+#include <memory>
 #include <string>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -42,7 +46,7 @@ class MockHttpRequest {
   }
 
   struct Impl {
-    MOCK_METHOD(StatusOr<storage::internal::HttpResponse>, MakeRequest,
+    MOCK_METHOD(StatusOr<internal::HttpResponse>, MakeRequest,
                 (std::string const&));
   };
 

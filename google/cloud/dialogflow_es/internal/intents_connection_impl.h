@@ -73,49 +73,42 @@ class IntentsConnectionImpl : public dialogflow_es::IntentsConnection {
       google::cloud::dialogflow::v2::BatchUpdateIntentsRequest const& request)
       override;
 
+  StatusOr<google::longrunning::Operation> BatchUpdateIntents(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::BatchUpdateIntentsRequest const& request)
+      override;
+
+  future<StatusOr<google::cloud::dialogflow::v2::BatchUpdateIntentsResponse>>
+  BatchUpdateIntents(google::longrunning::Operation const& operation) override;
+
   future<StatusOr<google::protobuf::Struct>> BatchDeleteIntents(
       google::cloud::dialogflow::v2::BatchDeleteIntentsRequest const& request)
       override;
 
+  StatusOr<google::longrunning::Operation> BatchDeleteIntents(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::BatchDeleteIntentsRequest const& request)
+      override;
+
+  future<StatusOr<google::protobuf::Struct>> BatchDeleteIntents(
+      google::longrunning::Operation const& operation) override;
+
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_es::IntentsRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::IntentsRetryPolicyOption>()) {
-      return options.get<dialogflow_es::IntentsRetryPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_es::IntentsRetryPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::IntentsBackoffPolicyOption>()) {
-      return options.get<dialogflow_es::IntentsBackoffPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_es::IntentsBackoffPolicyOption>()->clone();
-  }
-
-  std::unique_ptr<dialogflow_es::IntentsConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options
-            .has<dialogflow_es::IntentsConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_es::IntentsConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_es::IntentsConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<PollingPolicy> polling_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::IntentsPollingPolicyOption>()) {
-      return options.get<dialogflow_es::IntentsPollingPolicyOption>()->clone();
-    }
-    return options_.get<dialogflow_es::IntentsPollingPolicyOption>()->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_es_internal::IntentsStub> stub_;
   Options options_;

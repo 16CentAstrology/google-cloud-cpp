@@ -22,8 +22,9 @@
 #include "google/cloud/testing_util/fake_completion_queue_impl.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include "google/cloud/testing_util/validate_metadata.h"
-#include "absl/memory/memory.h"
 #include <gmock/gmock.h>
+#include <iomanip>
+#include <sstream>
 #include <thread>
 
 namespace google {
@@ -36,7 +37,7 @@ namespace btproto = ::google::bigtable::v2;
 
 using ::google::cloud::bigtable::testing::MockClientAsyncReaderInterface;
 using ::google::cloud::testing_util::ValidateMetadataFixture;
-using ::google::cloud::testing_util::chrono_literals::operator"" _ms;  // NOLINT
+using ::google::cloud::testing_util::chrono_literals::operator""_ms;
 using ::google::cloud::testing_util::FakeCompletionQueueImpl;
 using ::testing::HasSubstr;
 using ::testing::Values;
@@ -75,7 +76,7 @@ class TableAsyncReadRowsTest : public bigtable::testing::TableTestFixture {
                       grpc::CompletionQueue*) {
           validate_metadata_fixture_.IsContextMDValid(
               *context, "google.bigtable.v2.Bigtable.ReadRows", r,
-              google::cloud::internal::ApiClientHeader());
+              google::cloud::internal::HandCraftedLibClientHeader());
           (*request_expectations_ptr)(r);
           return std::unique_ptr<
               MockClientAsyncReaderInterface<btproto::ReadRowsResponse>>(
@@ -119,9 +120,9 @@ class TableAsyncReadRowsTest : public bigtable::testing::TableTestFixture {
   /// Expect a row whose row key is equal to this function's argument.
   template <typename T>
   void ExpectRow(T const& row) {
-    row_promises_.emplace(promise<RowKeyType>());
+    row_promises_.emplace();
     row_futures_.emplace_back(row_promises_.back().get_future());
-    promises_from_user_cb_.emplace_back(promise<bool>());
+    promises_from_user_cb_.emplace_back();
     futures_from_user_cb_.emplace(promises_from_user_cb_.back().get_future());
     expected_rows_.push(RowKeyType(row));
   }

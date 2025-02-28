@@ -22,6 +22,7 @@
 #include "google/cloud/status_or.h"
 #include <google/cloud/pubsublite/v1/subscriber.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -35,14 +36,61 @@ std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
     google::cloud::pubsublite::v1::PartitionAssignment>>
 DefaultPartitionAssignmentServiceStub::AsyncAssignPartitions(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context) {
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options) {
   return google::cloud::internal::MakeStreamingReadWriteRpc<
       google::cloud::pubsublite::v1::PartitionAssignmentRequest,
       google::cloud::pubsublite::v1::PartitionAssignment>(
-      cq, std::move(context),
+      cq, std::move(context), std::move(options),
       [this](grpc::ClientContext* context, grpc::CompletionQueue* cq) {
         return grpc_stub_->PrepareAsyncAssignPartitions(context, cq);
       });
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+DefaultPartitionAssignmentServiceStub::ListOperations(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::ListOperationsRequest const& request) {
+  google::longrunning::ListOperationsResponse response;
+  auto status = operations_stub_->ListOperations(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::longrunning::Operation>
+DefaultPartitionAssignmentServiceStub::GetOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::GetOperationRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = operations_stub_->GetOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+Status DefaultPartitionAssignmentServiceStub::DeleteOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::DeleteOperationRequest const& request) {
+  google::protobuf::Empty response;
+  auto status = operations_stub_->DeleteOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return google::cloud::Status();
+}
+
+Status DefaultPartitionAssignmentServiceStub::CancelOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::CancelOperationRequest const& request) {
+  google::protobuf::Empty response;
+  auto status = operations_stub_->CancelOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return google::cloud::Status();
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

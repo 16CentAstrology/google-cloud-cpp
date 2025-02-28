@@ -20,9 +20,11 @@
 #define GOOGLE_CLOUD_CPP_GENERATOR_INTEGRATION_TESTS_GOLDEN_V1_GOLDEN_KITCHEN_SINK_CONNECTION_IDEMPOTENCY_POLICY_H
 
 #include "google/cloud/idempotency.h"
-#include "google/cloud/internal/retry_policy.h"
 #include "google/cloud/version.h"
 #include <generator/integration_tests/test.grpc.pb.h>
+#include <google/cloud/location/locations.grpc.pb.h>
+#include <google/iam/v1/iam_policy.grpc.pb.h>
+#include <google/longrunning/operations.grpc.pb.h>
 #include <memory>
 
 namespace google {
@@ -56,10 +58,22 @@ class GoldenKitchenSinkConnectionIdempotencyPolicy {
   DoNothing(google::protobuf::Empty const& request);
 
   virtual google::cloud::Idempotency
+  Deprecated2(google::test::admin::database::v1::GenerateAccessTokenRequest const& request);
+
+  virtual google::cloud::Idempotency
   ExplicitRouting1(google::test::admin::database::v1::ExplicitRoutingRequest const& request);
 
   virtual google::cloud::Idempotency
   ExplicitRouting2(google::test::admin::database::v1::ExplicitRoutingRequest const& request);
+
+  virtual google::cloud::Idempotency
+  GetLocation(google::cloud::location::GetLocationRequest const& request);
+
+  virtual google::cloud::Idempotency
+  GetIamPolicy(google::iam::v1::GetIamPolicyRequest const& request);
+
+  virtual google::cloud::Idempotency
+  ListOperations(google::longrunning::ListOperationsRequest request);
 };
 
 std::unique_ptr<GoldenKitchenSinkConnectionIdempotencyPolicy>

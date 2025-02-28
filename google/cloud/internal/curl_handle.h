@@ -30,6 +30,7 @@ namespace rest_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 class CurlHandleFactory;
+class RestContext;
 
 /**
  * Wraps CURL* handles in a safer C++ interface.
@@ -71,9 +72,8 @@ class CurlHandle {
 
   /// URL-escapes a string.
   CurlString MakeEscapedString(std::string const& s) {
-    return CurlString(
-        curl_easy_escape(handle_.get(), s.data(), static_cast<int>(s.length())),
-        &curl_free);
+    return CurlString(curl_easy_escape(handle_.get(), s.data(),
+                                       static_cast<int>(s.length())));
   }
 
   template <typename T>
@@ -114,6 +114,8 @@ class CurlHandle {
    * contents of the string if there was an error are otherwise unspecified.
    */
   std::string GetPeer();
+
+  void CaptureMetadata(RestContext& context);
 
   Status EasyPause(int bitmask) {
     auto e = curl_easy_pause(handle_.get(), bitmask);

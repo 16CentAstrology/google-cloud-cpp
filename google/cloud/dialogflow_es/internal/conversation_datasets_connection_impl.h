@@ -57,6 +57,15 @@ class ConversationDatasetsConnectionImpl
       google::cloud::dialogflow::v2::CreateConversationDatasetRequest const&
           request) override;
 
+  StatusOr<google::longrunning::Operation> CreateConversationDataset(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::CreateConversationDatasetRequest const&
+          request) override;
+
+  future<StatusOr<google::cloud::dialogflow::v2::ConversationDataset>>
+  CreateConversationDataset(
+      google::longrunning::Operation const& operation) override;
+
   StatusOr<google::cloud::dialogflow::v2::ConversationDataset>
   GetConversationDataset(
       google::cloud::dialogflow::v2::GetConversationDatasetRequest const&
@@ -73,67 +82,48 @@ class ConversationDatasetsConnectionImpl
       google::cloud::dialogflow::v2::DeleteConversationDatasetRequest const&
           request) override;
 
+  StatusOr<google::longrunning::Operation> DeleteConversationDataset(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::DeleteConversationDatasetRequest const&
+          request) override;
+
+  future<StatusOr<google::cloud::dialogflow::v2::
+                      DeleteConversationDatasetOperationMetadata>>
+  DeleteConversationDataset(
+      google::longrunning::Operation const& operation) override;
+
   future<StatusOr<
       google::cloud::dialogflow::v2::ImportConversationDataOperationResponse>>
   ImportConversationData(
       google::cloud::dialogflow::v2::ImportConversationDataRequest const&
           request) override;
 
+  StatusOr<google::longrunning::Operation> ImportConversationData(
+      NoAwaitTag,
+      google::cloud::dialogflow::v2::ImportConversationDataRequest const&
+          request) override;
+
+  future<StatusOr<
+      google::cloud::dialogflow::v2::ImportConversationDataOperationResponse>>
+  ImportConversationData(
+      google::longrunning::Operation const& operation) override;
+
+  StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<dialogflow_es::ConversationDatasetsRetryPolicy>
-  retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::ConversationDatasetsRetryPolicyOption>()) {
-      return options
-          .get<dialogflow_es::ConversationDatasetsRetryPolicyOption>()
-          ->clone();
-    }
-    return options_.get<dialogflow_es::ConversationDatasetsRetryPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::ConversationDatasetsBackoffPolicyOption>()) {
-      return options
-          .get<dialogflow_es::ConversationDatasetsBackoffPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_es::ConversationDatasetsBackoffPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<
-      dialogflow_es::ConversationDatasetsConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options
-            .has<dialogflow_es::
-                     ConversationDatasetsConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<dialogflow_es::
-                   ConversationDatasetsConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_es::
-                 ConversationDatasetsConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<PollingPolicy> polling_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<dialogflow_es::ConversationDatasetsPollingPolicyOption>()) {
-      return options
-          .get<dialogflow_es::ConversationDatasetsPollingPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<dialogflow_es::ConversationDatasetsPollingPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<dialogflow_es_internal::ConversationDatasetsStub> stub_;
   Options options_;

@@ -25,9 +25,12 @@
 
 /// Specialize `std::coroutine_traits` for `google::cloud::future<T>`.
 template <typename T, typename... Args>
-requires(!std::is_void_v<T> && !std::is_reference_v<T>) /**/
-    struct std::coroutine_traits<google::cloud::future<T>, Args...> {
-  struct promise_type {
+  requires(!std::is_void_v<T> && !std::is_reference_v<T>) /**/
+struct std::coroutine_traits<google::cloud::future<T>, Args...> {
+  // C++20 coroutines require snake_case for this type. Our clang-tidy
+  // configuration is set to follow the Google Style Guide, which require
+  // PascalCase.
+  struct promise_type {  // NOLINT(readability-identifier-naming)
     google::cloud::promise<T> impl;
 
     [[nodiscard]] google::cloud::future<T> get_return_object() noexcept {
@@ -58,7 +61,10 @@ requires(!std::is_void_v<T> && !std::is_reference_v<T>) /**/
 /// Specialize `std::coroutine_traits` for `google::cloud::future<void>`.
 template <typename... Args>
 struct std::coroutine_traits<google::cloud::future<void>, Args...> {
-  struct promise_type {
+  // C++20 coroutines require snake_case for this type. Our clang-tidy
+  // configuration is set to follow the Google Style Guide, which require
+  // PascalCase.
+  struct promise_type {  // NOLINT(readability-identifier-naming)
     google::cloud::promise<void> impl;
 
     [[nodiscard]] google::cloud::future<void> get_return_object() noexcept {
@@ -85,43 +91,41 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 /// Overload `co_await` for `google::cloud::future<T>`
 template <typename T>
 auto operator co_await(future<T> f) noexcept
-    requires(!std::is_reference_v<T>) /**/ {
-  struct awaiter {
+  requires(!std::is_reference_v<T>) /**/ {
+  struct Awaiter {
     future<T> impl;
 
     /// Return `true` if the future is already satisfied.
-    [[nodiscard]] bool await_ready() const noexcept {
-      using namespace std::chrono_literals;
-      return impl.is_ready();
-    }
+    [[nodiscard]] bool await_ready() const noexcept { return impl.is_ready(); }
 
     /// Suspend execution until the future becomes satisfied.
     void await_suspend(std::coroutine_handle<> h) {
-      struct continuation : public internal::continuation_base {
+      struct AndThen
+          : public internal::Continuation<internal::SharedStateValue<T>> {
         std::coroutine_handle<> handle;
 
-        explicit continuation(std::coroutine_handle<>&& h)
-            : handle(std::move(h)) {}
+        explicit AndThen(std::coroutine_handle<> h) : handle(std::move(h)) {}
 
         // When the future becomes satisfied we resume the coroutine. At that
         // point the coroutine will call `await_resume()` to get the value.
-        void execute() override { handle.resume(); }
+        void Execute(internal::SharedStateType<T>&) override {
+          handle.resume();
+        }
       };
 
       // We cannot use `impl.then()` because that returns a new future, and
       // coroutines expect the future to remain unchanged.  We reach into the
       // future's internals to set up a callback without invalidating the
       // future.
-      auto shared_state = internal::CoroutineSupport::get_shared_state(impl);
-      shared_state->set_continuation(
-          std::make_unique<continuation>(std::move(h)));
+      internal::CoroutineSupport::set_continuation(
+          impl, std::make_unique<AndThen>(std::move(h)));
     }
 
     // Get the value (or exception) from the future.
     T await_resume() { return impl.get(); }
   };
 
-  return awaiter{std::move(f)};
+  return Awaiter{std::move(f)};
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

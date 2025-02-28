@@ -21,6 +21,9 @@
 #include "google/cloud/status_or.h"
 #include <google/cloud/dialogflow/v2/fulfillment.grpc.pb.h>
 #include <memory>
+#include <set>
+#include <string>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -29,35 +32,90 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 FulfillmentsLogging::FulfillmentsLogging(
     std::shared_ptr<FulfillmentsStub> child, TracingOptions tracing_options,
-    std::set<std::string> components)
-    : child_(std::move(child)),
-      tracing_options_(std::move(tracing_options)),
-      components_(std::move(components)) {}
+    std::set<std::string> const&)
+    : child_(std::move(child)), tracing_options_(std::move(tracing_options)) {}
 
 StatusOr<google::cloud::dialogflow::v2::Fulfillment>
 FulfillmentsLogging::GetFulfillment(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::v2::GetFulfillmentRequest const& request) {
   return google::cloud::internal::LogWrapper(
       [this](
-          grpc::ClientContext& context,
+          grpc::ClientContext& context, Options const& options,
           google::cloud::dialogflow::v2::GetFulfillmentRequest const& request) {
-        return child_->GetFulfillment(context, request);
+        return child_->GetFulfillment(context, options, request);
       },
-      context, request, __func__, tracing_options_);
+      context, options, request, __func__, tracing_options_);
 }
 
 StatusOr<google::cloud::dialogflow::v2::Fulfillment>
 FulfillmentsLogging::UpdateFulfillment(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::v2::UpdateFulfillmentRequest const& request) {
   return google::cloud::internal::LogWrapper(
-      [this](grpc::ClientContext& context,
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::dialogflow::v2::UpdateFulfillmentRequest const&
                  request) {
-        return child_->UpdateFulfillment(context, request);
+        return child_->UpdateFulfillment(context, options, request);
       },
-      context, request, __func__, tracing_options_);
+      context, options, request, __func__, tracing_options_);
+}
+
+StatusOr<google::cloud::location::ListLocationsResponse>
+FulfillmentsLogging::ListLocations(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::ListLocationsRequest const& request) {
+  return google::cloud::internal::LogWrapper(
+      [this](grpc::ClientContext& context, Options const& options,
+             google::cloud::location::ListLocationsRequest const& request) {
+        return child_->ListLocations(context, options, request);
+      },
+      context, options, request, __func__, tracing_options_);
+}
+
+StatusOr<google::cloud::location::Location> FulfillmentsLogging::GetLocation(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::GetLocationRequest const& request) {
+  return google::cloud::internal::LogWrapper(
+      [this](grpc::ClientContext& context, Options const& options,
+             google::cloud::location::GetLocationRequest const& request) {
+        return child_->GetLocation(context, options, request);
+      },
+      context, options, request, __func__, tracing_options_);
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+FulfillmentsLogging::ListOperations(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::ListOperationsRequest const& request) {
+  return google::cloud::internal::LogWrapper(
+      [this](grpc::ClientContext& context, Options const& options,
+             google::longrunning::ListOperationsRequest const& request) {
+        return child_->ListOperations(context, options, request);
+      },
+      context, options, request, __func__, tracing_options_);
+}
+
+StatusOr<google::longrunning::Operation> FulfillmentsLogging::GetOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::GetOperationRequest const& request) {
+  return google::cloud::internal::LogWrapper(
+      [this](grpc::ClientContext& context, Options const& options,
+             google::longrunning::GetOperationRequest const& request) {
+        return child_->GetOperation(context, options, request);
+      },
+      context, options, request, __func__, tracing_options_);
+}
+
+Status FulfillmentsLogging::CancelOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::CancelOperationRequest const& request) {
+  return google::cloud::internal::LogWrapper(
+      [this](grpc::ClientContext& context, Options const& options,
+             google::longrunning::CancelOperationRequest const& request) {
+        return child_->CancelOperation(context, options, request);
+      },
+      context, options, request, __func__, tracing_options_);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

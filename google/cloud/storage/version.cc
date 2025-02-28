@@ -15,6 +15,7 @@
 #include "google/cloud/storage/version.h"
 #include "google/cloud/internal/api_client_header.h"
 #include <limits>
+#include <string>
 
 namespace google {
 namespace cloud {
@@ -24,7 +25,7 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 std::string version_string() { return ::google::cloud::version_string(); }
 
 std::string x_goog_api_client() {
-  return google::cloud::internal::ApiClientHeader();
+  return google::cloud::internal::HandCraftedLibClientHeader();
 }
 
 // These were sprinkled through the code, consolidated here because I could

@@ -18,6 +18,7 @@
 
 #include "google/cloud/iam/v2/policies_client.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -70,16 +71,54 @@ future<StatusOr<google::iam::v2::Policy>> PoliciesClient::CreatePolicy(
   return connection_->CreatePolicy(request);
 }
 
+StatusOr<google::longrunning::Operation> PoliciesClient::CreatePolicy(
+    NoAwaitTag, std::string const& parent,
+    google::iam::v2::Policy const& policy, std::string const& policy_id,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::iam::v2::CreatePolicyRequest request;
+  request.set_parent(parent);
+  *request.mutable_policy() = policy;
+  request.set_policy_id(policy_id);
+  return connection_->CreatePolicy(NoAwaitTag{}, request);
+}
+
 future<StatusOr<google::iam::v2::Policy>> PoliciesClient::CreatePolicy(
     google::iam::v2::CreatePolicyRequest const& request, Options opts) {
   internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
   return connection_->CreatePolicy(request);
 }
 
+StatusOr<google::longrunning::Operation> PoliciesClient::CreatePolicy(
+    NoAwaitTag, google::iam::v2::CreatePolicyRequest const& request,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->CreatePolicy(NoAwaitTag{}, request);
+}
+
+future<StatusOr<google::iam::v2::Policy>> PoliciesClient::CreatePolicy(
+    google::longrunning::Operation const& operation, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->CreatePolicy(operation);
+}
+
 future<StatusOr<google::iam::v2::Policy>> PoliciesClient::UpdatePolicy(
     google::iam::v2::UpdatePolicyRequest const& request, Options opts) {
   internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
   return connection_->UpdatePolicy(request);
+}
+
+StatusOr<google::longrunning::Operation> PoliciesClient::UpdatePolicy(
+    NoAwaitTag, google::iam::v2::UpdatePolicyRequest const& request,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->UpdatePolicy(NoAwaitTag{}, request);
+}
+
+future<StatusOr<google::iam::v2::Policy>> PoliciesClient::UpdatePolicy(
+    google::longrunning::Operation const& operation, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->UpdatePolicy(operation);
 }
 
 future<StatusOr<google::iam::v2::Policy>> PoliciesClient::DeletePolicy(
@@ -90,10 +129,45 @@ future<StatusOr<google::iam::v2::Policy>> PoliciesClient::DeletePolicy(
   return connection_->DeletePolicy(request);
 }
 
+StatusOr<google::longrunning::Operation> PoliciesClient::DeletePolicy(
+    NoAwaitTag, std::string const& name, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::iam::v2::DeletePolicyRequest request;
+  request.set_name(name);
+  return connection_->DeletePolicy(NoAwaitTag{}, request);
+}
+
 future<StatusOr<google::iam::v2::Policy>> PoliciesClient::DeletePolicy(
     google::iam::v2::DeletePolicyRequest const& request, Options opts) {
   internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
   return connection_->DeletePolicy(request);
+}
+
+StatusOr<google::longrunning::Operation> PoliciesClient::DeletePolicy(
+    NoAwaitTag, google::iam::v2::DeletePolicyRequest const& request,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->DeletePolicy(NoAwaitTag{}, request);
+}
+
+future<StatusOr<google::iam::v2::Policy>> PoliciesClient::DeletePolicy(
+    google::longrunning::Operation const& operation, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->DeletePolicy(operation);
+}
+
+StatusOr<google::longrunning::Operation> PoliciesClient::GetOperation(
+    std::string const& name, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::longrunning::GetOperationRequest request;
+  request.set_name(name);
+  return connection_->GetOperation(request);
+}
+
+StatusOr<google::longrunning::Operation> PoliciesClient::GetOperation(
+    google::longrunning::GetOperationRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->GetOperation(request);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

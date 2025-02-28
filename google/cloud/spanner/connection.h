@@ -20,6 +20,7 @@
 #include "google/cloud/spanner/commit_result.h"
 #include "google/cloud/spanner/keys.h"
 #include "google/cloud/spanner/mutations.h"
+#include "google/cloud/spanner/options.h"
 #include "google/cloud/spanner/partition_options.h"
 #include "google/cloud/spanner/partitioned_dml_result.h"
 #include "google/cloud/spanner/query_options.h"
@@ -60,7 +61,7 @@ class Connection {
  public:
   virtual ~Connection() = default;
 
-  //@{
+  ///@{
   /**
    * @name Defines the arguments for each member function.
    *
@@ -78,6 +79,8 @@ class Connection {
     std::vector<std::string> columns;
     ReadOptions read_options;
     absl::optional<std::string> partition_token;
+    bool partition_data_boost = false;  // when partition_token
+    DirectedReadOption::Type directed_read_option;
   };
 
   /// Wrap the arguments to `PartitionRead()`.
@@ -93,6 +96,8 @@ class Connection {
     SqlStatement statement;
     QueryOptions query_options;
     absl::optional<std::string> partition_token;
+    bool partition_data_boost = false;  // when partition_token
+    DirectedReadOption::Type directed_read_option;
   };
 
   /// Wrap the arguments to `ExecutePartitionedDml()`.
@@ -126,7 +131,13 @@ class Connection {
   struct RollbackParams {
     Transaction transaction;
   };
-  //@}
+
+  /// Wrap the arguments to `BatchWrite()`.
+  struct BatchWriteParams {
+    std::vector<Mutations> mutation_groups;
+    Options options;
+  };
+  ///@}
 
   /// Returns the options used by the Connection.
   virtual Options options() { return Options{}; }
@@ -169,6 +180,9 @@ class Connection {
 
   /// Defines the interface for `Client::Rollback()`
   virtual Status Rollback(RollbackParams);
+
+  /// Defines the interface for batched `Client::CommitAtLeastOnce()`
+  virtual BatchedCommitResultStream BatchWrite(BatchWriteParams);
 };
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

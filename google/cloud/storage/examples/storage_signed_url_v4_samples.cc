@@ -16,6 +16,10 @@
 #include "google/cloud/storage/examples/storage_examples_common.h"
 #include "google/cloud/internal/getenv.h"
 #include <iostream>
+#include <random>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -27,11 +31,11 @@ void CreateGetSignedUrlV4(google::cloud::storage::Client client,
   [](gcs::Client client, std::string const& bucket_name,
      std::string const& object_name, std::string const& signing_account) {
     StatusOr<std::string> signed_url = client.CreateV4SignedUrl(
-        "GET", std::move(bucket_name), std::move(object_name),
+        "GET", bucket_name, object_name,
         gcs::SignedUrlDuration(std::chrono::minutes(15)),
         gcs::SigningAccount(signing_account));
 
-    if (!signed_url) throw std::runtime_error(signed_url.status().message());
+    if (!signed_url) throw std::move(signed_url).status();
     std::cout << "The signed url is: " << *signed_url << "\n\n"
               << "You can use this URL with any user agent, for example:\n"
               << "curl '" << *signed_url << "'\n";
@@ -48,12 +52,12 @@ void CreatePutSignedUrlV4(google::cloud::storage::Client client,
   [](gcs::Client client, std::string const& bucket_name,
      std::string const& object_name, std::string const& signing_account) {
     StatusOr<std::string> signed_url = client.CreateV4SignedUrl(
-        "PUT", std::move(bucket_name), std::move(object_name),
+        "PUT", bucket_name, object_name,
         gcs::SignedUrlDuration(std::chrono::minutes(15)),
         gcs::AddExtensionHeader("content-type", "application/octet-stream"),
         gcs::SigningAccount(signing_account));
 
-    if (!signed_url) throw std::runtime_error(signed_url.status().message());
+    if (!signed_url) throw std::move(signed_url).status();
     std::cout << "The signed url is: " << *signed_url << "\n\n"
               << "You can use this URL with any user agent, for example:\n"
               << "curl -X PUT -H 'Content-Type: application/octet-stream'"

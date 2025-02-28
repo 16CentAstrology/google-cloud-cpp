@@ -21,13 +21,35 @@
 #include "google/cloud/background_threads.h"
 #include "google/cloud/common_options.h"
 #include "google/cloud/grpc_options.h"
+#include "google/cloud/internal/pagination_range.h"
 #include "google/cloud/internal/retry_loop.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
 namespace pubsublite_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
+namespace {
+
+std::unique_ptr<pubsublite::TopicStatsServiceRetryPolicy> retry_policy(
+    Options const& options) {
+  return options.get<pubsublite::TopicStatsServiceRetryPolicyOption>()->clone();
+}
+
+std::unique_ptr<BackoffPolicy> backoff_policy(Options const& options) {
+  return options.get<pubsublite::TopicStatsServiceBackoffPolicyOption>()
+      ->clone();
+}
+
+std::unique_ptr<pubsublite::TopicStatsServiceConnectionIdempotencyPolicy>
+idempotency_policy(Options const& options) {
+  return options
+      .get<pubsublite::TopicStatsServiceConnectionIdempotencyPolicyOption>()
+      ->clone();
+}
+
+}  // namespace
 
 TopicStatsServiceConnectionImpl::TopicStatsServiceConnectionImpl(
     std::unique_ptr<google::cloud::BackgroundThreads> background,
@@ -41,43 +63,119 @@ TopicStatsServiceConnectionImpl::TopicStatsServiceConnectionImpl(
 StatusOr<google::cloud::pubsublite::v1::ComputeMessageStatsResponse>
 TopicStatsServiceConnectionImpl::ComputeMessageStats(
     google::cloud::pubsublite::v1::ComputeMessageStatsRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->ComputeMessageStats(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->ComputeMessageStats(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::pubsublite::v1::ComputeMessageStatsRequest const&
                  request) {
-        return stub_->ComputeMessageStats(context, request);
+        return stub_->ComputeMessageStats(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StatusOr<google::cloud::pubsublite::v1::ComputeHeadCursorResponse>
 TopicStatsServiceConnectionImpl::ComputeHeadCursor(
     google::cloud::pubsublite::v1::ComputeHeadCursorRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->ComputeHeadCursor(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->ComputeHeadCursor(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::pubsublite::v1::ComputeHeadCursorRequest const&
                  request) {
-        return stub_->ComputeHeadCursor(context, request);
+        return stub_->ComputeHeadCursor(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StatusOr<google::cloud::pubsublite::v1::ComputeTimeCursorResponse>
 TopicStatsServiceConnectionImpl::ComputeTimeCursor(
     google::cloud::pubsublite::v1::ComputeTimeCursorRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->ComputeTimeCursor(request),
-      [this](grpc::ClientContext& context,
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->ComputeTimeCursor(request),
+      [this](grpc::ClientContext& context, Options const& options,
              google::cloud::pubsublite::v1::ComputeTimeCursorRequest const&
                  request) {
-        return stub_->ComputeTimeCursor(context, request);
+        return stub_->ComputeTimeCursor(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
+}
+
+StreamRange<google::longrunning::Operation>
+TopicStatsServiceConnectionImpl::ListOperations(
+    google::longrunning::ListOperationsRequest request) {
+  request.clear_page_token();
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency = idempotency_policy(*current)->ListOperations(request);
+  char const* function_name = __func__;
+  return google::cloud::internal::MakePaginationRange<
+      StreamRange<google::longrunning::Operation>>(
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<pubsublite::TopicStatsServiceRetryPolicy>(
+           retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options,
+          google::longrunning::ListOperationsRequest const& r) {
+        return google::cloud::internal::RetryLoop(
+            retry->clone(), backoff->clone(), idempotency,
+            [stub](grpc::ClientContext& context, Options const& options,
+                   google::longrunning::ListOperationsRequest const& request) {
+              return stub->ListOperations(context, options, request);
+            },
+            options, r, function_name);
+      },
+      [](google::longrunning::ListOperationsResponse r) {
+        std::vector<google::longrunning::Operation> result(
+            r.operations().size());
+        auto& messages = *r.mutable_operations();
+        std::move(messages.begin(), messages.end(), result.begin());
+        return result;
+      });
+}
+
+StatusOr<google::longrunning::Operation>
+TopicStatsServiceConnectionImpl::GetOperation(
+    google::longrunning::GetOperationRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->GetOperation(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::longrunning::GetOperationRequest const& request) {
+        return stub_->GetOperation(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+Status TopicStatsServiceConnectionImpl::DeleteOperation(
+    google::longrunning::DeleteOperationRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->DeleteOperation(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::longrunning::DeleteOperationRequest const& request) {
+        return stub_->DeleteOperation(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+Status TopicStatsServiceConnectionImpl::CancelOperation(
+    google::longrunning::CancelOperationRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->CancelOperation(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::longrunning::CancelOperationRequest const& request) {
+        return stub_->CancelOperation(context, options, request);
+      },
+      *current, request, __func__);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

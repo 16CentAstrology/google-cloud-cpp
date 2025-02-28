@@ -22,6 +22,7 @@
 #include "google/cloud/internal/populate_common_options.h"
 #include "google/cloud/internal/populate_grpc_options.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -33,11 +34,10 @@ auto constexpr kBackoffScaling = 2.0;
 }  // namespace
 
 Options PoliciesDefaultOptions(Options options) {
-  options = google::cloud::internal::PopulateCommonOptions(
+  options = internal::PopulateCommonOptions(
       std::move(options), "GOOGLE_CLOUD_CPP_POLICIES_ENDPOINT", "",
       "GOOGLE_CLOUD_CPP_POLICIES_AUTHORITY", "iam.googleapis.com");
-  options =
-      google::cloud::internal::PopulateGrpcOptions(std::move(options), "");
+  options = internal::PopulateGrpcOptions(std::move(options));
   if (!options.has<iam_v2::PoliciesRetryPolicyOption>()) {
     options.set<iam_v2::PoliciesRetryPolicyOption>(
         iam_v2::PoliciesLimitedTimeRetryPolicy(std::chrono::minutes(30))
@@ -45,8 +45,9 @@ Options PoliciesDefaultOptions(Options options) {
   }
   if (!options.has<iam_v2::PoliciesBackoffPolicyOption>()) {
     options.set<iam_v2::PoliciesBackoffPolicyOption>(
-        ExponentialBackoffPolicy(std::chrono::seconds(1),
-                                 std::chrono::minutes(5), kBackoffScaling)
+        ExponentialBackoffPolicy(
+            std::chrono::seconds(0), std::chrono::seconds(1),
+            std::chrono::minutes(5), kBackoffScaling, kBackoffScaling)
             .clone());
   }
   if (!options.has<iam_v2::PoliciesPollingPolicyOption>()) {
@@ -54,7 +55,9 @@ Options PoliciesDefaultOptions(Options options) {
         GenericPollingPolicy<iam_v2::PoliciesRetryPolicyOption::Type,
                              iam_v2::PoliciesBackoffPolicyOption::Type>(
             options.get<iam_v2::PoliciesRetryPolicyOption>()->clone(),
-            options.get<iam_v2::PoliciesBackoffPolicyOption>()->clone())
+            ExponentialBackoffPolicy(std::chrono::seconds(1),
+                                     std::chrono::minutes(5), kBackoffScaling)
+                .clone())
             .clone());
   }
   if (!options.has<iam_v2::PoliciesConnectionIdempotencyPolicyOption>()) {

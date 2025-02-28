@@ -20,7 +20,9 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_DIALOGFLOW_CX_INTERNAL_DEPLOYMENTS_METADATA_DECORATOR_H
 
 #include "google/cloud/dialogflow_cx/internal/deployments_stub.h"
+#include "google/cloud/options.h"
 #include "google/cloud/version.h"
+#include <map>
 #include <memory>
 #include <string>
 
@@ -32,25 +34,48 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 class DeploymentsMetadata : public DeploymentsStub {
  public:
   ~DeploymentsMetadata() override = default;
-  explicit DeploymentsMetadata(std::shared_ptr<DeploymentsStub> child);
+  DeploymentsMetadata(std::shared_ptr<DeploymentsStub> child,
+                      std::multimap<std::string, std::string> fixed_metadata,
+                      std::string api_client_header = "");
 
   StatusOr<google::cloud::dialogflow::cx::v3::ListDeploymentsResponse>
   ListDeployments(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::ListDeploymentsRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Deployment> GetDeployment(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetDeploymentRequest const& request)
       override;
 
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  void SetMetadata(grpc::ClientContext& context,
+  void SetMetadata(grpc::ClientContext& context, Options const& options,
                    std::string const& request_params);
-  void SetMetadata(grpc::ClientContext& context);
+  void SetMetadata(grpc::ClientContext& context, Options const& options);
 
   std::shared_ptr<DeploymentsStub> child_;
+  std::multimap<std::string, std::string> fixed_metadata_;
   std::string api_client_header_;
 };
 

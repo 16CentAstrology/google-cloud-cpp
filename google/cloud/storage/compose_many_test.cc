@@ -17,6 +17,9 @@
 #include "google/cloud/storage/testing/mock_client.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -64,8 +67,8 @@ TEST(ComposeMany, One) {
         auto parsed = nlohmann::json::parse(req.JsonPayload());
         auto source_objects = parsed["sourceObjects"];
         EXPECT_EQ(1, source_objects.size());
-        EXPECT_EQ(42, source_objects[0]["generation"]);
-        EXPECT_EQ("1", source_objects[0]["name"]);
+        EXPECT_EQ(42, source_objects[0].value("generation", 0));
+        EXPECT_EQ("1", source_objects[0].value("name", ""));
 
         return MockObject("test-bucket", "test-object", 42);
       });
@@ -73,7 +76,7 @@ TEST(ComposeMany, One) {
       .WillOnce([](internal::InsertObjectMediaRequest const& request) {
         EXPECT_EQ("test-bucket", request.bucket_name());
         EXPECT_EQ("prefix", request.object_name());
-        EXPECT_EQ("", request.contents());
+        EXPECT_EQ("", request.payload());
         return make_status_or(MockObject("test-bucket", "prefix", 42));
       });
   EXPECT_CALL(*mock, DeleteObject)
@@ -99,12 +102,12 @@ TEST(ComposeMany, Three) {
         auto parsed = nlohmann::json::parse(req.JsonPayload());
         auto source_objects = parsed["sourceObjects"];
         EXPECT_EQ(3, source_objects.size());
-        EXPECT_EQ(42, source_objects[0]["generation"]);
-        EXPECT_EQ("1", source_objects[0]["name"]);
-        EXPECT_EQ(43, source_objects[1]["generation"]);
-        EXPECT_EQ("2", source_objects[1]["name"]);
-        EXPECT_EQ(44, source_objects[2]["generation"]);
-        EXPECT_EQ("3", source_objects[2]["name"]);
+        EXPECT_EQ(42, source_objects[0].value("generation", 0));
+        EXPECT_EQ("1", source_objects[0].value("name", ""));
+        EXPECT_EQ(43, source_objects[1].value("generation", 0));
+        EXPECT_EQ("2", source_objects[1].value("name", ""));
+        EXPECT_EQ(44, source_objects[2].value("generation", 0));
+        EXPECT_EQ("3", source_objects[2].value("name", ""));
 
         return MockObject("test-bucket", "test-object", 42);
       });
@@ -112,7 +115,7 @@ TEST(ComposeMany, Three) {
       .WillOnce([](internal::InsertObjectMediaRequest const& request) {
         EXPECT_EQ("test-bucket", request.bucket_name());
         EXPECT_EQ("prefix", request.object_name());
-        EXPECT_EQ("", request.contents());
+        EXPECT_EQ("", request.payload());
         return make_status_or(MockObject("test-bucket", "prefix", 42));
       });
   EXPECT_CALL(*mock, DeleteObject)
@@ -147,7 +150,7 @@ TEST(ComposeMany, ThreeLayers) {
         EXPECT_EQ(32, source_objects.size());
 
         for (int i = 0; i != 32; ++i) {
-          EXPECT_EQ(std::to_string(i), source_objects[i]["name"]);
+          EXPECT_EQ(std::to_string(i), source_objects[i].value("name", ""));
         }
 
         return MockObject(req.bucket_name(), req.object_name(), 42);
@@ -162,7 +165,8 @@ TEST(ComposeMany, ThreeLayers) {
         EXPECT_EQ(31, source_objects.size());
 
         for (int i = 0; i != 31; ++i) {
-          EXPECT_EQ(std::to_string(i + 32), source_objects[i]["name"]);
+          EXPECT_EQ(std::to_string(i + 32),
+                    source_objects[i].value("name", ""));
         }
 
         return MockObject(req.bucket_name(), req.object_name(), 42);
@@ -175,8 +179,8 @@ TEST(ComposeMany, ThreeLayers) {
         auto source_objects = parsed["sourceObjects"];
 
         EXPECT_EQ(2, source_objects.size());
-        EXPECT_EQ("prefix.compose-tmp-0", source_objects[0]["name"]);
-        EXPECT_EQ("prefix.compose-tmp-1", source_objects[1]["name"]);
+        EXPECT_EQ("prefix.compose-tmp-0", source_objects[0].value("name", ""));
+        EXPECT_EQ("prefix.compose-tmp-1", source_objects[1].value("name", ""));
 
         return MockObject(req.bucket_name(), req.object_name(), 42);
       });
@@ -184,7 +188,7 @@ TEST(ComposeMany, ThreeLayers) {
       .WillOnce([](internal::InsertObjectMediaRequest const& request) {
         EXPECT_EQ("test-bucket", request.bucket_name());
         EXPECT_EQ("prefix", request.object_name());
-        EXPECT_EQ("", request.contents());
+        EXPECT_EQ("", request.payload());
         return make_status_or(MockObject("test-bucket", "prefix", 42));
       });
   EXPECT_CALL(*mock, DeleteObject)
@@ -234,7 +238,7 @@ TEST(ComposeMany, ComposeFails) {
       .WillOnce([](internal::InsertObjectMediaRequest const& request) {
         EXPECT_EQ("test-bucket", request.bucket_name());
         EXPECT_EQ("prefix", request.object_name());
-        EXPECT_EQ("", request.contents());
+        EXPECT_EQ("", request.payload());
         return make_status_or(MockObject("test-bucket", "prefix", 42));
       });
 
@@ -285,7 +289,7 @@ TEST(ComposeMany, CleanupFailsLoudly) {
       .WillOnce([](internal::InsertObjectMediaRequest const& request) {
         EXPECT_EQ("test-bucket", request.bucket_name());
         EXPECT_EQ("prefix", request.object_name());
-        EXPECT_EQ("", request.contents());
+        EXPECT_EQ("", request.payload());
         return make_status_or(MockObject("test-bucket", "prefix", 42));
       });
 
@@ -324,7 +328,7 @@ TEST(ComposeMany, CleanupFailsSilently) {
       .WillOnce([](internal::InsertObjectMediaRequest const& request) {
         EXPECT_EQ("test-bucket", request.bucket_name());
         EXPECT_EQ("prefix", request.object_name());
-        EXPECT_EQ("", request.contents());
+        EXPECT_EQ("", request.payload());
         return make_status_or(MockObject("test-bucket", "prefix", 42));
       });
 

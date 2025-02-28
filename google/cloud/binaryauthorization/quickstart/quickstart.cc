@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/binaryauthorization/binauthz_management_service_v1_client.h"
+//! [all]
+#include "google/cloud/binaryauthorization/v1/binauthz_management_service_v1_client.h"
 #include "google/cloud/project.h"
 #include <iostream>
 
@@ -22,7 +23,7 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace binaryauthorization = ::google::cloud::binaryauthorization;
+  namespace binaryauthorization = ::google::cloud::binaryauthorization_v1;
   auto client = binaryauthorization::BinauthzManagementServiceV1Client(
       binaryauthorization::MakeBinauthzManagementServiceV1Connection());
 
@@ -37,3 +38,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

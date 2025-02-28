@@ -17,7 +17,11 @@
 #include "google/cloud/internal/getenv.h"
 #include <chrono>
 #include <iostream>
+#include <random>
+#include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -30,10 +34,7 @@ void GetStaticWebsiteConfiguration(google::cloud::storage::Client client,
   [](gcs::Client client, std::string const& bucket_name) {
     StatusOr<gcs::BucketMetadata> bucket_metadata =
         client.GetBucketMetadata(bucket_name);
-
-    if (!bucket_metadata) {
-      throw std::runtime_error(bucket_metadata.status().message());
-    }
+    if (!bucket_metadata) throw std::move(bucket_metadata).status();
 
     if (!bucket_metadata->has_website()) {
       std::cout << "Static website configuration is not set for bucket "
@@ -63,28 +64,25 @@ void SetStaticWebsiteConfiguration(google::cloud::storage::Client client,
     StatusOr<gcs::BucketMetadata> original =
         client.GetBucketMetadata(bucket_name);
 
-    if (!original) throw std::runtime_error(original.status().message());
-    StatusOr<gcs::BucketMetadata> patched_metadata = client.PatchBucket(
+    if (!original) throw std::move(original).status();
+    StatusOr<gcs::BucketMetadata> patched = client.PatchBucket(
         bucket_name,
         gcs::BucketMetadataPatchBuilder().SetWebsite(
             gcs::BucketWebsite{main_page_suffix, not_found_page}),
         gcs::IfMetagenerationMatch(original->metageneration()));
+    if (!patched) throw std::move(patched).status();
 
-    if (!patched_metadata) {
-      throw std::runtime_error(patched_metadata.status().message());
-    }
-
-    if (!patched_metadata->has_website()) {
+    if (!patched->has_website()) {
       std::cout << "Static website configuration is not set for bucket "
-                << patched_metadata->name() << "\n";
+                << patched->name() << "\n";
       return;
     }
 
     std::cout << "Static website configuration successfully set for bucket "
-              << patched_metadata->name() << "\nNew main page suffix is: "
-              << patched_metadata->website().main_page_suffix
+              << patched->name() << "\nNew main page suffix is: "
+              << patched->website().main_page_suffix
               << "\nNew not found page is: "
-              << patched_metadata->website().not_found_page << "\n";
+              << patched->website().not_found_page << "\n";
   }
   // [END storage_define_bucket_website_configuration]
   //! [define bucket website configuration]
@@ -100,23 +98,20 @@ void RemoveStaticWebsiteConfiguration(google::cloud::storage::Client client,
     StatusOr<gcs::BucketMetadata> original =
         client.GetBucketMetadata(bucket_name);
 
-    if (!original) throw std::runtime_error(original.status().message());
-    StatusOr<gcs::BucketMetadata> patched_metadata = client.PatchBucket(
+    if (!original) throw std::move(original).status();
+    StatusOr<gcs::BucketMetadata> patched = client.PatchBucket(
         bucket_name, gcs::BucketMetadataPatchBuilder().ResetWebsite(),
         gcs::IfMetagenerationMatch(original->metageneration()));
+    if (!patched) throw std::move(patched).status();
 
-    if (!patched_metadata) {
-      throw std::runtime_error(patched_metadata.status().message());
-    }
-
-    if (!patched_metadata->has_website()) {
+    if (!patched->has_website()) {
       std::cout << "Static website configuration removed for bucket "
-                << patched_metadata->name() << "\n";
+                << patched->name() << "\n";
       return;
     }
 
     std::cout << "Static website configuration is set for bucket "
-              << patched_metadata->name()
+              << patched->name()
               << "\nThis is unexpected, and may indicate that another"
               << " application has modified the bucket concurrently.\n";
   }
@@ -140,7 +135,8 @@ void RunAll(std::vector<std::string> const& argv) {
   std::cout << "\nCreating bucket to run the example (" << bucket_name << ")"
             << std::endl;
   (void)client
-      .CreateBucketForProject(bucket_name, project_id, gcs::BucketMetadata{})
+      .CreateBucketForProject(bucket_name, project_id, gcs::BucketMetadata{},
+                              examples::CreateBucketOptions())
       .value();
   // In GCS a single project cannot create or delete buckets more often than
   // once every two seconds. We will pause until that time before deleting the

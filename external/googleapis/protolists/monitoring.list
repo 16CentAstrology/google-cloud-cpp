@@ -5,11 +5,16 @@
 @com_google_googleapis//google/monitoring/dashboard/v1:dashboard_filter.proto
 @com_google_googleapis//google/monitoring/dashboard/v1:dashboards_service.proto
 @com_google_googleapis//google/monitoring/dashboard/v1:drilldowns.proto
+@com_google_googleapis//google/monitoring/dashboard/v1:error_reporting_panel.proto
+@com_google_googleapis//google/monitoring/dashboard/v1:incident_list.proto
 @com_google_googleapis//google/monitoring/dashboard/v1:layouts.proto
 @com_google_googleapis//google/monitoring/dashboard/v1:logs_panel.proto
 @com_google_googleapis//google/monitoring/dashboard/v1:metrics.proto
+@com_google_googleapis//google/monitoring/dashboard/v1:piechart.proto
 @com_google_googleapis//google/monitoring/dashboard/v1:scorecard.proto
+@com_google_googleapis//google/monitoring/dashboard/v1:section_header.proto
 @com_google_googleapis//google/monitoring/dashboard/v1:service.proto
+@com_google_googleapis//google/monitoring/dashboard/v1:single_view_group.proto
 @com_google_googleapis//google/monitoring/dashboard/v1:table.proto
 @com_google_googleapis//google/monitoring/dashboard/v1:table_display_options.proto
 @com_google_googleapis//google/monitoring/dashboard/v1:text.proto
@@ -31,6 +36,8 @@
 @com_google_googleapis//google/monitoring/v3:query_service.proto
 @com_google_googleapis//google/monitoring/v3:service.proto
 @com_google_googleapis//google/monitoring/v3:service_service.proto
+@com_google_googleapis//google/monitoring/v3:snooze.proto
+@com_google_googleapis//google/monitoring/v3:snooze_service.proto
 @com_google_googleapis//google/monitoring/v3:span_context.proto
 @com_google_googleapis//google/monitoring/v3:uptime.proto
 @com_google_googleapis//google/monitoring/v3:uptime_service.proto

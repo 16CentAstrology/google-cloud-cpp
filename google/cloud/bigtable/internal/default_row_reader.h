@@ -18,6 +18,7 @@
 #include "google/cloud/bigtable/filters.h"
 #include "google/cloud/bigtable/internal/bigtable_stub.h"
 #include "google/cloud/bigtable/internal/readrowsparser.h"
+#include "google/cloud/bigtable/internal/retry_context.h"
 #include "google/cloud/bigtable/internal/row_reader_impl.h"
 #include "google/cloud/bigtable/metadata_update_policy.h"
 #include "google/cloud/bigtable/options.h"
@@ -28,8 +29,11 @@
 #include "google/cloud/bigtable/version.h"
 #include "absl/types/variant.h"
 #include <grpcpp/grpcpp.h>
+#include <chrono>
 #include <cinttypes>
+#include <functional>
 #include <string>
+#include <thread>
 
 namespace google {
 namespace cloud {
@@ -41,13 +45,16 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * `BigtableStub`.
  */
 class DefaultRowReader : public RowReaderImpl {
+  using Sleeper = std::function<void(std::chrono::milliseconds)>;
+
  public:
-  DefaultRowReader(std::shared_ptr<BigtableStub> stub,
-                   std::string app_profile_id, std::string table_name,
-                   bigtable::RowSet row_set, std::int64_t rows_limit,
-                   bigtable::Filter filter,
-                   std::unique_ptr<bigtable::DataRetryPolicy> retry_policy,
-                   std::unique_ptr<BackoffPolicy> backoff_policy);
+  DefaultRowReader(
+      std::shared_ptr<BigtableStub> stub, std::string app_profile_id,
+      std::string table_name, bigtable::RowSet row_set, std::int64_t rows_limit,
+      bigtable::Filter filter, bool reverse,
+      std::unique_ptr<bigtable::DataRetryPolicy> retry_policy,
+      std::unique_ptr<BackoffPolicy> backoff_policy, bool enable_server_retries,
+      Sleeper sleeper = [](auto d) { std::this_thread::sleep_for(d); });
 
   ~DefaultRowReader() override;
 
@@ -89,10 +96,13 @@ class DefaultRowReader : public RowReaderImpl {
   bigtable::RowSet row_set_;
   std::int64_t rows_limit_;
   bigtable::Filter filter_;
+  bool reverse_;
   std::unique_ptr<bigtable::DataRetryPolicy> retry_policy_;
   std::unique_ptr<BackoffPolicy> backoff_policy_;
-
-  std::unique_ptr<grpc::ClientContext> context_;
+  bool enable_server_retries_;
+  Sleeper sleeper_;
+  std::shared_ptr<grpc::ClientContext> context_;
+  RetryContext retry_context_;
 
   std::unique_ptr<bigtable::internal::ReadRowsParser> parser_;
   std::unique_ptr<

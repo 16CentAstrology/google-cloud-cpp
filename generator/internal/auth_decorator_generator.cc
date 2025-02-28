@@ -13,11 +13,11 @@
 // limitations under the License.
 
 #include "generator/internal/auth_decorator_generator.h"
-#include "absl/memory/memory.h"
-#include "absl/strings/str_split.h"
 #include "generator/internal/codegen_utils.h"
+#include "generator/internal/longrunning.h"
 #include "generator/internal/predicate_utils.h"
 #include "generator/internal/printer.h"
+#include "absl/strings/str_split.h"
 #include <google/protobuf/descriptor.h>
 
 namespace google {
@@ -28,10 +28,11 @@ AuthDecoratorGenerator::AuthDecoratorGenerator(
     google::protobuf::ServiceDescriptor const* service_descriptor,
     VarsDictionary service_vars,
     std::map<std::string, VarsDictionary> service_method_vars,
-    google::protobuf::compiler::GeneratorContext* context)
-    : ServiceCodeGenerator("auth_header_path", "auth_cc_path",
-                           service_descriptor, std::move(service_vars),
-                           std::move(service_method_vars), context) {}
+    google::protobuf::compiler::GeneratorContext* context,
+    std::vector<MixinMethod> const& mixin_methods)
+    : StubGeneratorBase("auth_header_path", "auth_cc_path", service_descriptor,
+                        std::move(service_vars), std::move(service_method_vars),
+                        context, mixin_methods) {}
 
 Status AuthDecoratorGenerator::GenerateHeader() {
   HeaderPrint(CopyrightLicenseFileHeader());
@@ -68,115 +69,7 @@ class $auth_class_name$ : public $stub_class_name$ {
       std::shared_ptr<$stub_class_name$> child);
 )""");
 
-  for (auto const& method : methods()) {
-    if (IsStreamingWrite(method)) {
-      HeaderPrintMethod(method, __FILE__, __LINE__, R"""(
-  std::unique_ptr<::google::cloud::internal::StreamingWriteRpc<
-      $request_type$,
-      $response_type$>> $method_name$(
-      std::unique_ptr<grpc::ClientContext> context) override;
-)""");
-      continue;
-    }
-    if (IsBidirStreaming(method)) {
-      HeaderPrintMethod(method, __FILE__, __LINE__, R"""(
-  std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
-      $request_type$,
-      $response_type$>>
-  Async$method_name$(
-      google::cloud::CompletionQueue const& cq,
-      std::unique_ptr<grpc::ClientContext> context) override;
-)""");
-      continue;
-    }
-    HeaderPrintMethod(
-        method,
-        {MethodPattern({{IsResponseTypeEmpty,
-                         R"""(
-  Status $method_name$(
-      grpc::ClientContext& context,
-      $request_type$ const& request) override;
-)""",
-                         R"""(
-  StatusOr<$response_type$> $method_name$(
-      grpc::ClientContext& context,
-      $request_type$ const& request) override;
-)"""},
-                        {""}},
-                       And(IsNonStreaming, Not(IsLongrunningOperation))),
-         MethodPattern({{R"""(
-  future<StatusOr<google::longrunning::Operation>> Async$method_name$(
-      google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
-      $request_type$ const& request) override;
-)"""}},
-                       IsLongrunningOperation),
-         MethodPattern({{R"""(
-  std::unique_ptr<google::cloud::internal::StreamingReadRpc<$response_type$>>
-  $method_name$(
-      std::unique_ptr<grpc::ClientContext> context,
-      $request_type$ const& request) override;
-)"""}},
-                       IsStreamingRead)},
-        __FILE__, __LINE__);
-  }
-
-  for (auto const& method : async_methods()) {
-    if (IsStreamingRead(method)) {
-      auto constexpr kDeclaration = R"""(
-  std::unique_ptr<::google::cloud::internal::AsyncStreamingReadRpc<
-      $response_type$>>
-  Async$method_name$(
-      google::cloud::CompletionQueue const& cq,
-      std::unique_ptr<grpc::ClientContext> context,
-      $request_type$ const& request) override;
-)""";
-      HeaderPrintMethod(method, __FILE__, __LINE__, kDeclaration);
-      continue;
-    }
-    if (IsStreamingWrite(method)) {
-      auto constexpr kDeclaration = R"""(
-  std::unique_ptr<::google::cloud::internal::AsyncStreamingWriteRpc<
-      $request_type$, $response_type$>>
-  Async$method_name$(
-      google::cloud::CompletionQueue const& cq,
-      std::unique_ptr<grpc::ClientContext> context) override;
-)""";
-      HeaderPrintMethod(method, __FILE__, __LINE__, kDeclaration);
-      continue;
-    }
-    HeaderPrintMethod(
-        method,
-        {MethodPattern({{IsResponseTypeEmpty,
-                         R"""(
-  future<Status> Async$method_name$(
-      google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
-      $request_type$ const& request) override;
-)""",
-                         R"""(
-  future<StatusOr<$response_type$>> Async$method_name$(
-      google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
-      $request_type$ const& request) override;
-)"""},
-                        {""}},
-                       And(IsNonStreaming, Not(IsLongrunningOperation)))},
-        __FILE__, __LINE__);
-  }
-
-  if (HasLongrunningMethod()) {
-    HeaderPrint(R"""(
-  future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
-      google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
-      google::longrunning::GetOperationRequest const& request) override;
-
-  future<Status> AsyncCancelOperation(
-      google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
-      google::longrunning::CancelOperationRequest const& request) override;)""");
-  }
+  HeaderPrintPublicMethods();
 
   HeaderPrint(R"""(
  private:
@@ -217,7 +110,7 @@ Status AuthDecoratorGenerator::GenerateCc() {
           ? "google/cloud/internal/streaming_write_rpc_impl.h"
           : "",
   });
-  CcSystemIncludes({vars("proto_grpc_header_path"), "memory"});
+  CcSystemIncludes({vars("proto_grpc_header_path"), "memory", "utility"});
 
   auto result = CcOpenNamespaces(NamespaceType::kInternal);
   if (!result.ok()) return result;
@@ -239,12 +132,13 @@ std::unique_ptr<::google::cloud::internal::StreamingWriteRpc<
     $request_type$,
     $response_type$>>
 $auth_class_name$::$method_name$(
-    std::unique_ptr<grpc::ClientContext> context) {
+    std::shared_ptr<grpc::ClientContext> context,
+    Options const& options) {
   using ErrorStream = ::google::cloud::internal::StreamingWriteRpcError<
       $request_type$, $response_type$>;
   auto status = auth_->ConfigureContext(*context);
-  if (!status.ok()) return absl::make_unique<ErrorStream>(std::move(status));
-  return child_->$method_name$(std::move(context));
+  if (!status.ok()) return std::make_unique<ErrorStream>(std::move(status));
+  return child_->$method_name$(std::move(context), options);
 }
 )""");
       continue;
@@ -256,89 +150,106 @@ std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
     $response_type$>>
 $auth_class_name$::Async$method_name$(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context) {
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options) {
   using StreamAuth = google::cloud::internal::AsyncStreamingReadWriteRpcAuth<
     $request_type$, $response_type$>;
 
-  auto& child = child_;
-  auto call = [child, cq](std::unique_ptr<grpc::ClientContext> ctx) {
-    return child->Async$method_name$(cq, std::move(ctx));
+  auto call = [child = child_, cq, options = std::move(options)](
+                  std::shared_ptr<grpc::ClientContext> ctx) {
+    return child->Async$method_name$(cq, std::move(ctx), options);
   };
-  return absl::make_unique<StreamAuth>(
+  return std::make_unique<StreamAuth>(
     std::move(context), auth_, StreamAuth::StreamFactory(std::move(call)));
 }
 )""");
       continue;
     }
-    CcPrintMethod(
-        method,
-        {MethodPattern({{IsResponseTypeEmpty,
-                         R"""(
-Status $auth_class_name$::$method_name$()""",
-                         R"""(
-StatusOr<$response_type$> $auth_class_name$::$method_name$()"""},
-                        {R"""(
-    grpc::ClientContext& context,
-    $request_type$ const& request) {
-  auto status = auth_->ConfigureContext(context);
-  if (!status.ok()) return status;
-  return child_->$method_name$(context, request);
-}
-)"""}},
-                       And(IsNonStreaming, Not(IsLongrunningOperation))),
-         MethodPattern({{R"""(
+    if (IsLongrunningOperation(method)) {
+      CcPrintMethod(method, __FILE__, __LINE__, R"""(
 future<StatusOr<google::longrunning::Operation>>
 $auth_class_name$::Async$method_name$(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       $request_type$ const& request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context)).then(
-      [cq, child, request](
-          future<StatusOr<std::unique_ptr<grpc::ClientContext>>> f) mutable {
+      [cq, child = child_, options = std::move(options), request](
+          future<StatusOr<std::shared_ptr<grpc::ClientContext>>> f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
-        return child->Async$method_name$(cq, *std::move(context), request);
+        return child->Async$method_name$(
+            cq, *std::move(context), std::move(options), request);
       });
 }
-)"""}},
-                       IsLongrunningOperation),
-         MethodPattern({{R"""(
+)""");
+
+      CcPrintMethod(method, __FILE__, __LINE__, R"""(
+StatusOr<google::longrunning::Operation>
+$auth_class_name$::$method_name$(
+      grpc::ClientContext& context,
+      Options options,
+      $request_type$ const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->$method_name$(context, options, request);
+}
+)""");
+
+      continue;
+    }
+    if (IsStreamingRead(method)) {
+      CcPrintMethod(method, __FILE__, __LINE__, R"""(
 std::unique_ptr<google::cloud::internal::StreamingReadRpc<$response_type$>>
 $auth_class_name$::$method_name$(
-   std::unique_ptr<grpc::ClientContext> context,
+   std::shared_ptr<grpc::ClientContext> context,
+   Options const& options,
    $request_type$ const& request) {
   using ErrorStream = ::google::cloud::internal::StreamingReadRpcError<
       $response_type$>;
   auto status = auth_->ConfigureContext(*context);
-  if (!status.ok()) return absl::make_unique<ErrorStream>(std::move(status));
-  return child_->$method_name$(std::move(context), request);
+  if (!status.ok()) return std::make_unique<ErrorStream>(std::move(status));
+  return child_->$method_name$(std::move(context), options, request);
 }
-)"""}},
-                       IsStreamingRead)},
-        __FILE__, __LINE__);
+)""");
+      continue;
+    }
+    CcPrintMethod(method, __FILE__, __LINE__, "\n$return_type$");
+    CcPrintMethod(method, __FILE__, __LINE__,
+                  R"""( $auth_class_name$::$method_name$(
+    grpc::ClientContext& context,
+    Options const& options,
+    $request_type$ const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->$method_name$(context, options, request);
+}
+)""");
   }
 
   for (auto const& method : async_methods()) {
+    // Nothing to do, these are always asynchronous.
+    if (IsBidirStreaming(method) || IsLongrunningOperation(method)) continue;
     if (IsStreamingRead(method)) {
       auto constexpr kDefinition = R"""(
 std::unique_ptr<::google::cloud::internal::AsyncStreamingReadRpc<
     $response_type$>>
 $auth_class_name$::Async$method_name$(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     $request_type$ const& request) {
   using StreamAuth = google::cloud::internal::AsyncStreamingReadRpcAuth<
     $response_type$>;
 
   auto& child = child_;
-  auto call = [child, cq, request](std::unique_ptr<grpc::ClientContext> ctx) {
-    return child->Async$method_name$(cq, std::move(ctx), request);
+  auto call = [child, cq, opts = std::move(options), request](std::shared_ptr<grpc::ClientContext> ctx) {
+    return child->Async$method_name$(cq, std::move(ctx), opts, request);
   };
-  return absl::make_unique<StreamAuth>(
+  return std::make_unique<StreamAuth>(
     std::move(context), auth_, StreamAuth::StreamFactory(std::move(call)));
 }
 )""";
@@ -351,56 +262,62 @@ std::unique_ptr<::google::cloud::internal::AsyncStreamingWriteRpc<
     $request_type$, $response_type$>>
 $auth_class_name$::Async$method_name$(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context) {
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options) {
   using StreamAuth = google::cloud::internal::AsyncStreamingWriteRpcAuth<
     $request_type$, $response_type$>;
 
-  auto& child = child_;
-  auto call = [child, cq](std::unique_ptr<grpc::ClientContext> ctx) {
-    return child->Async$method_name$(cq, std::move(ctx));
+  auto call = [child = child_, cq, options = std::move(options)](
+                  std::shared_ptr<grpc::ClientContext> ctx) {
+    return child->Async$method_name$(cq, std::move(ctx), options);
   };
-  return absl::make_unique<StreamAuth>(
+  return std::make_unique<StreamAuth>(
     std::move(context), auth_, StreamAuth::StreamFactory(std::move(call)));
 }
 )""";
       CcPrintMethod(method, __FILE__, __LINE__, kDefinition);
       continue;
     }
-    CcPrintMethod(
-        method,
-        {MethodPattern({{IsResponseTypeEmpty,
-                         R"""(
-future<Status> $auth_class_name$::Async$method_name$(
+    if (IsResponseTypeEmpty(method)) {
+      CcPrintMethod(method, __FILE__, __LINE__, R"""(
+future<Status>
+$auth_class_name$::Async$method_name$(
       google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
       $request_type$ const& request) {
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context)).then(
-      [cq, child, request](
-          future<StatusOr<std::unique_ptr<grpc::ClientContext>>> f) mutable {
+      [cq, child = child_, options = std::move(options), request](
+          future<StatusOr<std::shared_ptr<grpc::ClientContext>>> f) mutable {
         auto context = f.get();
-        if (!context) return make_ready_future(std::move(context).status());)""",
-                         R"""(
-future<StatusOr<$response_type$>> $auth_class_name$::Async$method_name$(
-      google::cloud::CompletionQueue& cq,
-      std::unique_ptr<grpc::ClientContext> context,
-      $request_type$ const& request) {
-  using ReturnType = StatusOr<$response_type$>;
-  auto& child = child_;
-  return auth_->AsyncConfigureContext(std::move(context)).then(
-      [cq, child, request](
-          future<StatusOr<std::unique_ptr<grpc::ClientContext>>> f) mutable {
-        auto context = f.get();
-        if (!context) {
-          return make_ready_future(ReturnType(std::move(context).status()));
-        })"""},
-                        {R"""(
-        return child->Async$method_name$(cq, *std::move(context), request);
+        if (!context) return make_ready_future(std::move(context).status());
+        return child->Async$method_name$(
+            cq, *std::move(context), std::move(options), request);
       });
 }
-)"""}},
-                       And(IsNonStreaming, Not(IsLongrunningOperation)))},
-        __FILE__, __LINE__);
+)""");
+      continue;
+    }
+    CcPrintMethod(method, __FILE__, __LINE__, R"""(
+future<StatusOr<$response_type$>>
+$auth_class_name$::Async$method_name$(
+      google::cloud::CompletionQueue& cq,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      $request_type$ const& request) {
+  return auth_->AsyncConfigureContext(std::move(context)).then(
+      [cq, child = child_, options = std::move(options), request](
+          future<StatusOr<std::shared_ptr<grpc::ClientContext>>> f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(StatusOr<$response_type$>(
+              std::move(context).status()));
+        }
+        return child->Async$method_name$(
+            cq, *std::move(context), std::move(options), request);
+      });
+}
+)""");
   }
 
   // long running operation support methods
@@ -409,32 +326,34 @@ future<StatusOr<$response_type$>> $auth_class_name$::Async$method_name$(
 future<StatusOr<google::longrunning::Operation>>
 $auth_class_name$::AsyncGetOperation(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::longrunning::GetOperationRequest const& request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context)).then(
-      [cq, child, request](
-          future<StatusOr<std::unique_ptr<grpc::ClientContext>>> f) mutable {
+      [cq, child = child_, options = std::move(options), request](
+          future<StatusOr<std::shared_ptr<grpc::ClientContext>>> f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
-        return child->AsyncGetOperation(cq, *std::move(context), request);
+        return child->AsyncGetOperation(
+            cq, *std::move(context), std::move(options), request);
       });
 }
 
 future<Status> $auth_class_name$::AsyncCancelOperation(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::longrunning::CancelOperationRequest const& request) {
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context)).then(
-      [cq, child, request](
-          future<StatusOr<std::unique_ptr<grpc::ClientContext>>> f) mutable {
+      [cq, child = child_, options = std::move(options), request](
+          future<StatusOr<std::shared_ptr<grpc::ClientContext>>> f) mutable {
         auto context = f.get();
         if (!context) return make_ready_future(std::move(context).status());
-        return child->AsyncCancelOperation(cq, *std::move(context), request);
+        return child->AsyncCancelOperation(
+            cq, *std::move(context), std::move(options), request);
       });
 }
 )""");

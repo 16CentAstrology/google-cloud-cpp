@@ -1,4 +1,4 @@
-// Copyright 2022 Google LLC
+// Copyright 2023 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,11 +17,16 @@
 // source: google/pubsub/v1/schema.proto
 
 #include "google/cloud/pubsub/internal/schema_metadata_decorator.h"
-#include "google/cloud/common_options.h"
+#include "google/cloud/grpc_options.h"
+#include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/api_client_header.h"
+#include "google/cloud/internal/url_encode.h"
 #include "google/cloud/status_or.h"
 #include <google/pubsub/v1/schema.grpc.pb.h>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -29,71 +34,140 @@ namespace pubsub_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 SchemaServiceMetadata::SchemaServiceMetadata(
-    std::shared_ptr<SchemaServiceStub> child)
+    std::shared_ptr<SchemaServiceStub> child,
+    std::multimap<std::string, std::string> fixed_metadata,
+    std::string api_client_header)
     : child_(std::move(child)),
+      fixed_metadata_(std::move(fixed_metadata)),
       api_client_header_(
-          google::cloud::internal::ApiClientHeader("generator")) {}
+          api_client_header.empty()
+              ? google::cloud::internal::GeneratedLibClientHeader()
+              : std::move(api_client_header)) {}
 
 StatusOr<google::pubsub::v1::Schema> SchemaServiceMetadata::CreateSchema(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::pubsub::v1::CreateSchemaRequest const& request) {
-  SetMetadata(context, "parent=" + request.parent());
-  return child_->CreateSchema(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->CreateSchema(context, options, request);
 }
 
 StatusOr<google::pubsub::v1::Schema> SchemaServiceMetadata::GetSchema(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::pubsub::v1::GetSchemaRequest const& request) {
-  SetMetadata(context, "name=" + request.name());
-  return child_->GetSchema(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetSchema(context, options, request);
 }
 
 StatusOr<google::pubsub::v1::ListSchemasResponse>
 SchemaServiceMetadata::ListSchemas(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::pubsub::v1::ListSchemasRequest const& request) {
-  SetMetadata(context, "parent=" + request.parent());
-  return child_->ListSchemas(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->ListSchemas(context, options, request);
+}
+
+StatusOr<google::pubsub::v1::ListSchemaRevisionsResponse>
+SchemaServiceMetadata::ListSchemaRevisions(
+    grpc::ClientContext& context, Options const& options,
+    google::pubsub::v1::ListSchemaRevisionsRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->ListSchemaRevisions(context, options, request);
+}
+
+StatusOr<google::pubsub::v1::Schema> SchemaServiceMetadata::CommitSchema(
+    grpc::ClientContext& context, Options const& options,
+    google::pubsub::v1::CommitSchemaRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->CommitSchema(context, options, request);
+}
+
+StatusOr<google::pubsub::v1::Schema> SchemaServiceMetadata::RollbackSchema(
+    grpc::ClientContext& context, Options const& options,
+    google::pubsub::v1::RollbackSchemaRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->RollbackSchema(context, options, request);
+}
+
+StatusOr<google::pubsub::v1::Schema>
+SchemaServiceMetadata::DeleteSchemaRevision(
+    grpc::ClientContext& context, Options const& options,
+    google::pubsub::v1::DeleteSchemaRevisionRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->DeleteSchemaRevision(context, options, request);
 }
 
 Status SchemaServiceMetadata::DeleteSchema(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::pubsub::v1::DeleteSchemaRequest const& request) {
-  SetMetadata(context, "name=" + request.name());
-  return child_->DeleteSchema(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->DeleteSchema(context, options, request);
 }
 
 StatusOr<google::pubsub::v1::ValidateSchemaResponse>
 SchemaServiceMetadata::ValidateSchema(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::pubsub::v1::ValidateSchemaRequest const& request) {
-  SetMetadata(context, "parent=" + request.parent());
-  return child_->ValidateSchema(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->ValidateSchema(context, options, request);
 }
 
 StatusOr<google::pubsub::v1::ValidateMessageResponse>
 SchemaServiceMetadata::ValidateMessage(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::pubsub::v1::ValidateMessageRequest const& request) {
-  SetMetadata(context, "parent=" + request.parent());
-  return child_->ValidateMessage(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->ValidateMessage(context, options, request);
+}
+
+StatusOr<google::iam::v1::Policy> SchemaServiceMetadata::SetIamPolicy(
+    grpc::ClientContext& context, Options const& options,
+    google::iam::v1::SetIamPolicyRequest const& request) {
+  SetMetadata(
+      context, options,
+      absl::StrCat("resource=", internal::UrlEncode(request.resource())));
+  return child_->SetIamPolicy(context, options, request);
+}
+
+StatusOr<google::iam::v1::Policy> SchemaServiceMetadata::GetIamPolicy(
+    grpc::ClientContext& context, Options const& options,
+    google::iam::v1::GetIamPolicyRequest const& request) {
+  SetMetadata(
+      context, options,
+      absl::StrCat("resource=", internal::UrlEncode(request.resource())));
+  return child_->GetIamPolicy(context, options, request);
+}
+
+StatusOr<google::iam::v1::TestIamPermissionsResponse>
+SchemaServiceMetadata::TestIamPermissions(
+    grpc::ClientContext& context, Options const& options,
+    google::iam::v1::TestIamPermissionsRequest const& request) {
+  SetMetadata(
+      context, options,
+      absl::StrCat("resource=", internal::UrlEncode(request.resource())));
+  return child_->TestIamPermissions(context, options, request);
 }
 
 void SchemaServiceMetadata::SetMetadata(grpc::ClientContext& context,
+                                        Options const& options,
                                         std::string const& request_params) {
   context.AddMetadata("x-goog-request-params", request_params);
-  SetMetadata(context);
+  SetMetadata(context, options);
 }
 
-void SchemaServiceMetadata::SetMetadata(grpc::ClientContext& context) {
-  context.AddMetadata("x-goog-api-client", api_client_header_);
-  auto const& options = internal::CurrentOptions();
-  if (options.has<UserProjectOption>()) {
-    context.AddMetadata("x-goog-user-project",
-                        options.get<UserProjectOption>());
-  }
-  auto const& authority = options.get<AuthorityOption>();
-  if (!authority.empty()) context.set_authority(authority);
+void SchemaServiceMetadata::SetMetadata(grpc::ClientContext& context,
+                                        Options const& options) {
+  google::cloud::internal::SetMetadata(context, options, fixed_metadata_,
+                                       api_client_header_);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

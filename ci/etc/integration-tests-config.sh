@@ -22,6 +22,10 @@ fi # include guard
 
 # The name of the project used to run the integration tests and examples.
 export GOOGLE_CLOUD_PROJECT="cloud-cpp-testing-resources"
+# Some services seemingly require project numbers. If you ever need to generate
+# this again use:
+#   gcloud projects describe "${GOOGLE_CLOUD_PROJECT}"
+export GOOGLE_CLOUD_CPP_TEST_PROJECT_NUMBER="936212892354"
 # Some quickstarts require a x-goog-user-project header, either when using
 # our own user account in local builds, or when using the GCB service
 # account
@@ -30,6 +34,12 @@ export GOOGLE_CLOUD_CPP_USER_PROJECT="${GOOGLE_CLOUD_PROJECT}"
 export GOOGLE_CLOUD_CPP_TEST_REGION="us-central1"
 # Some quickstart programs require a zone.
 export GOOGLE_CLOUD_CPP_TEST_ZONE="us-central1-a"
+# Some tests and quickstarts benefit from a region outside the US.
+export GOOGLE_CLOUD_CPP_NON_US_TEST_REGION="asia-southeast1"
+# Some tests and quickstarts need to specify a location as "global".
+export GOOGLE_CLOUD_CPP_TEST_GLOBAL="global"
+# Some quickstart programs require an organization.
+export GOOGLE_CLOUD_CPP_TEST_ORGANIZATION="1006341795026"
 
 # This file contains an invalidated service account key.  That is, the file is
 # in the right format for a service account, but it is not associated with a
@@ -51,14 +61,17 @@ export CLOUD_STORAGE_ENABLE_TRACING="raw-client,rpc,rpc-streams"
 # Cloud Bigtable configuration parameters
 export GOOGLE_CLOUD_CPP_BIGTABLE_TEST_INSTANCE_ID="test-instance"
 export GOOGLE_CLOUD_CPP_BIGTABLE_TEST_CLUSTER_ID="test-instance-c1"
-export GOOGLE_CLOUD_CPP_BIGTABLE_TEST_ZONE_A="us-west2-b"
-export GOOGLE_CLOUD_CPP_BIGTABLE_TEST_ZONE_B="us-west2-c"
+export GOOGLE_CLOUD_CPP_BIGTABLE_TEST_ZONE_A="us-central1-b"
+export GOOGLE_CLOUD_CPP_BIGTABLE_TEST_ZONE_B="us-central1-c"
 export GOOGLE_CLOUD_CPP_BIGTABLE_TEST_SERVICE_ACCOUNT="bigtable-test-iam-sa@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com"
 export GOOGLE_CLOUD_CPP_BIGTABLE_TEST_QUICKSTART_TABLE="quickstart"
 
 # Cloud Storage configuration parameters
 # An existing bucket, used in small tests that do not change the bucket metadata.
 export GOOGLE_CLOUD_CPP_STORAGE_TEST_BUCKET_NAME="gcs-grpc-team-cloud-cpp-testing-bucket"
+# Another preexisting bucket, created with folders enabled, for tests that do
+# not modify the bucket:
+export GOOGLE_CLOUD_CPP_STORAGE_TEST_FOLDER_BUCKET_NAME="cloud-cpp-testing-folder-bucket"
 # A bucket with a different location and/or storage class from
 # `cloud-cpp-testing-bucket`, some requests (object copy and rewrite) succeed
 # immediately with buckets in the same location, and we want to demonstrate we
@@ -86,8 +99,18 @@ export GOOGLE_CLOUD_CPP_SPANNER_TEST_QUICKSTART_DATABASE="quickstart-db"
 # Cloud Pub/Sub configuration parameters
 export GOOGLE_CLOUD_CPP_PUBSUB_TEST_QUICKSTART_TOPIC="quickstart"
 
+# Cloud Batch configuration parameters
+# Created using:
+#    gcloud compute instance-templates create \
+#        --project=cloud-cpp-testing-resources "cloud-batch-sample-template" \
+#        --region us-central1 --machine-type e2-standard-4
+export GOOGLE_CLOUD_CPP_BATCH_TEST_TEMPLATE_NAME="cloud-batch-sample-template"
+
 # Cloud BigQuery configuration parameters
 export GOOGLE_CLOUD_CPP_BIGQUERY_TEST_QUICKSTART_TABLE="projects/bigquery-public-data/datasets/usa_names/tables/usa_1910_current"
+
+# Content Warehouse
+export GOOGLE_CLOUD_CPP_CONTENTWAREHOUSE_TEST_LOCATION_ID="us"
 
 # Document AI
 export GOOGLE_CLOUD_CPP_DOCUMENTAI_TEST_LOCATION_ID="us"
@@ -108,9 +131,20 @@ export GOOGLE_CLOUD_CPP_TEST_HELLO_WORLD_HTTP_URL=""
 # Rest configuration parameters
 export GOOGLE_CLOUD_CPP_REST_TEST_SIGNING_SERVICE_ACCOUNT="kokoro-run@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com"
 
-# To run google/cloud/gameservices' quickstart
-export GOOGLE_CLOUD_CPP_GAMESERVICES_TEST_LOCATION="global"
-export GOOGLE_CLOUD_CPP_GAMESERVICES_TEST_REALM="test-realm"
-
 # To run google/cloud/resourcemanager's quickstart, this is the Cloud C++ team community folder
 export GOOGLE_CLOUD_CPP_RESOURCEMANAGER_TEST_FOLDER="204009073908"
+
+# To run google/cloud/gkemulticloud's quickstart. The service is not available in `us-central1`
+export GOOGLE_CLOUD_CPP_GKEMULTICLOUD_TEST_REGION="us-west1"
+
+# google/cloud/policysimulator's quickstart
+export GOOGLE_CLOUD_CPP_POLICYSIMULATOR_RESOURCE="//cloudresourcemanager.googleapis.com/projects/cloud-cpp-community"
+
+# google/cloud/policytroubleshooter's quickstart
+export GOOGLE_CLOUD_CPP_POLICYTROUBLESHOOTER_PRINCIPAL="${GOOGLE_CLOUD_CPP_STORAGE_TEST_SERVICE_ACCOUNT}"
+export GOOGLE_CLOUD_CPP_POLICYTROUBLESHOOTER_RESOURCE="//cloudresourcemanager.googleapis.com/projects/${GOOGLE_CLOUD_PROJECT}"
+export GOOGLE_CLOUD_CPP_POLICYTROUBLESHOOTER_PERMISSION="storage.buckets.get"
+
+# To run google/cloud/commerce's quickstart
+# This is a closed billing account for testing.
+export GOOGLE_CLOUD_CPP_COMMERCE_TEST_BILLING_ACCOUNT="01B3AC-DE5ABE-5A1ED5"

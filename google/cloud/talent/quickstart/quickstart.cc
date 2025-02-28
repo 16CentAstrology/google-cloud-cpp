@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/talent/company_client.h"
+//! [all]
+#include "google/cloud/talent/v4/company_client.h"
 #include "google/cloud/project.h"
 #include <iostream>
 
@@ -22,7 +23,7 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace talent = ::google::cloud::talent;
+  namespace talent = ::google::cloud::talent_v4;
   auto client =
       talent::CompanyServiceClient(talent::MakeCompanyServiceConnection());
 
@@ -37,3 +38,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

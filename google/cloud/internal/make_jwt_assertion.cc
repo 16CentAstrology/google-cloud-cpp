@@ -13,7 +13,8 @@
 // limitations under the License.
 
 #include "google/cloud/internal/make_jwt_assertion.h"
-#include "google/cloud/internal/openssl_util.h"
+#include "google/cloud/internal/base64_transforms.h"
+#include "google/cloud/internal/sign_using_sha256.h"
 
 namespace google {
 namespace cloud {

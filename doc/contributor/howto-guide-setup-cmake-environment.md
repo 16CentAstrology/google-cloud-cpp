@@ -8,15 +8,14 @@ prefer to use CMake for whatever reason.
 - Packaging maintainers or developers who prefer to install the library in a
   fixed directory (such as `/usr/local` or `/opt`) should consult the
   [packaging guide](/doc/packaging.md).
-- Developers that prefer using a package manager such as
-  [vcpkg](https://vcpkg.io), [Conda](https://conda.io),
-  or [Conan](https://conan.io) should follow the instructions for their package
-  manager.
+- Developers who prefer using a package manager such as
+  [vcpkg](https://vcpkg.io), or [Conda](https://conda.io), should follow the
+  instructions for their package manager.
 - Developers wanting to use the libraries as part of a larger CMake or Bazel
   project should consult the [quickstart guides](/README.md#quickstart) for the
   library or libraries they want to use.
-- Developers wanting to compile the library just to run some examples or
-  tests should read the [build and install](/README.md#building-and-installing)
+- Developers wanting to compile the library just to run some examples or tests
+  should read the [build and install](/README.md#building-and-installing)
   section from the top-level README.
 - Contributors and developers to `google-cloud-cpp` wanting to work with CMake
   should read the current document.
@@ -36,12 +35,12 @@ cd google-cloud-cpp
 
 ## Download and bootstrap `vcpkg`
 
-[vcpkg](https://vcpkg.io) is a package manager for C++ that builds
-from source and installs any binary artifacts in `$HOME`. We recommend
-using `vcpkg` for local development.  In these instructions, we will
-install `vcpkg` descriptions in `$HOME/vcpkg`, you can change the
-`vcpkg` location, just remember to adapt these instructions as you go
-along. Download the `vcpkg` package descriptions using `git`:
+[vcpkg](https://vcpkg.io) is a package manager for C++ that builds from source
+and installs any binary artifacts in `$HOME`. We recommend using `vcpkg` for
+local development. In these instructions, we will install `vcpkg` descriptions
+in `$HOME/vcpkg`, you can change the `vcpkg` location, just remember to adapt
+these instructions as you go along. Download the `vcpkg` package descriptions
+using `git`:
 
 ```shell
 git -C $HOME clone https://github.com/microsoft/vcpkg
@@ -55,13 +54,14 @@ env VCPKG_ROOT="${vcpkg_dir}" $HOME/vcpkg/bootstrap-vcpkg.sh
 
 ## Building `google-cloud-cpp` with vcpkg
 
-Now you can use `vcpkg` to compile `google-cloud-cpp`. Just add one option
-to the `cmake` configure step:
+Now you can use `vcpkg` to compile `google-cloud-cpp`. Just add one option to
+the `cmake` configure step:
 
 ```shell
 cd $HOME/google-cloud-cpp
-cmake -H. -Bcmake-out/home -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake
-cmake --build cmake-out/home
+cmake -G Ninja -S . -B build-out/home \
+    -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake
+cmake --build build-out/home
 ```
 
 The first time you run this command it can take a significant time to download
@@ -71,8 +71,9 @@ much faster:
 
 ```shell
 cd $HOME/another-google-cloud-cpp-clone
-cmake -H. -Bcmake-out/home -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake
-cmake --build cmake-out/home
+cmake -G Ninja -S . -B build-out/home \
+    -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake
+cmake --build build-out/home
 ```
 
 ## Running the unit tests
@@ -80,14 +81,20 @@ cmake --build cmake-out/home
 Once you have built `google-cloud-cpp` you can run the unit tests using:
 
 ```shell
-env -C cmake-out/home ctest --output-on-failure -LE integration-test
+env -C build-out/home ctest --output-on-failure -LE integration-test
 ```
 
 If you also want to run the integration tests you need to setup multiple
 [environment variables](/ci/etc/integration-tests-config.sh), and then run:
 
+To set up the environment variables, run the script using:
+
 ```shell
-env -C cmake-out/home ctest --output-on-failure
+source ci/etc/integration-tests-config.sh
+```
+
+```shell
+env -C build-out/home ctest --output-on-failure
 ```
 
 ## Other Build Options
@@ -102,17 +109,17 @@ installed, you can change the compiler using:
 
 ```shell
 CXX=clang++ CC=clang \
-    cmake -H. -Bcmake-out/home -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake
+    cmake -G Ninja -S . -B build-out/clang \
+    -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake
 
 # Then compile and test normally:
-cmake --build cmake-out/clang
-(cd cmake-out/clang && ctest --output-on-failure -LE integration-test)
+cmake --build build-out/clang
+(cd build-out/clang && ctest --output-on-failure -LE integration-test)
 ```
 
 `vcpkg` uses the compiler as part of its binary cache inputs, that is, changing
-the compiler will require rebuilding the dependencies from source. The good
-news is that `vcpkg` can hold multiple versions of a binary artifact in its
-cache.
+the compiler will require rebuilding the dependencies from source. The good news
+is that `vcpkg` can hold multiple versions of a binary artifact in its cache.
 
 ### Changing the build type
 
@@ -120,11 +127,11 @@ By default, the system is compiled with optimizations on; if you want to compile
 a debug version, use:
 
 ```shell
-cmake -H. -Bcmake-out/manual -DCMAKE_BUILD_TYPE=Debug
+cmake -G Ninja -S . -B build-out/manual -DCMAKE_BUILD_TYPE=Debug
 
 # Then compile and test normally:
-cmake --build cmake-out/manual
-(cd cmake-out/manual && ctest --output-on-failure -LE integration-test)
+cmake --build build-out/manual
+(cd build-out/manual && ctest --output-on-failure -LE integration-test)
 ```
 
 `google-cloud-cpp` supports the standard CMake

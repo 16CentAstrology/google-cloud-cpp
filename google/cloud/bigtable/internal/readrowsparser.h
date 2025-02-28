@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@
 #include "google/cloud/bigtable/cell.h"
 #include "google/cloud/bigtable/row.h"
 #include "google/cloud/bigtable/version.h"
-#include "absl/memory/memory.h"
 #include <google/bigtable/v2/bigtable.grpc.pb.h>
 #include <string>
 #include <vector>
@@ -28,6 +27,7 @@ namespace cloud {
 namespace bigtable {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace internal {
+
 /**
  * Transforms a stream of chunks as returned by the ReadRows streaming
  * RPC into a sequence of rows.
@@ -52,7 +52,7 @@ namespace internal {
  */
 class ReadRowsParser {
  public:
-  ReadRowsParser() = default;
+  explicit ReadRowsParser(bool reverse) : reverse_(reverse) {}
 
   virtual ~ReadRowsParser() = default;
 
@@ -91,6 +91,9 @@ class ReadRowsParser {
     std::vector<std::string> labels;
   };
 
+  /// If true, we expect row keys in reverse order.
+  bool reverse_;
+
   /**
    * Moves partial results into a Cell class.
    *
@@ -128,10 +131,11 @@ class ReadRowsParserFactory {
   virtual ~ReadRowsParserFactory() = default;
 
   /// Returns a newly created parser instance.
-  virtual std::unique_ptr<ReadRowsParser> Create() {
-    return absl::make_unique<ReadRowsParser>();
+  virtual std::unique_ptr<ReadRowsParser> Create(bool reverse) {
+    return std::make_unique<ReadRowsParser>(reverse);
   }
 };
+
 }  // namespace internal
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace bigtable

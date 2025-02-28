@@ -28,15 +28,38 @@ source module ci/lib/io.sh
 io::log_h2 "Installing google-cloud-cpp with vcpkg"
 vcpkg_dir="$(vcpkg::root_dir)"
 env -C "${vcpkg_dir}" ./vcpkg remove --outdated --recurse
-env -C "${vcpkg_dir}" ./vcpkg install google-cloud-cpp
+env -C "${vcpkg_dir}" ./vcpkg install --recurse "google-cloud-cpp[*]"
 
 # Compiles all the quickstart builds
-# shellcheck disable=SC2046
-libraries="$(printf ";%s" $(quickstart::libraries))"
-libraries="${libraries:1}"
-cmake -G Ninja \
+readonly SED_ARGS=(
+  # The diaglogflow features in vcpkg use `-` because `_` is not a legal
+  # character for vcpkg features
+  -e 's/dialogflow-/dialogflow_/'
+  # These vcpkg features are there just to refactor / simplify the dependencies.
+  -e '/^grafeas$/d'
+  -e '/^grpc-common$/d'
+  -e '/^rest-common$/d'
+  # Skip experimental features because these do not have dedicated quickstart
+  # programs.
+  -e '/^experimental-/d'
+  # TODO(#12120) - skip SQL because the vcpkg package is broken.
+  -e '/^sql/d'
+  # The vcpkg maintainers introduced an `rpc` feature to just compile
+  # `grpc-common`.
+  -e '/^rpc$/d'
+  # TODO:(#14896) Skip gkeconnect as it transitions from grpc to REST transport.
+  -e '/^gkeconnect/d'
+)
+mapfile -t features < <(
+  env -C "${vcpkg_dir}" ./vcpkg search google-cloud-cpp |
+    sed -n -e 's/^google-cloud-cpp\[\(.*\)\].*/\1/p' |
+    sed "${SED_ARGS[@]}"
+)
+feature_list="$(printf ";%s" "${features[@]}")"
+feature_list="${feature_list:1}"
+io::run cmake -G Ninja \
   -S "${PROJECT_ROOT}/ci/verify_quickstart" \
   -B "${PROJECT_ROOT}/cmake-out/quickstart" \
   -DCMAKE_TOOLCHAIN_FILE="${vcpkg_dir}/scripts/buildsystems/vcpkg.cmake" \
-  -DLIBRARIES="${libraries}"
-cmake --build "${PROJECT_ROOT}/cmake-out/quickstart" --target verify-quickstart-cmake
+  -DFEATURES="${feature_list}"
+io::run cmake --build "${PROJECT_ROOT}/cmake-out/quickstart" --target verify-quickstart-cmake

@@ -19,7 +19,10 @@
 #include "google/cloud/log.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
+#include <iostream>
+#include <string>
 #include <thread>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -43,15 +46,13 @@ class SlowReaderStreamIntegrationTest
 };
 
 TEST_F(SlowReaderStreamIntegrationTest, LongPauses) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
 
   // Construct an object too large to fit in the first chunk.
   auto const read_size = 1024 * 1024L;
   auto const large_text = MakeRandomData(4 * read_size);
-  StatusOr<ObjectMetadata> source_meta = client->InsertObject(
+  StatusOr<ObjectMetadata> source_meta = client.InsertObject(
       bucket_name_, object_name, large_text, IfGenerationMatch(0));
   ASSERT_STATUS_OK(source_meta);
   ScheduleForDelete(*source_meta);
@@ -62,11 +63,11 @@ TEST_F(SlowReaderStreamIntegrationTest, LongPauses) {
 
   ObjectReadStream stream;
   if (UsingEmulator()) {
-    stream = client->ReadObject(
+    stream = client.ReadObject(
         bucket_name_, object_name,
         CustomHeader("x-goog-emulator-instructions", "return-broken-stream"));
   } else {
-    stream = client->ReadObject(bucket_name_, object_name);
+    stream = client.ReadObject(bucket_name_, object_name);
   }
 
   auto slow_reader_period = std::chrono::seconds(UsingEmulator() ? 1 : 400);

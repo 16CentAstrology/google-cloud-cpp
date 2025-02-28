@@ -14,6 +14,7 @@
 
 #include "google/cloud/pubsub/options.h"
 #include "google/cloud/common_options.h"
+#include "google/cloud/internal/service_endpoint.h"
 
 namespace google {
 namespace cloud {
@@ -21,10 +22,11 @@ namespace pubsub {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 Options IAMPolicyOptions(Options opts) {
-  return google::cloud::internal::MergeOptions(
-      std::move(opts), Options{}
-                           .set<EndpointOption>("pubsub.googleapis.com")
-                           .set<AuthorityOption>("pubsub.googleapis.com"));
+  auto const ep =
+      internal::UniverseDomainEndpoint("pubsub.googleapis.com", opts);
+  return internal::MergeOptions(
+      std::move(opts),
+      Options{}.set<EndpointOption>(ep).set<AuthorityOption>(ep));
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

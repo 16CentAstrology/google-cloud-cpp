@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/gkehub/gke_hub_client.h"
+//! [all]
+#include "google/cloud/gkehub/v1/gke_hub_client.h"
+#include "google/cloud/location.h"
 #include <iostream>
 
 int main(int argc, char* argv[]) try {
@@ -21,13 +23,14 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace gkehub = ::google::cloud::gkehub;
+  auto const location = google::cloud::Location(argv[1], "-");
+
+  namespace gkehub = ::google::cloud::gkehub_v1;
   auto client = gkehub::GkeHubClient(gkehub::MakeGkeHubConnection());
 
-  auto const location = std::string{"projects/"} + argv[1] + "/locations/-";
-  for (auto r : client.ListMemberships(location)) {
-    if (!r) throw std::move(r).status();
-    std::cout << r->DebugString() << "\n";
+  for (auto m : client.ListMemberships(location.FullName())) {
+    if (!m) throw std::move(m).status();
+    std::cout << m->DebugString() << "\n";
   }
 
   return 0;
@@ -35,3 +38,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

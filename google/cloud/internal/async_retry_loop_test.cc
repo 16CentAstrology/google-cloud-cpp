@@ -14,10 +14,14 @@
 
 #include "google/cloud/internal/async_retry_loop.h"
 #include "google/cloud/internal/background_threads_impl.h"
+#include "google/cloud/internal/make_status.h"
+#include "google/cloud/internal/opentelemetry.h"
+#include "google/cloud/internal/retry_policy_impl.h"
 #include "google/cloud/options.h"
 #include "google/cloud/testing_util/async_sequencer.h"
 #include "google/cloud/testing_util/mock_backoff_policy.h"
 #include "google/cloud/testing_util/mock_completion_queue_impl.h"
+#include "google/cloud/testing_util/opentelemetry_matchers.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
 #include <deque>
@@ -31,11 +35,13 @@ namespace {
 
 using ::google::cloud::testing_util::AsyncSequencer;
 using ::google::cloud::testing_util::IsOk;
+using ::google::cloud::testing_util::IsOkAndHolds;
 using ::google::cloud::testing_util::MockBackoffPolicy;
 using ::google::cloud::testing_util::StatusIs;
-using ::testing::AllOf;
+using ::testing::Contains;
 using ::testing::HasSubstr;
 using ::testing::MockFunction;
+using ::testing::Pair;
 using ::testing::Return;
 
 struct TestOption {
@@ -113,20 +119,18 @@ class AsyncRetryLoopCancelTest : public ::testing::Test {
   AsyncSequencer<Status> sequencer_;
 };
 
-TEST(AsyncRetryLoopTest, Success) {
-  EXPECT_EQ(CurrentOptions().get<TestOption>(), "");
-  OptionsSpan span(Options{}.set<TestOption>("Success"));
-  EXPECT_EQ(CurrentOptions().get<TestOption>(), "Success");
+TEST(AsyncRetryLoopTest, SuccessWithExplicitOptions) {
   AutomaticallyCreatedBackgroundThreads background;
   auto pending = AsyncRetryLoop(
       TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent,
       background.cq(),
-      [](google::cloud::CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
+      [](google::cloud::CompletionQueue&, auto, ImmutableOptions const& options,
          int request) -> future<StatusOr<int>> {
-        EXPECT_EQ(CurrentOptions().get<TestOption>(), "Success");
+        EXPECT_EQ(options->get<TestOption>(), "Success");
         return make_ready_future(StatusOr<int>(2 * request));
       },
-      42, "error message");
+      MakeImmutableOptions(Options{}.set<TestOption>("Success")),
+      /*request=*/42, /*location=*/"error message");
   OptionsSpan overlay(Options{}.set<TestOption>("uh-oh"));
   StatusOr<int> actual = pending.get();
   ASSERT_THAT(actual.status(), IsOk());
@@ -135,22 +139,20 @@ TEST(AsyncRetryLoopTest, Success) {
 
 TEST(AsyncRetryLoopTest, TransientThenSuccess) {
   int counter = 0;
-  EXPECT_EQ(CurrentOptions().get<TestOption>(), "");
-  OptionsSpan span(Options{}.set<TestOption>("TransientThenSuccess"));
-  EXPECT_EQ(CurrentOptions().get<TestOption>(), "TransientThenSuccess");
   AutomaticallyCreatedBackgroundThreads background;
   auto pending = AsyncRetryLoop(
       TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent,
       background.cq(),
-      [&](google::cloud::CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
-          int request) {
-        EXPECT_EQ(CurrentOptions().get<TestOption>(), "TransientThenSuccess");
+      [&](google::cloud::CompletionQueue&, auto,
+          ImmutableOptions const& options, int request) {
+        EXPECT_EQ(options->get<TestOption>(), "TransientThenSuccess");
         if (++counter < 3) {
           return make_ready_future(
               StatusOr<int>(Status(StatusCode::kUnavailable, "try again")));
         }
         return make_ready_future(StatusOr<int>(2 * request));
       },
+      MakeImmutableOptions(Options{}.set<TestOption>("TransientThenSuccess")),
       42, "error message");
   OptionsSpan overlay(Options{}.set<TestOption>("uh-oh"));
   StatusOr<int> actual = pending.get();
@@ -160,35 +162,30 @@ TEST(AsyncRetryLoopTest, TransientThenSuccess) {
 
 TEST(AsyncRetryLoopTest, ReturnJustStatus) {
   int counter = 0;
-  EXPECT_EQ(CurrentOptions().get<TestOption>(), "");
-  OptionsSpan span(Options{}.set<TestOption>("ReturnJustStatus"));
-  EXPECT_EQ(CurrentOptions().get<TestOption>(), "ReturnJustStatus");
   AutomaticallyCreatedBackgroundThreads background;
   auto pending = AsyncRetryLoop(
       TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent,
       background.cq(),
-      [&](google::cloud::CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
-          int) {
-        EXPECT_EQ(CurrentOptions().get<TestOption>(), "ReturnJustStatus");
+      [&](google::cloud::CompletionQueue&, auto,
+          ImmutableOptions const& options, int) {
+        EXPECT_EQ(options->get<TestOption>(), "ReturnJustStatus");
         if (++counter <= 3) {
           return make_ready_future(
               Status(StatusCode::kResourceExhausted, "slow-down"));
         }
         return make_ready_future(Status());
       },
-      42, "error message");
+      MakeImmutableOptions(Options{}.set<TestOption>("ReturnJustStatus")), 42,
+      "error message");
   OptionsSpan overlay(Options{}.set<TestOption>("uh-oh"));
   Status actual = pending.get();
   ASSERT_THAT(actual, IsOk());
 }
 
-class RetryPolicyWithSetup {
+class RetryPolicyWithSetup : public RetryPolicy {
  public:
-  virtual ~RetryPolicyWithSetup() = default;
-  virtual bool OnFailure(Status const&) = 0;
+  ~RetryPolicyWithSetup() override = default;
   virtual void Setup(grpc::ClientContext&) const = 0;
-  virtual bool IsExhausted() const = 0;
-  virtual bool IsPermanentFailure(Status const&) const = 0;
 };
 
 class MockRetryPolicy : public RetryPolicyWithSetup {
@@ -207,23 +204,21 @@ TEST(AsyncRetryLoopTest, UsesBackoffPolicy) {
   EXPECT_CALL(*mock, OnCompletion()).Times(3).WillRepeatedly(Return(ms(1)));
 
   int counter = 0;
-  EXPECT_EQ(CurrentOptions().get<TestOption>(), "");
-  OptionsSpan span(Options{}.set<TestOption>("UsesBackoffPolicy"));
-  EXPECT_EQ(CurrentOptions().get<TestOption>(), "UsesBackoffPolicy");
   AutomaticallyCreatedBackgroundThreads background;
   auto pending = AsyncRetryLoop(
       TestRetryPolicy(), std::move(mock), Idempotency::kIdempotent,
       background.cq(),
-      [&](google::cloud::CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
-          int request) {
-        EXPECT_EQ(CurrentOptions().get<TestOption>(), "UsesBackoffPolicy");
+      [&](google::cloud::CompletionQueue&, auto,
+          ImmutableOptions const& options, int request) {
+        EXPECT_EQ(options->get<TestOption>(), "UsesBackoffPolicy");
         if (++counter <= 3) {
           return make_ready_future(
               StatusOr<int>(Status(StatusCode::kUnavailable, "try again")));
         }
         return make_ready_future(StatusOr<int>(2 * request));
       },
-      42, "error message");
+      MakeImmutableOptions(Options{}.set<TestOption>("UsesBackoffPolicy")), 42,
+      "error message");
   OptionsSpan overlay(Options{}.set<TestOption>("uh-oh"));
   StatusOr<int> actual = pending.get();
   ASSERT_THAT(actual.status(), IsOk());
@@ -231,28 +226,30 @@ TEST(AsyncRetryLoopTest, UsesBackoffPolicy) {
 }
 
 TEST(AsyncRetryLoopTest, TransientFailureNonIdempotent) {
-  EXPECT_EQ(CurrentOptions().get<TestOption>(), "");
-  OptionsSpan span(Options{}.set<TestOption>("TransientFailureNonIdempotent"));
-  EXPECT_EQ(CurrentOptions().get<TestOption>(),
-            "TransientFailureNonIdempotent");
   AutomaticallyCreatedBackgroundThreads background;
   auto pending = AsyncRetryLoop(
       TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kNonIdempotent,
       background.cq(),
-      [](google::cloud::CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
+      [](google::cloud::CompletionQueue&, auto, ImmutableOptions const& options,
          int) {
-        EXPECT_EQ(CurrentOptions().get<TestOption>(),
-                  "TransientFailureNonIdempotent");
+        EXPECT_EQ(options->get<TestOption>(), "TransientFailureNonIdempotent");
         return make_ready_future(StatusOr<int>(
             Status(StatusCode::kUnavailable, "test-message-try-again")));
       },
+      MakeImmutableOptions(
+          Options{}.set<TestOption>("TransientFailureNonIdempotent")),
       42, "test-location");
   OptionsSpan overlay(Options{}.set<TestOption>("uh-oh"));
   StatusOr<int> actual = pending.get();
   EXPECT_THAT(actual, StatusIs(StatusCode::kUnavailable,
-                               AllOf(HasSubstr("test-message-try-again"),
-                                     HasSubstr("Error in non-idempotent"),
-                                     HasSubstr("test-location"))));
+                               HasSubstr("test-message-try-again")));
+  auto const& metadata = actual.status().error_info().metadata();
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.original-message",
+                                      "test-message-try-again")));
+  EXPECT_THAT(metadata,
+              Contains(Pair("gcloud-cpp.retry.reason", "non-idempotent")));
+  EXPECT_THAT(metadata,
+              Contains(Pair("gcloud-cpp.retry.function", "test-location")));
 }
 
 TEST(AsyncRetryLoopTest, PermanentFailureIdempotent) {
@@ -263,102 +260,134 @@ TEST(AsyncRetryLoopTest, PermanentFailureIdempotent) {
   auto pending = AsyncRetryLoop(
       TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent,
       background.cq(),
-      [](google::cloud::CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
+      [](google::cloud::CompletionQueue&, auto, ImmutableOptions const& options,
          int) {
-        EXPECT_EQ(CurrentOptions().get<TestOption>(),
-                  "PermanentFailureIdempotent");
+        EXPECT_EQ(options->get<TestOption>(), "PermanentFailureIdempotent");
         return make_ready_future(StatusOr<int>(
             Status(StatusCode::kPermissionDenied, "test-message-uh-oh")));
       },
+      MakeImmutableOptions(
+          Options{}.set<TestOption>("PermanentFailureIdempotent")),
       42, "test-location");
   OptionsSpan overlay(Options{}.set<TestOption>("uh-oh"));
   StatusOr<int> actual = pending.get();
   EXPECT_THAT(actual, StatusIs(StatusCode::kPermissionDenied,
-                               AllOf(HasSubstr("test-message-uh-oh"),
-                                     HasSubstr("Permanent error in"),
-                                     HasSubstr("test-location"))));
+                               HasSubstr("test-message-uh-oh")));
+  auto const& metadata = actual.status().error_info().metadata();
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.original-message",
+                                      "test-message-uh-oh")));
+  EXPECT_THAT(metadata,
+              Contains(Pair("gcloud-cpp.retry.reason", "permanent-error")));
+  EXPECT_THAT(metadata,
+              Contains(Pair("gcloud-cpp.retry.function", "test-location")));
 }
 
 TEST(AsyncRetryLoopTest, TooManyTransientFailuresIdempotent) {
-  EXPECT_EQ(CurrentOptions().get<TestOption>(), "");
-  OptionsSpan span(
-      Options{}.set<TestOption>("TooManyTransientFailuresIdempotent"));
-  EXPECT_EQ(CurrentOptions().get<TestOption>(),
-            "TooManyTransientFailuresIdempotent");
   AutomaticallyCreatedBackgroundThreads background;
   auto pending = AsyncRetryLoop(
       TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent,
       background.cq(),
-      [](google::cloud::CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
+      [](google::cloud::CompletionQueue&, auto, ImmutableOptions const& options,
          int) {
-        EXPECT_EQ(CurrentOptions().get<TestOption>(),
+        EXPECT_EQ(options->get<TestOption>(),
                   "TooManyTransientFailuresIdempotent");
         return make_ready_future(StatusOr<int>(
             Status(StatusCode::kUnavailable, "test-message-try-again")));
       },
+      MakeImmutableOptions(
+          Options{}.set<TestOption>("TooManyTransientFailuresIdempotent")),
       42, "test-location");
   OptionsSpan overlay(Options{}.set<TestOption>("uh-oh"));
   StatusOr<int> actual = pending.get();
   EXPECT_THAT(actual, StatusIs(StatusCode::kUnavailable,
-                               AllOf(HasSubstr("test-message-try-again"),
-                                     HasSubstr("Retry policy exhausted"),
-                                     HasSubstr("test-location"))));
+                               HasSubstr("test-message-try-again")));
+  auto const& metadata = actual.status().error_info().metadata();
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.original-message",
+                                      "test-message-try-again")));
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.reason",
+                                      "retry-policy-exhausted")));
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.on-entry", "false")));
+  EXPECT_THAT(metadata,
+              Contains(Pair("gcloud-cpp.retry.function", "test-location")));
 }
 
 TEST(AsyncRetryLoopTest, ExhaustedDuringBackoff) {
   using ms = std::chrono::milliseconds;
-  EXPECT_EQ(CurrentOptions().get<TestOption>(), "");
-  OptionsSpan span(Options{}.set<TestOption>("ExhaustedDuringBackoff"));
-  EXPECT_EQ(CurrentOptions().get<TestOption>(), "ExhaustedDuringBackoff");
   AutomaticallyCreatedBackgroundThreads background;
   auto pending = AsyncRetryLoop(
       LimitedErrorCountRetryPolicy<TestRetryablePolicy>(0).clone(),
       ExponentialBackoffPolicy(ms(0), ms(0), 2.0).clone(),
       Idempotency::kIdempotent, background.cq(),
-      [](google::cloud::CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
+      [](google::cloud::CompletionQueue&, auto, ImmutableOptions const& options,
          int) {
-        EXPECT_EQ(CurrentOptions().get<TestOption>(), "ExhaustedDuringBackoff");
+        EXPECT_EQ(options->get<TestOption>(), "ExhaustedDuringBackoff");
         return make_ready_future(StatusOr<int>(
             Status(StatusCode::kUnavailable, "test-message-try-again")));
       },
+      MakeImmutableOptions(Options{}.set<TestOption>("ExhaustedDuringBackoff")),
       42, "test-location");
-  OptionsSpan overlay(Options{}.set<TestOption>("uh-oh"));
   StatusOr<int> actual = pending.get();
   EXPECT_THAT(actual, StatusIs(StatusCode::kUnavailable,
-                               AllOf(HasSubstr("test-message-try-again"),
-                                     HasSubstr("Retry policy exhausted"),
-                                     HasSubstr("test-location"))));
+                               HasSubstr("test-message-try-again")));
+  auto const& metadata = actual.status().error_info().metadata();
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.reason",
+                                      "retry-policy-exhausted")));
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.on-entry", "false")));
+  EXPECT_THAT(metadata,
+              Contains(Pair("gcloud-cpp.retry.function", "test-location")));
 }
 
 TEST(AsyncRetryLoopTest, ExhaustedBeforeStart) {
-  auto mock = absl::make_unique<MockRetryPolicy>();
-  EXPECT_CALL(*mock, IsExhausted)
-      .WillOnce(Return(false))
-      .WillRepeatedly(Return(true));
-  EXPECT_CALL(*mock, OnFailure).WillOnce(Return(true));
+  auto mock = std::make_unique<MockRetryPolicy>();
+  EXPECT_CALL(*mock, IsExhausted).WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock, OnFailure).Times(0);
   EXPECT_CALL(*mock, IsPermanentFailure).WillRepeatedly(Return(false));
-  EXPECT_CALL(*mock, Setup).Times(1);
+  EXPECT_CALL(*mock, Setup).Times(0);
 
   AutomaticallyCreatedBackgroundThreads background;
   StatusOr<int> actual =
       AsyncRetryLoop(
           std::unique_ptr<RetryPolicyWithSetup>(std::move(mock)),
           TestBackoffPolicy(), Idempotency::kIdempotent, background.cq(),
-          [](google::cloud::CompletionQueue&,
-             std::unique_ptr<grpc::ClientContext>, int) {
+          [](google::cloud::CompletionQueue&, auto, auto const&, int) {
             return make_ready_future(StatusOr<int>(
                 Status(StatusCode::kUnavailable, "test-message-try-again")));
           },
-          42, "test-location")
+          MakeImmutableOptions(Options{}), 42, "test-location")
           .get();
-  EXPECT_THAT(actual, StatusIs(StatusCode::kUnavailable,
-                               AllOf(HasSubstr("test-message-try-again"),
-                                     HasSubstr("Retry policy exhausted"),
-                                     HasSubstr("test-location"))));
+  EXPECT_THAT(actual, StatusIs(StatusCode::kDeadlineExceeded));
+  auto const& metadata = actual.status().error_info().metadata();
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.reason",
+                                      "retry-policy-exhausted")));
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.on-entry", "true")));
+  EXPECT_THAT(metadata,
+              Contains(Pair("gcloud-cpp.retry.function", "test-location")));
+}
+
+TEST(AsyncRetryLoopTest, HeedsRetryInfo) {
+  MockFunction<future<StatusOr<int>>(CompletionQueue&,
+                                     std::shared_ptr<grpc::ClientContext>,
+                                     ImmutableOptions, int)>
+      mock;
+  EXPECT_CALL(mock, Call)
+      .WillOnce([] {
+        auto status = ResourceExhaustedError("try again");
+        SetRetryInfo(status, RetryInfo{std::chrono::seconds(0)});
+        return make_ready_future<StatusOr<int>>(status);
+      })
+      .WillOnce(Return(make_ready_future<StatusOr<int>>(5)));
+
+  AutomaticallyCreatedBackgroundThreads background;
+  auto pending = AsyncRetryLoop(
+      TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kNonIdempotent,
+      background.cq(), mock.AsStdFunction(),
+      MakeImmutableOptions(Options{}.set<EnableServerRetriesOption>(true)), 42,
+      "test-location");
+  EXPECT_THAT(pending.get(), IsOkAndHolds(5));
 }
 
 TEST(AsyncRetryLoopTest, SetsTimeout) {
-  auto mock = absl::make_unique<MockRetryPolicy>();
+  auto mock = std::make_unique<MockRetryPolicy>();
   EXPECT_CALL(*mock, OnFailure)
       .WillOnce(Return(true))
       .WillOnce(Return(true))
@@ -379,16 +408,61 @@ TEST(AsyncRetryLoopTest, SetsTimeout) {
   auto pending = AsyncRetryLoop(
       std::unique_ptr<RetryPolicyWithSetup>(std::move(mock)),
       TestBackoffPolicy(), Idempotency::kIdempotent, background.cq(),
-      [&](google::cloud::CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
+      [&](google::cloud::CompletionQueue&, auto, ImmutableOptions const&,
           int /*request*/) {
         EXPECT_EQ(CurrentOptions().get<TestOption>(), "SetsTimeout");
         return make_ready_future(
             StatusOr<int>(Status(StatusCode::kUnavailable, "try again")));
       },
-      42, "error message");
+      MakeImmutableOptions(Options{}), 42, "error message");
   OptionsSpan overlay(Options{}.set<TestOption>("uh-oh"));
   StatusOr<int> actual = pending.get();
   ASSERT_THAT(actual.status(), StatusIs(StatusCode::kUnavailable));
+}
+
+TEST(AsyncRetryLoopTest, ConfigureContext) {
+  AsyncSequencer<StatusOr<int>> sequencer;
+
+  // The original options should be used in the first attempt and in the retry
+  // attempt.
+  MockFunction<void(grpc::ClientContext&)> setup;
+  EXPECT_CALL(setup, Call).Times(2);
+
+  AutomaticallyCreatedBackgroundThreads background;
+  auto pending = AsyncRetryLoop(
+      TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent,
+      background.cq(),
+      [&sequencer](auto&, auto, auto const&, auto const&) {
+        return sequencer.PushBack();
+      },
+      MakeImmutableOptions(
+          Options{}.set<GrpcSetupOption>(setup.AsStdFunction())),
+      42, "error message");
+
+  // Clear the current options before retrying.
+  sequencer.PopFront().set_value(Status(StatusCode::kUnavailable, "try again"));
+  sequencer.PopFront().set_value(0);
+  (void)pending.get();
+}
+
+TEST(AsyncRetryLoopTest, CallOptionsDuringCancel) {
+  promise<StatusOr<int>> p([] {
+    EXPECT_EQ(CurrentOptions().get<TestOption>(), "CallOptionsDuringCancel");
+  });
+
+  AutomaticallyCreatedBackgroundThreads background;
+  auto pending = AsyncRetryLoop(
+      TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent,
+      background.cq(),
+      [&p](auto&, auto, auto const&, auto const&) { return p.get_future(); },
+      MakeImmutableOptions(
+          Options{}.set<TestOption>("CallOptionsDuringCancel")),
+      42, "error message");
+
+  OptionsSpan overlay(Options{}.set<TestOption>("uh-oh"));
+  pending.cancel();
+  p.set_value(0);
+  (void)pending.get();
 }
 
 TEST_F(AsyncRetryLoopCancelTest, CancelAndSuccess) {
@@ -398,10 +472,10 @@ TEST_F(AsyncRetryLoopCancelTest, CancelAndSuccess) {
   google::cloud::CompletionQueue cq(mock);
   future<StatusOr<int>> actual = AsyncRetryLoop(
       TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent, cq,
-      [this](google::cloud::CompletionQueue&,
-             std::unique_ptr<grpc::ClientContext>,
-             int x) { return SimulateRequest(x); },
-      42, "test-location");
+      [this](google::cloud::CompletionQueue&, auto, auto const&, int x) {
+        return SimulateRequest(x);
+      },
+      MakeImmutableOptions(Options{}), 42, "test-location");
 
   // First simulate a regular request that results in a transient failure.
   auto p = WaitForRequest();
@@ -429,10 +503,10 @@ TEST_F(AsyncRetryLoopCancelTest, CancelWithFailure) {
   google::cloud::CompletionQueue cq(mock);
   future<StatusOr<int>> actual = AsyncRetryLoop(
       TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent, cq,
-      [this](google::cloud::CompletionQueue&,
-             std::unique_ptr<grpc::ClientContext>,
-             int x) { return SimulateRequest(x); },
-      42, "test-location");
+      [this](google::cloud::CompletionQueue&, auto, auto const&, int x) {
+        return SimulateRequest(x);
+      },
+      MakeImmutableOptions(Options{}), 42, "test-location");
 
   // First simulate a regular request.
   auto p = WaitForRequest();
@@ -449,10 +523,12 @@ TEST_F(AsyncRetryLoopCancelTest, CancelWithFailure) {
   EXPECT_EQ(0, TimerCancelCount());
   p.set_value(transient);
   auto value = actual.get();
-  EXPECT_THAT(value, StatusIs(StatusCode::kUnavailable,
-                              AllOf(HasSubstr("try-again"),
-                                    HasSubstr("Retry loop cancelled"),
-                                    HasSubstr("test-location"))));
+  EXPECT_THAT(value,
+              StatusIs(StatusCode::kUnavailable, HasSubstr("try-again")));
+  auto const& metadata = value.status().error_info().metadata();
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.reason", "cancelled")));
+  EXPECT_THAT(metadata,
+              Contains(Pair("gcloud-cpp.retry.function", "test-location")));
 }
 
 TEST_F(AsyncRetryLoopCancelTest, CancelDuringTimer) {
@@ -462,10 +538,10 @@ TEST_F(AsyncRetryLoopCancelTest, CancelDuringTimer) {
   google::cloud::CompletionQueue cq(mock);
   future<StatusOr<int>> actual = AsyncRetryLoop(
       TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent, cq,
-      [this](google::cloud::CompletionQueue&,
-             std::unique_ptr<grpc::ClientContext>,
-             int x) { return SimulateRequest(x); },
-      42, "test-location");
+      [this](google::cloud::CompletionQueue&, auto, auto const&, int x) {
+        return SimulateRequest(x);
+      },
+      MakeImmutableOptions(Options{}), 42, "test-location");
 
   // First simulate a regular request.
   auto p = WaitForRequest();
@@ -484,10 +560,12 @@ TEST_F(AsyncRetryLoopCancelTest, CancelDuringTimer) {
   // the retry loop should *not* create any more calls, the value should be
   // available immediately.
   auto value = actual.get();
-  EXPECT_THAT(value, StatusIs(StatusCode::kUnavailable,
-                              AllOf(HasSubstr("try-again"),
-                                    HasSubstr("Retry loop cancelled"),
-                                    HasSubstr("test-location"))));
+  EXPECT_THAT(value,
+              StatusIs(StatusCode::kUnavailable, HasSubstr("try-again")));
+  auto const& metadata = value.status().error_info().metadata();
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.reason", "cancelled")));
+  EXPECT_THAT(metadata,
+              Contains(Pair("gcloud-cpp.retry.function", "test-location")));
 }
 
 TEST_F(AsyncRetryLoopCancelTest, ShutdownDuringTimer) {
@@ -497,10 +575,10 @@ TEST_F(AsyncRetryLoopCancelTest, ShutdownDuringTimer) {
   google::cloud::CompletionQueue cq(mock);
   future<StatusOr<int>> actual = AsyncRetryLoop(
       TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent, cq,
-      [this](google::cloud::CompletionQueue&,
-             std::unique_ptr<grpc::ClientContext>,
-             int x) { return SimulateRequest(x); },
-      42, "test-location");
+      [this](google::cloud::CompletionQueue&, auto, auto const&, int x) {
+        return SimulateRequest(x);
+      },
+      MakeImmutableOptions(Options{}), 42, "test-location");
 
   // First simulate a regular request.
   auto p = WaitForRequest();
@@ -519,33 +597,68 @@ TEST_F(AsyncRetryLoopCancelTest, ShutdownDuringTimer) {
 
   // the retry loop should exit
   auto value = actual.get();
-  EXPECT_THAT(value, StatusIs(StatusCode::kCancelled,
-                              AllOf(HasSubstr("Timer failure in"),
-                                    HasSubstr("test-location"))));
+  EXPECT_THAT(value, StatusIs(StatusCode::kCancelled));
+  auto const& metadata = value.status().error_info().metadata();
+  EXPECT_THAT(metadata, Contains(Pair("gcloud-cpp.retry.reason", "cancelled")));
+  EXPECT_THAT(metadata,
+              Contains(Pair("gcloud-cpp.retry.function", "test-location")));
 }
 
-TEST(AsyncRetryLoopTest, ConfigureContext) {
-  AsyncSequencer<StatusOr<int>> sequencer;
+#ifdef GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
+using ::google::cloud::testing_util::EnableTracing;
+using ::google::cloud::testing_util::IsActive;
+using ::google::cloud::testing_util::SpanNamed;
+using ::testing::AllOf;
+using ::testing::Each;
+using ::testing::SizeIs;
 
-  // The original options should be used in the first attempt and in the retry
-  // attempt.
-  MockFunction<void(grpc::ClientContext&)> setup;
-  EXPECT_CALL(setup, Call).Times(2);
-  OptionsSpan span(Options{}.set<GrpcSetupOption>(setup.AsStdFunction()));
+TEST(AsyncRetryLoopTest, TracedBackoff) {
+  auto span_catcher = testing_util::InstallSpanCatcher();
+
+  AsyncSequencer<bool> sequencer;
+  AutomaticallyCreatedBackgroundThreads background;
+  auto actual = AsyncRetryLoop(
+      TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent,
+      background.cq(),
+      [&](auto, auto, auto const&, auto) {
+        return sequencer.PushBack().then(
+            [](auto) { return StatusOr<int>(UnavailableError("try again")); });
+      },
+      MakeImmutableOptions(EnableTracing(Options{})), 42, "error message");
+
+  OptionsSpan overlay(Options{});
+  for (auto i = 0; i != kMaxRetries + 1; ++i) {
+    sequencer.PopFront().set_value(true);
+  }
+  EXPECT_THAT(actual.get(), StatusIs(StatusCode::kUnavailable));
+
+  auto spans = span_catcher->GetSpans();
+  EXPECT_THAT(spans,
+              AllOf(SizeIs(kMaxRetries), Each(SpanNamed("Async Backoff"))));
+}
+
+TEST(AsyncRetryLoopTest, CallSpanActiveDuringCancel) {
+  auto span_catcher = testing_util::InstallSpanCatcher();
+
+  auto span = MakeSpan("span");
+  OTelScope scope(span);
+
+  promise<StatusOr<int>> p([span] { EXPECT_THAT(span, IsActive()); });
 
   AutomaticallyCreatedBackgroundThreads background;
   future<StatusOr<int>> actual = AsyncRetryLoop(
       TestRetryPolicy(), TestBackoffPolicy(), Idempotency::kIdempotent,
       background.cq(),
-      [&sequencer](auto, auto, auto) { return sequencer.PushBack(); }, 42,
-      "error message");
+      [&](auto, auto, auto const&, auto) { return p.get_future(); },
+      MakeImmutableOptions(EnableTracing(Options{})), 42, "error message");
 
-  // Clear the current options before retrying.
-  OptionsSpan clear(Options{});
-  sequencer.PopFront().set_value(Status(StatusCode::kUnavailable, "try again"));
-  sequencer.PopFront().set_value(0);
+  auto overlay = opentelemetry::trace::Scope(MakeSpan("overlay"));
+  actual.cancel();
+  p.set_value(0);
   (void)actual.get();
 }
+
+#endif  // GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
 
 }  // namespace
 }  // namespace internal

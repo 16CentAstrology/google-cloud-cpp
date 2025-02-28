@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -131,8 +131,8 @@ class TableIntegrationTest
    * Compare two sets of cells.
    * Unordered because ReadRows does not guarantee a particular order.
    */
-  static void CheckEqualUnordered(std::vector<bigtable::Cell> expected,
-                                  std::vector<bigtable::Cell> actual);
+  static void CheckEqualUnordered(std::vector<bigtable::Cell> const& expected,
+                                  std::vector<bigtable::Cell> const& actual);
 
   /**
    * Generate a random table id.

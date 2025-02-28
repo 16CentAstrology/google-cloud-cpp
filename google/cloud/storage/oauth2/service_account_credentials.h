@@ -15,15 +15,20 @@
 #ifndef GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_STORAGE_OAUTH2_SERVICE_ACCOUNT_CREDENTIALS_H
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_STORAGE_OAUTH2_SERVICE_ACCOUNT_CREDENTIALS_H
 
-#include "google/cloud/storage/internal/curl_request_builder.h"
-#include "google/cloud/storage/internal/openssl_util.h"
+#include "google/cloud/storage/client_options.h"
+#include "google/cloud/storage/internal/base64.h"
+#include "google/cloud/storage/internal/curl/request_builder.h"
+#include "google/cloud/storage/internal/http_response.h"
 #include "google/cloud/storage/oauth2/credential_constants.h"
 #include "google/cloud/storage/oauth2/credentials.h"
 #include "google/cloud/storage/oauth2/refreshing_credentials_wrapper.h"
 #include "google/cloud/storage/version.h"
+#include "google/cloud/internal/curl_handle_factory.h"
 #include "google/cloud/internal/getenv.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/internal/oauth2_service_account_credentials.h"
 #include "google/cloud/internal/sha256_hash.h"
+#include "google/cloud/internal/sign_using_sha256.h"
 #include "google/cloud/optional.h"
 #include "google/cloud/status_or.h"
 #include "absl/types/optional.h"
@@ -31,9 +36,11 @@
 #include <condition_variable>
 #include <ctime>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace google {
@@ -214,7 +221,7 @@ class ServiceAccountCredentials<storage::internal::CurlRequestBuilder,
                             ChannelOptions const& options);
 
   StatusOr<std::string> AuthorizationHeader() override {
-    return oauth2_internal::AuthorizationHeaderJoined(*impl_);
+    return oauth2_internal::AuthenticationHeaderJoined(*impl_);
   }
 
   /**
@@ -243,7 +250,12 @@ class ServiceAccountCredentials<storage::internal::CurlRequestBuilder,
   std::string KeyId() const override { return impl_->KeyId(); }
 
  private:
-  std::unique_ptr<oauth2_internal::ServiceAccountCredentials> impl_;
+  friend struct ServiceAccountCredentialsTester;
+  StatusOr<std::string> AuthorizationHeaderForTesting(
+      std::chrono::system_clock::time_point tp) {
+    return oauth2_internal::AuthenticationHeaderJoined(*impl_, tp);
+  }
+  std::unique_ptr<oauth2_internal::Credentials> impl_;
 };
 
 /// @copydoc ServiceAccountCredentials
@@ -282,12 +294,12 @@ class ServiceAccountCredentials : public Credentials {
       std::string const& blob) const override {
     if (signing_account.has_value() &&
         signing_account.value() != info_.client_email) {
-      return Status(StatusCode::kInvalidArgument,
-                    "The current_credentials cannot sign blobs for " +
-                        signing_account.value());
+      return google::cloud::internal::InvalidArgumentError(
+          "The current_credentials cannot sign blobs for " +
+              signing_account.value(),
+          GCP_ERROR_INFO());
     }
-    return internal::SignStringWithPem(blob, info_.private_key,
-                                       JwtSigningAlgorithms::RS256);
+    return google::cloud::internal::SignUsingSha256(blob, info_.private_key);
   }
 
   std::string AccountEmail() const override { return info_.client_email; }
@@ -303,8 +315,7 @@ class ServiceAccountCredentials : public Credentials {
 
   StatusOr<RefreshingCredentialsWrapper::TemporaryToken> RefreshOAuth() const {
     HttpRequestBuilderType builder(
-        info_.token_uri,
-        storage::internal::GetDefaultCurlHandleFactory(options_));
+        info_.token_uri, rest_internal::GetDefaultCurlHandleFactory(options_));
     builder.AddHeader("Content-Type: application/x-www-form-urlencoded");
     // This is the value of grant_type for JSON-formatted service account
     // keyfiles downloaded from Cloud Console.

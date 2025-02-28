@@ -16,6 +16,8 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_INTERNAL_STREAMING_WRITE_RPC_IMPL_H
 
 #include "google/cloud/grpc_error_delegate.h"
+#include "google/cloud/internal/grpc_metadata_view.h"
+#include "google/cloud/internal/grpc_request_metadata.h"
 #include "google/cloud/internal/streaming_write_rpc.h"
 #include "google/cloud/status.h"
 #include "google/cloud/version.h"
@@ -45,7 +47,7 @@ class StreamingWriteRpcImpl
     : public StreamingWriteRpc<RequestType, ResponseType> {
  public:
   StreamingWriteRpcImpl(
-      std::unique_ptr<grpc::ClientContext> context,
+      std::shared_ptr<grpc::ClientContext> context,
       std::unique_ptr<ResponseType> response,
       std::unique_ptr<grpc::ClientWriterInterface<RequestType>> stream)
       : context_(std::move(context)),
@@ -56,7 +58,6 @@ class StreamingWriteRpcImpl
     if (finished_) return;
     Cancel();
     auto status = Finish();
-    if (status.ok()) return;
     StreamingWriteRpcReportUnhandledError(status, typeid(ResponseType).name());
   }
 
@@ -74,8 +75,9 @@ class StreamingWriteRpcImpl
     return std::move(*response_);
   }
 
-  StreamingRpcMetadata GetRequestMetadata() const override {
-    return GetRequestMetadataFromContext(*context_);
+  RpcMetadata GetRequestMetadata() const override {
+    return GetRequestMetadataFromContext(*context_,
+                                         GrpcMetadataView::kWithServerMetadata);
   }
 
  private:
@@ -85,7 +87,7 @@ class StreamingWriteRpcImpl
     return status;
   }
 
-  std::unique_ptr<grpc::ClientContext> context_;
+  std::shared_ptr<grpc::ClientContext> context_;
   std::unique_ptr<ResponseType> response_;
   std::unique_ptr<grpc::ClientWriterInterface<RequestType>> stream_;
   bool finished_ = false;
@@ -114,7 +116,7 @@ class StreamingWriteRpcError
 
   StatusOr<ResponseType> Close() override { return status_; }
 
-  StreamingRpcMetadata GetRequestMetadata() const override { return {}; }
+  RpcMetadata GetRequestMetadata() const override { return {}; }
 
  private:
   Status status_;

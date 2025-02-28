@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "google/cloud/pubsub/internal/batching_publisher_connection.h"
+#include "google/cloud/internal/make_status.h"
 
 namespace google {
 namespace cloud {
@@ -33,8 +34,8 @@ struct Batch {
     }
     if (static_cast<std::size_t>(response->message_ids_size()) !=
         waiters.size()) {
-      SatisfyAllWaiters(
-          Status(StatusCode::kUnknown, "mismatched message id count"));
+      SatisfyAllWaiters(internal::UnknownError("mismatched message id count",
+                                               GCP_ERROR_INFO()));
       return;
     }
     int idx = 0;
@@ -54,6 +55,7 @@ BatchingPublisherConnection::~BatchingPublisherConnection() {
 
 future<StatusOr<std::string>> BatchingPublisherConnection::Publish(
     PublishParams p) {
+  sink_->AddMessage(p.message);
   auto const bytes = MessageSize(p.message);
   std::unique_lock<std::mutex> lk(mu_);
   do {
@@ -118,12 +120,9 @@ void BatchingPublisherConnection::HandleError(Status const& status) {
   waiters.swap(waiters_);
   lk.unlock();
   for (auto& p : waiters) {
-    struct MoveCapture {
-      promise<StatusOr<std::string>> p;
-      Status status;
-      void operator()() { p.set_value(std::move(status)); }
-    };
-    cq_.RunAsync(MoveCapture{std::move(p), status});
+    cq_.RunAsync([p = std::move(p), status]() mutable {
+      p.set_value(std::move(status));
+    });
   }
 }
 
@@ -178,14 +177,9 @@ void BatchingPublisherConnection::OnTimer() {
 future<StatusOr<std::string>> BatchingPublisherConnection::CorkedError() {
   promise<StatusOr<std::string>> p;
   auto f = p.get_future();
-
-  struct MoveCapture {
-    promise<StatusOr<std::string>> p;
-    Status status;
-    void operator()() { p.set_value(std::move(status)); }
-  };
-  cq_.RunAsync(MoveCapture{std::move(p), corked_on_status_});
-
+  cq_.RunAsync([p = std::move(p), status = corked_on_status_]() mutable {
+    p.set_value(std::move(status));
+  });
   return f;
 }
 
@@ -204,6 +198,7 @@ void BatchingPublisherConnection::FlushImpl(std::unique_lock<std::mutex> lk) {
 
   batch.weak = shared_from_this();
   request.set_topic(topic_full_name_);
+
   sink_->AsyncPublish(std::move(request)).then(std::move(batch));
 }
 

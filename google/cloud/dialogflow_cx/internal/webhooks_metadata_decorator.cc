@@ -17,76 +17,131 @@
 // source: google/cloud/dialogflow/cx/v3/webhook.proto
 
 #include "google/cloud/dialogflow_cx/internal/webhooks_metadata_decorator.h"
-#include "google/cloud/common_options.h"
+#include "google/cloud/grpc_options.h"
+#include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/api_client_header.h"
+#include "google/cloud/internal/url_encode.h"
 #include "google/cloud/status_or.h"
 #include <google/cloud/dialogflow/cx/v3/webhook.grpc.pb.h>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
 namespace dialogflow_cx_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
-WebhooksMetadata::WebhooksMetadata(std::shared_ptr<WebhooksStub> child)
+WebhooksMetadata::WebhooksMetadata(
+    std::shared_ptr<WebhooksStub> child,
+    std::multimap<std::string, std::string> fixed_metadata,
+    std::string api_client_header)
     : child_(std::move(child)),
+      fixed_metadata_(std::move(fixed_metadata)),
       api_client_header_(
-          google::cloud::internal::ApiClientHeader("generator")) {}
+          api_client_header.empty()
+              ? google::cloud::internal::GeneratedLibClientHeader()
+              : std::move(api_client_header)) {}
 
 StatusOr<google::cloud::dialogflow::cx::v3::ListWebhooksResponse>
 WebhooksMetadata::ListWebhooks(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::ListWebhooksRequest const& request) {
-  SetMetadata(context, "parent=" + request.parent());
-  return child_->ListWebhooks(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->ListWebhooks(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::cx::v3::Webhook>
 WebhooksMetadata::GetWebhook(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::GetWebhookRequest const& request) {
-  SetMetadata(context, "name=" + request.name());
-  return child_->GetWebhook(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetWebhook(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::cx::v3::Webhook>
 WebhooksMetadata::CreateWebhook(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::CreateWebhookRequest const& request) {
-  SetMetadata(context, "parent=" + request.parent());
-  return child_->CreateWebhook(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->CreateWebhook(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::cx::v3::Webhook>
 WebhooksMetadata::UpdateWebhook(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::UpdateWebhookRequest const& request) {
-  SetMetadata(context, "webhook.name=" + request.webhook().name());
-  return child_->UpdateWebhook(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("webhook.name=",
+                           internal::UrlEncode(request.webhook().name())));
+  return child_->UpdateWebhook(context, options, request);
 }
 
 Status WebhooksMetadata::DeleteWebhook(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::DeleteWebhookRequest const& request) {
-  SetMetadata(context, "name=" + request.name());
-  return child_->DeleteWebhook(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->DeleteWebhook(context, options, request);
+}
+
+StatusOr<google::cloud::location::ListLocationsResponse>
+WebhooksMetadata::ListLocations(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::ListLocationsRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->ListLocations(context, options, request);
+}
+
+StatusOr<google::cloud::location::Location> WebhooksMetadata::GetLocation(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::GetLocationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetLocation(context, options, request);
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+WebhooksMetadata::ListOperations(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::ListOperationsRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->ListOperations(context, options, request);
+}
+
+StatusOr<google::longrunning::Operation> WebhooksMetadata::GetOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::GetOperationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetOperation(context, options, request);
+}
+
+Status WebhooksMetadata::CancelOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::CancelOperationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->CancelOperation(context, options, request);
 }
 
 void WebhooksMetadata::SetMetadata(grpc::ClientContext& context,
+                                   Options const& options,
                                    std::string const& request_params) {
   context.AddMetadata("x-goog-request-params", request_params);
-  SetMetadata(context);
+  SetMetadata(context, options);
 }
 
-void WebhooksMetadata::SetMetadata(grpc::ClientContext& context) {
-  context.AddMetadata("x-goog-api-client", api_client_header_);
-  auto const& options = internal::CurrentOptions();
-  if (options.has<UserProjectOption>()) {
-    context.AddMetadata("x-goog-user-project",
-                        options.get<UserProjectOption>());
-  }
-  auto const& authority = options.get<AuthorityOption>();
-  if (!authority.empty()) context.set_authority(authority);
+void WebhooksMetadata::SetMetadata(grpc::ClientContext& context,
+                                   Options const& options) {
+  google::cloud::internal::SetMetadata(context, options, fixed_metadata_,
+                                       api_client_header_);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

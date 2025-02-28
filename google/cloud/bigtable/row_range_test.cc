@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -733,6 +733,18 @@ TEST(RowRangeTest, IntersectEndingAtEndingAt) {
   auto tuple = R::EndingAt("m").Intersect(R::EndingAt("k"));
   EXPECT_TRUE(std::get<0>(tuple));
   EXPECT_EQ(R::EndingAt("k"), std::get<1>(tuple));
+}
+
+TEST(RowRangeTest, SanitizesInput) {
+  google::bigtable::v2::RowRange proto;
+  proto.set_start_key_open("");
+  proto.set_end_key_open("");
+  auto rr = RowRange(proto);
+  EXPECT_FALSE(rr.IsEmpty());
+
+  proto.set_end_key_closed("");
+  rr = RowRange(std::move(proto));
+  EXPECT_FALSE(rr.IsEmpty());
 }
 
 }  // namespace

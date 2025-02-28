@@ -18,6 +18,8 @@
 #include "google/cloud/internal/absl_str_join_quiet.h"
 #include "google/cloud/internal/format_time_point.h"
 #include <nlohmann/json.hpp>
+#include <string>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -25,6 +27,15 @@ namespace storage {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 using ::google::cloud::internal::FormatRfc3339;
+
+std::ostream& operator<<(std::ostream& os, ComposeSourceObject const& r) {
+  os << "ComposeSourceObject={object_name=" << r.object_name;
+  if (r.generation) os << ", generation=" << *r.generation;
+  if (r.if_generation_match) {
+    os << ", if_generation_match=" << *r.if_generation_match;
+  }
+  return os << "}";
+}
 
 bool operator==(ObjectMetadata const& lhs, ObjectMetadata const& rhs) {
   return lhs.acl_ == rhs.acl_ && lhs.bucket_ == rhs.bucket_                   //
@@ -50,6 +61,7 @@ bool operator==(ObjectMetadata const& lhs, ObjectMetadata const& rhs) {
          && lhs.name_ == rhs.name_                                            //
          && lhs.owner_ == rhs.owner_                                          //
          && lhs.retention_expiration_time_ == rhs.retention_expiration_time_  //
+         && lhs.retention_ == rhs.retention_                                  //
          && lhs.self_link_ == rhs.self_link_                                  //
          && lhs.size_ == rhs.size_                                            //
          && lhs.storage_class_ == rhs.storage_class_                          //
@@ -57,8 +69,11 @@ bool operator==(ObjectMetadata const& lhs, ObjectMetadata const& rhs) {
          && lhs.time_created_ == rhs.time_created_                            //
          && lhs.time_deleted_ == rhs.time_deleted_                            //
          && (lhs.time_storage_class_updated_ ==
-             rhs.time_storage_class_updated_)  //
-         && lhs.updated_ == rhs.updated_;
+             rhs.time_storage_class_updated_)               //
+         && lhs.updated_ == rhs.updated_                    //
+         && lhs.soft_delete_time_ == rhs.soft_delete_time_  //
+         && lhs.hard_delete_time_ == rhs.hard_delete_time_  //
+      ;
 }
 
 std::ostream& operator<<(std::ostream& os, ObjectMetadata const& rhs) {
@@ -97,8 +112,11 @@ std::ostream& operator<<(std::ostream& os, ObjectMetadata const& rhs) {
   }
 
   os << ", retention_expiration_time="
-     << FormatRfc3339(rhs.retention_expiration_time())
-     << ", self_link=" << rhs.self_link() << ", size=" << rhs.size()
+     << FormatRfc3339(rhs.retention_expiration_time());
+  if (rhs.has_retention()) {
+    os << ", retention=" << rhs.retention();
+  }
+  os << ", self_link=" << rhs.self_link() << ", size=" << rhs.size()
      << ", storage_class=" << rhs.storage_class()
      << ", temporary_hold=" << std::boolalpha << rhs.temporary_hold()
      << ", time_created=" << rhs.time_created().time_since_epoch().count()
@@ -108,6 +126,12 @@ std::ostream& operator<<(std::ostream& os, ObjectMetadata const& rhs) {
      << ", updated=" << rhs.updated().time_since_epoch().count();
   if (rhs.has_custom_time()) {
     os << ", custom_time=" << FormatRfc3339(rhs.custom_time());
+  }
+  if (rhs.has_soft_delete_time()) {
+    os << ", soft_delete_time=" << FormatRfc3339(rhs.soft_delete_time());
+  }
+  if (rhs.has_hard_delete_time()) {
+    os << ", hard_delete_time=" << FormatRfc3339(rhs.hard_delete_time());
   }
   return os << "}";
 }
@@ -267,6 +291,22 @@ ObjectMetadataPatchBuilder& ObjectMetadataPatchBuilder::SetCustomTime(
 
 ObjectMetadataPatchBuilder& ObjectMetadataPatchBuilder::ResetCustomTime() {
   impl_.RemoveField("customTime");
+  return *this;
+}
+
+ObjectMetadataPatchBuilder& ObjectMetadataPatchBuilder::SetRetention(
+    ObjectRetention const& tp) {
+  impl_.AddSubPatch("retention",
+                    internal::PatchBuilder()
+                        .SetStringField("mode", tp.mode)
+                        .SetStringField("retainUntilTime",
+                                        google::cloud::internal::FormatRfc3339(
+                                            tp.retain_until_time)));
+  return *this;
+}
+
+ObjectMetadataPatchBuilder& ObjectMetadataPatchBuilder::ResetRetention() {
+  impl_.RemoveField("retention");
   return *this;
 }
 

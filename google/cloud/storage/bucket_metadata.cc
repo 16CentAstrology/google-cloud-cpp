@@ -20,6 +20,9 @@
 #include "google/cloud/status.h"
 #include "absl/strings/str_format.h"
 #include <nlohmann/json.hpp>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -91,6 +94,7 @@ bool operator==(BucketMetadata const& lhs, BucketMetadata const& rhs) {
          && lhs.default_event_based_hold_ == rhs.default_event_based_hold_  //
          && lhs.encryption_ == rhs.encryption_                              //
          && lhs.etag_ == rhs.etag_                                          //
+         && lhs.hierarchical_namespace_ == rhs.hierarchical_namespace_      //
          && lhs.iam_configuration_ == rhs.iam_configuration_                //
          && lhs.id_ == rhs.id_                                              //
          && lhs.kind_ == rhs.kind_                                          //
@@ -101,11 +105,13 @@ bool operator==(BucketMetadata const& lhs, BucketMetadata const& rhs) {
          && lhs.logging_ == rhs.logging_                                    //
          && lhs.metageneration_ == rhs.metageneration_                      //
          && lhs.name_ == rhs.name_                                          //
+         && lhs.object_retention_ == rhs.object_retention_                  //
          && lhs.owner_ == rhs.owner_                                        //
          && lhs.project_number_ == rhs.project_number_                      //
          && lhs.retention_policy_ == rhs.retention_policy_                  //
          && lhs.rpo_ == rhs.rpo_                                            //
          && lhs.self_link_ == rhs.self_link_                                //
+         && lhs.soft_delete_policy_ == rhs.soft_delete_policy_              //
          && lhs.storage_class_ == rhs.storage_class_                        //
          && lhs.time_created_ == rhs.time_created_                          //
          && lhs.updated_ == rhs.updated_                                    //
@@ -150,6 +156,10 @@ std::ostream& operator<<(std::ostream& os, BucketMetadata const& rhs) {
 
   os << ", etag=" << rhs.etag();
 
+  if (rhs.has_hierarchical_namespace()) {
+    os << ", hierarchical_namespace=" << rhs.hierarchical_namespace();
+  }
+
   if (rhs.has_iam_configuration()) {
     os << ", iam_configuration=" << rhs.iam_configuration();
   }
@@ -176,14 +186,20 @@ std::ostream& operator<<(std::ostream& os, BucketMetadata const& rhs) {
 
   os << ", metageneration=" << rhs.metageneration() << ", name=" << rhs.name();
 
+  if (rhs.has_object_retention()) {
+    os << ", object_retention=" << rhs.object_retention();
+  }
   if (rhs.has_owner()) {
     os << ", owner.entity=" << rhs.owner().entity
        << ", owner.entity_id=" << rhs.owner().entity_id;
   }
 
   os << ", project_number=" << rhs.project_number()
-     << ", self_link=" << rhs.self_link()
-     << ", storage_class=" << rhs.storage_class() << ", time_created="
+     << ", self_link=" << rhs.self_link();
+  if (rhs.has_soft_delete_policy()) {
+    os << ", soft_delete_policy=" << rhs.soft_delete_policy();
+  }
+  os << ", storage_class=" << rhs.storage_class() << ", time_created="
      << google::cloud::internal::FormatRfc3339(rhs.time_created())
      << ", updated=" << google::cloud::internal::FormatRfc3339(rhs.updated());
 
@@ -255,8 +271,11 @@ BucketMetadataPatchBuilder& BucketMetadataPatchBuilder::ResetAcl() {
 
 BucketMetadataPatchBuilder& BucketMetadataPatchBuilder::SetAutoclass(
     BucketAutoclass const& v) {
-  impl_.AddSubPatch(
-      "autoclass", internal::PatchBuilder().SetBoolField("enabled", v.enabled));
+  auto builder = internal::PatchBuilder().SetBoolField("enabled", v.enabled);
+  if (!v.terminal_storage_class.empty()) {
+    builder.SetStringField("terminalStorageClass", v.terminal_storage_class);
+  }
+  impl_.AddSubPatch("autoclass", std::move(builder));
   return *this;
 }
 
@@ -383,6 +402,21 @@ BucketMetadataPatchBuilder::ResetIamConfiguration() {
   return *this;
 }
 
+BucketMetadataPatchBuilder&
+BucketMetadataPatchBuilder::SetHierarchicalNamespace(
+    BucketHierarchicalNamespace const& v) {
+  internal::PatchBuilder subpatch;
+  subpatch.SetBoolField("enabled", v.enabled);
+  impl_.AddSubPatch("hierarchicalNamespace", subpatch);
+  return *this;
+}
+
+BucketMetadataPatchBuilder&
+BucketMetadataPatchBuilder::ResetHierarchicalNamespace() {
+  impl_.RemoveField("hierarchicalNamespace");
+  return *this;
+}
+
 BucketMetadataPatchBuilder& BucketMetadataPatchBuilder::SetLabel(
     std::string const& label, std::string const& value) {
   labels_subpatch_.SetStringField(label.c_str(), value);
@@ -481,6 +515,24 @@ BucketMetadataPatchBuilder& BucketMetadataPatchBuilder::SetRpo(
 
 BucketMetadataPatchBuilder& BucketMetadataPatchBuilder::ResetRpo() {
   impl_.RemoveField("rpo");
+  return *this;
+}
+
+BucketMetadataPatchBuilder& BucketMetadataPatchBuilder::SetSoftDeletePolicy(
+    BucketSoftDeletePolicy const& v) {
+  // Only the retentionDurationSeconds field is writeable, so do not modify the
+  // other fields.
+  impl_.AddSubPatch(
+      "softDeletePolicy",
+      internal::PatchBuilder().SetIntField(
+          "retentionDurationSeconds",
+          static_cast<std::uint64_t>(v.retention_duration.count())));
+  return *this;
+}
+
+BucketMetadataPatchBuilder&
+BucketMetadataPatchBuilder::ResetSoftDeletePolicy() {
+  impl_.RemoveField("softDeletePolicy");
   return *this;
 }
 

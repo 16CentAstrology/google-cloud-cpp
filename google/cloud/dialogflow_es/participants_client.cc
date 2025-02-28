@@ -18,6 +18,7 @@
 
 #include "google/cloud/dialogflow_es/participants_client.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -188,6 +189,70 @@ ParticipantsClient::SuggestSmartReplies(
     Options opts) {
   internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
   return connection_->SuggestSmartReplies(request);
+}
+
+StatusOr<google::cloud::dialogflow::v2::SuggestKnowledgeAssistResponse>
+ParticipantsClient::SuggestKnowledgeAssist(
+    google::cloud::dialogflow::v2::SuggestKnowledgeAssistRequest const& request,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->SuggestKnowledgeAssist(request);
+}
+
+StreamRange<google::cloud::location::Location>
+ParticipantsClient::ListLocations(
+    google::cloud::location::ListLocationsRequest request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->ListLocations(std::move(request));
+}
+
+StatusOr<google::cloud::location::Location> ParticipantsClient::GetLocation(
+    google::cloud::location::GetLocationRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->GetLocation(request);
+}
+
+StreamRange<google::longrunning::Operation> ParticipantsClient::ListOperations(
+    std::string const& name, std::string const& filter, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::longrunning::ListOperationsRequest request;
+  request.set_name(name);
+  request.set_filter(filter);
+  return connection_->ListOperations(request);
+}
+
+StreamRange<google::longrunning::Operation> ParticipantsClient::ListOperations(
+    google::longrunning::ListOperationsRequest request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->ListOperations(std::move(request));
+}
+
+StatusOr<google::longrunning::Operation> ParticipantsClient::GetOperation(
+    std::string const& name, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::longrunning::GetOperationRequest request;
+  request.set_name(name);
+  return connection_->GetOperation(request);
+}
+
+StatusOr<google::longrunning::Operation> ParticipantsClient::GetOperation(
+    google::longrunning::GetOperationRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->GetOperation(request);
+}
+
+Status ParticipantsClient::CancelOperation(std::string const& name,
+                                           Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::longrunning::CancelOperationRequest request;
+  request.set_name(name);
+  return connection_->CancelOperation(request);
+}
+
+Status ParticipantsClient::CancelOperation(
+    google::longrunning::CancelOperationRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->CancelOperation(request);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

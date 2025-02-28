@@ -13,10 +13,10 @@
 // limitations under the License.
 
 #include "google/cloud/internal/async_read_write_stream_auth.h"
+#include "google/cloud/mocks/mock_async_streaming_read_write_rpc.h"
 #include "google/cloud/completion_queue.h"
 #include "google/cloud/testing_util/mock_grpc_authentication_strategy.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
 #include <gmock/gmock.h>
 #include <memory>
 #include <string>
@@ -29,7 +29,9 @@ namespace {
 
 using ::google::cloud::testing_util::IsOk;
 using ::google::cloud::testing_util::MockAuthenticationStrategy;
+using ::testing::Pair;
 using ::testing::StrictMock;
+using ::testing::UnorderedElementsAre;
 
 struct FakeRequest {
   std::string key;
@@ -42,22 +44,13 @@ struct FakeResponse {
 
 using BaseStream = AsyncStreamingReadWriteRpc<FakeRequest, FakeResponse>;
 using AuthStream = AsyncStreamingReadWriteRpcAuth<FakeRequest, FakeResponse>;
-
-class MockStream : public BaseStream {
- public:
-  MOCK_METHOD(void, Cancel, (), (override));
-  MOCK_METHOD(future<bool>, Start, (), (override));
-  MOCK_METHOD(future<absl::optional<FakeResponse>>, Read, (), (override));
-  MOCK_METHOD(future<bool>, Write, (FakeRequest const&, grpc::WriteOptions),
-              (override));
-  MOCK_METHOD(future<bool>, WritesDone, (), (override));
-  MOCK_METHOD(future<Status>, Finish, (), (override));
-};
+using MockStream =
+    ::google::cloud::mocks::MockAsyncStreamingReadWriteRpc<FakeRequest,
+                                                           FakeResponse>;
 
 TEST(AsyncStreamReadWriteAuth, Start) {
-  auto factory = AuthStream::StreamFactory([](std::unique_ptr<
-                                               grpc::ClientContext>) {
-    auto mock = absl::make_unique<StrictMock<MockStream>>();
+  auto factory = AuthStream::StreamFactory([](auto) {
+    auto mock = std::make_unique<StrictMock<MockStream>>();
     EXPECT_CALL(*mock, Start).WillOnce([] { return make_ready_future(true); });
     EXPECT_CALL(*mock, Write)
         .WillOnce([](FakeRequest const&, grpc::WriteOptions) {
@@ -72,15 +65,18 @@ TEST(AsyncStreamReadWriteAuth, Start) {
     EXPECT_CALL(*mock, Finish).WillOnce([] {
       return make_ready_future(Status{});
     });
+    EXPECT_CALL(*mock, GetRequestMetadata).WillOnce([] {
+      return RpcMetadata{{{"hk0", "v0"}, {"hk1", "v1"}},
+                         {{"tk0", "v0"}, {"tk1", "v1"}}};
+    });
     return std::unique_ptr<BaseStream>(std::move(mock));
   });
   auto strategy = std::make_shared<StrictMock<MockAuthenticationStrategy>>();
-  EXPECT_CALL(*strategy, AsyncConfigureContext)
-      .WillOnce([](std::unique_ptr<grpc::ClientContext> context) {
-        return make_ready_future(make_status_or(std::move(context)));
-      });
-  auto uut = absl::make_unique<AuthStream>(
-      absl::make_unique<grpc::ClientContext>(), strategy, factory);
+  EXPECT_CALL(*strategy, AsyncConfigureContext).WillOnce([](auto context) {
+    return make_ready_future(make_status_or(std::move(context)));
+  });
+  auto uut = std::make_unique<AuthStream>(
+      std::make_shared<grpc::ClientContext>(), strategy, factory);
   EXPECT_TRUE(uut->Start().get());
   EXPECT_TRUE(uut->Write(FakeRequest{"k"}, grpc::WriteOptions()).get());
   auto response = uut->Read().get();
@@ -89,6 +85,11 @@ TEST(AsyncStreamReadWriteAuth, Start) {
   EXPECT_EQ(response->value, "v0");
   EXPECT_TRUE(uut->WritesDone().get());
   EXPECT_THAT(uut->Finish().get(), IsOk());
+  auto const metadata = uut->GetRequestMetadata();
+  EXPECT_THAT(metadata.headers,
+              UnorderedElementsAre(Pair("hk0", "v0"), Pair("hk1", "v1")));
+  EXPECT_THAT(metadata.trailers,
+              UnorderedElementsAre(Pair("tk0", "v0"), Pair("tk1", "v1")));
 }
 
 }  // namespace

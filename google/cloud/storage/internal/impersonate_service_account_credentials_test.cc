@@ -16,6 +16,7 @@
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
 #include <memory>
+#include <string>
 
 namespace google {
 namespace cloud {
@@ -24,19 +25,21 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace internal {
 namespace {
 
+using ::google::cloud::AccessToken;
 using ::google::cloud::AccessTokenLifetimeOption;
-using ::google::cloud::internal::AccessToken;
 using ::google::cloud::testing_util::IsOk;
 using ::std::chrono::minutes;
 using ::testing::EndsWith;
 using ::testing::Return;
 using ::testing::StartsWith;
 
-class MockMinimalIamCredentialsRest : public MinimalIamCredentialsRest {
+class MockMinimalIamCredentialsRest
+    : public oauth2_internal::MinimalIamCredentialsRest {
  public:
-  MOCK_METHOD(StatusOr<google::cloud::internal::AccessToken>,
-              GenerateAccessToken, (GenerateAccessTokenRequest const&),
-              (override));
+  MOCK_METHOD(StatusOr<google::cloud::AccessToken>, GenerateAccessToken,
+              (oauth2_internal::GenerateAccessTokenRequest const&), (override));
+  MOCK_METHOD(StatusOr<std::string>, universe_domain, (Options const& options),
+              (override, const));
 };
 
 TEST(ImpersonateServiceAccountCredentialsTest, Basic) {

@@ -22,6 +22,7 @@
 #include <google/cloud/dialogflow/cx/v3/version.grpc.pb.h>
 #include <google/longrunning/operations.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -32,10 +33,10 @@ VersionsStub::~VersionsStub() = default;
 
 StatusOr<google::cloud::dialogflow::cx::v3::ListVersionsResponse>
 DefaultVersionsStub::ListVersions(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::cx::v3::ListVersionsRequest const& request) {
   google::cloud::dialogflow::cx::v3::ListVersionsResponse response;
-  auto status = grpc_stub_->ListVersions(&client_context, request, &response);
+  auto status = grpc_stub_->ListVersions(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -44,10 +45,10 @@ DefaultVersionsStub::ListVersions(
 
 StatusOr<google::cloud::dialogflow::cx::v3::Version>
 DefaultVersionsStub::GetVersion(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::cx::v3::GetVersionRequest const& request) {
   google::cloud::dialogflow::cx::v3::Version response;
-  auto status = grpc_stub_->GetVersion(&client_context, request, &response);
+  auto status = grpc_stub_->GetVersion(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -57,9 +58,13 @@ DefaultVersionsStub::GetVersion(
 future<StatusOr<google::longrunning::Operation>>
 DefaultVersionsStub::AsyncCreateVersion(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions,
     google::cloud::dialogflow::cx::v3::CreateVersionRequest const& request) {
-  return cq.MakeUnaryRpc(
+  return internal::MakeUnaryRpcImpl<
+      google::cloud::dialogflow::cx::v3::CreateVersionRequest,
+      google::longrunning::Operation>(
+      cq,
       [this](grpc::ClientContext* context,
              google::cloud::dialogflow::cx::v3::CreateVersionRequest const&
                  request,
@@ -69,12 +74,23 @@ DefaultVersionsStub::AsyncCreateVersion(
       request, std::move(context));
 }
 
+StatusOr<google::longrunning::Operation> DefaultVersionsStub::CreateVersion(
+    grpc::ClientContext& context, Options,
+    google::cloud::dialogflow::cx::v3::CreateVersionRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = grpc_stub_->CreateVersion(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
 StatusOr<google::cloud::dialogflow::cx::v3::Version>
 DefaultVersionsStub::UpdateVersion(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::cx::v3::UpdateVersionRequest const& request) {
   google::cloud::dialogflow::cx::v3::Version response;
-  auto status = grpc_stub_->UpdateVersion(&client_context, request, &response);
+  auto status = grpc_stub_->UpdateVersion(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -82,10 +98,10 @@ DefaultVersionsStub::UpdateVersion(
 }
 
 Status DefaultVersionsStub::DeleteVersion(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::cx::v3::DeleteVersionRequest const& request) {
   google::protobuf::Empty response;
-  auto status = grpc_stub_->DeleteVersion(&client_context, request, &response);
+  auto status = grpc_stub_->DeleteVersion(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -95,9 +111,13 @@ Status DefaultVersionsStub::DeleteVersion(
 future<StatusOr<google::longrunning::Operation>>
 DefaultVersionsStub::AsyncLoadVersion(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions,
     google::cloud::dialogflow::cx::v3::LoadVersionRequest const& request) {
-  return cq.MakeUnaryRpc(
+  return internal::MakeUnaryRpcImpl<
+      google::cloud::dialogflow::cx::v3::LoadVersionRequest,
+      google::longrunning::Operation>(
+      cq,
       [this](
           grpc::ClientContext* context,
           google::cloud::dialogflow::cx::v3::LoadVersionRequest const& request,
@@ -107,45 +127,120 @@ DefaultVersionsStub::AsyncLoadVersion(
       request, std::move(context));
 }
 
-StatusOr<google::cloud::dialogflow::cx::v3::CompareVersionsResponse>
-DefaultVersionsStub::CompareVersions(
-    grpc::ClientContext& client_context,
-    google::cloud::dialogflow::cx::v3::CompareVersionsRequest const& request) {
-  google::cloud::dialogflow::cx::v3::CompareVersionsResponse response;
-  auto status =
-      grpc_stub_->CompareVersions(&client_context, request, &response);
+StatusOr<google::longrunning::Operation> DefaultVersionsStub::LoadVersion(
+    grpc::ClientContext& context, Options,
+    google::cloud::dialogflow::cx::v3::LoadVersionRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = grpc_stub_->LoadVersion(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
   return response;
 }
 
+StatusOr<google::cloud::dialogflow::cx::v3::CompareVersionsResponse>
+DefaultVersionsStub::CompareVersions(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::dialogflow::cx::v3::CompareVersionsRequest const& request) {
+  google::cloud::dialogflow::cx::v3::CompareVersionsResponse response;
+  auto status = grpc_stub_->CompareVersions(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::cloud::location::ListLocationsResponse>
+DefaultVersionsStub::ListLocations(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::location::ListLocationsRequest const& request) {
+  google::cloud::location::ListLocationsResponse response;
+  auto status = locations_stub_->ListLocations(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::cloud::location::Location> DefaultVersionsStub::GetLocation(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::location::GetLocationRequest const& request) {
+  google::cloud::location::Location response;
+  auto status = locations_stub_->GetLocation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+DefaultVersionsStub::ListOperations(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::ListOperationsRequest const& request) {
+  google::longrunning::ListOperationsResponse response;
+  auto status = operations_stub_->ListOperations(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::longrunning::Operation> DefaultVersionsStub::GetOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::GetOperationRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = operations_stub_->GetOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+Status DefaultVersionsStub::CancelOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::CancelOperationRequest const& request) {
+  google::protobuf::Empty response;
+  auto status = operations_stub_->CancelOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return google::cloud::Status();
+}
+
 future<StatusOr<google::longrunning::Operation>>
 DefaultVersionsStub::AsyncGetOperation(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    // NOLINTNEXTLINE(performance-unnecessary-value-param)
+    google::cloud::internal::ImmutableOptions,
     google::longrunning::GetOperationRequest const& request) {
-  return cq.MakeUnaryRpc(
+  return internal::MakeUnaryRpcImpl<google::longrunning::GetOperationRequest,
+                                    google::longrunning::Operation>(
+      cq,
       [this](grpc::ClientContext* context,
              google::longrunning::GetOperationRequest const& request,
              grpc::CompletionQueue* cq) {
-        return operations_->AsyncGetOperation(context, request, cq);
+        return operations_stub_->AsyncGetOperation(context, request, cq);
       },
       request, std::move(context));
 }
 
 future<Status> DefaultVersionsStub::AsyncCancelOperation(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    // NOLINTNEXTLINE(performance-unnecessary-value-param)
+    google::cloud::internal::ImmutableOptions,
     google::longrunning::CancelOperationRequest const& request) {
-  return cq
-      .MakeUnaryRpc(
-          [this](grpc::ClientContext* context,
-                 google::longrunning::CancelOperationRequest const& request,
-                 grpc::CompletionQueue* cq) {
-            return operations_->AsyncCancelOperation(context, request, cq);
-          },
-          request, std::move(context))
+  return internal::MakeUnaryRpcImpl<google::longrunning::CancelOperationRequest,
+                                    google::protobuf::Empty>(
+             cq,
+             [this](grpc::ClientContext* context,
+                    google::longrunning::CancelOperationRequest const& request,
+                    grpc::CompletionQueue* cq) {
+               return operations_stub_->AsyncCancelOperation(context, request,
+                                                             cq);
+             },
+             request, std::move(context))
       .then([](future<StatusOr<google::protobuf::Empty>> f) {
         return f.get().status();
       });

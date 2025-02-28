@@ -39,27 +39,27 @@ class ParticipantsAuth : public ParticipantsStub {
       std::shared_ptr<ParticipantsStub> child);
 
   StatusOr<google::cloud::dialogflow::v2::Participant> CreateParticipant(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::CreateParticipantRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::v2::Participant> GetParticipant(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::GetParticipantRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::v2::ListParticipantsResponse>
-  ListParticipants(grpc::ClientContext& context,
+  ListParticipants(grpc::ClientContext& context, Options const& options,
                    google::cloud::dialogflow::v2::ListParticipantsRequest const&
                        request) override;
 
   StatusOr<google::cloud::dialogflow::v2::Participant> UpdateParticipant(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::UpdateParticipantRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::v2::AnalyzeContentResponse>
-  AnalyzeContent(grpc::ClientContext& context,
+  AnalyzeContent(grpc::ClientContext& context, Options const& options,
                  google::cloud::dialogflow::v2::AnalyzeContentRequest const&
                      request) override;
 
@@ -68,24 +68,51 @@ class ParticipantsAuth : public ParticipantsStub {
       google::cloud::dialogflow::v2::StreamingAnalyzeContentResponse>>
   AsyncStreamingAnalyzeContent(
       google::cloud::CompletionQueue const& cq,
-      std::unique_ptr<grpc::ClientContext> context) override;
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options) override;
 
   StatusOr<google::cloud::dialogflow::v2::SuggestArticlesResponse>
-  SuggestArticles(grpc::ClientContext& context,
+  SuggestArticles(grpc::ClientContext& context, Options const& options,
                   google::cloud::dialogflow::v2::SuggestArticlesRequest const&
                       request) override;
 
   StatusOr<google::cloud::dialogflow::v2::SuggestFaqAnswersResponse>
   SuggestFaqAnswers(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::SuggestFaqAnswersRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::v2::SuggestSmartRepliesResponse>
   SuggestSmartReplies(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::v2::SuggestSmartRepliesRequest const& request)
       override;
+
+  StatusOr<google::cloud::dialogflow::v2::SuggestKnowledgeAssistResponse>
+  SuggestKnowledgeAssist(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::dialogflow::v2::SuggestKnowledgeAssistRequest const&
+          request) override;
+
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
 
  private:
   std::shared_ptr<google::cloud::internal::GrpcAuthenticationStrategy> auth_;

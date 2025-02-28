@@ -18,7 +18,6 @@
 #include "google/cloud/testing_util/mock_rest_client.h"
 #include "google/cloud/testing_util/mock_rest_response.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
 #include <gmock/gmock.h>
 #include <memory>
 
@@ -44,7 +43,7 @@ using ::testing::Eq;
 std::unique_ptr<MockRestResponse> CreateMockRestResponse(
     std::string const& json_response,
     HttpStatusCode http_status_code = HttpStatusCode::kOk) {
-  auto mock_response = absl::make_unique<MockRestResponse>();
+  auto mock_response = std::make_unique<MockRestResponse>();
   EXPECT_CALL(*mock_response, StatusCode()).WillOnce([=] {
     return http_status_code;
   });
@@ -60,7 +59,7 @@ std::unique_ptr<MockRestResponse> CreateMockRestResponse(
 // affects and do not duplicate testing whether the HTTP helper methods work as
 // they are tested elsewhere.
 TEST(GoldenKitchenSinkRestStubTest, GenerateAccessToken) {
-  auto mock_rest_client = absl::make_unique<MockRestClient>();
+  auto mock_rest_client = std::make_unique<MockRestClient>();
   auto constexpr kServiceUnavailable = "503 Service Unavailable";
   std::string service_unavailable = kServiceUnavailable;
   auto constexpr kJsonRequestPayload =
@@ -70,7 +69,7 @@ TEST(GoldenKitchenSinkRestStubTest, GenerateAccessToken) {
   std::string json_response(kJsonResponsePayload);
   RestContext rest_context;
 
-  auto mock_503_response = absl::make_unique<MockRestResponse>();
+  auto mock_503_response = std::make_unique<MockRestResponse>();
   EXPECT_CALL(*mock_503_response, StatusCode()).WillRepeatedly([]() {
     return HttpStatusCode::kServiceUnavailable;
   });
@@ -85,13 +84,13 @@ TEST(GoldenKitchenSinkRestStubTest, GenerateAccessToken) {
 
   auto mock_200_response = CreateMockRestResponse(json_response);
   EXPECT_CALL(*mock_rest_client,
-              Post(_, A<std::vector<absl::Span<char const>> const&>()))
-      .WillOnce(
-          [&](RestRequest const&, std::vector<absl::Span<char const>> const&) {
-            return std::unique_ptr<rest_internal::RestResponse>(
-                mock_503_response.release());
-          })
-      .WillOnce([&](RestRequest const& request,
+              Post(_, _, A<std::vector<absl::Span<char const>> const&>()))
+      .WillOnce([&](RestContext&, RestRequest const&,
+                    std::vector<absl::Span<char const>> const&) {
+        return std::unique_ptr<rest_internal::RestResponse>(
+            mock_503_response.release());
+      })
+      .WillOnce([&](RestContext&, RestRequest const& request,
                     std::vector<absl::Span<char const>> const& payload) {
         EXPECT_THAT(request.path(),
                     Eq("/v1/projects/my_project/serviceAccounts/"
@@ -104,16 +103,18 @@ TEST(GoldenKitchenSinkRestStubTest, GenerateAccessToken) {
             mock_200_response.release());
       });
   DefaultGoldenKitchenSinkRestStub stub(std::move(mock_rest_client), {});
-  auto failure = stub.GenerateAccessToken(rest_context, proto_request);
+  auto failure =
+      stub.GenerateAccessToken(rest_context, Options{}, proto_request);
   EXPECT_EQ(failure.status(),
             Status(StatusCode::kUnavailable, kServiceUnavailable));
-  auto success = stub.GenerateAccessToken(rest_context, proto_request);
+  auto success =
+      stub.GenerateAccessToken(rest_context, Options{}, proto_request);
   ASSERT_THAT(success, IsOk());
   EXPECT_THAT(success->access_token(), Eq("my_token"));
 }
 
 TEST(GoldenKitchenSinkRestStubTest, GenerateIdToken) {
-  auto mock_rest_client = absl::make_unique<MockRestClient>();
+  auto mock_rest_client = std::make_unique<MockRestClient>();
   auto constexpr kJsonResponsePayload = R"({"token":"my_token"})";
   std::string json_response(kJsonResponsePayload);
   RestContext rest_context;
@@ -121,21 +122,21 @@ TEST(GoldenKitchenSinkRestStubTest, GenerateIdToken) {
 
   auto mock_200_response = CreateMockRestResponse(json_response);
   EXPECT_CALL(*mock_rest_client,
-              Post(_, A<std::vector<absl::Span<char const>> const&>()))
-      .WillOnce([&](RestRequest const& request,
+              Post(_, _, A<std::vector<absl::Span<char const>> const&>()))
+      .WillOnce([&](RestContext&, RestRequest const& request,
                     std::vector<absl::Span<char const>> const&) {
         EXPECT_THAT(request.path(), Eq("/v1/token:generate"));
         return std::unique_ptr<rest_internal::RestResponse>(
             mock_200_response.release());
       });
   DefaultGoldenKitchenSinkRestStub stub(std::move(mock_rest_client), {});
-  auto success = stub.GenerateIdToken(rest_context, proto_request);
+  auto success = stub.GenerateIdToken(rest_context, Options{}, proto_request);
   ASSERT_THAT(success, IsOk());
   EXPECT_THAT(success->token(), Eq("my_token"));
 }
 
 TEST(GoldenKitchenSinkRestStubTest, WriteLogEntries) {
-  auto mock_rest_client = absl::make_unique<MockRestClient>();
+  auto mock_rest_client = std::make_unique<MockRestClient>();
   auto constexpr kJsonResponsePayload = R"({})";
   std::string json_response(kJsonResponsePayload);
   RestContext rest_context;
@@ -143,20 +144,20 @@ TEST(GoldenKitchenSinkRestStubTest, WriteLogEntries) {
 
   auto mock_200_response = CreateMockRestResponse(json_response);
   EXPECT_CALL(*mock_rest_client,
-              Post(_, A<std::vector<absl::Span<char const>> const&>()))
-      .WillOnce([&](RestRequest const& request,
+              Post(_, _, A<std::vector<absl::Span<char const>> const&>()))
+      .WillOnce([&](RestContext&, RestRequest const& request,
                     std::vector<absl::Span<char const>> const&) {
-        EXPECT_THAT(request.path(), Eq("/v2/entries:write"));
+        EXPECT_THAT(request.path(), Eq("/v1/entries:write"));
         return std::unique_ptr<rest_internal::RestResponse>(
             mock_200_response.release());
       });
   DefaultGoldenKitchenSinkRestStub stub(std::move(mock_rest_client), {});
-  auto success = stub.WriteLogEntries(rest_context, proto_request);
+  auto success = stub.WriteLogEntries(rest_context, Options{}, proto_request);
   EXPECT_THAT(success, IsOk());
 }
 
 TEST(GoldenKitchenSinkRestStubTest, ListLogs) {
-  auto mock_rest_client = absl::make_unique<MockRestClient>();
+  auto mock_rest_client = std::make_unique<MockRestClient>();
   auto constexpr kJsonResponsePayload =
       R"({"log_names":["foo","bar"],"next_page_token":"my_next_page_token"})";
   std::string json_response(kJsonResponsePayload);
@@ -166,22 +167,23 @@ TEST(GoldenKitchenSinkRestStubTest, ListLogs) {
   proto_request.set_page_token("my_page_token");
 
   auto mock_200_response = CreateMockRestResponse(json_response);
-  EXPECT_CALL(*mock_rest_client, Get).WillOnce([&](RestRequest const& request) {
-    EXPECT_THAT(request.path(), Eq("/v2/projects/my_project/logs"));
-    EXPECT_THAT(request.GetQueryParameter("page_token"),
-                Contains("my_page_token"));
-    return std::unique_ptr<rest_internal::RestResponse>(
-        mock_200_response.release());
-  });
+  EXPECT_CALL(*mock_rest_client, Get)
+      .WillOnce([&](RestContext&, RestRequest const& request) {
+        EXPECT_THAT(request.path(), Eq("/v1/projects/my_project/logs"));
+        EXPECT_THAT(request.GetQueryParameter("page_token"),
+                    Contains("my_page_token"));
+        return std::unique_ptr<rest_internal::RestResponse>(
+            mock_200_response.release());
+      });
   DefaultGoldenKitchenSinkRestStub stub(std::move(mock_rest_client), {});
-  auto success = stub.ListLogs(rest_context, proto_request);
+  auto success = stub.ListLogs(rest_context, Options{}, proto_request);
   ASSERT_THAT(success, IsOk());
   EXPECT_THAT(success->log_names(), ElementsAre("foo", "bar"));
   EXPECT_THAT(success->next_page_token(), Eq("my_next_page_token"));
 }
 
 TEST(GoldenKitchenSinkRestStubTest, ListServiceAccountKeys) {
-  auto mock_rest_client = absl::make_unique<MockRestClient>();
+  auto mock_rest_client = std::make_unique<MockRestClient>();
   auto constexpr kJsonResponsePayload = R"({"keys":["foo","bar"]})";
   std::string json_response(kJsonResponsePayload);
   RestContext rest_context;
@@ -190,20 +192,22 @@ TEST(GoldenKitchenSinkRestStubTest, ListServiceAccountKeys) {
   proto_request.set_name("projects/my_project/serviceAccounts/my_sa");
 
   auto mock_200_response = CreateMockRestResponse(json_response);
-  EXPECT_CALL(*mock_rest_client, Get).WillOnce([&](RestRequest const& request) {
-    EXPECT_THAT(request.path(),
-                Eq("/v1/projects/my_project/serviceAccounts/my_sa/keys"));
-    return std::unique_ptr<rest_internal::RestResponse>(
-        mock_200_response.release());
-  });
+  EXPECT_CALL(*mock_rest_client, Get)
+      .WillOnce([&](RestContext&, RestRequest const& request) {
+        EXPECT_THAT(request.path(),
+                    Eq("/v1/projects/my_project/serviceAccounts/my_sa/keys"));
+        return std::unique_ptr<rest_internal::RestResponse>(
+            mock_200_response.release());
+      });
   DefaultGoldenKitchenSinkRestStub stub(std::move(mock_rest_client), {});
-  auto success = stub.ListServiceAccountKeys(rest_context, proto_request);
+  auto success =
+      stub.ListServiceAccountKeys(rest_context, Options{}, proto_request);
   ASSERT_THAT(success, IsOk());
   EXPECT_THAT(success->keys(), ElementsAre("foo", "bar"));
 }
 
 TEST(GoldenKitchenSinkRestStubTest, DoNothing) {
-  auto mock_rest_client = absl::make_unique<MockRestClient>();
+  auto mock_rest_client = std::make_unique<MockRestClient>();
   auto constexpr kJsonResponsePayload = R"({})";
   std::string json_response(kJsonResponsePayload);
   RestContext rest_context;
@@ -211,20 +215,20 @@ TEST(GoldenKitchenSinkRestStubTest, DoNothing) {
 
   auto mock_200_response = CreateMockRestResponse(json_response);
   EXPECT_CALL(*mock_rest_client,
-              Post(_, A<std::vector<absl::Span<char const>> const&>()))
-      .WillOnce([&](RestRequest const& request,
+              Post(_, _, A<std::vector<absl::Span<char const>> const&>()))
+      .WillOnce([&](RestContext&, RestRequest const& request,
                     std::vector<absl::Span<char const>> const&) {
         EXPECT_THAT(request.path(), Eq("/v1/doNothing"));
         return std::unique_ptr<rest_internal::RestResponse>(
             mock_200_response.release());
       });
   DefaultGoldenKitchenSinkRestStub stub(std::move(mock_rest_client), {});
-  auto success = stub.DoNothing(rest_context, proto_request);
+  auto success = stub.DoNothing(rest_context, Options{}, proto_request);
   EXPECT_THAT(success, IsOk());
 }
 
 TEST(GoldenKitchenSinkRestStubTest, ExplicitRouting1) {
-  auto mock_rest_client = absl::make_unique<MockRestClient>();
+  auto mock_rest_client = std::make_unique<MockRestClient>();
   auto constexpr kJsonResponsePayload = R"({})";
   std::string json_response(kJsonResponsePayload);
   RestContext rest_context;
@@ -233,20 +237,20 @@ TEST(GoldenKitchenSinkRestStubTest, ExplicitRouting1) {
 
   auto mock_200_response = CreateMockRestResponse(json_response);
   EXPECT_CALL(*mock_rest_client,
-              Post(_, A<std::vector<absl::Span<char const>> const&>()))
-      .WillOnce([&](RestRequest const& request,
+              Post(_, _, A<std::vector<absl::Span<char const>> const&>()))
+      .WillOnce([&](RestContext&, RestRequest const& request,
                     std::vector<absl::Span<char const>> const&) {
         EXPECT_THAT(request.path(), Eq("/v1/tables/my_table:explicitRouting1"));
         return std::unique_ptr<rest_internal::RestResponse>(
             mock_200_response.release());
       });
   DefaultGoldenKitchenSinkRestStub stub(std::move(mock_rest_client), {});
-  auto success = stub.ExplicitRouting1(rest_context, proto_request);
+  auto success = stub.ExplicitRouting1(rest_context, Options{}, proto_request);
   EXPECT_THAT(success, IsOk());
 }
 
 TEST(GoldenKitchenSinkRestStubTest, ExplicitRouting2) {
-  auto mock_rest_client = absl::make_unique<MockRestClient>();
+  auto mock_rest_client = std::make_unique<MockRestClient>();
   auto constexpr kJsonResponsePayload = R"({})";
   std::string json_response(kJsonResponsePayload);
   RestContext rest_context;
@@ -255,15 +259,15 @@ TEST(GoldenKitchenSinkRestStubTest, ExplicitRouting2) {
 
   auto mock_200_response = CreateMockRestResponse(json_response);
   EXPECT_CALL(*mock_rest_client,
-              Post(_, A<std::vector<absl::Span<char const>> const&>()))
-      .WillOnce([&](RestRequest const& request,
+              Post(_, _, A<std::vector<absl::Span<char const>> const&>()))
+      .WillOnce([&](RestContext&, RestRequest const& request,
                     std::vector<absl::Span<char const>> const&) {
         EXPECT_THAT(request.path(), Eq("/v1/tables/my_table:explicitRouting2"));
         return std::unique_ptr<rest_internal::RestResponse>(
             mock_200_response.release());
       });
   DefaultGoldenKitchenSinkRestStub stub(std::move(mock_rest_client), {});
-  auto success = stub.ExplicitRouting2(rest_context, proto_request);
+  auto success = stub.ExplicitRouting2(rest_context, Options{}, proto_request);
   EXPECT_THAT(success, IsOk());
 }
 

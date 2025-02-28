@@ -16,7 +16,6 @@
 #include "google/cloud/status.h"
 #include "google/cloud/testing_util/scoped_log.h"
 #include "google/cloud/tracing_options.h"
-#include "absl/memory/memory.h"
 #include "absl/types/variant.h"
 #include <google/protobuf/duration.pb.h>
 #include <gmock/gmock.h>
@@ -36,7 +35,7 @@ class MockStreamingReadRpc : public StreamingReadRpc<ResponseType> {
   ~MockStreamingReadRpc() override = default;
   MOCK_METHOD(void, Cancel, (), (override));
   MOCK_METHOD((absl::variant<Status, ResponseType>), Read, (), (override));
-  MOCK_METHOD(StreamingRpcMetadata, GetRequestMetadata, (), (const, override));
+  MOCK_METHOD(RpcMetadata, GetRequestMetadata, (), (const, override));
 };
 
 class StreamingReadRpcLoggingTest : public ::testing::Test {
@@ -46,7 +45,7 @@ class StreamingReadRpcLoggingTest : public ::testing::Test {
 
 TEST_F(StreamingReadRpcLoggingTest, Cancel) {
   auto mock =
-      absl::make_unique<MockStreamingReadRpc<google::protobuf::Duration>>();
+      std::make_unique<MockStreamingReadRpc<google::protobuf::Duration>>();
   EXPECT_CALL(*mock, Cancel()).Times(1);
   StreamingReadRpcLogging<google::protobuf::Duration> reader(
       std::move(mock), TracingOptions{},
@@ -67,7 +66,7 @@ TEST_F(StreamingReadRpcLoggingTest, Read) {
   };
 
   auto mock =
-      absl::make_unique<MockStreamingReadRpc<google::protobuf::Duration>>();
+      std::make_unique<MockStreamingReadRpc<google::protobuf::Duration>>();
   EXPECT_CALL(*mock, Read())
       .WillOnce([] {
         google::protobuf::Duration result;

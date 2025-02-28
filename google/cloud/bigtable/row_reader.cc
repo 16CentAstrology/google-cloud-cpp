@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@
 #include "google/cloud/grpc_error_delegate.h"
 #include "google/cloud/internal/throw_delegate.h"
 #include "google/cloud/log.h"
-#include "absl/memory/memory.h"
 #include <iterator>
 #include <thread>
 
@@ -96,7 +95,7 @@ std::int64_t constexpr RowReader::NO_ROWS_LIMIT;
 
 // The name must be all lowercase to work with range-for loops.
 RowReader::iterator RowReader::begin() {
-  google::cloud::internal::OptionsSpan span(options_);
+  google::cloud::internal::ScopedCallContext span(call_context_);
   auto& impl = impl_;
   stream_ = google::cloud::internal::MakeStreamRange<Row>(
       [impl] { return impl->Advance(); });

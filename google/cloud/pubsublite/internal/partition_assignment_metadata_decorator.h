@@ -20,7 +20,9 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_PUBSUBLITE_INTERNAL_PARTITION_ASSIGNMENT_METADATA_DECORATOR_H
 
 #include "google/cloud/pubsublite/internal/partition_assignment_stub.h"
+#include "google/cloud/options.h"
 #include "google/cloud/version.h"
+#include <map>
 #include <memory>
 #include <string>
 
@@ -33,21 +35,42 @@ class PartitionAssignmentServiceMetadata
     : public PartitionAssignmentServiceStub {
  public:
   ~PartitionAssignmentServiceMetadata() override = default;
-  explicit PartitionAssignmentServiceMetadata(
-      std::shared_ptr<PartitionAssignmentServiceStub> child);
+  PartitionAssignmentServiceMetadata(
+      std::shared_ptr<PartitionAssignmentServiceStub> child,
+      std::multimap<std::string, std::string> fixed_metadata,
+      std::string api_client_header = "");
 
   std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
       google::cloud::pubsublite::v1::PartitionAssignmentRequest,
       google::cloud::pubsublite::v1::PartitionAssignment>>
-  AsyncAssignPartitions(google::cloud::CompletionQueue const& cq,
-                        std::unique_ptr<grpc::ClientContext> context) override;
+  AsyncAssignPartitions(
+      google::cloud::CompletionQueue const& cq,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status DeleteOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::DeleteOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
 
  private:
-  void SetMetadata(grpc::ClientContext& context,
+  void SetMetadata(grpc::ClientContext& context, Options const& options,
                    std::string const& request_params);
-  void SetMetadata(grpc::ClientContext& context);
+  void SetMetadata(grpc::ClientContext& context, Options const& options);
 
   std::shared_ptr<PartitionAssignmentServiceStub> child_;
+  std::multimap<std::string, std::string> fixed_metadata_;
   std::string api_client_header_;
 };
 

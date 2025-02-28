@@ -16,19 +16,23 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_STORAGE_OAUTH2_AUTHORIZED_USER_CREDENTIALS_H
 
 #include "google/cloud/storage/client_options.h"
-#include "google/cloud/storage/internal/curl_request_builder.h"
+#include "google/cloud/storage/internal/curl/request_builder.h"
 #include "google/cloud/storage/internal/http_response.h"
 #include "google/cloud/storage/oauth2/credential_constants.h"
 #include "google/cloud/storage/oauth2/credentials.h"
 #include "google/cloud/storage/oauth2/refreshing_credentials_wrapper.h"
 #include "google/cloud/storage/version.h"
+#include "google/cloud/internal/curl_handle_factory.h"
 #include "google/cloud/internal/oauth2_authorized_user_credentials.h"
+#include "google/cloud/internal/oauth2_cached_credentials.h"
 #include "google/cloud/internal/oauth2_credential_constants.h"
 #include "google/cloud/status.h"
 #include <chrono>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <string>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -46,6 +50,7 @@ struct AuthorizedUserCredentialsInfo {
   std::string client_secret;
   std::string refresh_token;
   std::string token_uri;
+  std::string universe_domain;
 };
 
 /**
@@ -114,11 +119,21 @@ class AuthorizedUserCredentials<storage::internal::CurlRequestBuilder,
       ChannelOptions const& channel_options = {});
 
   StatusOr<std::string> AuthorizationHeader() override {
-    return oauth2_internal::AuthorizationHeaderJoined(impl_);
+    return oauth2_internal::AuthenticationHeaderJoined(*impl_);
   }
 
  private:
-  google::cloud::oauth2_internal::AuthorizedUserCredentials impl_;
+  friend struct AuthorizedUserCredentialsTester;
+  AuthorizedUserCredentials(
+      google::cloud::oauth2_internal::AuthorizedUserCredentialsInfo,
+      Options options, oauth2_internal::HttpClientFactory client_factory);
+
+  StatusOr<std::string> AuthorizationHeaderForTesting(
+      std::chrono::system_clock::time_point tp) {
+    return oauth2_internal::AuthenticationHeaderJoined(*impl_, tp);
+  }
+
+  std::shared_ptr<google::cloud::oauth2_internal::Credentials> impl_;
 };
 
 /// @copydoc AuthorizedUserCredentials
@@ -141,8 +156,7 @@ class AuthorizedUserCredentials : public Credentials {
  private:
   StatusOr<RefreshingCredentialsWrapper::TemporaryToken> Refresh() {
     HttpRequestBuilderType builder(
-        info_.token_uri,
-        storage::internal::GetDefaultCurlHandleFactory(options_));
+        info_.token_uri, rest_internal::GetDefaultCurlHandleFactory(options_));
     std::string payload("grant_type=refresh_token");
     payload += "&client_id=";
     payload += builder.MakeEscapedString(info_.client_id).get();

@@ -20,7 +20,9 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_DIALOGFLOW_CX_INTERNAL_SESSION_ENTITY_TYPES_METADATA_DECORATOR_H
 
 #include "google/cloud/dialogflow_cx/internal/session_entity_types_stub.h"
+#include "google/cloud/options.h"
 #include "google/cloud/version.h"
+#include <map>
 #include <memory>
 #include <string>
 
@@ -32,44 +34,67 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 class SessionEntityTypesMetadata : public SessionEntityTypesStub {
  public:
   ~SessionEntityTypesMetadata() override = default;
-  explicit SessionEntityTypesMetadata(
-      std::shared_ptr<SessionEntityTypesStub> child);
+  SessionEntityTypesMetadata(
+      std::shared_ptr<SessionEntityTypesStub> child,
+      std::multimap<std::string, std::string> fixed_metadata,
+      std::string api_client_header = "");
 
   StatusOr<google::cloud::dialogflow::cx::v3::ListSessionEntityTypesResponse>
   ListSessionEntityTypes(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::ListSessionEntityTypesRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::SessionEntityType>
   GetSessionEntityType(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetSessionEntityTypeRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::SessionEntityType>
   CreateSessionEntityType(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::CreateSessionEntityTypeRequest const&
           request) override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::SessionEntityType>
   UpdateSessionEntityType(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::UpdateSessionEntityTypeRequest const&
           request) override;
 
   Status DeleteSessionEntityType(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::DeleteSessionEntityTypeRequest const&
           request) override;
 
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  void SetMetadata(grpc::ClientContext& context,
+  void SetMetadata(grpc::ClientContext& context, Options const& options,
                    std::string const& request_params);
-  void SetMetadata(grpc::ClientContext& context);
+  void SetMetadata(grpc::ClientContext& context, Options const& options);
 
   std::shared_ptr<SessionEntityTypesStub> child_;
+  std::multimap<std::string, std::string> fixed_metadata_;
   std::string api_client_header_;
 };
 

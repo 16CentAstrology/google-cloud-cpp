@@ -15,6 +15,7 @@
 #ifndef GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_INTERNAL_BIG_ENDIAN_H
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_INTERNAL_BIG_ENDIAN_H
 
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/status.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/version.h"
@@ -35,13 +36,11 @@ namespace internal {
 //   std::string s = EncodeBigEndian(std::int32_t{255});
 //   assert(s == std::string("\0\0\0\xFF", 4));
 //
-template <typename T,
-          typename std::enable_if<std::is_integral<T>::value, int>::type = 0>
+template <typename T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
 std::string EncodeBigEndian(T value) {
   static_assert(std::numeric_limits<unsigned char>::digits == 8,
                 "This code assumes an 8-bit char");
-  using unsigned_type = typename std::make_unsigned<T>::type;
-  unsigned_type const n = *reinterpret_cast<unsigned_type*>(&value);
+  auto const n = *reinterpret_cast<std::make_unsigned_t<T>*>(&value);
   auto shift = sizeof(n) * 8;
   std::array<std::uint8_t, sizeof(n)> a;
   for (auto& c : a) {
@@ -59,17 +58,16 @@ std::string EncodeBigEndian(T value) {
 //   StatusOr<std::int32_t> decoded = DecodeBigEndian(s);
 //   if (decoded) assert(*decoded == 255);
 //
-template <typename T,
-          typename std::enable_if<std::is_integral<T>::value, int>::type = 0>
+template <typename T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
 StatusOr<T> DecodeBigEndian(std::string const& value) {
   static_assert(std::numeric_limits<unsigned char>::digits == 8,
                 "This code assumes an 8-bit char");
   if (value.size() != sizeof(T)) {
     auto const msg = "Given value with " + std::to_string(value.size()) +
                      " bytes; expected " + std::to_string(sizeof(T));
-    return Status(StatusCode::kInvalidArgument, msg);
+    return internal::InvalidArgumentError(msg, GCP_ERROR_INFO());
   }
-  using unsigned_type = typename std::make_unsigned<T>::type;
+  using unsigned_type = std::make_unsigned_t<T>;
   auto shift = sizeof(T) * 8;
   unsigned_type result = 0;
   for (auto const& c : value) {

@@ -39,6 +39,8 @@ class DefaultBatchSink : public BatchSink {
 
   ~DefaultBatchSink() override = default;
 
+  void AddMessage(pubsub::Message const&) override {}
+
   future<StatusOr<google::pubsub::v1::PublishResponse>> AsyncPublish(
       google::pubsub::v1::PublishRequest request) override;
 
@@ -50,7 +52,7 @@ class DefaultBatchSink : public BatchSink {
 
   std::shared_ptr<PublisherStub> stub_;
   CompletionQueue cq_;
-  Options options_;
+  google::cloud::internal::ImmutableOptions options_;
 };
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

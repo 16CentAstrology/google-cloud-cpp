@@ -19,7 +19,6 @@
 #include "google/cloud/internal/api_client_header.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include "google/cloud/testing_util/validate_metadata.h"
-#include "absl/memory/memory.h"
 #include <gmock/gmock.h>
 #include <grpcpp/grpcpp.h>
 
@@ -45,7 +44,8 @@ class DatabaseAdminMetadataTest : public ::testing::Test {
   void IsContextMDValid(grpc::ClientContext& context, std::string const& method,
                         google::protobuf::Message const& request) {
     return validate_metadata_fixture_.IsContextMDValid(
-        context, method, request, google::cloud::internal::ApiClientHeader());
+        context, method, request,
+        google::cloud::internal::HandCraftedLibClientHeader());
   }
 
   static Status TransientError() {
@@ -58,8 +58,7 @@ class DatabaseAdminMetadataTest : public ::testing::Test {
 
 TEST_F(DatabaseAdminMetadataTest, CreateDatabase) {
   EXPECT_CALL(*mock_, AsyncCreateDatabase)
-      .WillOnce([this](CompletionQueue&,
-                       std::unique_ptr<grpc::ClientContext> context,
+      .WillOnce([this](CompletionQueue&, auto context,
                        gsad::v1::CreateDatabaseRequest const& request) {
         IsContextMDValid(*context,
                          "google.spanner.admin.database.v1.DatabaseAdmin."
@@ -77,14 +76,13 @@ TEST_F(DatabaseAdminMetadataTest, CreateDatabase) {
           google::cloud::Project("test-project-id"), "test-instance-id")
           .FullName());
   auto response = stub.AsyncCreateDatabase(
-      cq, absl::make_unique<grpc::ClientContext>(), request);
+      cq, std::make_shared<grpc::ClientContext>(), request);
   EXPECT_EQ(TransientError(), response.get().status());
 }
 
 TEST_F(DatabaseAdminMetadataTest, UpdateDatabase) {
   EXPECT_CALL(*mock_, AsyncUpdateDatabaseDdl)
-      .WillOnce([this](CompletionQueue&,
-                       std::unique_ptr<grpc::ClientContext> context,
+      .WillOnce([this](CompletionQueue&, auto context,
                        gsad::v1::UpdateDatabaseDdlRequest const& request) {
         IsContextMDValid(*context,
                          "google.spanner.admin.database.v1.DatabaseAdmin."
@@ -104,7 +102,7 @@ TEST_F(DatabaseAdminMetadataTest, UpdateDatabase) {
           "test-database")
           .FullName());
   auto response = stub.AsyncUpdateDatabaseDdl(
-      cq, absl::make_unique<grpc::ClientContext>(), request);
+      cq, std::make_shared<grpc::ClientContext>(), request);
   EXPECT_EQ(TransientError(), response.get().status());
 }
 
@@ -156,8 +154,7 @@ TEST_F(DatabaseAdminMetadataTest, ListDatabases) {
 
 TEST_F(DatabaseAdminMetadataTest, RestoreDatabase) {
   EXPECT_CALL(*mock_, AsyncRestoreDatabase)
-      .WillOnce([this](CompletionQueue&,
-                       std::unique_ptr<grpc::ClientContext> context,
+      .WillOnce([this](CompletionQueue&, auto context,
                        gsad::v1::RestoreDatabaseRequest const& request) {
         IsContextMDValid(*context,
                          "google.spanner.admin.database.v1.DatabaseAdmin."
@@ -175,7 +172,7 @@ TEST_F(DatabaseAdminMetadataTest, RestoreDatabase) {
           google::cloud::Project("test-project-id"), "test-instance-id")
           .FullName());
   auto response = stub.AsyncRestoreDatabase(
-      cq, absl::make_unique<grpc::ClientContext>(), request);
+      cq, std::make_shared<grpc::ClientContext>(), request);
   EXPECT_EQ(TransientError(), response.get().status());
 }
 
@@ -260,8 +257,7 @@ TEST_F(DatabaseAdminMetadataTest, TestIamPermissions) {
 
 TEST_F(DatabaseAdminMetadataTest, CreateBackup) {
   EXPECT_CALL(*mock_, AsyncCreateBackup)
-      .WillOnce([this](CompletionQueue&,
-                       std::unique_ptr<grpc::ClientContext> context,
+      .WillOnce([this](CompletionQueue&, auto context,
                        gsad::v1::CreateBackupRequest const& request) {
         IsContextMDValid(*context,
                          "google.spanner.admin.database.v1.DatabaseAdmin."
@@ -279,7 +275,7 @@ TEST_F(DatabaseAdminMetadataTest, CreateBackup) {
           google::cloud::Project("test-project-id"), "test-instance-id")
           .FullName());
   auto response = stub.AsyncCreateBackup(
-      cq, absl::make_unique<grpc::ClientContext>(), request);
+      cq, std::make_shared<grpc::ClientContext>(), request);
   EXPECT_EQ(TransientError(), response.get().status());
 }
 
@@ -423,29 +419,28 @@ TEST_F(DatabaseAdminMetadataTest, ListDatabaseOperations) {
 
 TEST_F(DatabaseAdminMetadataTest, GetOperation) {
   EXPECT_CALL(*mock_, AsyncGetOperation)
-      .WillOnce(
-          [this](CompletionQueue&, std::unique_ptr<grpc::ClientContext> context,
-                 google::longrunning::GetOperationRequest const& request) {
-            IsContextMDValid(*context,
-                             "google.longrunning.Operations.GetOperation",
-                             request);
-            return make_ready_future(
-                StatusOr<google::longrunning::Operation>(TransientError()));
-          });
+      .WillOnce([this](
+                    CompletionQueue&, auto context,
+                    google::longrunning::GetOperationRequest const& request) {
+        IsContextMDValid(*context, "google.longrunning.Operations.GetOperation",
+                         request);
+        return make_ready_future(
+            StatusOr<google::longrunning::Operation>(TransientError()));
+      });
 
   DatabaseAdminMetadata stub(mock_);
   CompletionQueue cq;
   google::longrunning::GetOperationRequest request;
   request.set_name("operations/fake-operation-name");
   auto response = stub.AsyncGetOperation(
-      cq, absl::make_unique<grpc::ClientContext>(), request);
+      cq, std::make_shared<grpc::ClientContext>(), request);
   EXPECT_EQ(TransientError(), response.get().status());
 }
 
 TEST_F(DatabaseAdminMetadataTest, CancelOperation) {
   EXPECT_CALL(*mock_, AsyncCancelOperation)
       .WillOnce(
-          [this](CompletionQueue&, std::unique_ptr<grpc::ClientContext> context,
+          [this](CompletionQueue&, auto context,
                  google::longrunning::CancelOperationRequest const& request) {
             IsContextMDValid(*context,
                              "google.longrunning.Operations.CancelOperation",
@@ -458,7 +453,7 @@ TEST_F(DatabaseAdminMetadataTest, CancelOperation) {
   google::longrunning::CancelOperationRequest request;
   request.set_name("operations/fake-operation-name");
   auto status = stub.AsyncCancelOperation(
-      cq, absl::make_unique<grpc::ClientContext>(), request);
+      cq, std::make_shared<grpc::ClientContext>(), request);
   EXPECT_EQ(TransientError(), status.get());
 }
 

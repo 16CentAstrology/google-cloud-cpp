@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2317
 #
 # Copyright 2021 Google LLC
 #
@@ -19,53 +20,62 @@ set -euo pipefail
 source "$(dirname "$0")/../../lib/init.sh"
 source module ci/cloudbuild/builds/lib/cmake.sh
 source module ci/cloudbuild/builds/lib/features.sh
+source module ci/lib/io.sh
 
-mapfile -t FEATURE_LIST < <(features::list_full)
-read -r ENABLED_FEATURES < <(features::list_full_cmake)
+if [[ "${TRIGGER_TYPE}" == "manual" && "${LIBRARIES}" == "all" ]]; then
+  LIBRARIES="all_bar_compute"
+fi
 
-version=""
+if [[ "${LIBRARIES}" == "all" ]]; then
+  mapfile -t FEATURE_LIST < <(features::list_full)
+  read -r ENABLED_FEATURES < <(features::list_full_cmake)
+elif [[ "${LIBRARIES}" == "all_bar_compute" ]]; then
+  mapfile -t FEATURE_LIST < <(features::list_full | grep -v "^compute$")
+  read -r ENABLED_FEATURES < <(features::list_full_cmake)
+  ENABLED_FEATURES="${ENABLED_FEATURES},-compute"
+else
+  mapfile -t FEATURE_LIST < <(printf '%s' "${LIBRARIES}")
+  ENABLED_FEATURES="compute"
+fi
+
 doc_args=(
   "-DCMAKE_BUILD_TYPE=Debug"
   "-DGOOGLE_CLOUD_CPP_GENERATE_DOXYGEN=ON"
-  "-DGOOGLE_CLOUD_CPP_GEN_DOCS_FOR_GOOGLEAPIS_DEV=ON"
+  "-DGOOGLE_CLOUD_CPP_INTERNAL_DOCFX=ON"
   "-DGOOGLE_CLOUD_CPP_ENABLE=${ENABLED_FEATURES}"
-  "-DDOXYGEN_CLANG_OPTIONS=-resource-dir=$(clang -print-resource-dir) -Wno-deprecated-declarations"
+  "-DGOOGLE_CLOUD_CPP_ENABLE_CCACHE=OFF"
+  "-DGOOGLE_CLOUD_CPP_ENABLE_WERROR=ON"
+  "-DGOOGLE_CLOUD_CPP_DOXYGEN_CLANG_OPTIONS=-resource-dir=$(clang -print-resource-dir)"
+  "-DGOOGLE_CLOUD_CPP_COMMIT_SHA=${COMMIT_SHA}"
+  "-DGOOGLE_CLOUD_CPP_ENABLE_CLANG_ABI_COMPAT_17=ON"
 )
-
-# Extract the version number if we're on a release branch.
-if grep -qP 'v\d+\.\d+\..*' <<<"${BRANCH_NAME}"; then
-  version_file="google/cloud/internal/version_info.h"
-  major="$(awk '/GOOGLE_CLOUD_CPP_VERSION_MAJOR/{print $3}' "${version_file}")"
-  minor="$(awk '/GOOGLE_CLOUD_CPP_VERSION_MINOR/{print $3}' "${version_file}")"
-  patch="$(awk '/GOOGLE_CLOUD_CPP_VERSION_PATCH/{print $3}' "${version_file}")"
-  version="${major}.${minor}.${patch}"
-else
-  version="HEAD"
-  doc_args+=("-DGOOGLE_CLOUD_CPP_USE_MASTER_FOR_REFDOC_LINKS=ON")
+if command -v /usr/local/bin/sccache >/dev/null 2>&1; then
+  doc_args+=(
+    -DCMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/sccache
+  )
 fi
 
-# |---------------------------------------------|
-# |      Bucket       |           URL           |
-# |-------------------|-------------------------|
-# |   docs-staging    |     googleapis.dev/     |
-# | test-docs-staging | staging.googleapis.dev/ |
-# |---------------------------------------------|
+# If we're not on a release branch, point our links to "latest".
+if ! grep -qP 'v\d+\.\d+\..*' <<<"${BRANCH_NAME}"; then
+  doc_args+=("-DGOOGLE_CLOUD_CPP_USE_LATEST_FOR_REFDOC_LINKS=ON")
+fi
+
 # For PR and manual builds, publish to the staging site. For CI builds (release
 # and otherwise), publish to the public URL.
-bucket="test-docs-staging"
+docfx_bucket="docs-staging-v2-dev"
 if [[ "${TRIGGER_TYPE}" == "ci" ]]; then
-  bucket="docs-staging"
+  docfx_bucket="docs-staging-v2"
 fi
 
 export CC=clang
 export CXX=clang++
-cmake -GNinja "${doc_args[@]}" -S . -B cmake-out
+io::run cmake -GNinja "${doc_args[@]}" -S . -B cmake-out
 # Doxygen needs the proto-generated headers, but there are race conditions
 # between CMake generating these files and doxygen scanning for them. We could
 # fix this by avoiding parallelism with `-j 1`, or as we do here, we'll
 # pre-generate all the proto headers, then call doxygen.
-cmake --build cmake-out --target google-cloud-cpp-protos
-cmake --build cmake-out --target doxygen-docs
+io::run cmake --build cmake-out --target google-cloud-cpp-protos
+io::run cmake --build cmake-out --target doxygen-docs all-docfx
 
 if [[ "${PROJECT_ID:-}" != "cloud-cpp-testing-resources" ]]; then
   io::log_h2 "Skipping upload of docs," \
@@ -73,64 +83,56 @@ if [[ "${PROJECT_ID:-}" != "cloud-cpp-testing-resources" ]]; then
   exit 0
 fi
 
-# To protect against supply chain attacks we need to use `--require-hashes` in
-# `pip install` commands.  Googlers may want to see b/242562806 for more
-# details.
-#
-# Because we are currently using a SHA (as opposed to a released version) of
-# the `gcp-docuploader` the process to update these hashes is somewhat manual.
-# This worked for me (coryan@) circa 2022-09-08:
-#
-#    venv="$(mktemp -d)"
-#    python3 -m venv "${venv}/requirements"
-#    source "${venv}/requirements/bin/activate"
-#    pip install git+https://github.com/googleapis/docuploader@993badb47be3bf548a4c1726658eadba4bafeaca
-#    pip freeze | grep -v gcp-docuploader >ci/etc/docuploader-requirements.in
-#    pip install --require-hashes -r ci/etc/pip-tooling-requirements.txt
-#    pip-compile --generate-hashes ci/etc/docuploader-requirements.in
-#
-io::log_h2 "Installing the docuploader package"
-python3 -m pip install --upgrade --user --quiet --disable-pip-version-check \
-  --no-warn-script-location --require-hashes -r ci/etc/docuploader-requirements.txt
-python3 -m pip install --upgrade --user --quiet --disable-pip-version-check \
-  --no-warn-script-location --no-deps \
-  "git+https://github.com/googleapis/docuploader@993badb47be3bf548a4c1726658eadba4bafeaca"
-python3 -m pip list
+# Stage documentation in DocFX format for processing. go/cloud-rad for details.
+function stage_docfx() {
+  local feature="$1"
+  local bucket="$2"
+  local binary_dir="$3"
+  local log="$4"
+  local package="google-cloud-${feature}"
+  local path="${binary_dir}/google/cloud/${feature}/docfx"
+  if [[ "${feature}" == "common" ]]; then
+    path="${binary_dir}/google/cloud/docfx"
+  fi
 
-# For docuploader to work
-export LC_ALL=C.UTF-8
-export LANG=C.UTF-8
-
-# Uses the doc uploader to upload docs to a GCS bucket. Requires the package
-# name and the path to the doxygen's "html" folder.
-function upload_docs() {
-  local package="$1"
-  local docs_dir="$2"
-  if [[ ! -d "${docs_dir}" ]]; then
-    io::log_red "Directory not found: ${docs_dir}, skipping"
+  echo "path=${path}" >"${log}"
+  if [[ ! -d "${path}" ]]; then
+    echo "Directory not found: ${path}, skipping" >>"${log}"
+    echo "SUCCESS" >>"${log}"
     return 0
   fi
 
-  io::log_h2 "Uploading docs: ${package}"
-  io::log "docs_dir=${docs_dir}"
-
-  env -C "${docs_dir}" "${PROJECT_ROOT}/ci/retry-command.sh" 3 120 \
-    python3 -m docuploader create-metadata \
-    --name "${package}" \
-    --version "${version}" \
-    --language cpp
-  env -C "${docs_dir}" "${PROJECT_ROOT}/ci/retry-command.sh" 3 120 \
-    python3 -m docuploader upload . --staging-bucket "${bucket}"
+  version="$(jq -r .version <"${path}/docs.metadata.json")"
+  tar -C "${path}" -zcf "/tmp/docfx-cpp-${feature}-${version}.tar.gz" . >>"${log}" 2>&1
+  export TIMEFORMAT="${feature} completed in %0lR"
+  if time ci/retry-command.sh 3 120 gcloud storage cp "/tmp/docfx-cpp-${feature}-${version}.tar.gz" "gs://${bucket}" >>"${log}" 2>&1; then
+    echo "SUCCESS" >>"${log}"
+  fi
 }
+export -f stage_docfx # enables this function to be called from a subshell
 
-io::log_h2 "Publishing docs"
-io::log "version: ${version}"
+io::log_h2 "Publishing DocFX"
 io::log "branch:  ${BRANCH_NAME}"
-io::log "bucket:  gs://${bucket}"
+io::log "bucket:  gs://${docfx_bucket}"
 
-upload_docs "google-cloud-common" "cmake-out/google/cloud/html"
-for feature in "${FEATURE_LIST[@]}"; do
-  if [[ "${feature}" == "experimental-storage-grpc" ]]; then continue; fi
-  if [[ "${feature}" == "grafeas" ]]; then continue; fi
-  upload_docs "google-cloud-${feature}" "cmake-out/google/cloud/${feature}/html"
+# Upload the documents for all features, including common. Some features do not
+# have documentation, such as `experimental-storage_grpc`. These are harmless,
+# as the `stage_docfx()` function skips missing directories without an error.
+uploaded=(common)
+uploaded+=("${FEATURE_LIST[@]}")
+echo "${uploaded[@]}" | xargs -P "$(nproc)" -n 1 \
+  bash -c "stage_docfx \"\${0}\" \"${docfx_bucket}\" cmake-out \"cmake-out/\${0}.docfx.log\""
+
+errors=0
+for feature in "${uploaded[@]}"; do
+  log="cmake-out/${feature}.docfx.log"
+  if [[ "$(tail -1 "${log}")" == "SUCCESS" ]]; then
+    continue
+  fi
+  ((++errors))
+  io::log_red "Error uploading documentation for ${feature}"
+  cat "${log}"
 done
+
+echo
+exit "${errors}"

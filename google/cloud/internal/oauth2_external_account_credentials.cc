@@ -21,6 +21,7 @@
 #include "google/cloud/internal/make_status.h"
 #include "google/cloud/internal/oauth2_credential_constants.h"
 #include "google/cloud/internal/oauth2_minimal_iam_credentials_rest.h"
+#include "google/cloud/internal/oauth2_universe_domain.h"
 #include "google/cloud/internal/parse_rfc3339.h"
 #include "google/cloud/internal/rest_client.h"
 #include <nlohmann/json.hpp>
@@ -75,6 +76,8 @@ StatusOr<ExternalAccountInfo> ParseExternalAccountConfiguration(
   auto token_url =
       ValidateStringField(json, "token_url", "credentials-file", ec);
   if (!token_url) return std::move(token_url).status();
+  auto universe_domain = GetUniverseDomainFromCredentialsJson(json);
+  if (!universe_domain) return std::move(universe_domain).status();
 
   auto credential_source = json.find("credential_source");
   if (credential_source == json.end()) {
@@ -93,13 +96,21 @@ StatusOr<ExternalAccountInfo> ParseExternalAccountConfiguration(
       MakeExternalAccountTokenSource(*credential_source, *audience, ec);
   if (!source) return std::move(source).status();
 
-  auto info = ExternalAccountInfo{
-      *std::move(audience),  *std::move(subject_token_type),
-      *std::move(token_url), *std::move(source),
-      absl::nullopt,
-  };
+  absl::optional<std::string> workforce_pool_user_project;
+  auto it = json.find("workforce_pool_user_project");
+  if (it != json.end()) {
+    workforce_pool_user_project = it->get<std::string>();
+  }
 
-  auto it = json.find("service_account_impersonation_url");
+  auto info = ExternalAccountInfo{*std::move(audience),
+                                  *std::move(subject_token_type),
+                                  *std::move(token_url),
+                                  *std::move(source),
+                                  absl::nullopt,
+                                  *std::move(universe_domain),
+                                  std::move(workforce_pool_user_project)};
+
+  it = json.find("service_account_impersonation_url");
   if (it == json.end()) return info;
 
   auto constexpr kDefaultImpersonationTokenLifetime =
@@ -133,7 +144,7 @@ ExternalAccountCredentials::ExternalAccountCredentials(
       client_factory_(std::move(client_factory)),
       options_(std::move(options)) {}
 
-StatusOr<internal::AccessToken> ExternalAccountCredentials::GetToken(
+StatusOr<AccessToken> ExternalAccountCredentials::GetToken(
     std::chrono::system_clock::time_point tp) {
   auto subject_token = (info_.token_source)(client_factory_, options_);
   if (!subject_token) return std::move(subject_token).status();
@@ -146,16 +157,27 @@ StatusOr<internal::AccessToken> ExternalAccountCredentials::GetToken(
       {"subject_token_type", info_.subject_token_type},
       {"subject_token", subject_token->token},
   };
+
+  // Workforce Identity is handled at the org level and requires the userProject
+  // header. Workload Identity is handled at the project level and doesn't
+  // require the header.
+  if (info_.workforce_pool_user_project) {
+    form_data.emplace_back(
+        "options", absl::StrCat(R"({"userProject": ")",
+                                *info_.workforce_pool_user_project, R"("})"));
+  }
+
   auto request =
       rest_internal::RestRequest(info_.token_url)
           .AddHeader("content-type", "application/x-www-form-urlencoded");
 
   auto client = client_factory_(options_);
-  auto response = client->Post(request, form_data);
+  rest_internal::RestContext unused;
+  auto response = client->Post(unused, request, form_data);
   if (!response) return std::move(response).status();
   if (IsHttpError(**response)) return AsStatus(std::move(**response));
   auto payload = rest_internal::ReadAll(std::move(**response).ExtractPayload());
-  if (!payload) return std::move(payload.status());
+  if (!payload) return std::move(payload).status();
 
   auto ec = internal::ErrorContext({
       {"audience", info_.audience},
@@ -196,11 +218,10 @@ StatusOr<internal::AccessToken> ExternalAccountCredentials::GetToken(
   auto expires_in =
       ValidateIntField(access, "expires_in", "token-exchange-response", ec);
   if (!expires_in) return std::move(expires_in).status();
-  return internal::AccessToken{*token, tp + std::chrono::seconds(*expires_in)};
+  return AccessToken{*token, tp + std::chrono::seconds(*expires_in)};
 }
 
-StatusOr<internal::AccessToken>
-ExternalAccountCredentials::GetTokenImpersonation(
+StatusOr<AccessToken> ExternalAccountCredentials::GetTokenImpersonation(
     std::string const& access_token, internal::ErrorContext const& ec) {
   auto request = rest_internal::RestRequest(info_.impersonation_config->url);
   request.AddHeader("Authorization", absl::StrCat("Bearer ", access_token));
@@ -212,7 +233,8 @@ ExternalAccountCredentials::GetTokenImpersonation(
       {"lifetime", std::to_string(lifetime.count()) + "s"}};
 
   auto client = client_factory_(options_);
-  auto response = client->Post(request, {request_payload.dump()});
+  rest_internal::RestContext context;
+  auto response = client->Post(context, request, {request_payload.dump()});
   if (!response) return std::move(response).status();
   return ParseGenerateAccessTokenResponse(**response, ec);
 }

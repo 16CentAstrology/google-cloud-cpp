@@ -22,7 +22,6 @@
 #include "google/cloud/bigtable/internal/bulk_mutator.h"
 #include "google/cloud/bigtable/version.h"
 #include "google/cloud/internal/invoke_result.h"
-#include "absl/memory/memory.h"
 #include <string>
 #include <vector>
 
@@ -69,7 +68,7 @@ class AsyncRetryBulkApply
   std::unique_ptr<RPCBackoffPolicy> rpc_backoff_policy_;
   MetadataUpdatePolicy metadata_update_policy_;
   std::shared_ptr<bigtable::DataClient> client_;
-  BulkMutatorState state_;
+  bigtable_internal::BulkMutatorState state_;
   promise<std::vector<FailedMutation>> promise_;
 };
 

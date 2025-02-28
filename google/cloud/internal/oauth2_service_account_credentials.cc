@@ -13,27 +13,21 @@
 // limitations under the License.
 
 #include "google/cloud/internal/oauth2_service_account_credentials.h"
-#include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/absl_str_join_quiet.h"
 #include "google/cloud/internal/getenv.h"
 #include "google/cloud/internal/make_jwt_assertion.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/internal/oauth2_google_credentials.h"
-#include "google/cloud/internal/openssl_util.h"
+#include "google/cloud/internal/oauth2_universe_domain.h"
 #include "google/cloud/internal/rest_response.h"
+#include "google/cloud/internal/sign_using_sha256.h"
 #include <nlohmann/json.hpp>
-#include <openssl/err.h>
-#include <openssl/pem.h>
-#include <openssl/pkcs12.h>
+#include <functional>
 
 namespace google {
 namespace cloud {
 namespace oauth2_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
-namespace {
-
-auto constexpr kP12PrivateKeyIdMarker = "--unknown--";
-
-}  // namespace
 
 using ::google::cloud::internal::MakeJWTAssertionNoThrow;
 
@@ -42,48 +36,98 @@ StatusOr<ServiceAccountCredentialsInfo> ParseServiceAccountCredentials(
     std::string const& default_token_uri) {
   auto credentials = nlohmann::json::parse(content, nullptr, false);
   if (credentials.is_discarded()) {
-    return Status(StatusCode::kInvalidArgument,
-                  "Invalid ServiceAccountCredentials,"
-                  "parsing failed on data loaded from " +
-                      source);
+    return internal::InvalidArgumentError(
+        absl::StrCat("Invalid ServiceAccountCredentials, parsing failed on ",
+                     "data loaded from ", source));
   }
-  std::string const private_key_id_key = "private_key_id";
-  std::string const private_key_key = "private_key";
-  std::string const token_uri_key = "token_uri";
-  std::string const client_email_key = "client_email";
-  for (auto const& key : {private_key_key, client_email_key}) {
-    if (credentials.count(key) == 0) {
-      return Status(StatusCode::kInvalidArgument,
-                    "Invalid ServiceAccountCredentials, the " +
-                        std::string(key) +
-                        " field is missing on data loaded from " + source);
+
+  using Validator =
+      std::function<Status(absl::string_view name, nlohmann::json::iterator)>;
+  using Store = std::function<void(ServiceAccountCredentialsInfo&,
+                                   nlohmann::json::iterator const&)>;
+
+  auto optional_field = [](absl::string_view, nlohmann::json::iterator const&) {
+    return Status{};
+  };
+  auto non_empty_field = [&](absl::string_view name,
+                             nlohmann::json::iterator const& l) {
+    if (l == credentials.end()) return Status{};
+    if (!l->get<std::string>().empty()) return Status{};
+    return internal::InvalidArgumentError(
+        absl::StrCat("Invalid ServiceAccountCredentials, the ", name,
+                     " field is empty on data loaded from ", source));
+  };
+  auto required_field = [&](absl::string_view name,
+                            nlohmann::json::iterator const& l) {
+    if (l == credentials.end()) {
+      return internal::InvalidArgumentError(
+          absl::StrCat("Invalid ServiceAccountCredentials, the ", name,
+                       " field is missing on data loaded from ", source));
     }
-    if (credentials.value(key, "").empty()) {
-      return Status(StatusCode::kInvalidArgument,
-                    "Invalid ServiceAccountCredentials, the " +
-                        std::string(key) +
-                        " field is empty on data loaded from " + source);
-    }
-  }
-  // The token_uri field may be missing, but may not be empty:
-  if (credentials.count(token_uri_key) != 0 &&
-      credentials.value(token_uri_key, "").empty()) {
-    return Status(StatusCode::kInvalidArgument,
-                  "Invalid ServiceAccountCredentials, the " +
-                      std::string(token_uri_key) +
-                      " field is empty on data loaded from " + source);
-  }
-  return ServiceAccountCredentialsInfo{
-      credentials.value(client_email_key, ""),
-      credentials.value(private_key_id_key, ""),
-      credentials.value(private_key_key, ""),
+    return non_empty_field(name, l);
+  };
+
+  struct Field {
+    std::string name;
+    Validator validator;
+    Store store;
+  };
+  std::vector<Field> fields{
+      {"client_email", required_field,
+       [](ServiceAccountCredentialsInfo& info,
+          nlohmann::json::iterator const& l) {
+         info.client_email = l->get<std::string>();
+       }},
+      {"private_key", required_field,
+       [](ServiceAccountCredentialsInfo& info,
+          nlohmann::json::iterator const& l) {
+         info.private_key = l->get<std::string>();
+       }},
+      {"private_key_id", optional_field,
+       [&](ServiceAccountCredentialsInfo& info,
+           nlohmann::json::iterator const& l) {
+         if (l == credentials.end()) return;
+         info.private_key_id = l->get<std::string>();
+       }},
       // Some credential formats (e.g. gcloud's ADC file) don't contain a
       // "token_uri" attribute in the JSON object.  In this case, we try using
       // the default value.
-      credentials.value(token_uri_key, default_token_uri),
-      /*scopes=*/absl::nullopt,
-      /*subject=*/absl::nullopt,
-      /*enable_self_signed_jwt=*/true};
+      {"token_uri", non_empty_field,
+       [&](ServiceAccountCredentialsInfo& info,
+           nlohmann::json::iterator const& l) {
+         info.token_uri =
+             l == credentials.end() ? default_token_uri : l->get<std::string>();
+       }},
+      {"universe_domain", non_empty_field,
+       [&](ServiceAccountCredentialsInfo& info,
+           nlohmann::json::iterator const& l) {
+         info.universe_domain = l == credentials.end()
+                                    ? GoogleDefaultUniverseDomain()
+                                    : l->get<std::string>();
+       }},
+      {"project_id", non_empty_field,
+       [&](ServiceAccountCredentialsInfo& info,
+           nlohmann::json::iterator const& l) {
+         if (l == credentials.end()) return;
+         info.project_id = l->get<std::string>();
+       }},
+  };
+
+  auto info = ServiceAccountCredentialsInfo{};
+  info.enable_self_signed_jwt = true;
+  for (auto& f : fields) {
+    auto l = credentials.find(f.name);
+    if (l != credentials.end() && !l->is_string()) {
+      return internal::InvalidArgumentError(absl::StrCat(
+          "Invalid ServiceAccountCredentials, the ", f.name,
+          " field is present and is not a string, on data loaded from ",
+          source));
+    }
+    auto status = f.validator(f.name, l);
+    if (!status.ok()) return status;
+    f.store(info, l);
+  }
+  return info;
 }
 
 std::pair<std::string, std::string> AssertionComponentsFromInfo(
@@ -142,7 +186,7 @@ CreateServiceAccountRefreshPayload(ServiceAccountCredentialsInfo const& info,
           {"assertion", MakeJWTAssertion(header, payload, info.private_key)}};
 }
 
-StatusOr<internal::AccessToken> ParseServiceAccountRefreshResponse(
+StatusOr<AccessToken> ParseServiceAccountRefreshResponse(
     rest_internal::RestResponse& response,
     std::chrono::system_clock::time_point now) {
   auto status_code = response.StatusCode();
@@ -161,8 +205,7 @@ StatusOr<internal::AccessToken> ParseServiceAccountRefreshResponse(
   }
 
   auto expires_in = std::chrono::seconds(access_token.value("expires_in", 0));
-  return internal::AccessToken{access_token.value("access_token", ""),
-                               now + expires_in};
+  return AccessToken{access_token.value("access_token", ""), now + expires_in};
 }
 
 StatusOr<std::string> MakeSelfSignedJWT(
@@ -207,7 +250,7 @@ ServiceAccountCredentials::ServiceAccountCredentials(
               info_.token_uri))),
       client_factory_(std::move(client_factory)) {}
 
-StatusOr<internal::AccessToken> ServiceAccountCredentials::GetToken(
+StatusOr<AccessToken> ServiceAccountCredentials::GetToken(
     std::chrono::system_clock::time_point tp) {
   if (UseOAuth()) return GetTokenOAuth(tp);
   return GetTokenSelfSigned(tp);
@@ -218,125 +261,49 @@ StatusOr<std::vector<std::uint8_t>> ServiceAccountCredentials::SignBlob(
     std::string const& blob) const {
   if (signing_account.has_value() &&
       signing_account.value() != info_.client_email) {
-    return Status(StatusCode::kInvalidArgument,
-                  "The current_credentials cannot sign blobs for " +
-                      signing_account.value());
+    return internal::InvalidArgumentError(
+        "The current_credentials cannot sign blobs for " +
+            signing_account.value(),
+        GCP_ERROR_INFO());
   }
   return internal::SignUsingSha256(blob, info_.private_key);
 }
 
-#include "google/cloud/internal/disable_msvc_crt_secure_warnings.inc"
-StatusOr<ServiceAccountCredentialsInfo> ParseServiceAccountP12File(
-    std::string const& source) {
-  OpenSSL_add_all_algorithms();
-
-  PKCS12* p12_raw = [](std::string const& source) {
-    FILE* fp = std::fopen(source.c_str(), "rb");
-    if (fp == nullptr) {
-      return static_cast<PKCS12*>(nullptr);
-    }
-    auto* result = d2i_PKCS12_fp(fp, nullptr);
-    fclose(fp);
-    return result;
-  }(source);
-
-  std::unique_ptr<PKCS12, decltype(&PKCS12_free)> p12(p12_raw, &PKCS12_free);
-
-  auto capture_openssl_errors = []() {
-    std::string msg;
-    while (auto code = ERR_get_error()) {
-      // OpenSSL guarantees that 256 bytes is enough:
-      //   https://www.openssl.org/docs/man1.1.1/man3/ERR_error_string_n.html
-      //   https://www.openssl.org/docs/man1.0.2/man3/ERR_error_string_n.html
-      // we could not find a macro or constant to replace the 256 literal.
-      auto constexpr kMaxOpenSslErrorLength = 256;
-      std::array<char, kMaxOpenSslErrorLength> buf{};
-      ERR_error_string_n(code, buf.data(), buf.size());
-      msg += buf.data();
-    }
-    return msg;
-  };
-
-  if (p12 == nullptr) {
-    std::string msg = "Cannot open PKCS#12 file (" + source + "): ";
-    msg += capture_openssl_errors();
-    return Status(StatusCode::kInvalidArgument, msg);
+StatusOr<std::string> ServiceAccountCredentials::universe_domain() const {
+  if (!info_.universe_domain.has_value()) {
+    return internal::NotFoundError(
+        "universe_domain is not present in the credentials");
   }
-
-  EVP_PKEY* pkey_raw;
-  X509* cert_raw;
-  if (PKCS12_parse(p12.get(), "notasecret", &pkey_raw, &cert_raw, nullptr) !=
-      1) {
-    std::string msg = "Cannot parse PKCS#12 file (" + source + "): ";
-    msg += capture_openssl_errors();
-    return Status(StatusCode::kInvalidArgument, msg);
-  }
-
-  std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> pkey(pkey_raw,
-                                                           &EVP_PKEY_free);
-  std::unique_ptr<X509, decltype(&X509_free)> cert(cert_raw, &X509_free);
-
-  if (pkey_raw == nullptr) {
-    return Status(StatusCode::kInvalidArgument,
-                  "No private key found in PKCS#12 file (" + source + ")");
-  }
-  if (cert_raw == nullptr) {
-    return Status(StatusCode::kInvalidArgument,
-                  "No private key found in PKCS#12 file (" + source + ")");
-  }
-
-  // This is automatically deleted by `cert`.
-  X509_NAME* name = X509_get_subject_name(cert.get());
-
-  std::string service_account_id = [&name]() -> std::string {
-    auto openssl_free = [](void* addr) { OPENSSL_free(addr); };
-    std::unique_ptr<char, decltype(openssl_free)> oneline(
-        X509_NAME_oneline(name, nullptr, 0), openssl_free);
-    // We expect the name to be simply CN/ followed by a (small) number of
-    // digits.
-    if (strncmp("/CN=", oneline.get(), 4) != 0) {
-      return "";
-    }
-    return oneline.get() + 4;
-  }();
-
-  if (service_account_id.find_first_not_of("0123456789") != std::string::npos ||
-      service_account_id.empty()) {
-    return Status(
-        StatusCode::kInvalidArgument,
-        "Invalid PKCS#12 file (" + source +
-            "): service account id missing or not not formatted correctly");
-  }
-
-  std::unique_ptr<BIO, decltype(&BIO_free)> mem_io(BIO_new(BIO_s_mem()),
-                                                   &BIO_free);
-
-  if (PEM_write_bio_PKCS8PrivateKey(mem_io.get(), pkey.get(), nullptr, nullptr,
-                                    0, nullptr, nullptr) == 0) {
-    std::string msg =
-        "Cannot print private key in PKCS#12 file (" + source + "): ";
-    msg += capture_openssl_errors();
-    return Status(StatusCode::kUnknown, msg);
-  }
-
-  // This buffer belongs to the BIO chain and is freed upon its destruction.
-  BUF_MEM* buf_mem;
-  BIO_get_mem_ptr(mem_io.get(), &buf_mem);
-
-  std::string private_key(buf_mem->data, buf_mem->length);
-
-  return ServiceAccountCredentialsInfo{std::move(service_account_id),
-                                       kP12PrivateKeyIdMarker,
-                                       std::move(private_key),
-                                       GoogleOAuthRefreshEndpoint(),
-                                       /*scopes=*/{},
-                                       /*subject=*/{},
-                                       /*enable_self_signed_jwt=*/false};
+  return *info_.universe_domain;
 }
-#include "google/cloud/internal/diagnostics_pop.inc"
+
+StatusOr<std::string> ServiceAccountCredentials::universe_domain(
+    Options const&) const {
+  // universe_domain is stored locally, so any retry options are unnecessary.
+  return universe_domain();
+}
+
+StatusOr<std::string> ServiceAccountCredentials::project_id() const {
+  if (!info_.project_id.has_value()) {
+    return internal::NotFoundError(
+        "project_id is not present in the credentials");
+  }
+  return *info_.project_id;
+}
+
+StatusOr<std::string> ServiceAccountCredentials::project_id(
+    Options const&) const {
+  // project_id() is stored locally, so any retry options are unnecessary.
+  return project_id();
+}
 
 bool ServiceAccountUseOAuth(ServiceAccountCredentialsInfo const& info) {
-  if (info.private_key_id == kP12PrivateKeyIdMarker ||
+  // Custom universe domains are only supported with JWT, not OAuth tokens.
+  if (info.universe_domain.has_value() &&
+      info.universe_domain != GoogleDefaultUniverseDomain()) {
+    return false;
+  }
+  if (info.private_key_id == P12PrivateKeyIdMarker() ||
       !info.enable_self_signed_jwt) {
     return true;
   }
@@ -349,23 +316,24 @@ bool ServiceAccountCredentials::UseOAuth() {
   return ServiceAccountUseOAuth(info_);
 }
 
-StatusOr<internal::AccessToken> ServiceAccountCredentials::GetTokenOAuth(
+StatusOr<AccessToken> ServiceAccountCredentials::GetTokenOAuth(
     std::chrono::system_clock::time_point tp) const {
   auto client = client_factory_(options_);
   rest_internal::RestRequest request;
   request.SetPath(options_.get<ServiceAccountCredentialsTokenUriOption>());
   auto payload = CreateServiceAccountRefreshPayload(info_, tp);
-  auto response = client->Post(request, payload);
+  rest_internal::RestContext context;
+  auto response = client->Post(context, request, payload);
   if (!response) return std::move(response).status();
   if (IsHttpError(**response)) return AsStatus(std::move(**response));
   return ParseServiceAccountRefreshResponse(**response, tp);
 }
 
-StatusOr<internal::AccessToken> ServiceAccountCredentials::GetTokenSelfSigned(
+StatusOr<AccessToken> ServiceAccountCredentials::GetTokenSelfSigned(
     std::chrono::system_clock::time_point tp) const {
   auto token = MakeSelfSignedJWT(info_, tp);
   if (!token) return std::move(token).status();
-  return internal::AccessToken{*token, tp + GoogleOAuthAccessTokenLifetime()};
+  return AccessToken{*token, tp + GoogleOAuthAccessTokenLifetime()};
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

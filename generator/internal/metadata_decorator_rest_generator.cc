@@ -13,12 +13,15 @@
 // limitations under the License.
 
 #include "generator/internal/metadata_decorator_rest_generator.h"
-#include "google/cloud/internal/absl_str_cat_quiet.h"
-#include "absl/memory/memory.h"
-#include "absl/strings/str_split.h"
 #include "generator/internal/codegen_utils.h"
+#include "generator/internal/http_option_utils.h"
+#include "generator/internal/longrunning.h"
 #include "generator/internal/predicate_utils.h"
 #include "generator/internal/printer.h"
+#include "generator/internal/routing.h"
+#include "google/cloud/internal/absl_str_cat_quiet.h"
+#include "google/cloud/internal/url_encode.h"
+#include "absl/strings/str_split.h"
 #include <google/protobuf/descriptor.h>
 #include <algorithm>
 
@@ -30,13 +33,14 @@ namespace {
 enum ContextType { kPointer, kReference };
 
 std::string SetMetadataText(google::protobuf::MethodDescriptor const& method,
-                            ContextType context_type) {
+                            ContextType context_type,
+                            absl::string_view options) {
   std::string const context =
       context_type == kPointer ? "*rest_context" : "rest_context";
 
   auto info = ParseExplicitRoutingHeader(method);
   if (info.empty()) {
-    return absl::StrFormat("  SetMetadata(%s);", context);
+    return absl::StrFormat("  SetMetadata(%s, %s);", context, options);
   }
 
   // clang-format off
@@ -54,7 +58,7 @@ std::string SetMetadataText(google::protobuf::MethodDescriptor const& method,
       for (auto const& rp : kv.second){
         text += sep;
         text += "if (!request." + rp.field_name + "().empty()) {\n";
-        text += "    params.push_back(\"" + kv.first + "=\" + request." + rp.field_name + "());\n";
+        text += "    params.push_back(absl::StrCat(\"" + kv.first + "=\", internal::UrlEncode(request." + rp.field_name + "())));\n";
         text += "  }";
         sep = " else ";
       }
@@ -63,7 +67,7 @@ std::string SetMetadataText(google::protobuf::MethodDescriptor const& method,
     }
     text += "  static auto* " + kv.first + "_matcher = []{\n";
     text += "    return new google::cloud::internal::RoutingMatcher<$request_type$>{\n";
-    text += "      \"" + kv.first + "=\", {\n";
+    text += "      \"" + internal::UrlEncode(kv.first) + "=\", {\n";
     for (auto const& rp : kv.second) {
       text += "      {[]($request_type$ const& request) -> std::string const& {\n";
       text += "        return request." + rp.field_name + "();\n";
@@ -80,7 +84,7 @@ std::string SetMetadataText(google::protobuf::MethodDescriptor const& method,
     text += "  " + kv.first + "_matcher->AppendParam(request, params);\n\n";
   }
 
-    text += "  SetMetadata(" + context + ", params);\n";
+  text += absl::StrCat("  SetMetadata(", context, ", ", options, ", params);\n");
   return text;
   // clang-format on
 }
@@ -91,10 +95,12 @@ MetadataDecoratorRestGenerator::MetadataDecoratorRestGenerator(
     google::protobuf::ServiceDescriptor const* service_descriptor,
     VarsDictionary service_vars,
     std::map<std::string, VarsDictionary> service_method_vars,
-    google::protobuf::compiler::GeneratorContext* context)
+    google::protobuf::compiler::GeneratorContext* context,
+    std::vector<MixinMethod> const& mixin_methods)
     : ServiceCodeGenerator("metadata_rest_header_path", "metadata_rest_cc_path",
                            service_descriptor, std::move(service_vars),
-                           std::move(service_method_vars), context) {}
+                           std::move(service_method_vars), context,
+                           mixin_methods) {}
 
 Status MetadataDecoratorRestGenerator::GenerateHeader() {
   HeaderPrint(CopyrightLicenseFileHeader());
@@ -109,13 +115,14 @@ Status MetadataDecoratorRestGenerator::GenerateHeader() {
 )""");
 
   // includes
-  HeaderLocalIncludes({vars("stub_rest_header_path"),
+  HeaderLocalIncludes({vars("stub_rest_header_path"), "google/cloud/future.h",
                        "google/cloud/rest_options.h",
                        "google/cloud/version.h"});
-  HeaderSystemIncludes(
-      {vars("proto_header_path"),
-       HasLongrunningMethod() ? "google/longrunning/operations.pb.h" : "",
-       "memory", "string"});
+  HeaderSystemIncludes({vars("proto_header_path"),
+                        HasLongrunningMethod()
+                            ? vars("longrunning_operation_include_header")
+                            : "",
+                        "memory", "string"});
 
   auto result = HeaderOpenNamespaces(NamespaceType::kInternal);
   if (!result.ok()) return result;
@@ -125,30 +132,71 @@ Status MetadataDecoratorRestGenerator::GenerateHeader() {
 class $metadata_rest_class_name$ : public $stub_rest_class_name$ {
  public:
   ~$metadata_rest_class_name$() override = default;
-  explicit $metadata_rest_class_name$(std::shared_ptr<$stub_rest_class_name$> child);
+  explicit $metadata_rest_class_name$(
+      std::shared_ptr<$stub_rest_class_name$> child,
+      std::string api_client_header = "");
 )""");
 
   for (auto const& method : methods()) {
-    if (HasHttpAnnotation(method) && IsNonStreaming(method)) {
-      if (IsResponseTypeEmpty(method)) {
-        HeaderPrintMethod(method, __FILE__, __LINE__, R"""(
-  Status $method_name$(
-      google::cloud::rest_internal::RestContext& rest_context,
+    if (IsStreaming(method)) continue;
+    if (!HasHttpAnnotation(method)) continue;
+
+    if (IsLongrunningOperation(method)) {
+      HeaderPrintMethod(method, __FILE__, __LINE__, R"""(
+  google::cloud::future<StatusOr<$response_type$>> Async$method_name$(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
       $request_type$ const& request) override;
 )""");
-      } else {
-        HeaderPrintMethod(method, __FILE__, __LINE__, R"""(
+      HeaderPrintMethod(method, __FILE__, __LINE__, R"""(
   StatusOr<$response_type$> $method_name$(
       google::cloud::rest_internal::RestContext& rest_context,
+      Options const& options, $request_type$ const& request) override;
+)""");
+    } else {
+      HeaderPrintMethod(method, __FILE__, __LINE__, R"""(
+  $return_type$ $method_name$(
+      google::cloud::rest_internal::RestContext& rest_context,
+      Options const& options, $request_type$ const& request) override;
+)""");
+    }
+  }
+
+  for (auto const& method : async_methods()) {
+    // No streaming RPCs for REST, and Longrunning is already taken care of.
+    if (IsStreaming(method) || IsLongrunningOperation(method)) continue;
+    if (!HasHttpAnnotation(method)) continue;
+    HeaderPrintMethod(method, __FILE__, __LINE__, R"""(
+  google::cloud::future<$return_type$> Async$method_name$(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
       $request_type$ const& request) override;
 )""");
-      }
-    }
+  }
+
+  if (HasLongrunningMethod()) {
+    HeaderPrint(
+        R"""(
+  google::cloud::future<StatusOr<$longrunning_response_type$>> AsyncGetOperation(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      $longrunning_get_operation_request_type$ const& request) override;
+
+  google::cloud::future<Status> AsyncCancelOperation(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      $longrunning_cancel_operation_request_type$ const& request) override;
+)""");
   }
 
   HeaderPrint(R"""(
  private:
   void SetMetadata(rest_internal::RestContext& rest_context,
+                   Options const& options,
                    std::vector<std::string> const& params = {});
 
   std::shared_ptr<$stub_rest_class_name$> child_;
@@ -167,22 +215,19 @@ Status MetadataDecoratorRestGenerator::GenerateCc() {
 // Generated by the Codegen C++ plugin.
 // If you make any local changes, they will be lost.
 // source: $proto_file_name$
-
 )""");
 
   // includes
   CcPrint("\n");
-  CcLocalIncludes({vars("metadata_rest_header_path"),
-                   HasExplicitRoutingMethod()
-                       ? "google/cloud/internal/absl_str_join_quiet.h"
-                       : "",
-                   "google/cloud/internal/api_client_header.h",
-                   HasExplicitRoutingMethod()
-                       ? "google/cloud/internal/routing_matcher.h"
-                       : "",
-                   "google/cloud/common_options.h", "google/cloud/status_or.h",
-                   "absl/strings/str_format.h"});
-  CcSystemIncludes({"memory"});
+  CcLocalIncludes(
+      {vars("metadata_rest_header_path"),
+       "google/cloud/internal/api_client_header.h",
+       HasExplicitRoutingMethod() ? "google/cloud/internal/routing_matcher.h"
+                                  : "",
+       "google/cloud/status_or.h", "google/cloud/internal/absl_str_cat_quiet.h",
+       "google/cloud/internal/rest_set_metadata.h",
+       "absl/strings/str_format.h"});
+  CcSystemIncludes({"memory", "utility"});
 
   auto result = CcOpenNamespaces(NamespaceType::kInternal);
   if (!result.ok()) return result;
@@ -190,42 +235,111 @@ Status MetadataDecoratorRestGenerator::GenerateCc() {
   // constructor
   CcPrint(R"""(
 $metadata_rest_class_name$::$metadata_rest_class_name$(
-    std::shared_ptr<$stub_rest_class_name$> child)
+    std::shared_ptr<$stub_rest_class_name$> child,
+    std::string api_client_header)
     : child_(std::move(child)),
-      api_client_header_(google::cloud::internal::ApiClientHeader("generator")) {}
+      api_client_header_(
+          api_client_header.empty()
+              ? google::cloud::internal::GeneratedLibClientHeader()
+              : std::move(api_client_header)) {}
 )""");
 
   // metadata decorator class member methods
   for (auto const& method : methods()) {
-    if (HasHttpAnnotation(method) && IsNonStreaming(method)) {
-      if (IsResponseTypeEmpty(method)) {
-        CcPrintMethod(method, __FILE__, __LINE__, R"""(
-Status
-$metadata_rest_class_name$::$method_name$(
-    rest_internal::RestContext& rest_context,
-    $request_type$ const& request) {
+    if (IsStreaming(method)) continue;
+    if (!HasHttpAnnotation(method)) continue;
+    if (IsLongrunningOperation(method)) {
+      CcPrintMethod(method, __FILE__, __LINE__, R"""(
+future<StatusOr<$response_type$>>
+$metadata_rest_class_name$::Async$method_name$(
+      CompletionQueue& cq,
+      std::unique_ptr<rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      $request_type$ const& request) {
 )""");
-        CcPrintMethod(method, __FILE__, __LINE__,
-                      SetMetadataText(method, kReference));
-        CcPrintMethod(method, __FILE__, __LINE__, R"""(
-  return child_->$method_name$(rest_context, request);
+      CcPrintMethod(method, __FILE__, __LINE__,
+                    SetMetadataText(method, kPointer, "*options"));
+      CcPrintMethod(method, __FILE__, __LINE__, R"""(
+  return child_->Async$method_name$(
+      cq, std::move(rest_context), std::move(options), request);
 }
 )""");
-      } else {
-        CcPrintMethod(method, __FILE__, __LINE__, R"""(
+
+      CcPrintMethod(method, __FILE__, __LINE__, R"""(
 StatusOr<$response_type$>
 $metadata_rest_class_name$::$method_name$(
     rest_internal::RestContext& rest_context,
-    $request_type$ const& request) {
+    Options const& options, $request_type$ const& request) {
 )""");
-        CcPrintMethod(method, __FILE__, __LINE__,
-                      SetMetadataText(method, kReference));
-        CcPrintMethod(method, __FILE__, __LINE__, R"""(
-  return child_->$method_name$(rest_context, request);
+      CcPrintMethod(method, __FILE__, __LINE__,
+                    SetMetadataText(method, kReference, "options"));
+      CcPrintMethod(method, __FILE__, __LINE__, R"""(
+  return child_->$method_name$(rest_context, options, request);
 }
 )""");
-      }
+
+    } else {
+      CcPrintMethod(method, __FILE__, __LINE__, R"""(
+$return_type$
+$metadata_rest_class_name$::$method_name$(
+    rest_internal::RestContext& rest_context,
+    Options const& options, $request_type$ const& request) {
+)""");
+      CcPrintMethod(method, __FILE__, __LINE__,
+                    SetMetadataText(method, kReference, "options"));
+      CcPrintMethod(method, __FILE__, __LINE__, R"""(
+  return child_->$method_name$(rest_context, options, request);
+}
+)""");
     }
+  }
+
+  for (auto const& method : async_methods()) {
+    // No streaming RPCs for REST, and Longrunning is already taken care of.
+    if (IsStreaming(method) || IsLongrunningOperation(method)) continue;
+    if (!HasHttpAnnotation(method)) continue;
+    CcPrintMethod(method, __FILE__, __LINE__, R"""(
+future<$return_type$>
+$metadata_rest_class_name$::Async$method_name$(
+    google::cloud::CompletionQueue& cq,
+    std::unique_ptr<rest_internal::RestContext> rest_context,
+    google::cloud::internal::ImmutableOptions options,
+    $request_type$ const& request) {
+)""");
+    CcPrintMethod(method, __FILE__, __LINE__,
+                  SetMetadataText(method, kPointer, "*options"));
+    CcPrintMethod(method, __FILE__, __LINE__, R"""(
+  return child_->Async$method_name$(
+      cq, std::move(rest_context), std::move(options), request);
+}
+)""");
+  }
+
+  if (HasLongrunningMethod()) {
+    CcPrint(
+        R"""(
+future<StatusOr<$longrunning_response_type$>>
+$metadata_rest_class_name$::AsyncGetOperation(
+    google::cloud::CompletionQueue& cq,
+    std::unique_ptr<rest_internal::RestContext> rest_context,
+    google::cloud::internal::ImmutableOptions options,
+    $longrunning_get_operation_request_type$ const& request) {
+  SetMetadata(*rest_context, *options);
+  return child_->AsyncGetOperation(
+      cq, std::move(rest_context), std::move(options), request);
+}
+
+future<Status>
+$metadata_rest_class_name$::AsyncCancelOperation(
+    google::cloud::CompletionQueue& cq,
+    std::unique_ptr<rest_internal::RestContext> rest_context,
+    google::cloud::internal::ImmutableOptions options,
+    $longrunning_cancel_operation_request_type$ const& request) {
+  SetMetadata(*rest_context, *options);
+  return child_->AsyncCancelOperation(
+      cq, std::move(rest_context), std::move(options), request);
+}
+)""");
   }
 
   // The metadata options supported come from
@@ -235,27 +349,15 @@ $metadata_rest_class_name$::$method_name$(
   CcPrint(R"""(
 void $metadata_rest_class_name$::SetMetadata(
       rest_internal::RestContext& rest_context,
-      std::vector<std::string> const& params) {
-  rest_context.AddHeader("x-goog-api-client", api_client_header_);
-  if (!params.empty()) {
-    rest_context.AddHeader("x-goog-request-params", absl::StrJoin(params, "&"));
+      Options const& options, std::vector<std::string> const& params) {
+)""");
+  if (HasApiVersion()) {
+    CcPrint(
+        R"""(  rest_context.AddHeader("x-goog-api-version", "$api_version$");
+)""");
   }
-  auto const& options = internal::CurrentOptions();
-  if (options.has<UserProjectOption>()) {
-    rest_context.AddHeader(
-        "x-goog-user-project", options.get<UserProjectOption>());
-  }
-  if (options.has<google::cloud::QuotaUserOption>()) {
-    rest_context.AddHeader(
-        "x-goog-quota-user", options.get<google::cloud::QuotaUserOption>());
-  }
-  if (options.has<google::cloud::ServerTimeoutOption>()) {
-    auto ms_rep = absl::StrCat(
-        absl::Dec(options.get<google::cloud::ServerTimeoutOption>().count(),
-        absl::kZeroPad4));
-    rest_context.AddHeader("x-server-timeout",
-        ms_rep.insert(ms_rep.size() - 3, "."));
-  }
+  CcPrint(R"""(  google::cloud::rest_internal::SetMetadata(
+      rest_context, options, params, api_client_header_);
 }
 )""");
 

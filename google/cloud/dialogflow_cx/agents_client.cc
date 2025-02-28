@@ -18,6 +18,7 @@
 
 #include "google/cloud/dialogflow_cx/agents_client.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -117,11 +118,40 @@ AgentsClient::ExportAgent(
   return connection_->ExportAgent(request);
 }
 
+StatusOr<google::longrunning::Operation> AgentsClient::ExportAgent(
+    NoAwaitTag,
+    google::cloud::dialogflow::cx::v3::ExportAgentRequest const& request,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->ExportAgent(NoAwaitTag{}, request);
+}
+
+future<StatusOr<google::cloud::dialogflow::cx::v3::ExportAgentResponse>>
+AgentsClient::ExportAgent(google::longrunning::Operation const& operation,
+                          Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->ExportAgent(operation);
+}
+
 future<StatusOr<google::protobuf::Struct>> AgentsClient::RestoreAgent(
     google::cloud::dialogflow::cx::v3::RestoreAgentRequest const& request,
     Options opts) {
   internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
   return connection_->RestoreAgent(request);
+}
+
+StatusOr<google::longrunning::Operation> AgentsClient::RestoreAgent(
+    NoAwaitTag,
+    google::cloud::dialogflow::cx::v3::RestoreAgentRequest const& request,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->RestoreAgent(NoAwaitTag{}, request);
+}
+
+future<StatusOr<google::protobuf::Struct>> AgentsClient::RestoreAgent(
+    google::longrunning::Operation const& operation, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->RestoreAgent(operation);
 }
 
 StatusOr<google::cloud::dialogflow::cx::v3::AgentValidationResult>
@@ -147,6 +177,101 @@ AgentsClient::GetAgentValidationResult(
     Options opts) {
   internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
   return connection_->GetAgentValidationResult(request);
+}
+
+StatusOr<google::cloud::dialogflow::cx::v3::GenerativeSettings>
+AgentsClient::GetGenerativeSettings(std::string const& name,
+                                    std::string const& language_code,
+                                    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::cloud::dialogflow::cx::v3::GetGenerativeSettingsRequest request;
+  request.set_name(name);
+  request.set_language_code(language_code);
+  return connection_->GetGenerativeSettings(request);
+}
+
+StatusOr<google::cloud::dialogflow::cx::v3::GenerativeSettings>
+AgentsClient::GetGenerativeSettings(
+    google::cloud::dialogflow::cx::v3::GetGenerativeSettingsRequest const&
+        request,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->GetGenerativeSettings(request);
+}
+
+StatusOr<google::cloud::dialogflow::cx::v3::GenerativeSettings>
+AgentsClient::UpdateGenerativeSettings(
+    google::cloud::dialogflow::cx::v3::GenerativeSettings const&
+        generative_settings,
+    google::protobuf::FieldMask const& update_mask, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::cloud::dialogflow::cx::v3::UpdateGenerativeSettingsRequest request;
+  *request.mutable_generative_settings() = generative_settings;
+  *request.mutable_update_mask() = update_mask;
+  return connection_->UpdateGenerativeSettings(request);
+}
+
+StatusOr<google::cloud::dialogflow::cx::v3::GenerativeSettings>
+AgentsClient::UpdateGenerativeSettings(
+    google::cloud::dialogflow::cx::v3::UpdateGenerativeSettingsRequest const&
+        request,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->UpdateGenerativeSettings(request);
+}
+
+StreamRange<google::cloud::location::Location> AgentsClient::ListLocations(
+    google::cloud::location::ListLocationsRequest request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->ListLocations(std::move(request));
+}
+
+StatusOr<google::cloud::location::Location> AgentsClient::GetLocation(
+    google::cloud::location::GetLocationRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->GetLocation(request);
+}
+
+StreamRange<google::longrunning::Operation> AgentsClient::ListOperations(
+    std::string const& name, std::string const& filter, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::longrunning::ListOperationsRequest request;
+  request.set_name(name);
+  request.set_filter(filter);
+  return connection_->ListOperations(request);
+}
+
+StreamRange<google::longrunning::Operation> AgentsClient::ListOperations(
+    google::longrunning::ListOperationsRequest request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->ListOperations(std::move(request));
+}
+
+StatusOr<google::longrunning::Operation> AgentsClient::GetOperation(
+    std::string const& name, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::longrunning::GetOperationRequest request;
+  request.set_name(name);
+  return connection_->GetOperation(request);
+}
+
+StatusOr<google::longrunning::Operation> AgentsClient::GetOperation(
+    google::longrunning::GetOperationRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->GetOperation(request);
+}
+
+Status AgentsClient::CancelOperation(std::string const& name, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::longrunning::CancelOperationRequest request;
+  request.set_name(name);
+  return connection_->CancelOperation(request);
+}
+
+Status AgentsClient::CancelOperation(
+    google::longrunning::CancelOperationRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->CancelOperation(request);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

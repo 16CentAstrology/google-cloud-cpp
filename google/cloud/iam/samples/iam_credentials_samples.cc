@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/iam/iam_credentials_client.h"
+#include "google/cloud/iam/credentials/v1/iam_credentials_client.h"
 #include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/getenv.h"
 #include "google/cloud/testing_util/example_driver.h"
@@ -27,14 +27,14 @@ void GenerateAccessToken(std::vector<std::string> const& argv) {
   }
   //! [START iamcredentials_generate_access_token]
   //! [iamcredentials-generate-access-token]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_credentials_v1;
   [](std::string const& name, std::string const& lifetime_seconds,
      std::vector<std::string> const& scope) {
     iam::IAMCredentialsClient client(iam::MakeIAMCredentialsConnection());
     google::protobuf::Duration lifetime;
     lifetime.set_seconds(std::stoi(lifetime_seconds));
     auto response = client.GenerateAccessToken(name, {}, scope, lifetime);
-    if (!response) throw std::runtime_error(response.status().message());
+    if (!response) throw std::move(response).status();
     std::cout << "Access Token successfully created: "
               << response->DebugString() << "\n";
   }
@@ -51,14 +51,14 @@ void GenerateIdToken(std::vector<std::string> const& argv) {
   }
   //! [START iamcredentials_generate_id_token]
   //! [iamcredentials-generate-id-token]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_credentials_v1;
   [](std::string const& name, std::string const& audience,
      std::string const& include_email,
      std::vector<std::string> const& delegates) {
     iam::IAMCredentialsClient client(iam::MakeIAMCredentialsConnection());
     auto response = client.GenerateIdToken(name, delegates, audience,
                                            (include_email == "true"));
-    if (!response) throw std::runtime_error(response.status().message());
+    if (!response) throw std::move(response).status();
     std::cout << "Id Token successfully created: " << response->DebugString()
               << "\n";
   }
@@ -72,12 +72,12 @@ void SignBlob(std::vector<std::string> const& argv) {
         "sign-blob <service-account-name> <payload> [<delegates>]*");
   }
   //! [START iamcredentials_sign_blob] [iamcredentials-sign-blob]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_credentials_v1;
   [](std::string const& name, std::string const& payload,
      std::vector<std::string> const& delegates) {
     iam::IAMCredentialsClient client(iam::MakeIAMCredentialsConnection());
     auto response = client.SignBlob(name, delegates, payload);
-    if (!response) throw std::runtime_error(response.status().message());
+    if (!response) throw std::move(response).status();
     std::cout << "Blob successfully signed: " << response->DebugString()
               << "\n";
   }
@@ -91,12 +91,12 @@ void SignJwt(std::vector<std::string> const& argv) {
         "sign-jwt <service-account-name> <payload> [<delegates>]*");
   }
   //! [START iamcredentials_sign_jwt] [iamcredentials-sign-jwt]
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_credentials_v1;
   [](std::string const& name, std::string const& payload,
      std::vector<std::string> const& delegates) {
     iam::IAMCredentialsClient client(iam::MakeIAMCredentialsConnection());
     auto response = client.SignJwt(name, delegates, payload);
-    if (!response) throw std::runtime_error(response.status().message());
+    if (!response) throw std::move(response).status();
     std::cout << "JWT successfully signed: " << response->DebugString() << "\n";
   }
   //! [END iamcredentials_sign_jwt] [iamcredentials-sign-jwt]

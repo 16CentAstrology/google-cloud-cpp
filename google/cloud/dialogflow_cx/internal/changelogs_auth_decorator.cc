@@ -19,6 +19,7 @@
 #include "google/cloud/dialogflow_cx/internal/changelogs_auth_decorator.h"
 #include <google/cloud/dialogflow/cx/v3/changelog.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -32,20 +33,62 @@ ChangelogsAuth::ChangelogsAuth(
 
 StatusOr<google::cloud::dialogflow::cx::v3::ListChangelogsResponse>
 ChangelogsAuth::ListChangelogs(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::ListChangelogsRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->ListChangelogs(context, request);
+  return child_->ListChangelogs(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::cx::v3::Changelog>
 ChangelogsAuth::GetChangelog(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::cx::v3::GetChangelogRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->GetChangelog(context, request);
+  return child_->GetChangelog(context, options, request);
+}
+
+StatusOr<google::cloud::location::ListLocationsResponse>
+ChangelogsAuth::ListLocations(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::ListLocationsRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ListLocations(context, options, request);
+}
+
+StatusOr<google::cloud::location::Location> ChangelogsAuth::GetLocation(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::GetLocationRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetLocation(context, options, request);
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+ChangelogsAuth::ListOperations(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::ListOperationsRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ListOperations(context, options, request);
+}
+
+StatusOr<google::longrunning::Operation> ChangelogsAuth::GetOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::GetOperationRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetOperation(context, options, request);
+}
+
+Status ChangelogsAuth::CancelOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::CancelOperationRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->CancelOperation(context, options, request);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

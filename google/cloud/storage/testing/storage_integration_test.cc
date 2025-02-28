@@ -20,8 +20,13 @@
 #include "google/cloud/storage/testing/random_names.h"
 #include "google/cloud/storage/testing/remove_stale_buckets.h"
 #include "google/cloud/internal/getenv.h"
+#include "google/cloud/testing_util/scoped_environment.h"
 #include "absl/strings/match.h"
 #include <nlohmann/json.hpp>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -29,21 +34,19 @@ namespace storage {
 namespace testing {
 namespace {
 
+using ::google::cloud::internal::GetEnv;
+
 absl::optional<std::string> EmulatorEndpoint() {
-  return google::cloud::internal::GetEnv("CLOUD_STORAGE_EMULATOR_ENDPOINT");
+  return GetEnv("CLOUD_STORAGE_EMULATOR_ENDPOINT");
 }
 
 bool UseGrpcForMetadata() {
-  auto v =
-      google::cloud::internal::GetEnv("GOOGLE_CLOUD_CPP_STORAGE_GRPC_CONFIG")
-          .value_or("");
+  auto v = GetEnv("GOOGLE_CLOUD_CPP_STORAGE_GRPC_CONFIG").value_or("");
   return absl::StrContains(v, "metadata");
 }
 
 bool UseGrpcForMedia() {
-  auto v =
-      google::cloud::internal::GetEnv("GOOGLE_CLOUD_CPP_STORAGE_GRPC_CONFIG")
-          .value_or("");
+  auto v = GetEnv("GOOGLE_CLOUD_CPP_STORAGE_GRPC_CONFIG").value_or("");
   return absl::StrContains(v, "media");
 }
 
@@ -53,24 +56,38 @@ StorageIntegrationTest::~StorageIntegrationTest() {
   // The client configured to create and delete buckets is good for our
   // purposes.
   auto client = MakeBucketIntegrationTestClient();
-  if (!client) return;
   for (auto& o : objects_to_delete_) {
-    (void)client->DeleteObject(o.bucket(), o.name(),
-                               Generation(o.generation()));
+    (void)client.DeleteObject(o.bucket(), o.name(), Generation(o.generation()));
   }
   for (auto& b : buckets_to_delete_) {
-    (void)RemoveBucketAndContents(*client, b);
+    (void)RemoveBucketAndContents(client, b);
   }
 }
 
-google::cloud::StatusOr<google::cloud::storage::Client>
-StorageIntegrationTest::MakeIntegrationTestClient() {
-  return MakeIntegrationTestClient(TestRetryPolicy());
+Options StorageIntegrationTest::MakeTestOptions(Options opts) {
+  auto fallback = Options{}
+                      .set<RetryPolicyOption>(TestRetryPolicy())
+                      .set<BackoffPolicyOption>(TestBackoffPolicy());
+  if (auto v = GetEnv("GOOGLE_CLOUD_CPP_STORAGE_TEST_GRPC_ENDPOINT")) {
+    fallback.set<EndpointOption>(*v);
+  }
+  if (auto v = GetEnv("GOOGLE_CLOUD_CPP_STORAGE_TEST_JSON_ENDPOINT")) {
+    fallback.set<RestEndpointOption>(*v);
+  }
+  if (auto v = GetEnv("GOOGLE_CLOUD_CPP_STORAGE_TEST_AUTHORITY")) {
+    fallback.set<AuthorityOption>(*v);
+  }
+  if (auto v = GetEnv("GOOGLE_CLOUD_CPP_STORAGE_TEST_TARGET_API_VERSION")) {
+    fallback.set<google::cloud::storage::internal::TargetApiVersionOption>(*v);
+  }
+#if GOOGLE_CLOUD_CPP_STORAGE_HAVE_GRPC
+  fallback.set<storage_experimental::EnableGrpcMetricsOption>(false);
+#endif  // GOOGLE_CLOUD_CPP_STORAGE_HAVE_GRPC
+  return google::cloud::internal::MergeOptions(std::move(opts), fallback);
 }
 
-google::cloud::StatusOr<google::cloud::storage::Client>
-StorageIntegrationTest::MakeBucketIntegrationTestClient() {
-  if (UsingEmulator()) return MakeIntegrationTestClient();
+Options StorageIntegrationTest::MakeBucketTestOptions() {
+  if (UsingEmulator()) return MakeTestOptions();
 
   auto constexpr kInitialDelay = std::chrono::seconds(5);
   auto constexpr kMaximumBackoffDelay = std::chrono::minutes(5);
@@ -78,49 +95,40 @@ StorageIntegrationTest::MakeBucketIntegrationTestClient() {
   // This is comparable to the timeout for each integration test, it makes
   // little sense to wait any longer.
   auto constexpr kMaximumRetryTime = std::chrono::minutes(10);
-  return MakeIntegrationTestClient(
-      LimitedTimeRetryPolicy(kMaximumRetryTime).clone(),
-      ExponentialBackoffPolicy(kInitialDelay, kMaximumBackoffDelay,
-                               kBackoffScalingFactor)
-          .clone());
+  return MakeTestOptions(
+      Options{}
+          .set<RetryPolicyOption>(
+              LimitedTimeRetryPolicy(kMaximumRetryTime).clone())
+          .set<BackoffPolicyOption>(
+              ExponentialBackoffPolicy(kInitialDelay, kMaximumBackoffDelay,
+                                       kBackoffScalingFactor)
+                  .clone()));
 }
 
-google::cloud::StatusOr<google::cloud::storage::Client>
-StorageIntegrationTest::MakeIntegrationTestClient(
-    std::unique_ptr<RetryPolicy> retry_policy) {
-  return MakeIntegrationTestClient(std::move(retry_policy),
-                                   TestBackoffPolicy());
-}
-
-google::cloud::StatusOr<google::cloud::storage::Client>
-StorageIntegrationTest::MakeIntegrationTestClient(
-    std::unique_ptr<RetryPolicy> retry_policy,
-    std::unique_ptr<BackoffPolicy> backoff_policy) {
-  auto client_options = ClientOptions::CreateDefaultClientOptions();
-  if (!client_options) return std::move(client_options).status();
-
-  auto opts = internal::MakeOptions(*std::move(client_options))
-                  .set<RetryPolicyOption>(std::move(retry_policy))
-                  .set<BackoffPolicyOption>(std::move(backoff_policy));
-
+google::cloud::storage::Client
+StorageIntegrationTest::MakeIntegrationTestClient(bool use_grpc, Options opts) {
+  opts = MakeTestOptions(std::move(opts));
 #if GOOGLE_CLOUD_CPP_STORAGE_HAVE_GRPC
-  if (UseGrpcForMedia() || UseGrpcForMetadata()) {
-    return storage_experimental::DefaultGrpcClient(std::move(opts));
+  if (use_grpc) {
+    testing_util::ScopedEnvironment env("GOOGLE_CLOUD_CPP_STORAGE_GRPC_CONFIG",
+                                        "metadata");
+    return MakeGrpcClient(std::move(opts));
   }
+#else
+  (void)use_grpc;
 #endif  // GOOGLE_CLOUD_CPP_STORAGE_HAVE_GRPC
-
-  auto const idempotency =
-      google::cloud::internal::GetEnv("CLOUD_STORAGE_IDEMPOTENCY")
-          .value_or("always-retry");
-  if (idempotency == "strict") {
-    opts.set<IdempotencyPolicyOption>(StrictIdempotencyPolicy{}.clone());
-  } else if (idempotency != "always-retry") {
-    return Status(
-        StatusCode::kInvalidArgument,
-        "Invalid value for CLOUD_STORAGE_IDEMPOTENCY environment variable");
-  }
-  auto credentials = opts.get<Oauth2CredentialsOption>();
   return Client(std::move(opts));
+}
+
+google::cloud::storage::Client
+StorageIntegrationTest::MakeIntegrationTestClient(Options opts) {
+  auto const use_grpc = UseGrpcForMedia() || UseGrpcForMetadata();
+  return MakeIntegrationTestClient(use_grpc, std::move(opts));
+}
+
+google::cloud::storage::Client
+StorageIntegrationTest::MakeBucketIntegrationTestClient() {
+  return MakeIntegrationTestClient(MakeBucketTestOptions());
 }
 
 std::unique_ptr<BackoffPolicy> StorageIntegrationTest::TestBackoffPolicy() {
@@ -271,8 +279,9 @@ StorageIntegrationTest::InsertRetryTest(RetryTestRequest const& request) {
   };
 
   while (keep_trying()) {
-    auto http_response =
-        retry_client->Post(http_request, {absl::Span<char const>{payload}});
+    rest_internal::RestContext context;
+    auto http_response = retry_client->Post(context, http_request,
+                                            {absl::Span<char const>{payload}});
     if (!http_response) continue;
     if ((*http_response)->StatusCode() != rest::HttpStatusCode::kOk) continue;
     auto response_payload =

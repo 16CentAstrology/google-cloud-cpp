@@ -20,8 +20,13 @@
 #include "google/cloud/spanner/internal/tuple_utils.h"
 #include "google/cloud/spanner/json.h"
 #include "google/cloud/spanner/numeric.h"
+#include "google/cloud/spanner/oid.h"
+#include "google/cloud/spanner/proto_enum.h"
+#include "google/cloud/spanner/proto_message.h"
 #include "google/cloud/spanner/timestamp.h"
 #include "google/cloud/spanner/version.h"
+#include "google/cloud/internal/base64_transforms.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/internal/throw_delegate.h"
 #include "google/cloud/optional.h"
 #include "google/cloud/status_or.h"
@@ -61,6 +66,7 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * ------------ | ------------
  * BOOL         | `bool`
  * INT64        | `std::int64_t`
+ * FLOAT32      | `float`
  * FLOAT64      | `double`
  * STRING       | `std::string`
  * BYTES        | `google::cloud::spanner::Bytes`
@@ -68,8 +74,11 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * JSONB        | `google::cloud::spanner::JsonB`
  * NUMERIC      | `google::cloud::spanner::Numeric`
  * NUMERIC(PG)  | `google::cloud::spanner::PgNumeric`
+ * OID(PG)      | `google::cloud::spanner::PgOid`
  * TIMESTAMP    | `google::cloud::spanner::Timestamp`
  * DATE         | `absl::CivilDay`
+ * ENUM         | `google::cloud::spanner::ProtoEnum<E>`
+ * PROTO        | `google::cloud::spanner::ProtoMessage<M>`
  * ARRAY        | `std::vector<T>`  // [1]
  * STRUCT       | `std::tuple<Ts...>`
  *
@@ -90,8 +99,8 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * using the `MakeNullValue<T>()` factory function or by passing an empty
  * `absl::optional<T>` to the Value constructor..
  *
- * @par Example with a non-null value
- *
+ * @par Example
+ * Using a non-null value.
  * @code
  * std::string msg = "hello";
  * spanner::Value v(msg);
@@ -101,8 +110,8 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * }
  * @endcode
  *
- * @par Example with a null
- *
+ * @par Example
+ * Using a null value.
  * @code
  * spanner::Value v = spanner::MakeNullValue<std::int64_t>();
  * StatusOr<std::int64_t> i = v.get<std::int64_t>();
@@ -126,7 +135,7 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * (indicating null) or it will contain the actual value. See the documentation
  * for `Value::get<T>` below for more details.
  *
- * @par Spanner Arrays (i.e., `std::vector<T>`)
+ * @par Spanner Arrays
  *
  * Spanner arrays are represented in C++ as a `std::vector<T>`, where the type
  * `T` may be any of the other allowed Spanner types, such as `bool`,
@@ -142,7 +151,7 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * assert(vec == copy);
  * @endcode
  *
- * @par Spanner Structs (i.e., `std::tuple<Ts...>`)
+ * @par Spanner Structs
  *
  * Spanner structs are represented in C++ as instances of `std::tuple` holding
  * zero or more of the allowed Spanner types, such as `bool`, `std::int64_t`,
@@ -187,6 +196,8 @@ class Value {
   /// @copydoc Value(bool)
   explicit Value(std::int64_t v) : Value(PrivateConstructor{}, v) {}
   /// @copydoc Value(bool)
+  explicit Value(float v) : Value(PrivateConstructor{}, v) {}
+  /// @copydoc Value(bool)
   explicit Value(double v) : Value(PrivateConstructor{}, v) {}
   /// @copydoc Value(bool)
   explicit Value(std::string v) : Value(PrivateConstructor{}, std::move(v)) {}
@@ -201,12 +212,21 @@ class Value {
   /// @copydoc Value(bool)
   explicit Value(PgNumeric v) : Value(PrivateConstructor{}, std::move(v)) {}
   /// @copydoc Value(bool)
+  explicit Value(PgOid v) : Value(PrivateConstructor{}, std::move(v)) {}
+  /// @copydoc Value(bool)
   explicit Value(Timestamp v) : Value(PrivateConstructor{}, std::move(v)) {}
   /// @copydoc Value(bool)
   explicit Value(CommitTimestamp v)
       : Value(PrivateConstructor{}, std::move(v)) {}
   /// @copydoc Value(bool)
   explicit Value(absl::CivilDay v)
+      : Value(PrivateConstructor{}, std::move(v)) {}
+  /// @copydoc Value(bool)
+  template <typename E>
+  explicit Value(ProtoEnum<E> v) : Value(PrivateConstructor{}, std::move(v)) {}
+  /// @copydoc Value(bool)
+  template <typename M>
+  explicit Value(ProtoMessage<M> v)
       : Value(PrivateConstructor{}, std::move(v)) {}
 
   /**
@@ -252,7 +272,7 @@ class Value {
    */
   template <typename T>
   explicit Value(std::vector<T> v) : Value(PrivateConstructor{}, std::move(v)) {
-    static_assert(!IsVector<typename std::decay<T>::type>::value,
+    static_assert(!IsVector<std::decay_t<T>>::value,
                   "vector of vector not allowed. See value.h documentation.");
   }
 
@@ -302,10 +322,10 @@ class Value {
   template <typename T>
   StatusOr<T> get() const& {
     if (!TypeProtoIs(T{}, type_))
-      return Status(StatusCode::kUnknown, "wrong type");
+      return internal::UnknownError("wrong type", GCP_ERROR_INFO());
     if (value_.kind_case() == google::protobuf::Value::kNullValue) {
       if (IsOptional<T>::value) return T{};
-      return Status(StatusCode::kUnknown, "null value");
+      return internal::UnknownError("null value", GCP_ERROR_INFO());
     }
     return GetValue(T{}, value_, type_);
   }
@@ -314,10 +334,10 @@ class Value {
   template <typename T>
   StatusOr<T> get() && {
     if (!TypeProtoIs(T{}, type_))
-      return Status(StatusCode::kUnknown, "wrong type");
+      return internal::UnknownError("wrong type", GCP_ERROR_INFO());
     if (value_.kind_case() == google::protobuf::Value::kNullValue) {
       if (IsOptional<T>::value) return T{};
-      return Status(StatusCode::kUnknown, "null value");
+      return internal::UnknownError("null value", GCP_ERROR_INFO());
     }
     auto tag = T{};  // Works around an odd msvc issue
     return GetValue(std::move(tag), std::move(value_), type_);
@@ -362,6 +382,7 @@ class Value {
   // by the given `Type` proto.
   static bool TypeProtoIs(bool, google::spanner::v1::Type const&);
   static bool TypeProtoIs(std::int64_t, google::spanner::v1::Type const&);
+  static bool TypeProtoIs(float, google::spanner::v1::Type const&);
   static bool TypeProtoIs(double, google::spanner::v1::Type const&);
   static bool TypeProtoIs(Timestamp, google::spanner::v1::Type const&);
   static bool TypeProtoIs(CommitTimestamp, google::spanner::v1::Type const&);
@@ -372,6 +393,19 @@ class Value {
   static bool TypeProtoIs(JsonB const&, google::spanner::v1::Type const&);
   static bool TypeProtoIs(Numeric const&, google::spanner::v1::Type const&);
   static bool TypeProtoIs(PgNumeric const&, google::spanner::v1::Type const&);
+  static bool TypeProtoIs(PgOid const&, google::spanner::v1::Type const&);
+  template <typename E>
+  static bool TypeProtoIs(ProtoEnum<E> const&,
+                          google::spanner::v1::Type const& type) {
+    return type.code() == google::spanner::v1::TypeCode::ENUM &&
+           type.proto_type_fqn() == ProtoEnum<E>::TypeName();
+  }
+  template <typename M>
+  static bool TypeProtoIs(ProtoMessage<M> const&,
+                          google::spanner::v1::Type const& type) {
+    return type.code() == google::spanner::v1::TypeCode::PROTO &&
+           type.proto_type_fqn() == ProtoMessage<M>::TypeName();
+  }
   template <typename T>
   static bool TypeProtoIs(absl::optional<T>,
                           google::spanner::v1::Type const& type) {
@@ -414,6 +448,7 @@ class Value {
   // argument type is the tag, the argument value is ignored.
   static google::spanner::v1::Type MakeTypeProto(bool);
   static google::spanner::v1::Type MakeTypeProto(std::int64_t);
+  static google::spanner::v1::Type MakeTypeProto(float);
   static google::spanner::v1::Type MakeTypeProto(double);
   static google::spanner::v1::Type MakeTypeProto(std::string const&);
   static google::spanner::v1::Type MakeTypeProto(Bytes const&);
@@ -421,9 +456,24 @@ class Value {
   static google::spanner::v1::Type MakeTypeProto(JsonB const&);
   static google::spanner::v1::Type MakeTypeProto(Numeric const&);
   static google::spanner::v1::Type MakeTypeProto(PgNumeric const&);
+  static google::spanner::v1::Type MakeTypeProto(PgOid const&);
   static google::spanner::v1::Type MakeTypeProto(Timestamp);
   static google::spanner::v1::Type MakeTypeProto(CommitTimestamp);
   static google::spanner::v1::Type MakeTypeProto(absl::CivilDay);
+  template <typename E>
+  static google::spanner::v1::Type MakeTypeProto(ProtoEnum<E>) {
+    google::spanner::v1::Type t;
+    t.set_code(google::spanner::v1::TypeCode::ENUM);
+    t.set_proto_type_fqn(ProtoEnum<E>::TypeName());
+    return t;
+  }
+  template <typename M>
+  static google::spanner::v1::Type MakeTypeProto(ProtoMessage<M>) {
+    google::spanner::v1::Type t;
+    t.set_code(google::spanner::v1::TypeCode::PROTO);
+    t.set_proto_type_fqn(ProtoMessage<M>::TypeName());
+    return t;
+  }
   static google::spanner::v1::Type MakeTypeProto(int);
   static google::spanner::v1::Type MakeTypeProto(char const*);
   template <typename T>
@@ -462,9 +512,9 @@ class Value {
       auto* field = struct_type.add_fields();
       *field->mutable_type() = MakeTypeProto(t);
     }
-    template <typename S, typename T,
-              typename std::enable_if<
-                  std::is_convertible<S, std::string>::value, int>::type = 0>
+    template <
+        typename S, typename T,
+        std::enable_if_t<std::is_convertible<S, std::string>::value, int> = 0>
     void operator()(std::pair<S, T> const& p,
                     google::spanner::v1::StructType& struct_type) const {
       auto* field = struct_type.add_fields();
@@ -477,6 +527,7 @@ class Value {
   // https://github.com/googleapis/googleapis/blob/master/google/spanner/v1/type.proto
   static google::protobuf::Value MakeValueProto(bool b);
   static google::protobuf::Value MakeValueProto(std::int64_t i);
+  static google::protobuf::Value MakeValueProto(float f);
   static google::protobuf::Value MakeValueProto(double d);
   static google::protobuf::Value MakeValueProto(std::string s);
   static google::protobuf::Value MakeValueProto(Bytes b);
@@ -484,9 +535,20 @@ class Value {
   static google::protobuf::Value MakeValueProto(JsonB j);
   static google::protobuf::Value MakeValueProto(Numeric n);
   static google::protobuf::Value MakeValueProto(PgNumeric n);
+  static google::protobuf::Value MakeValueProto(PgOid n);
   static google::protobuf::Value MakeValueProto(Timestamp ts);
   static google::protobuf::Value MakeValueProto(CommitTimestamp ts);
   static google::protobuf::Value MakeValueProto(absl::CivilDay d);
+  template <typename E>
+  static google::protobuf::Value MakeValueProto(ProtoEnum<E> e) {
+    return MakeValueProto(std::int64_t{E{e}});
+  }
+  template <typename M>
+  static google::protobuf::Value MakeValueProto(ProtoMessage<M> m) {
+    internal::Base64Encoder encoder;
+    for (auto c : std::string{m}) encoder.PushBack(c);
+    return MakeValueProto(std::move(encoder).FlushAndPad());
+  }
   static google::protobuf::Value MakeValueProto(int i);
   static google::protobuf::Value MakeValueProto(char const* s);
   template <typename T>
@@ -519,9 +581,9 @@ class Value {
     void operator()(T& t, google::protobuf::ListValue& list_value) const {
       *list_value.add_values() = MakeValueProto(std::move(t));
     }
-    template <typename S, typename T,
-              typename std::enable_if<
-                  std::is_convertible<S, std::string>::value, int>::type = 0>
+    template <
+        typename S, typename T,
+        std::enable_if_t<std::is_convertible<S, std::string>::value, int> = 0>
     void operator()(std::pair<S, T> p,
                     google::protobuf::ListValue& list_value) const {
       *list_value.add_values() = MakeValueProto(std::move(p.second));
@@ -535,6 +597,8 @@ class Value {
   static StatusOr<std::int64_t> GetValue(std::int64_t,
                                          google::protobuf::Value const&,
                                          google::spanner::v1::Type const&);
+  static StatusOr<float> GetValue(float, google::protobuf::Value const&,
+                                  google::spanner::v1::Type const&);
   static StatusOr<double> GetValue(double, google::protobuf::Value const&,
                                    google::spanner::v1::Type const&);
   static StatusOr<std::string> GetValue(std::string const&,
@@ -555,6 +619,8 @@ class Value {
   static StatusOr<PgNumeric> GetValue(PgNumeric const&,
                                       google::protobuf::Value const&,
                                       google::spanner::v1::Type const&);
+  static StatusOr<PgOid> GetValue(PgOid const&, google::protobuf::Value const&,
+                                  google::spanner::v1::Type const&);
   static StatusOr<Timestamp> GetValue(Timestamp, google::protobuf::Value const&,
                                       google::spanner::v1::Type const&);
   static StatusOr<CommitTimestamp> GetValue(CommitTimestamp,
@@ -563,6 +629,32 @@ class Value {
   static StatusOr<absl::CivilDay> GetValue(absl::CivilDay,
                                            google::protobuf::Value const&,
                                            google::spanner::v1::Type const&);
+  template <typename E>
+  static StatusOr<ProtoEnum<E>> GetValue(ProtoEnum<E>,
+                                         google::protobuf::Value const& pv,
+                                         google::spanner::v1::Type const& pt) {
+    if (pv.kind_case() != google::protobuf::Value::kStringValue) {
+      return internal::UnknownError("missing ENUM", GCP_ERROR_INFO());
+    }
+    auto value = GetValue(std::int64_t{}, pv, pt);
+    if (!value) return std::move(value).status();
+    if (static_cast<typename std::underlying_type_t<E>>(*value) != *value) {
+      return Status(StatusCode::kUnknown,
+                    "Value out of range: " + pv.string_value());
+    }
+    return ProtoEnum<E>(static_cast<E>(*std::move(value)));
+  }
+  template <typename M>
+  static StatusOr<ProtoMessage<M>> GetValue(ProtoMessage<M>,
+                                            google::protobuf::Value const& pv,
+                                            google::spanner::v1::Type const&) {
+    if (pv.kind_case() != google::protobuf::Value::kStringValue) {
+      return internal::UnknownError("missing PROTO", GCP_ERROR_INFO());
+    }
+    auto bytes = internal::Base64DecodeToBytes(pv.string_value());
+    if (!bytes) return std::move(bytes).status();
+    return ProtoMessage<M>(std::string(bytes->begin(), bytes->end()));
+  }
   template <typename T, typename V>
   static StatusOr<absl::optional<T>> GetValue(
       absl::optional<T> const&, V&& pv, google::spanner::v1::Type const& pt) {
@@ -577,7 +669,7 @@ class Value {
   static StatusOr<std::vector<T>> GetValue(
       std::vector<T> const&, V&& pv, google::spanner::v1::Type const& pt) {
     if (pv.kind_case() != google::protobuf::Value::kListValue) {
-      return Status(StatusCode::kUnknown, "missing ARRAY");
+      return internal::UnknownError("missing ARRAY", GCP_ERROR_INFO());
     }
     std::vector<T> v;
     for (int i = 0; i < pv.list_value().values().size(); ++i) {
@@ -593,7 +685,7 @@ class Value {
   static StatusOr<std::tuple<Ts...>> GetValue(
       std::tuple<Ts...> const&, V&& pv, google::spanner::v1::Type const& pt) {
     if (pv.kind_case() != google::protobuf::Value::kListValue) {
-      return Status(StatusCode::kUnknown, "missing STRUCT");
+      return internal::UnknownError("missing STRUCT", GCP_ERROR_INFO());
     }
     std::tuple<Ts...> tup;
     Status status;  // OK

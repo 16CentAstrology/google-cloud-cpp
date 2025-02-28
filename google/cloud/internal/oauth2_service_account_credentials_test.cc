@@ -15,8 +15,9 @@
 #include "google/cloud/internal/oauth2_service_account_credentials.h"
 #include "google/cloud/internal/base64_transforms.h"
 #include "google/cloud/internal/oauth2_credential_constants.h"
-#include "google/cloud/internal/openssl_util.h"
+#include "google/cloud/internal/oauth2_universe_domain.h"
 #include "google/cloud/internal/random.h"
+#include "google/cloud/internal/sign_using_sha256.h"
 #include "google/cloud/testing_util/chrono_output.h"
 #include "google/cloud/testing_util/mock_http_payload.h"
 #include "google/cloud/testing_util/mock_rest_client.h"
@@ -37,11 +38,13 @@ namespace {
 using ::google::cloud::internal::SignUsingSha256;
 using ::google::cloud::internal::UrlsafeBase64Decode;
 using ::google::cloud::rest_internal::RestRequest;
+using ::google::cloud::testing_util::IsOkAndHolds;
 using ::google::cloud::testing_util::MakeMockHttpPayloadSuccess;
 using ::google::cloud::testing_util::MockRestClient;
 using ::google::cloud::testing_util::MockRestResponse;
 using ::google::cloud::testing_util::ScopedEnvironment;
 using ::google::cloud::testing_util::StatusIs;
+using ::testing::_;
 using ::testing::AllOf;
 using ::testing::ByMove;
 using ::testing::Contains;
@@ -110,7 +113,7 @@ auto constexpr kClientX509CertUrl =
     "https://www.googleapis.com/robot/v1/metadata/x509/"
     "foo-email%40foo-project.iam.gserviceaccount.com";
 
-std::string MakeTestContents() {
+nlohmann::json TestContents() {
   return nlohmann::json{
       {"type", "service_account"},
       {"project_id", kProjectId},
@@ -122,8 +125,16 @@ std::string MakeTestContents() {
       {"token_uri", kTokenUri},
       {"auth_provider_x509_cert_url", kAuthProviderX509CerlUrl},
       {"client_x509_cert_url", kClientX509CertUrl},
-  }
-      .dump();
+  };
+}
+
+std::string MakeTestContents() { return TestContents().dump(); }
+
+auto constexpr kUniverseDomain = "test-domain.net";
+std::string MakeUniverseDomainTestContents() {
+  auto json = TestContents();
+  json["universe_domain"] = kUniverseDomain;
+  return json.dump();
 }
 
 void CheckInfoYieldsExpectedAssertion(ServiceAccountCredentialsInfo const& info,
@@ -137,14 +148,14 @@ void CheckInfoYieldsExpectedAssertion(ServiceAccountCredentialsInfo const& info,
 
   auto token_client = [=] {
     using FormDataType = std::vector<std::pair<std::string, std::string>>;
-    auto mock = absl::make_unique<MockRestClient>();
+    auto mock = std::make_unique<MockRestClient>();
     auto expected_request = Property(&RestRequest::path, info.token_uri);
     auto expected_form_data = MatcherCast<FormDataType const&>(
         AllOf(Contains(Pair("assertion", assertion)),
               Contains(Pair("grant_type", kGrantParamUnescaped))));
-    EXPECT_CALL(*mock, Post(expected_request, expected_form_data))
+    EXPECT_CALL(*mock, Post(_, expected_request, expected_form_data))
         .WillOnce([assertion, post_response]() {
-          auto response = absl::make_unique<MockRestResponse>();
+          auto response = std::make_unique<MockRestResponse>();
           EXPECT_CALL(*response, StatusCode)
               .WillRepeatedly(Return(rest_internal::HttpStatusCode::kOk));
           EXPECT_CALL(std::move(*response), ExtractPayload)
@@ -171,8 +182,42 @@ void CheckInfoYieldsExpectedAssertion(ServiceAccountCredentialsInfo const& info,
   EXPECT_EQ(token->expiration, tp + std::chrono::seconds(1234));
 }
 
-TEST(ServiceAccountCredentialsTest, MakeSelfSignedJWT) {
+TEST(ServiceAccountCredentialsTest, ServiceAccountUseOAuth) {
   auto info = ParseServiceAccountCredentials(MakeTestContents(), "test");
+  ASSERT_STATUS_OK(info);
+  EXPECT_FALSE(ServiceAccountUseOAuth(*info));
+
+  {
+    ScopedEnvironment disable_self_signed_jwt(
+        "GOOGLE_CLOUD_CPP_EXPERIMENTAL_DISABLE_SELF_SIGNED_JWT", "1");
+    EXPECT_TRUE(ServiceAccountUseOAuth(*info));
+  }
+
+  auto jwt_enabled_info = *info;
+  jwt_enabled_info.enable_self_signed_jwt = true;
+  EXPECT_FALSE(ServiceAccountUseOAuth(jwt_enabled_info));
+
+  auto p12_info = *info;
+  p12_info.private_key_id = "--unknown--";
+  EXPECT_TRUE(ServiceAccountUseOAuth(p12_info));
+
+  auto ud_info =
+      ParseServiceAccountCredentials(MakeUniverseDomainTestContents(), "test");
+  ASSERT_STATUS_OK(ud_info);
+  EXPECT_FALSE(ServiceAccountUseOAuth(*ud_info));
+
+  {
+    ScopedEnvironment disable_self_signed_jwt(
+        "GOOGLE_CLOUD_CPP_EXPERIMENTAL_DISABLE_SELF_SIGNED_JWT", "1");
+    auto gdu_info = *ud_info;
+    gdu_info.universe_domain = GoogleDefaultUniverseDomain();
+    EXPECT_TRUE(ServiceAccountUseOAuth(gdu_info));
+  }
+}
+
+TEST(ServiceAccountCredentialsTest, MakeSelfSignedJWT) {
+  auto info =
+      ParseServiceAccountCredentials(MakeUniverseDomainTestContents(), "test");
   ASSERT_STATUS_OK(info);
   auto const now = std::chrono::system_clock::now();
   auto actual = MakeSelfSignedJWT(*info, now);
@@ -297,7 +342,8 @@ TEST(ServiceAccountCredentialsTest, RefreshWithSelfSignedJWT) {
   ScopedEnvironment disable_self_signed_jwt(
       "GOOGLE_CLOUD_CPP_EXPERIMENTAL_DISABLE_SELF_SIGNED_JWT", absl::nullopt);
 
-  auto info = ParseServiceAccountCredentials(MakeTestContents(), "test");
+  auto info =
+      ParseServiceAccountCredentials(MakeUniverseDomainTestContents(), "test");
   ASSERT_STATUS_OK(info);
 
   auto const expected_header =
@@ -390,7 +436,9 @@ TEST(ServiceAccountCredentialsTest, ParseSimple) {
       "private_key_id": "not-a-key-id-just-for-testing",
       "private_key": "not-a-valid-key-just-for-testing",
       "client_email": "test-only@test-group.example.com",
-      "token_uri": "https://oauth2.googleapis.com/test_endpoint"
+      "token_uri": "https://oauth2.googleapis.com/test_endpoint",
+      "universe_domain": "test-domain.net",
+      "project_id": "test-only-invalid-project-id"
 })""";
 
   auto actual =
@@ -400,6 +448,8 @@ TEST(ServiceAccountCredentialsTest, ParseSimple) {
   EXPECT_EQ("not-a-valid-key-just-for-testing", actual->private_key);
   EXPECT_EQ("test-only@test-group.example.com", actual->client_email);
   EXPECT_EQ("https://oauth2.googleapis.com/test_endpoint", actual->token_uri);
+  EXPECT_EQ("test-domain.net", actual->universe_domain);
+  EXPECT_EQ("test-only-invalid-project-id", actual->project_id);
 }
 
 /// @test Verify that parsing a service account JSON string works.
@@ -440,6 +490,40 @@ TEST(ServiceAccountCredentialsTest, ParseUsesImplicitDefaultTokenUri) {
   EXPECT_EQ(std::string(GoogleOAuthRefreshEndpoint()), actual->token_uri);
 }
 
+TEST(ServiceAccountCredentialsTest, ParseUsesDefaultUniverseDomain) {
+  // No token_uri attribute here.
+  std::string contents = R"""({
+      "type": "service_account",
+      "private_key_id": "not-a-key-id-just-for-testing",
+      "private_key": "not-a-valid-key-just-for-testing",
+      "client_email": "test-only@test-group.example.com"
+})""";
+
+  // No token_uri passed in here, either.
+  auto actual = ParseServiceAccountCredentials(contents, "test-data");
+  ASSERT_STATUS_OK(actual);
+  EXPECT_EQ("not-a-key-id-just-for-testing", actual->private_key_id);
+  EXPECT_EQ("not-a-valid-key-just-for-testing", actual->private_key);
+  EXPECT_EQ("test-only@test-group.example.com", actual->client_email);
+  EXPECT_EQ(GoogleDefaultUniverseDomain(), actual->universe_domain);
+}
+
+TEST(ServiceAccountCredentialsTest, ParseMissingProjectId) {
+  std::string contents = R"""({
+      "type": "service_account",
+      "private_key_id": "not-a-key-id-just-for-testing",
+      "private_key": "not-a-valid-key-just-for-testing",
+      "client_email": "test-only@test-group.example.com",
+      "token_uri": "https://oauth2.googleapis.com/test_endpoint",
+      "universe_domain": "test-domain.net"
+})""";
+
+  auto actual =
+      ParseServiceAccountCredentials(contents, "test-data", "unused-uri");
+  ASSERT_STATUS_OK(actual);
+  EXPECT_EQ(actual->project_id, absl::nullopt);
+}
+
 /// @test Verify that invalid contents result in a readable error.
 TEST(ServiceAccountCredentialsTest, ParseInvalidContentsFails) {
   std::string config = R"""( not-a-valid-json-string )""";
@@ -460,7 +544,8 @@ TEST(ServiceAccountCredentialsTest, ParseEmptyFieldFails) {
       "token_uri": "https://oauth2.googleapis.com/token"
 })""";
 
-  for (auto const& field : {"private_key", "client_email", "token_uri"}) {
+  for (auto const& field : {"private_key", "client_email", "token_uri",
+                            "universe_domain", "project_id"}) {
     auto json = nlohmann::json::parse(contents);
     json[field] = "";
     auto actual = ParseServiceAccountCredentials(json.dump(), "test-data", "");
@@ -468,6 +553,29 @@ TEST(ServiceAccountCredentialsTest, ParseEmptyFieldFails) {
                 StatusIs(Not(StatusCode::kOk),
                          AllOf(HasSubstr(field), HasSubstr(" field is empty"),
                                HasSubstr("test-data"))));
+  }
+}
+
+/// @test Parsing a service account JSON string should detect invalid fields.
+TEST(ServiceAccountCredentialsTest, ParseInvalidTypeFieldFails) {
+  std::string contents = R"""({
+      "type": "service_account",
+      "private_key": "not-a-valid-key-just-for-testing",
+      "client_email": "test-only@test-group.example.com",
+      "token_uri": "https://oauth2.googleapis.com/token"
+})""";
+
+  for (auto const& field : {"private_key", "private_key_id", "client_email",
+                            "token_uri", "universe_domain", "project_id"}) {
+    auto json = nlohmann::json::parse(contents);
+    json[field] = true;
+    auto actual = ParseServiceAccountCredentials(json.dump(), "test-data", "");
+    EXPECT_THAT(
+        actual,
+        StatusIs(Not(StatusCode::kOk),
+                 AllOf(HasSubstr(field),
+                       HasSubstr(" field is present and is not a string"),
+                       HasSubstr("test-data"))));
   }
 }
 
@@ -560,6 +668,71 @@ TEST(ServiceAccountCredentialsTest, SignBlobFailure) {
       actual,
       StatusIs(StatusCode::kInvalidArgument,
                HasSubstr("The current_credentials cannot sign blobs for ")));
+}
+
+TEST(ServiceAccountCredentialsTest, UniverseDomainAccessorDefaultGDU) {
+  auto info = ParseServiceAccountCredentials(MakeTestContents(), "test");
+  ASSERT_STATUS_OK(info);
+  MockHttpClientFactory mock_http_client_factory;
+  EXPECT_CALL(mock_http_client_factory, Call).Times(0);
+  ServiceAccountCredentials credentials(
+      *info, Options{}, mock_http_client_factory.AsStdFunction());
+  auto actual = credentials.universe_domain();
+  EXPECT_THAT(actual, IsOkAndHolds(GoogleDefaultUniverseDomain()));
+}
+
+TEST(ServiceAccountCredentialsTest, UniverseDomainAccessorCustom) {
+  auto info =
+      ParseServiceAccountCredentials(MakeUniverseDomainTestContents(), "test");
+  ASSERT_STATUS_OK(info);
+  MockHttpClientFactory mock_http_client_factory;
+  EXPECT_CALL(mock_http_client_factory, Call).Times(0);
+  ServiceAccountCredentials credentials(
+      *info, Options{}, mock_http_client_factory.AsStdFunction());
+  auto actual = credentials.universe_domain();
+  EXPECT_THAT(actual, IsOkAndHolds(kUniverseDomain));
+}
+
+TEST(ServiceAccountCredentialsTest, UniverseDomainAccessorFailure) {
+  auto info = ParseServiceAccountCredentials(MakeTestContents(), "test");
+  info->universe_domain = absl::nullopt;
+  ASSERT_STATUS_OK(info);
+  MockHttpClientFactory mock_http_client_factory;
+  EXPECT_CALL(mock_http_client_factory, Call).Times(0);
+  ServiceAccountCredentials credentials(
+      *info, Options{}, mock_http_client_factory.AsStdFunction());
+  auto actual = credentials.universe_domain();
+  EXPECT_THAT(
+      actual,
+      StatusIs(StatusCode::kNotFound,
+               HasSubstr("universe_domain is not present in the credentials")));
+}
+
+TEST(ServiceAccountCredentialsTest, ProjectIdUndefined) {
+  auto info = ParseServiceAccountCredentials(MakeTestContents(), "test");
+  ASSERT_STATUS_OK(info);
+  info->project_id.reset();
+  MockHttpClientFactory mock_http_client_factory;
+  EXPECT_CALL(mock_http_client_factory, Call).Times(0);
+
+  ServiceAccountCredentials credentials(
+      *info, Options{}, mock_http_client_factory.AsStdFunction());
+  EXPECT_THAT(credentials.project_id(),
+              StatusIs(StatusCode::kNotFound, HasSubstr("project_id")));
+  EXPECT_THAT(credentials.project_id({}),
+              StatusIs(StatusCode::kNotFound, HasSubstr("project_id")));
+}
+
+TEST(ServiceAccountCredentialsTest, ProjectIdDefined) {
+  auto info = ParseServiceAccountCredentials(MakeTestContents(), "test");
+  ASSERT_STATUS_OK(info);
+  MockHttpClientFactory mock_http_client_factory;
+  EXPECT_CALL(mock_http_client_factory, Call).Times(0);
+
+  ServiceAccountCredentials credentials(
+      *info, Options{}, mock_http_client_factory.AsStdFunction());
+  EXPECT_THAT(credentials.project_id(), IsOkAndHolds("test-only-project-id"));
+  EXPECT_THAT(credentials.project_id({}), IsOkAndHolds("test-only-project-id"));
 }
 
 /// @test Verify that we can get the client id from a service account.
@@ -673,13 +846,13 @@ TEST(ServiceAccountCredentialsTest,
     "expires_in": 1000
 })""";
 
-  auto mock_response1 = absl::make_unique<MockRestResponse>();
+  auto mock_response1 = std::make_unique<MockRestResponse>();
   EXPECT_CALL(*mock_response1, StatusCode)
       .WillRepeatedly(Return(rest_internal::HttpStatusCode::kBadRequest));
   EXPECT_CALL(std::move(*mock_response1), ExtractPayload)
       .WillOnce(Return(ByMove(MakeMockHttpPayloadSuccess(r1))));
 
-  auto mock_response2 = absl::make_unique<MockRestResponse>();
+  auto mock_response2 = std::make_unique<MockRestResponse>();
   EXPECT_CALL(*mock_response2, StatusCode)
       .WillRepeatedly(Return(rest_internal::HttpStatusCode::kBadRequest));
   EXPECT_CALL(std::move(*mock_response2), ExtractPayload)
@@ -709,7 +882,7 @@ TEST(ServiceAccountCredentialsTest, ParseServiceAccountRefreshResponse) {
     "expires_in": 1000
 })""";
 
-  auto mock_response1 = absl::make_unique<MockRestResponse>();
+  auto mock_response1 = std::make_unique<MockRestResponse>();
   EXPECT_CALL(*mock_response1, StatusCode)
       .WillRepeatedly(Return(rest_internal::HttpStatusCode::kOk));
   EXPECT_CALL(std::move(*mock_response1), ExtractPayload)

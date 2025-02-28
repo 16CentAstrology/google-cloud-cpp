@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "google/cloud/pubsublite/internal/multipartition_publisher.h"
+#include "google/cloud/internal/make_status.h"
 #include <functional>
 #include <limits>
 
@@ -51,7 +52,6 @@ MultipartitionPublisher::~MultipartitionPublisher() {
   if (!shutdown.is_ready()) {
     GCP_LOG(WARNING) << "`Shutdown` must be called and finished before object "
                         "goes out of scope.";
-    assert(false);
   }
   shutdown.get();
 }
@@ -63,15 +63,17 @@ future<Status> MultipartitionPublisher::Start() {
 }
 
 future<StatusOr<std::uint32_t>> MultipartitionPublisher::GetNumPartitions() {
+  google::cloud::internal::OptionsSpan span(admin_connection_->options());
   return admin_connection_->AsyncGetTopicPartitions(topic_partitions_request_)
       .then([](future<StatusOr<TopicPartitions>> f) -> StatusOr<std::uint32_t> {
         auto partitions = f.get();
         if (!partitions) return std::move(partitions).status();
         if (partitions->partition_count() >=
             std::numeric_limits<std::uint32_t>::max()) {
-          return Status{StatusCode::kInternal,
-                        absl::StrCat("Returned partition count is too big: ",
-                                     partitions->partition_count())};
+          return internal::InternalError(
+              absl::StrCat("Returned partition count is too big: ",
+                           partitions->partition_count()),
+              GCP_ERROR_INFO());
         }
         return static_cast<std::uint32_t>(partitions->partition_count());
       });
@@ -85,7 +87,6 @@ void MultipartitionPublisher::HandleNumPartitions(
     current_num_partitions =
         static_cast<std::uint32_t>(partition_publishers_.size());
   }
-  assert(num_partitions >= current_num_partitions);  // should be no race
   if (num_partitions == current_num_partitions) return;
   std::vector<std::shared_ptr<Publisher<Cursor>>> new_partition_publishers;
   for (std::uint32_t partition = current_num_partitions;
@@ -129,7 +130,6 @@ void MultipartitionPublisher::TriggerPublisherCreation() {
         absl::optional<promise<void>> p;
         {
           std::lock_guard<std::mutex> g{mu_};
-          assert(outstanding_num_partitions_req_);
           p.swap(outstanding_num_partitions_req_);
         }
         // only set value after done touching member variables

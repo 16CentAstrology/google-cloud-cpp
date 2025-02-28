@@ -36,11 +36,11 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * class. Then use the Google Test framework functions to program the behavior
  * of this mock.
  *
- * @see [This example][bq-mock] for how to test your application with
- * GoogleTest. While the example showcases types from the BigQuery library, the
- * underlying principles apply for any pair of `*Client` and `*Connection`.
+ * @see [This example][bq-mock] for how to test your application with GoogleTest.
+ * While the example showcases types from the BigQuery library, the underlying
+ * principles apply for any pair of `*Client` and `*Connection`.
  *
- * [bq-mock]: @googleapis_dev_link{bigquery,bigquery-read-mock.html}
+ * [bq-mock]: @cloud_cpp_docs_link{bigquery,bigquery-read-mock}
  */
 class MockDatabaseAdminConnection
     : public spanner_admin::DatabaseAdminConnection {
@@ -48,11 +48,20 @@ class MockDatabaseAdminConnection
   MOCK_METHOD(Options, options, (), (override));
 
   MOCK_METHOD(
-      StreamRange<google::spanner::admin::database::v1::Database>,
+      (StreamRange<google::spanner::admin::database::v1::Database>),
       ListDatabases,
       (google::spanner::admin::database::v1::ListDatabasesRequest request),
       (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// CreateDatabase(Matcher<google::spanner::admin::database::v1::CreateDatabaseRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<StatusOr<google::spanner::admin::database::v1::Database>>,
       CreateDatabase,
@@ -60,17 +69,119 @@ class MockDatabaseAdminConnection
            request),
       (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, CreateDatabase(_, _))
+  /// @endcode
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, CreateDatabase,
+      (NoAwaitTag,
+       google::spanner::admin::database::v1::CreateDatabaseRequest const&
+           request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock, CreateDatabase(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(future<StatusOr<google::spanner::admin::database::v1::Database>>,
+              CreateDatabase, (google::longrunning::Operation const& operation),
+              (override));
+
   MOCK_METHOD(
       StatusOr<google::spanner::admin::database::v1::Database>, GetDatabase,
       (google::spanner::admin::database::v1::GetDatabaseRequest const& request),
       (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// UpdateDatabase(Matcher<google::spanner::admin::database::v1::UpdateDatabaseRequest
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(
+      future<StatusOr<google::spanner::admin::database::v1::Database>>,
+      UpdateDatabase,
+      (google::spanner::admin::database::v1::UpdateDatabaseRequest const&
+           request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, UpdateDatabase(_, _))
+  /// @endcode
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, UpdateDatabase,
+      (NoAwaitTag,
+       google::spanner::admin::database::v1::UpdateDatabaseRequest const&
+           request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock, UpdateDatabase(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(future<StatusOr<google::spanner::admin::database::v1::Database>>,
+              UpdateDatabase, (google::longrunning::Operation const& operation),
+              (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// UpdateDatabaseDdl(Matcher<google::spanner::admin::database::v1::UpdateDatabaseDdlRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<StatusOr<
           google::spanner::admin::database::v1::UpdateDatabaseDdlMetadata>>,
       UpdateDatabaseDdl,
       (google::spanner::admin::database::v1::UpdateDatabaseDdlRequest const&
            request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, UpdateDatabaseDdl(_, _))
+  /// @endcode
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, UpdateDatabaseDdl,
+      (NoAwaitTag,
+       google::spanner::admin::database::v1::UpdateDatabaseDdlRequest const&
+           request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// UpdateDatabaseDdl(Matcher<google::longrunning::Operation const&>(_)))
+  /// @endcode
+  MOCK_METHOD(
+      future<StatusOr<
+          google::spanner::admin::database::v1::UpdateDatabaseDdlMetadata>>,
+      UpdateDatabaseDdl, (google::longrunning::Operation const& operation),
       (override));
 
   MOCK_METHOD(Status, DropDatabase,
@@ -98,17 +209,83 @@ class MockDatabaseAdminConnection
               (google::iam::v1::TestIamPermissionsRequest const& request),
               (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// CreateBackup(Matcher<google::spanner::admin::database::v1::CreateBackupRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(future<StatusOr<google::spanner::admin::database::v1::Backup>>,
               CreateBackup,
               (google::spanner::admin::database::v1::CreateBackupRequest const&
                    request),
               (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, CreateBackup(_, _))
+  /// @endcode
+  MOCK_METHOD(StatusOr<google::longrunning::Operation>, CreateBackup,
+              (NoAwaitTag,
+               google::spanner::admin::database::v1::CreateBackupRequest const&
+                   request),
+              (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock, CreateBackup(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(future<StatusOr<google::spanner::admin::database::v1::Backup>>,
+              CreateBackup, (google::longrunning::Operation const& operation),
+              (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// CopyBackup(Matcher<google::spanner::admin::database::v1::CopyBackupRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<StatusOr<google::spanner::admin::database::v1::Backup>>,
       CopyBackup,
       (google::spanner::admin::database::v1::CopyBackupRequest const& request),
       (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, CopyBackup(_, _))
+  /// @endcode
+  MOCK_METHOD(
+      StatusOr<google::longrunning::Operation>, CopyBackup,
+      (NoAwaitTag,
+       google::spanner::admin::database::v1::CopyBackupRequest const& request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock, CopyBackup(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(future<StatusOr<google::spanner::admin::database::v1::Backup>>,
+              CopyBackup, (google::longrunning::Operation const& operation),
+              (override));
 
   MOCK_METHOD(
       StatusOr<google::spanner::admin::database::v1::Backup>, GetBackup,
@@ -127,10 +304,19 @@ class MockDatabaseAdminConnection
               (override));
 
   MOCK_METHOD(
-      StreamRange<google::spanner::admin::database::v1::Backup>, ListBackups,
+      (StreamRange<google::spanner::admin::database::v1::Backup>), ListBackups,
       (google::spanner::admin::database::v1::ListBackupsRequest request),
       (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock,
+  /// RestoreDatabase(Matcher<google::spanner::admin::database::v1::RestoreDatabaseRequest
+  /// const&>(_)))
+  /// @endcode
   MOCK_METHOD(
       future<StatusOr<google::spanner::admin::database::v1::Database>>,
       RestoreDatabase,
@@ -138,22 +324,104 @@ class MockDatabaseAdminConnection
            request),
       (override));
 
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, RestoreDatabase(_, _))
+  /// @endcode
   MOCK_METHOD(
-      StreamRange<google::longrunning::Operation>, ListDatabaseOperations,
+      StatusOr<google::longrunning::Operation>, RestoreDatabase,
+      (NoAwaitTag,
+       google::spanner::admin::database::v1::RestoreDatabaseRequest const&
+           request),
+      (override));
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock, RestoreDatabase(Matcher<google::longrunning::Operation
+  /// const&>(_)))
+  /// @endcode
+  MOCK_METHOD(future<StatusOr<google::spanner::admin::database::v1::Database>>,
+              RestoreDatabase,
+              (google::longrunning::Operation const& operation), (override));
+
+  MOCK_METHOD(
+      (StreamRange<google::longrunning::Operation>), ListDatabaseOperations,
       (google::spanner::admin::database::v1::ListDatabaseOperationsRequest
            request),
       (override));
 
-  MOCK_METHOD(StreamRange<google::longrunning::Operation>, ListBackupOperations,
+  MOCK_METHOD((StreamRange<google::longrunning::Operation>),
+              ListBackupOperations,
               (google::spanner::admin::database::v1::ListBackupOperationsRequest
                    request),
               (override));
 
   MOCK_METHOD(
-      StreamRange<google::spanner::admin::database::v1::DatabaseRole>,
+      (StreamRange<google::spanner::admin::database::v1::DatabaseRole>),
       ListDatabaseRoles,
       (google::spanner::admin::database::v1::ListDatabaseRolesRequest request),
       (override));
+
+  MOCK_METHOD(
+      StatusOr<google::spanner::admin::database::v1::AddSplitPointsResponse>,
+      AddSplitPoints,
+      (google::spanner::admin::database::v1::AddSplitPointsRequest const&
+           request),
+      (override));
+
+  MOCK_METHOD(
+      StatusOr<google::spanner::admin::database::v1::BackupSchedule>,
+      CreateBackupSchedule,
+      (google::spanner::admin::database::v1::CreateBackupScheduleRequest const&
+           request),
+      (override));
+
+  MOCK_METHOD(
+      StatusOr<google::spanner::admin::database::v1::BackupSchedule>,
+      GetBackupSchedule,
+      (google::spanner::admin::database::v1::GetBackupScheduleRequest const&
+           request),
+      (override));
+
+  MOCK_METHOD(
+      StatusOr<google::spanner::admin::database::v1::BackupSchedule>,
+      UpdateBackupSchedule,
+      (google::spanner::admin::database::v1::UpdateBackupScheduleRequest const&
+           request),
+      (override));
+
+  MOCK_METHOD(
+      Status, DeleteBackupSchedule,
+      (google::spanner::admin::database::v1::DeleteBackupScheduleRequest const&
+           request),
+      (override));
+
+  MOCK_METHOD(
+      (StreamRange<google::spanner::admin::database::v1::BackupSchedule>),
+      ListBackupSchedules,
+      (google::spanner::admin::database::v1::ListBackupSchedulesRequest
+           request),
+      (override));
+
+  MOCK_METHOD((StreamRange<google::longrunning::Operation>), ListOperations,
+              (google::longrunning::ListOperationsRequest request), (override));
+
+  MOCK_METHOD(StatusOr<google::longrunning::Operation>, GetOperation,
+              (google::longrunning::GetOperationRequest const& request),
+              (override));
+
+  MOCK_METHOD(Status, DeleteOperation,
+              (google::longrunning::DeleteOperationRequest const& request),
+              (override));
+
+  MOCK_METHOD(Status, CancelOperation,
+              (google::longrunning::CancelOperationRequest const& request),
+              (override));
 };
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

@@ -21,15 +21,17 @@
 
 #include "google/cloud/spanner/admin/database_admin_connection_idempotency_policy.h"
 #include "google/cloud/spanner/admin/internal/database_admin_retry_traits.h"
-#include "google/cloud/spanner/admin/internal/database_admin_stub.h"
 #include "google/cloud/backoff_policy.h"
 #include "google/cloud/future.h"
+#include "google/cloud/internal/retry_policy_impl.h"
+#include "google/cloud/no_await_tag.h"
 #include "google/cloud/options.h"
 #include "google/cloud/polling_policy.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/stream_range.h"
 #include "google/cloud/version.h"
 #include <google/longrunning/operations.grpc.pb.h>
+#include <google/spanner/admin/database/v1/spanner_database_admin.pb.h>
 #include <memory>
 
 namespace google {
@@ -37,17 +39,134 @@ namespace cloud {
 namespace spanner_admin {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
-using DatabaseAdminRetryPolicy =
-    ::google::cloud::internal::TraitBasedRetryPolicy<
-        spanner_admin_internal::DatabaseAdminRetryTraits>;
+/// The retry policy for `DatabaseAdminConnection`.
+class DatabaseAdminRetryPolicy : public ::google::cloud::RetryPolicy {
+ public:
+  /// Creates a new instance of the policy, reset to the initial state.
+  virtual std::unique_ptr<DatabaseAdminRetryPolicy> clone() const = 0;
+};
 
-using DatabaseAdminLimitedTimeRetryPolicy =
-    ::google::cloud::internal::LimitedTimeRetryPolicy<
-        spanner_admin_internal::DatabaseAdminRetryTraits>;
+/**
+ * A retry policy for `DatabaseAdminConnection` based on counting errors.
+ *
+ * This policy stops retrying if:
+ * - An RPC returns a non-transient error.
+ * - More than a prescribed number of transient failures is detected.
+ *
+ * In this class the following status codes are treated as transient errors:
+ * - [`kUnavailable`](@ref google::cloud::StatusCode)
+ */
+class DatabaseAdminLimitedErrorCountRetryPolicy
+    : public DatabaseAdminRetryPolicy {
+ public:
+  /**
+   * Create an instance that tolerates up to @p maximum_failures transient
+   * errors.
+   *
+   * @note Disable the retry loop by providing an instance of this policy with
+   *     @p maximum_failures == 0.
+   */
+  explicit DatabaseAdminLimitedErrorCountRetryPolicy(int maximum_failures)
+      : impl_(maximum_failures) {}
 
-using DatabaseAdminLimitedErrorCountRetryPolicy =
-    ::google::cloud::internal::LimitedErrorCountRetryPolicy<
-        spanner_admin_internal::DatabaseAdminRetryTraits>;
+  DatabaseAdminLimitedErrorCountRetryPolicy(
+      DatabaseAdminLimitedErrorCountRetryPolicy&& rhs) noexcept
+      : DatabaseAdminLimitedErrorCountRetryPolicy(rhs.maximum_failures()) {}
+  DatabaseAdminLimitedErrorCountRetryPolicy(
+      DatabaseAdminLimitedErrorCountRetryPolicy const& rhs) noexcept
+      : DatabaseAdminLimitedErrorCountRetryPolicy(rhs.maximum_failures()) {}
+
+  int maximum_failures() const { return impl_.maximum_failures(); }
+
+  bool OnFailure(Status const& status) override {
+    return impl_.OnFailure(status);
+  }
+  bool IsExhausted() const override { return impl_.IsExhausted(); }
+  bool IsPermanentFailure(Status const& status) const override {
+    return impl_.IsPermanentFailure(status);
+  }
+  std::unique_ptr<DatabaseAdminRetryPolicy> clone() const override {
+    return std::make_unique<DatabaseAdminLimitedErrorCountRetryPolicy>(
+        maximum_failures());
+  }
+
+  // This is provided only for backwards compatibility.
+  using BaseType = DatabaseAdminRetryPolicy;
+
+ private:
+  google::cloud::internal::LimitedErrorCountRetryPolicy<
+      spanner_admin_internal::DatabaseAdminRetryTraits>
+      impl_;
+};
+
+/**
+ * A retry policy for `DatabaseAdminConnection` based on elapsed time.
+ *
+ * This policy stops retrying if:
+ * - An RPC returns a non-transient error.
+ * - The elapsed time in the retry loop exceeds a prescribed duration.
+ *
+ * In this class the following status codes are treated as transient errors:
+ * - [`kUnavailable`](@ref google::cloud::StatusCode)
+ */
+class DatabaseAdminLimitedTimeRetryPolicy : public DatabaseAdminRetryPolicy {
+ public:
+  /**
+   * Constructor given a `std::chrono::duration<>` object.
+   *
+   * @tparam DurationRep a placeholder to match the `Rep` tparam for @p
+   *     duration's type. The semantics of this template parameter are
+   *     documented in `std::chrono::duration<>`. In brief, the underlying
+   *     arithmetic type used to store the number of ticks. For our purposes it
+   *     is simply a formal parameter.
+   * @tparam DurationPeriod a placeholder to match the `Period` tparam for @p
+   *     duration's type. The semantics of this template parameter are
+   *     documented in `std::chrono::duration<>`. In brief, the length of the
+   *     tick in seconds, expressed as a `std::ratio<>`. For our purposes it is
+   *     simply a formal parameter.
+   * @param maximum_duration the maximum time allowed before the policy expires.
+   *     While the application can express this time in any units they desire,
+   *     the class truncates to milliseconds.
+   *
+   * @see https://en.cppreference.com/w/cpp/chrono/duration for more information
+   *     about `std::chrono::duration`.
+   */
+  template <typename DurationRep, typename DurationPeriod>
+  explicit DatabaseAdminLimitedTimeRetryPolicy(
+      std::chrono::duration<DurationRep, DurationPeriod> maximum_duration)
+      : impl_(maximum_duration) {}
+
+  DatabaseAdminLimitedTimeRetryPolicy(
+      DatabaseAdminLimitedTimeRetryPolicy&& rhs) noexcept
+      : DatabaseAdminLimitedTimeRetryPolicy(rhs.maximum_duration()) {}
+  DatabaseAdminLimitedTimeRetryPolicy(
+      DatabaseAdminLimitedTimeRetryPolicy const& rhs) noexcept
+      : DatabaseAdminLimitedTimeRetryPolicy(rhs.maximum_duration()) {}
+
+  std::chrono::milliseconds maximum_duration() const {
+    return impl_.maximum_duration();
+  }
+
+  bool OnFailure(Status const& status) override {
+    return impl_.OnFailure(status);
+  }
+  bool IsExhausted() const override { return impl_.IsExhausted(); }
+  bool IsPermanentFailure(Status const& status) const override {
+    return impl_.IsPermanentFailure(status);
+  }
+  std::unique_ptr<DatabaseAdminRetryPolicy> clone() const override {
+    return std::make_unique<DatabaseAdminLimitedTimeRetryPolicy>(
+        maximum_duration());
+  }
+
+  // This is provided only for backwards compatibility.
+  using BaseType = DatabaseAdminRetryPolicy;
+
+ private:
+  google::cloud::internal::LimitedTimeRetryPolicy<
+      spanner_admin_internal::DatabaseAdminRetryTraits>
+      impl_;
+};
 
 /**
  * The `DatabaseAdminConnection` object for `DatabaseAdminClient`.
@@ -76,14 +195,44 @@ class DatabaseAdminConnection {
       google::spanner::admin::database::v1::CreateDatabaseRequest const&
           request);
 
+  virtual StatusOr<google::longrunning::Operation> CreateDatabase(
+      NoAwaitTag,
+      google::spanner::admin::database::v1::CreateDatabaseRequest const&
+          request);
+
+  virtual future<StatusOr<google::spanner::admin::database::v1::Database>>
+  CreateDatabase(google::longrunning::Operation const& operation);
+
   virtual StatusOr<google::spanner::admin::database::v1::Database> GetDatabase(
       google::spanner::admin::database::v1::GetDatabaseRequest const& request);
+
+  virtual future<StatusOr<google::spanner::admin::database::v1::Database>>
+  UpdateDatabase(
+      google::spanner::admin::database::v1::UpdateDatabaseRequest const&
+          request);
+
+  virtual StatusOr<google::longrunning::Operation> UpdateDatabase(
+      NoAwaitTag,
+      google::spanner::admin::database::v1::UpdateDatabaseRequest const&
+          request);
+
+  virtual future<StatusOr<google::spanner::admin::database::v1::Database>>
+  UpdateDatabase(google::longrunning::Operation const& operation);
 
   virtual future<
       StatusOr<google::spanner::admin::database::v1::UpdateDatabaseDdlMetadata>>
   UpdateDatabaseDdl(
       google::spanner::admin::database::v1::UpdateDatabaseDdlRequest const&
           request);
+
+  virtual StatusOr<google::longrunning::Operation> UpdateDatabaseDdl(
+      NoAwaitTag,
+      google::spanner::admin::database::v1::UpdateDatabaseDdlRequest const&
+          request);
+
+  virtual future<
+      StatusOr<google::spanner::admin::database::v1::UpdateDatabaseDdlMetadata>>
+  UpdateDatabaseDdl(google::longrunning::Operation const& operation);
 
   virtual Status DropDatabase(
       google::spanner::admin::database::v1::DropDatabaseRequest const& request);
@@ -106,9 +255,23 @@ class DatabaseAdminConnection {
   CreateBackup(
       google::spanner::admin::database::v1::CreateBackupRequest const& request);
 
+  virtual StatusOr<google::longrunning::Operation> CreateBackup(
+      NoAwaitTag,
+      google::spanner::admin::database::v1::CreateBackupRequest const& request);
+
+  virtual future<StatusOr<google::spanner::admin::database::v1::Backup>>
+  CreateBackup(google::longrunning::Operation const& operation);
+
   virtual future<StatusOr<google::spanner::admin::database::v1::Backup>>
   CopyBackup(
       google::spanner::admin::database::v1::CopyBackupRequest const& request);
+
+  virtual StatusOr<google::longrunning::Operation> CopyBackup(
+      NoAwaitTag,
+      google::spanner::admin::database::v1::CopyBackupRequest const& request);
+
+  virtual future<StatusOr<google::spanner::admin::database::v1::Backup>>
+  CopyBackup(google::longrunning::Operation const& operation);
 
   virtual StatusOr<google::spanner::admin::database::v1::Backup> GetBackup(
       google::spanner::admin::database::v1::GetBackupRequest const& request);
@@ -127,6 +290,14 @@ class DatabaseAdminConnection {
       google::spanner::admin::database::v1::RestoreDatabaseRequest const&
           request);
 
+  virtual StatusOr<google::longrunning::Operation> RestoreDatabase(
+      NoAwaitTag,
+      google::spanner::admin::database::v1::RestoreDatabaseRequest const&
+          request);
+
+  virtual future<StatusOr<google::spanner::admin::database::v1::Database>>
+  RestoreDatabase(google::longrunning::Operation const& operation);
+
   virtual StreamRange<google::longrunning::Operation> ListDatabaseOperations(
       google::spanner::admin::database::v1::ListDatabaseOperationsRequest
           request);
@@ -138,6 +309,46 @@ class DatabaseAdminConnection {
   virtual StreamRange<google::spanner::admin::database::v1::DatabaseRole>
   ListDatabaseRoles(
       google::spanner::admin::database::v1::ListDatabaseRolesRequest request);
+
+  virtual StatusOr<google::spanner::admin::database::v1::AddSplitPointsResponse>
+  AddSplitPoints(
+      google::spanner::admin::database::v1::AddSplitPointsRequest const&
+          request);
+
+  virtual StatusOr<google::spanner::admin::database::v1::BackupSchedule>
+  CreateBackupSchedule(
+      google::spanner::admin::database::v1::CreateBackupScheduleRequest const&
+          request);
+
+  virtual StatusOr<google::spanner::admin::database::v1::BackupSchedule>
+  GetBackupSchedule(
+      google::spanner::admin::database::v1::GetBackupScheduleRequest const&
+          request);
+
+  virtual StatusOr<google::spanner::admin::database::v1::BackupSchedule>
+  UpdateBackupSchedule(
+      google::spanner::admin::database::v1::UpdateBackupScheduleRequest const&
+          request);
+
+  virtual Status DeleteBackupSchedule(
+      google::spanner::admin::database::v1::DeleteBackupScheduleRequest const&
+          request);
+
+  virtual StreamRange<google::spanner::admin::database::v1::BackupSchedule>
+  ListBackupSchedules(
+      google::spanner::admin::database::v1::ListBackupSchedulesRequest request);
+
+  virtual StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request);
+
+  virtual StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request);
+
+  virtual Status DeleteOperation(
+      google::longrunning::DeleteOperationRequest const& request);
+
+  virtual Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request);
 };
 
 /**

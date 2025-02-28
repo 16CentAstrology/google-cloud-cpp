@@ -17,75 +17,130 @@
 // source: google/cloud/dialogflow/v2/version.proto
 
 #include "google/cloud/dialogflow_es/internal/versions_metadata_decorator.h"
-#include "google/cloud/common_options.h"
+#include "google/cloud/grpc_options.h"
+#include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/api_client_header.h"
+#include "google/cloud/internal/url_encode.h"
 #include "google/cloud/status_or.h"
 #include <google/cloud/dialogflow/v2/version.grpc.pb.h>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
 namespace dialogflow_es_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
-VersionsMetadata::VersionsMetadata(std::shared_ptr<VersionsStub> child)
+VersionsMetadata::VersionsMetadata(
+    std::shared_ptr<VersionsStub> child,
+    std::multimap<std::string, std::string> fixed_metadata,
+    std::string api_client_header)
     : child_(std::move(child)),
+      fixed_metadata_(std::move(fixed_metadata)),
       api_client_header_(
-          google::cloud::internal::ApiClientHeader("generator")) {}
+          api_client_header.empty()
+              ? google::cloud::internal::GeneratedLibClientHeader()
+              : std::move(api_client_header)) {}
 
 StatusOr<google::cloud::dialogflow::v2::ListVersionsResponse>
 VersionsMetadata::ListVersions(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::v2::ListVersionsRequest const& request) {
-  SetMetadata(context, "parent=" + request.parent());
-  return child_->ListVersions(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->ListVersions(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::v2::Version> VersionsMetadata::GetVersion(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::v2::GetVersionRequest const& request) {
-  SetMetadata(context, "name=" + request.name());
-  return child_->GetVersion(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetVersion(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::v2::Version>
 VersionsMetadata::CreateVersion(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::v2::CreateVersionRequest const& request) {
-  SetMetadata(context, "parent=" + request.parent());
-  return child_->CreateVersion(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->CreateVersion(context, options, request);
 }
 
 StatusOr<google::cloud::dialogflow::v2::Version>
 VersionsMetadata::UpdateVersion(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::v2::UpdateVersionRequest const& request) {
-  SetMetadata(context, "version.name=" + request.version().name());
-  return child_->UpdateVersion(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("version.name=",
+                           internal::UrlEncode(request.version().name())));
+  return child_->UpdateVersion(context, options, request);
 }
 
 Status VersionsMetadata::DeleteVersion(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::dialogflow::v2::DeleteVersionRequest const& request) {
-  SetMetadata(context, "name=" + request.name());
-  return child_->DeleteVersion(context, request);
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->DeleteVersion(context, options, request);
+}
+
+StatusOr<google::cloud::location::ListLocationsResponse>
+VersionsMetadata::ListLocations(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::ListLocationsRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->ListLocations(context, options, request);
+}
+
+StatusOr<google::cloud::location::Location> VersionsMetadata::GetLocation(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::GetLocationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetLocation(context, options, request);
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+VersionsMetadata::ListOperations(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::ListOperationsRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->ListOperations(context, options, request);
+}
+
+StatusOr<google::longrunning::Operation> VersionsMetadata::GetOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::GetOperationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetOperation(context, options, request);
+}
+
+Status VersionsMetadata::CancelOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::CancelOperationRequest const& request) {
+  SetMetadata(context, options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->CancelOperation(context, options, request);
 }
 
 void VersionsMetadata::SetMetadata(grpc::ClientContext& context,
+                                   Options const& options,
                                    std::string const& request_params) {
   context.AddMetadata("x-goog-request-params", request_params);
-  SetMetadata(context);
+  SetMetadata(context, options);
 }
 
-void VersionsMetadata::SetMetadata(grpc::ClientContext& context) {
-  context.AddMetadata("x-goog-api-client", api_client_header_);
-  auto const& options = internal::CurrentOptions();
-  if (options.has<UserProjectOption>()) {
-    context.AddMetadata("x-goog-user-project",
-                        options.get<UserProjectOption>());
-  }
-  auto const& authority = options.get<AuthorityOption>();
-  if (!authority.empty()) context.set_authority(authority);
+void VersionsMetadata::SetMetadata(grpc::ClientContext& context,
+                                   Options const& options) {
+  google::cloud::internal::SetMetadata(context, options, fixed_metadata_,
+                                       api_client_header_);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

@@ -20,13 +20,14 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_DIALOGFLOW_CX_WEBHOOKS_CONNECTION_H
 
 #include "google/cloud/dialogflow_cx/internal/webhooks_retry_traits.h"
-#include "google/cloud/dialogflow_cx/internal/webhooks_stub.h"
 #include "google/cloud/dialogflow_cx/webhooks_connection_idempotency_policy.h"
 #include "google/cloud/backoff_policy.h"
+#include "google/cloud/internal/retry_policy_impl.h"
 #include "google/cloud/options.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/stream_range.h"
 #include "google/cloud/version.h"
+#include <google/cloud/dialogflow/cx/v3/webhook.pb.h>
 #include <memory>
 #include <string>
 
@@ -35,16 +36,131 @@ namespace cloud {
 namespace dialogflow_cx {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
-using WebhooksRetryPolicy = ::google::cloud::internal::TraitBasedRetryPolicy<
-    dialogflow_cx_internal::WebhooksRetryTraits>;
+/// The retry policy for `WebhooksConnection`.
+class WebhooksRetryPolicy : public ::google::cloud::RetryPolicy {
+ public:
+  /// Creates a new instance of the policy, reset to the initial state.
+  virtual std::unique_ptr<WebhooksRetryPolicy> clone() const = 0;
+};
 
-using WebhooksLimitedTimeRetryPolicy =
-    ::google::cloud::internal::LimitedTimeRetryPolicy<
-        dialogflow_cx_internal::WebhooksRetryTraits>;
+/**
+ * A retry policy for `WebhooksConnection` based on counting errors.
+ *
+ * This policy stops retrying if:
+ * - An RPC returns a non-transient error.
+ * - More than a prescribed number of transient failures is detected.
+ *
+ * In this class the following status codes are treated as transient errors:
+ * - [`kUnavailable`](@ref google::cloud::StatusCode)
+ */
+class WebhooksLimitedErrorCountRetryPolicy : public WebhooksRetryPolicy {
+ public:
+  /**
+   * Create an instance that tolerates up to @p maximum_failures transient
+   * errors.
+   *
+   * @note Disable the retry loop by providing an instance of this policy with
+   *     @p maximum_failures == 0.
+   */
+  explicit WebhooksLimitedErrorCountRetryPolicy(int maximum_failures)
+      : impl_(maximum_failures) {}
 
-using WebhooksLimitedErrorCountRetryPolicy =
-    ::google::cloud::internal::LimitedErrorCountRetryPolicy<
-        dialogflow_cx_internal::WebhooksRetryTraits>;
+  WebhooksLimitedErrorCountRetryPolicy(
+      WebhooksLimitedErrorCountRetryPolicy&& rhs) noexcept
+      : WebhooksLimitedErrorCountRetryPolicy(rhs.maximum_failures()) {}
+  WebhooksLimitedErrorCountRetryPolicy(
+      WebhooksLimitedErrorCountRetryPolicy const& rhs) noexcept
+      : WebhooksLimitedErrorCountRetryPolicy(rhs.maximum_failures()) {}
+
+  int maximum_failures() const { return impl_.maximum_failures(); }
+
+  bool OnFailure(Status const& status) override {
+    return impl_.OnFailure(status);
+  }
+  bool IsExhausted() const override { return impl_.IsExhausted(); }
+  bool IsPermanentFailure(Status const& status) const override {
+    return impl_.IsPermanentFailure(status);
+  }
+  std::unique_ptr<WebhooksRetryPolicy> clone() const override {
+    return std::make_unique<WebhooksLimitedErrorCountRetryPolicy>(
+        maximum_failures());
+  }
+
+  // This is provided only for backwards compatibility.
+  using BaseType = WebhooksRetryPolicy;
+
+ private:
+  google::cloud::internal::LimitedErrorCountRetryPolicy<
+      dialogflow_cx_internal::WebhooksRetryTraits>
+      impl_;
+};
+
+/**
+ * A retry policy for `WebhooksConnection` based on elapsed time.
+ *
+ * This policy stops retrying if:
+ * - An RPC returns a non-transient error.
+ * - The elapsed time in the retry loop exceeds a prescribed duration.
+ *
+ * In this class the following status codes are treated as transient errors:
+ * - [`kUnavailable`](@ref google::cloud::StatusCode)
+ */
+class WebhooksLimitedTimeRetryPolicy : public WebhooksRetryPolicy {
+ public:
+  /**
+   * Constructor given a `std::chrono::duration<>` object.
+   *
+   * @tparam DurationRep a placeholder to match the `Rep` tparam for @p
+   *     duration's type. The semantics of this template parameter are
+   *     documented in `std::chrono::duration<>`. In brief, the underlying
+   *     arithmetic type used to store the number of ticks. For our purposes it
+   *     is simply a formal parameter.
+   * @tparam DurationPeriod a placeholder to match the `Period` tparam for @p
+   *     duration's type. The semantics of this template parameter are
+   *     documented in `std::chrono::duration<>`. In brief, the length of the
+   *     tick in seconds, expressed as a `std::ratio<>`. For our purposes it is
+   *     simply a formal parameter.
+   * @param maximum_duration the maximum time allowed before the policy expires.
+   *     While the application can express this time in any units they desire,
+   *     the class truncates to milliseconds.
+   *
+   * @see https://en.cppreference.com/w/cpp/chrono/duration for more information
+   *     about `std::chrono::duration`.
+   */
+  template <typename DurationRep, typename DurationPeriod>
+  explicit WebhooksLimitedTimeRetryPolicy(
+      std::chrono::duration<DurationRep, DurationPeriod> maximum_duration)
+      : impl_(maximum_duration) {}
+
+  WebhooksLimitedTimeRetryPolicy(WebhooksLimitedTimeRetryPolicy&& rhs) noexcept
+      : WebhooksLimitedTimeRetryPolicy(rhs.maximum_duration()) {}
+  WebhooksLimitedTimeRetryPolicy(
+      WebhooksLimitedTimeRetryPolicy const& rhs) noexcept
+      : WebhooksLimitedTimeRetryPolicy(rhs.maximum_duration()) {}
+
+  std::chrono::milliseconds maximum_duration() const {
+    return impl_.maximum_duration();
+  }
+
+  bool OnFailure(Status const& status) override {
+    return impl_.OnFailure(status);
+  }
+  bool IsExhausted() const override { return impl_.IsExhausted(); }
+  bool IsPermanentFailure(Status const& status) const override {
+    return impl_.IsPermanentFailure(status);
+  }
+  std::unique_ptr<WebhooksRetryPolicy> clone() const override {
+    return std::make_unique<WebhooksLimitedTimeRetryPolicy>(maximum_duration());
+  }
+
+  // This is provided only for backwards compatibility.
+  using BaseType = WebhooksRetryPolicy;
+
+ private:
+  google::cloud::internal::LimitedTimeRetryPolicy<
+      dialogflow_cx_internal::WebhooksRetryTraits>
+      impl_;
+};
 
 /**
  * The `WebhooksConnection` object for `WebhooksClient`.
@@ -78,6 +194,21 @@ class WebhooksConnection {
 
   virtual Status DeleteWebhook(
       google::cloud::dialogflow::cx::v3::DeleteWebhookRequest const& request);
+
+  virtual StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request);
+
+  virtual StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request);
+
+  virtual StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request);
+
+  virtual StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request);
+
+  virtual Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request);
 };
 
 /**

@@ -65,7 +65,7 @@ void DefaultCurlHandleFactory::CleanupHandle(CurlPtr h, HandleDisposition) {
 }
 
 CurlMulti DefaultCurlHandleFactory::CreateMultiHandle() {
-  return CurlMulti(curl_multi_init(), &curl_multi_cleanup);
+  return CurlMulti(curl_multi_init());
 }
 
 void DefaultCurlHandleFactory::CleanupMultiHandle(CurlMulti m,
@@ -96,7 +96,7 @@ CurlPtr PooledCurlHandleFactory::CreateHandle() {
     lk.unlock();
     // Clear all the options in the handle, so we do not leak its previous
     // state.
-    (void)curl_easy_reset(handle.get());
+    curl_easy_reset(handle.get());
     SetCurlOptions(handle.get());
     return handle;
   }
@@ -161,7 +161,7 @@ CurlMulti PooledCurlHandleFactory::CreateMultiHandle() {
   }
   ++active_multi_handles_;
   lk.unlock();
-  return CurlMulti(curl_multi_init(), &curl_multi_cleanup);
+  return CurlMulti(curl_multi_init());
 }
 
 void PooledCurlHandleFactory::CleanupMultiHandle(CurlMulti m,
@@ -180,7 +180,7 @@ void PooledCurlHandleFactory::CleanupMultiHandle(CurlMulti m,
   if (multi_handles_.size() >= maximum_size_) {
     // Same idea as is CleanupHandle()
     auto const release_count =
-        (std::min)(handles_.size() - maximum_size_ / 2,
+        (std::min)(multi_handles_.size() - maximum_size_ / 2,
                    active_multi_handles_ - maximum_size_);
     released.reserve(release_count);
     auto const end = std::next(multi_handles_.begin(), release_count);

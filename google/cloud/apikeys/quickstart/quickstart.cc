@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/apikeys/api_keys_client.h"
+//! [all]
+#include "google/cloud/apikeys/v2/api_keys_client.h"
+#include "google/cloud/location.h"
 #include <iostream>
 
 int main(int argc, char* argv[]) try {
@@ -21,13 +23,14 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace apikeys = ::google::cloud::apikeys;
+  auto const location = google::cloud::Location(argv[1], "global");
+
+  namespace apikeys = ::google::cloud::apikeys_v2;
   auto client = apikeys::ApiKeysClient(apikeys::MakeApiKeysConnection());
 
-  auto const parent = std::string{"projects/"} + argv[1] + "/locations/global";
-  for (auto r : client.ListKeys(parent)) {
-    if (!r) throw std::move(r).status();
-    std::cout << r->DebugString() << "\n";
+  for (auto k : client.ListKeys(location.FullName())) {
+    if (!k) throw std::move(k).status();
+    std::cout << k->DebugString() << "\n";
   }
 
   return 0;
@@ -35,3 +38,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

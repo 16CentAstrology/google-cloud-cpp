@@ -18,10 +18,12 @@
 #include "google/cloud/storage/auto_finalize.h"
 #include "google/cloud/storage/internal/hash_function.h"
 #include "google/cloud/storage/internal/hash_validator.h"
-#include "google/cloud/storage/internal/raw_client.h"
+#include "google/cloud/storage/internal/storage_connection.h"
 #include "google/cloud/storage/version.h"
 #include <iostream>
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -43,7 +45,7 @@ class ObjectWriteStreambuf : public std::basic_streambuf<char> {
 
   explicit ObjectWriteStreambuf(Status status);
 
-  ObjectWriteStreambuf(std::shared_ptr<RawClient> client,
+  ObjectWriteStreambuf(std::shared_ptr<StorageConnection> connection,
                        ResumableUploadRequest request, std::string upload_id,
                        std::uint64_t committed_size,
                        absl::optional<ObjectMetadata> metadata,
@@ -105,7 +107,9 @@ class ObjectWriteStreambuf : public std::basic_streambuf<char> {
   /// The current used bytes in the put area (aka current_ios_buffer_)
   std::size_t put_area_size() const { return pptr() - pbase(); }
 
-  std::shared_ptr<RawClient> client_;
+  void UpdatePutArea();
+
+  std::shared_ptr<StorageConnection> connection_;
   ResumableUploadRequest request_;
   Status last_status_;
   std::string upload_id_;
@@ -116,7 +120,7 @@ class ObjectWriteStreambuf : public std::basic_streambuf<char> {
   std::vector<char> current_ios_buffer_;
   std::size_t max_buffer_size_;
 
-  std::unique_ptr<HashFunction> hash_function_;
+  std::shared_ptr<HashFunction> hash_function_;
   HashValues hash_values_;
   HashValues known_hashes_;
   std::unique_ptr<HashValidator> hash_validator_;

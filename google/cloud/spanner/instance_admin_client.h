@@ -31,6 +31,9 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 /**
  * Performs instance administration operations on Cloud Spanner.
  *
+ * @deprecated Please use #google::cloud::spanner_admin::InstanceAdminClient
+ *     instead.
+ *
  * Applications use this class to perform operations on
  * [Spanner Databases][spanner-doc-link].
  *
@@ -55,8 +58,8 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * This class uses `StatusOr<T>` to report errors. When an operation fails to
  * perform its work the returned `StatusOr<T>` contains the error details. If
  * the `ok()` member function in the `StatusOr<T>` returns `true` then it
- * contains the expected result. Please consult the
- * [`StatusOr<T>` documentation](#google::cloud::v0::StatusOr) for more details.
+ * contains the expected result. For more information, see the
+ * [Error Handling Guide](#spanner-error-handling).
  *
  * [spanner-doc-link]:
  * https://cloud.google.com/spanner/docs/api-libraries-overview
@@ -71,16 +74,16 @@ class GOOGLE_CLOUD_CPP_SPANNER_ADMIN_API_DEPRECATED("InstanceAdminClient")
   /// Use `InstanceAdminClient(std::shared_ptr<InstanceAdminConnection>)`
   InstanceAdminClient() = delete;
 
-  //@{
-  // @name Copy and move support
+  ///@{
+  /// @name Copy and move support
   InstanceAdminClient(InstanceAdminClient const&) = default;
   InstanceAdminClient& operator=(InstanceAdminClient const&) = default;
   InstanceAdminClient(InstanceAdminClient&&) = default;
   InstanceAdminClient& operator=(InstanceAdminClient&&) = default;
-  //@}
+  ///@}
 
-  //@{
-  // @name Equality
+  ///@{
+  /// @name Equality
   friend bool operator==(InstanceAdminClient const& a,
                          InstanceAdminClient const& b) {
     return a.conn_ == b.conn_;
@@ -89,7 +92,7 @@ class GOOGLE_CLOUD_CPP_SPANNER_ADMIN_API_DEPRECATED("InstanceAdminClient")
                          InstanceAdminClient const& b) {
     return !(a == b);
   }
-  //@}
+  ///@}
 
   /**
    * Retrieve metadata information about a Cloud Spanner Instance.

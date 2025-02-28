@@ -21,6 +21,7 @@
 #include "google/cloud/status_or.h"
 #include <google/cloud/dialogflow/cx/v3/security_settings.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -31,12 +32,12 @@ SecuritySettingsServiceStub::~SecuritySettingsServiceStub() = default;
 
 StatusOr<google::cloud::dialogflow::cx::v3::SecuritySettings>
 DefaultSecuritySettingsServiceStub::CreateSecuritySettings(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::cx::v3::CreateSecuritySettingsRequest const&
         request) {
   google::cloud::dialogflow::cx::v3::SecuritySettings response;
   auto status =
-      grpc_stub_->CreateSecuritySettings(&client_context, request, &response);
+      grpc_stub_->CreateSecuritySettings(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -45,12 +46,11 @@ DefaultSecuritySettingsServiceStub::CreateSecuritySettings(
 
 StatusOr<google::cloud::dialogflow::cx::v3::SecuritySettings>
 DefaultSecuritySettingsServiceStub::GetSecuritySettings(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::cx::v3::GetSecuritySettingsRequest const&
         request) {
   google::cloud::dialogflow::cx::v3::SecuritySettings response;
-  auto status =
-      grpc_stub_->GetSecuritySettings(&client_context, request, &response);
+  auto status = grpc_stub_->GetSecuritySettings(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -59,12 +59,12 @@ DefaultSecuritySettingsServiceStub::GetSecuritySettings(
 
 StatusOr<google::cloud::dialogflow::cx::v3::SecuritySettings>
 DefaultSecuritySettingsServiceStub::UpdateSecuritySettings(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::cx::v3::UpdateSecuritySettingsRequest const&
         request) {
   google::cloud::dialogflow::cx::v3::SecuritySettings response;
   auto status =
-      grpc_stub_->UpdateSecuritySettings(&client_context, request, &response);
+      grpc_stub_->UpdateSecuritySettings(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -73,12 +73,11 @@ DefaultSecuritySettingsServiceStub::UpdateSecuritySettings(
 
 StatusOr<google::cloud::dialogflow::cx::v3::ListSecuritySettingsResponse>
 DefaultSecuritySettingsServiceStub::ListSecuritySettings(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::cx::v3::ListSecuritySettingsRequest const&
         request) {
   google::cloud::dialogflow::cx::v3::ListSecuritySettingsResponse response;
-  auto status =
-      grpc_stub_->ListSecuritySettings(&client_context, request, &response);
+  auto status = grpc_stub_->ListSecuritySettings(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }
@@ -86,12 +85,71 @@ DefaultSecuritySettingsServiceStub::ListSecuritySettings(
 }
 
 Status DefaultSecuritySettingsServiceStub::DeleteSecuritySettings(
-    grpc::ClientContext& client_context,
+    grpc::ClientContext& context, Options const&,
     google::cloud::dialogflow::cx::v3::DeleteSecuritySettingsRequest const&
         request) {
   google::protobuf::Empty response;
   auto status =
-      grpc_stub_->DeleteSecuritySettings(&client_context, request, &response);
+      grpc_stub_->DeleteSecuritySettings(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return google::cloud::Status();
+}
+
+StatusOr<google::cloud::location::ListLocationsResponse>
+DefaultSecuritySettingsServiceStub::ListLocations(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::location::ListLocationsRequest const& request) {
+  google::cloud::location::ListLocationsResponse response;
+  auto status = locations_stub_->ListLocations(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::cloud::location::Location>
+DefaultSecuritySettingsServiceStub::GetLocation(
+    grpc::ClientContext& context, Options const&,
+    google::cloud::location::GetLocationRequest const& request) {
+  google::cloud::location::Location response;
+  auto status = locations_stub_->GetLocation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+DefaultSecuritySettingsServiceStub::ListOperations(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::ListOperationsRequest const& request) {
+  google::longrunning::ListOperationsResponse response;
+  auto status = operations_stub_->ListOperations(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+StatusOr<google::longrunning::Operation>
+DefaultSecuritySettingsServiceStub::GetOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::GetOperationRequest const& request) {
+  google::longrunning::Operation response;
+  auto status = operations_stub_->GetOperation(&context, request, &response);
+  if (!status.ok()) {
+    return google::cloud::MakeStatusFromRpcError(status);
+  }
+  return response;
+}
+
+Status DefaultSecuritySettingsServiceStub::CancelOperation(
+    grpc::ClientContext& context, Options const&,
+    google::longrunning::CancelOperationRequest const& request) {
+  google::protobuf::Empty response;
+  auto status = operations_stub_->CancelOperation(&context, request, &response);
   if (!status.ok()) {
     return google::cloud::MakeStatusFromRpcError(status);
   }

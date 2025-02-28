@@ -14,6 +14,7 @@
 
 #include "google/cloud/spanner/testing/pick_instance_config.h"
 #include "google/cloud/spanner/admin/instance_admin_client.h"
+#include "absl/strings/match.h"
 
 namespace google {
 namespace cloud {

@@ -22,6 +22,7 @@
 #include "google/cloud/internal/populate_grpc_options.h"
 #include "google/cloud/internal/user_agent_prefix.h"
 #include "google/cloud/options.h"
+#include "absl/strings/numbers.h"
 #include <chrono>
 #include <limits>
 #include <thread>
@@ -36,6 +37,10 @@ using ms = std::chrono::milliseconds;
 
 std::size_t DefaultThreadCount() {
   auto constexpr kDefaultThreadCount = 4;
+  // On 32-bit machines the address space is quickly consumed by background
+  // threads. Create just a few threads by default on such platforms. If the
+  // application needs more threads, it can override this default.
+  if (std::numeric_limits<std::size_t>::digits < 64) return kDefaultThreadCount;
   auto const n = std::thread::hardware_concurrency();
   return n == 0 ? kDefaultThreadCount : n;
 }
@@ -43,7 +48,7 @@ std::size_t DefaultThreadCount() {
 Options DefaultCommonOptions(Options opts) {
   opts = internal::PopulateCommonOptions(
       std::move(opts), "", "PUBSUB_EMULATOR_HOST", "", "pubsub.googleapis.com");
-  opts = internal::PopulateGrpcOptions(std::move(opts), "PUBSUB_EMULATOR_HOST");
+  opts = internal::PopulateGrpcOptions(std::move(opts));
 
   if (!opts.has<GrpcNumChannelsOption>()) {
     opts.set<GrpcNumChannelsOption>(static_cast<int>(DefaultThreadCount()));
@@ -55,7 +60,7 @@ Options DefaultCommonOptions(Options opts) {
   if (!opts.has<pubsub::BackoffPolicyOption>()) {
     opts.set<pubsub::BackoffPolicyOption>(
         pubsub::ExponentialBackoffPolicy(std::chrono::milliseconds(100),
-                                         std::chrono::seconds(60), 1.3)
+                                         std::chrono::seconds(60), 4)
             .clone());
   }
   if (opts.get<GrpcBackgroundThreadPoolSizeOption>() == 0) {
@@ -100,6 +105,13 @@ Options DefaultPublisherOptionsOnly(Options opts) {
   }
   if (!opts.has<pubsub::CompressionAlgorithmOption>()) {
     opts.set<pubsub::CompressionAlgorithmOption>(GRPC_COMPRESS_DEFLATE);
+  }
+  auto e = internal::GetEnv("OTEL_SPAN_LINK_COUNT_LIMIT");
+  size_t link_count;
+  if (e && absl::SimpleAtoi(e.value(), &link_count)) {
+    opts.set<pubsub::MaxOtelLinkCountOption>(link_count);
+  } else if (!opts.has<pubsub::MaxOtelLinkCountOption>()) {
+    opts.set<pubsub::MaxOtelLinkCountOption>(128);
   }
 
   return opts;

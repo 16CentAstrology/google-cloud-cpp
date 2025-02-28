@@ -20,12 +20,15 @@
 #include "google/cloud/storage/oauth2/google_application_default_credentials_file.h"
 #include "google/cloud/storage/oauth2/service_account_credentials.h"
 #include "google/cloud/internal/filesystem.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/internal/throw_delegate.h"
-#include "absl/memory/memory.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <iterator>
 #include <memory>
+#include <set>
+#include <string>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -53,24 +56,18 @@ StatusOr<std::unique_ptr<Credentials>> LoadCredsFromPath(
   if (!ifs.is_open()) {
     // We use kUnknown here because we don't know if the file does not exist, or
     // if we were unable to open it for some other reason.
-    return Status(StatusCode::kUnknown, "Cannot open credentials file " + path);
+    return google::cloud::internal::UnknownError(
+        "Cannot open credentials file " + path, GCP_ERROR_INFO());
   }
   std::string contents(std::istreambuf_iterator<char>{ifs}, {});
   auto cred_json = nlohmann::json::parse(contents, nullptr, false);
   if (!cred_json.is_object()) {
     // This is not a JSON file, try to load it as a P12 service account.
     auto info = ParseServiceAccountP12File(path);
-    if (!info) {
-      return Status(
-          StatusCode::kInvalidArgument,
-          "Cannot open credentials file " + path +
-              ", it does not contain a JSON object, nor can be parsed "
-              "as a PKCS#12 file. " +
-              info.status().message());
-    }
+    if (!info) return std::move(info).status();
     info->subject = std::move(service_account_subject);
     info->scopes = std::move(service_account_scopes);
-    auto credentials = absl::make_unique<ServiceAccountCredentials<>>(*info);
+    auto credentials = std::make_unique<ServiceAccountCredentials<>>(*info);
     return std::unique_ptr<Credentials>(std::move(credentials));
   }
   std::string cred_type = cred_json.value("type", "no type given");
@@ -86,7 +83,7 @@ StatusOr<std::unique_ptr<Credentials>> LoadCredsFromPath(
       return info.status();
     }
     std::unique_ptr<Credentials> ptr =
-        absl::make_unique<AuthorizedUserCredentials<>>(*info);
+        std::make_unique<AuthorizedUserCredentials<>>(*info);
     return StatusOr<std::unique_ptr<Credentials>>(std::move(ptr));
   }
   if (cred_type == "service_account") {
@@ -97,14 +94,14 @@ StatusOr<std::unique_ptr<Credentials>> LoadCredsFromPath(
     info->subject = std::move(service_account_subject);
     info->scopes = std::move(service_account_scopes);
     std::unique_ptr<Credentials> ptr =
-        absl::make_unique<ServiceAccountCredentials<>>(*info, options);
+        std::make_unique<ServiceAccountCredentials<>>(*info, options);
     return StatusOr<std::unique_ptr<Credentials>>(std::move(ptr));
   }
-  return StatusOr<std::unique_ptr<Credentials>>(
-      Status(StatusCode::kInvalidArgument,
-             "Unsupported credential type (" + cred_type +
-                 ") when reading Application Default Credentials file from " +
-                 path + "."));
+  return google::cloud::internal::InvalidArgumentError(
+      "Unsupported credential type (" + cred_type +
+          ") when reading Application Default Credentials file from " + path +
+          ".",
+      GCP_ERROR_INFO());
 }
 
 // Tries to load the file at the path specified by the value of the Application
@@ -274,11 +271,11 @@ CreateServiceAccountCredentialsFromDefaultPaths(
   }
 
   // We've exhausted all search points, thus credentials cannot be constructed.
-  return StatusOr<std::shared_ptr<Credentials>>(
-      Status(StatusCode::kUnknown,
-             "Could not create service account credentials using Application"
-             "Default Credentials paths. For more information, please see " +
-                 std::string(kAdcLink)));
+  return google::cloud::internal::UnknownError(
+      "Could not create service account credentials using Application"
+      "Default Credentials paths. For more information, please see " +
+          std::string(kAdcLink),
+      GCP_ERROR_INFO());
 }
 
 StatusOr<std::shared_ptr<Credentials>>

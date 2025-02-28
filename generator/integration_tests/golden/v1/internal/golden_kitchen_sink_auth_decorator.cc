@@ -23,6 +23,7 @@
 #include "google/cloud/internal/streaming_write_rpc_impl.h"
 #include <generator/integration_tests/test.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -36,73 +37,90 @@ GoldenKitchenSinkAuth::GoldenKitchenSinkAuth(
 
 StatusOr<google::test::admin::database::v1::GenerateAccessTokenResponse> GoldenKitchenSinkAuth::GenerateAccessToken(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::GenerateAccessTokenRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->GenerateAccessToken(context, request);
+  return child_->GenerateAccessToken(context, options, request);
 }
 
 StatusOr<google::test::admin::database::v1::GenerateIdTokenResponse> GoldenKitchenSinkAuth::GenerateIdToken(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::GenerateIdTokenRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->GenerateIdToken(context, request);
+  return child_->GenerateIdToken(context, options, request);
 }
 
 StatusOr<google::test::admin::database::v1::WriteLogEntriesResponse> GoldenKitchenSinkAuth::WriteLogEntries(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::WriteLogEntriesRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->WriteLogEntries(context, request);
+  return child_->WriteLogEntries(context, options, request);
 }
 
 StatusOr<google::test::admin::database::v1::ListLogsResponse> GoldenKitchenSinkAuth::ListLogs(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::ListLogsRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->ListLogs(context, request);
+  return child_->ListLogs(context, options, request);
 }
 
 StatusOr<google::test::admin::database::v1::ListServiceAccountKeysResponse> GoldenKitchenSinkAuth::ListServiceAccountKeys(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::ListServiceAccountKeysRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->ListServiceAccountKeys(context, request);
+  return child_->ListServiceAccountKeys(context, options, request);
 }
 
 Status GoldenKitchenSinkAuth::DoNothing(
     grpc::ClientContext& context,
+    Options const& options,
     google::protobuf::Empty const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->DoNothing(context, request);
+  return child_->DoNothing(context, options, request);
+}
+
+Status GoldenKitchenSinkAuth::Deprecated2(
+    grpc::ClientContext& context,
+    Options const& options,
+    google::test::admin::database::v1::GenerateAccessTokenRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->Deprecated2(context, options, request);
 }
 
 std::unique_ptr<google::cloud::internal::StreamingReadRpc<google::test::admin::database::v1::Response>>
 GoldenKitchenSinkAuth::StreamingRead(
-   std::unique_ptr<grpc::ClientContext> context,
+   std::shared_ptr<grpc::ClientContext> context,
+   Options const& options,
    google::test::admin::database::v1::Request const& request) {
   using ErrorStream = ::google::cloud::internal::StreamingReadRpcError<
       google::test::admin::database::v1::Response>;
   auto status = auth_->ConfigureContext(*context);
-  if (!status.ok()) return absl::make_unique<ErrorStream>(std::move(status));
-  return child_->StreamingRead(std::move(context), request);
+  if (!status.ok()) return std::make_unique<ErrorStream>(std::move(status));
+  return child_->StreamingRead(std::move(context), options, request);
 }
 
 std::unique_ptr<::google::cloud::internal::StreamingWriteRpc<
     google::test::admin::database::v1::Request,
     google::test::admin::database::v1::Response>>
 GoldenKitchenSinkAuth::StreamingWrite(
-    std::unique_ptr<grpc::ClientContext> context) {
+    std::shared_ptr<grpc::ClientContext> context,
+    Options const& options) {
   using ErrorStream = ::google::cloud::internal::StreamingWriteRpcError<
       google::test::admin::database::v1::Request, google::test::admin::database::v1::Response>;
   auto status = auth_->ConfigureContext(*context);
-  if (!status.ok()) return absl::make_unique<ErrorStream>(std::move(status));
-  return child_->StreamingWrite(std::move(context));
+  if (!status.ok()) return std::make_unique<ErrorStream>(std::move(status));
+  return child_->StreamingWrite(std::move(context), options);
 }
 
 std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
@@ -110,48 +128,79 @@ std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
     google::test::admin::database::v1::Response>>
 GoldenKitchenSinkAuth::AsyncStreamingReadWrite(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context) {
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options) {
   using StreamAuth = google::cloud::internal::AsyncStreamingReadWriteRpcAuth<
     google::test::admin::database::v1::Request, google::test::admin::database::v1::Response>;
 
-  auto& child = child_;
-  auto call = [child, cq](std::unique_ptr<grpc::ClientContext> ctx) {
-    return child->AsyncStreamingReadWrite(cq, std::move(ctx));
+  auto call = [child = child_, cq, options = std::move(options)](
+                  std::shared_ptr<grpc::ClientContext> ctx) {
+    return child->AsyncStreamingReadWrite(cq, std::move(ctx), options);
   };
-  return absl::make_unique<StreamAuth>(
+  return std::make_unique<StreamAuth>(
     std::move(context), auth_, StreamAuth::StreamFactory(std::move(call)));
 }
 
 Status GoldenKitchenSinkAuth::ExplicitRouting1(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::ExplicitRoutingRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->ExplicitRouting1(context, request);
+  return child_->ExplicitRouting1(context, options, request);
 }
 
 Status GoldenKitchenSinkAuth::ExplicitRouting2(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::ExplicitRoutingRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->ExplicitRouting2(context, request);
+  return child_->ExplicitRouting2(context, options, request);
+}
+
+StatusOr<google::cloud::location::Location> GoldenKitchenSinkAuth::GetLocation(
+    grpc::ClientContext& context,
+    Options const& options,
+    google::cloud::location::GetLocationRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetLocation(context, options, request);
+}
+
+StatusOr<google::iam::v1::Policy> GoldenKitchenSinkAuth::GetIamPolicy(
+    grpc::ClientContext& context,
+    Options const& options,
+    google::iam::v1::GetIamPolicyRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetIamPolicy(context, options, request);
+}
+
+StatusOr<google::longrunning::ListOperationsResponse> GoldenKitchenSinkAuth::ListOperations(
+    grpc::ClientContext& context,
+    Options const& options,
+    google::longrunning::ListOperationsRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ListOperations(context, options, request);
 }
 
 std::unique_ptr<::google::cloud::internal::AsyncStreamingReadRpc<
     google::test::admin::database::v1::Response>>
 GoldenKitchenSinkAuth::AsyncStreamingRead(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::test::admin::database::v1::Request const& request) {
   using StreamAuth = google::cloud::internal::AsyncStreamingReadRpcAuth<
     google::test::admin::database::v1::Response>;
 
   auto& child = child_;
-  auto call = [child, cq, request](std::unique_ptr<grpc::ClientContext> ctx) {
-    return child->AsyncStreamingRead(cq, std::move(ctx), request);
+  auto call = [child, cq, opts = std::move(options), request](std::shared_ptr<grpc::ClientContext> ctx) {
+    return child->AsyncStreamingRead(cq, std::move(ctx), opts, request);
   };
-  return absl::make_unique<StreamAuth>(
+  return std::make_unique<StreamAuth>(
     std::move(context), auth_, StreamAuth::StreamFactory(std::move(call)));
 }
 
@@ -159,15 +208,16 @@ std::unique_ptr<::google::cloud::internal::AsyncStreamingWriteRpc<
     google::test::admin::database::v1::Request, google::test::admin::database::v1::Response>>
 GoldenKitchenSinkAuth::AsyncStreamingWrite(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context) {
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options) {
   using StreamAuth = google::cloud::internal::AsyncStreamingWriteRpcAuth<
     google::test::admin::database::v1::Request, google::test::admin::database::v1::Response>;
 
-  auto& child = child_;
-  auto call = [child, cq](std::unique_ptr<grpc::ClientContext> ctx) {
-    return child->AsyncStreamingWrite(cq, std::move(ctx));
+  auto call = [child = child_, cq, options = std::move(options)](
+                  std::shared_ptr<grpc::ClientContext> ctx) {
+    return child->AsyncStreamingWrite(cq, std::move(ctx), options);
   };
-  return absl::make_unique<StreamAuth>(
+  return std::make_unique<StreamAuth>(
     std::move(context), auth_, StreamAuth::StreamFactory(std::move(call)));
 }
 

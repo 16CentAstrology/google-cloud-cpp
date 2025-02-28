@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -128,11 +128,11 @@ class AsyncBenchmark {
   std::chrono::steady_clock::time_point deadline_;
 };
 
-//@{
+///@{
 /// @name Test constants.  Defined as requirements in the original bug (#189).
 /// How many times does each thread report progress.
 constexpr int kBenchmarkProgressMarks = 4;
-//@}
+///@}
 
 }  // anonymous namespace
 
@@ -227,7 +227,7 @@ int main(int argc, char* argv[]) {
 namespace {
 
 void AsyncBenchmark::ActivateCompletionQueue() {
-  cq_threads_.emplace_back(std::thread([this] { cq_.Run(); }));
+  cq_threads_.emplace_back([this] { cq_.Run(); });
 }
 
 BenchmarkResult AsyncBenchmark::Run(std::chrono::seconds test_duration,

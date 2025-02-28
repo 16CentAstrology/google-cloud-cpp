@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/dlp/dlp_client.h"
+//! [all]
+#include "google/cloud/dlp/v2/dlp_client.h"
+#include "google/cloud/location.h"
 #include <iostream>
 
 int main(int argc, char* argv[]) try {
@@ -21,14 +23,14 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace dlp = ::google::cloud::dlp;
+  auto const location = google::cloud::Location(argv[1], argv[2]);
+
+  namespace dlp = ::google::cloud::dlp_v2;
   auto client = dlp::DlpServiceClient(dlp::MakeDlpServiceConnection());
 
-  auto const location =
-      "projects/" + std::string(argv[1]) + "/locations/" + std::string(argv[2]);
-  for (auto r : client.ListStoredInfoTypes(location)) {
-    if (!r) throw std::move(r).status();
-    std::cout << r->DebugString() << "\n";
+  for (auto sit : client.ListStoredInfoTypes(location.FullName())) {
+    if (!sit) throw std::move(sit).status();
+    std::cout << sit->DebugString() << "\n";
   }
 
   return 0;
@@ -36,3 +38,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

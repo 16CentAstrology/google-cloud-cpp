@@ -50,13 +50,14 @@ TEST(TopicAdminConnectionTest, Create) {
 
   EXPECT_CALL(*mock, CreateTopic)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
-      .WillOnce(
-          [&](grpc::ClientContext&, google::pubsub::v1::Topic const& request) {
-            EXPECT_EQ(topic.FullName(), request.name());
-            return make_status_or(request);
-          });
+      .WillOnce([&](grpc::ClientContext&, Options const&,
+                    google::pubsub::v1::Topic const& request) {
+        EXPECT_EQ(topic.FullName(), request.name());
+        return make_status_or(request);
+      });
 
   auto topic_admin = MakeTestTopicAdminConnection(mock);
+  internal::OptionsSpan span(topic_admin->options());
   auto const expected = TopicBuilder(topic).BuildCreateRequest();
   auto response = topic_admin->CreateTopic({expected});
   ASSERT_STATUS_OK(response);
@@ -70,16 +71,17 @@ TEST(TopicAdminConnectionTest, Metadata) {
 
   EXPECT_CALL(*mock, CreateTopic)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
-      .WillOnce([&](grpc::ClientContext& context,
+      .WillOnce([&](grpc::ClientContext& context, Options const&,
                     google::pubsub::v1::Topic const& request) {
         ::google::cloud::testing_util::ValidateMetadataFixture fixture;
         fixture.IsContextMDValid(
             context, "google.pubsub.v1.Publisher.CreateTopic", request,
-            google::cloud::internal::ApiClientHeader("generator"));
+            google::cloud::internal::HandCraftedLibClientHeader());
         return make_status_or(request);
       });
 
   auto topic_admin = MakeTestTopicAdminConnection(mock);
+  internal::OptionsSpan span(topic_admin->options());
   auto const expected = TopicBuilder(topic).BuildCreateRequest();
   auto response = topic_admin->CreateTopic({expected});
   ASSERT_STATUS_OK(response);
@@ -94,13 +96,14 @@ TEST(TopicAdminConnectionTest, Get) {
 
   EXPECT_CALL(*mock, GetTopic)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
-      .WillOnce([&](grpc::ClientContext&,
+      .WillOnce([&](grpc::ClientContext&, Options const&,
                     google::pubsub::v1::GetTopicRequest const& request) {
         EXPECT_EQ(topic.FullName(), request.topic());
         return make_status_or(expected);
       });
 
   auto topic_admin = MakeTestTopicAdminConnection(mock);
+  internal::OptionsSpan span(topic_admin->options());
   auto response = topic_admin->GetTopic({topic});
   ASSERT_STATUS_OK(response);
   EXPECT_THAT(*response, IsProtoEqual(expected));
@@ -114,7 +117,7 @@ TEST(TopicAdminConnectionTest, Update) {
 
   EXPECT_CALL(*mock, UpdateTopic)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
-      .WillOnce([&](grpc::ClientContext&,
+      .WillOnce([&](grpc::ClientContext&, Options const&,
                     google::pubsub::v1::UpdateTopicRequest const& request) {
         EXPECT_EQ(topic.FullName(), request.topic().name());
         EXPECT_THAT(request.update_mask().paths(), ElementsAre("labels"));
@@ -122,6 +125,7 @@ TEST(TopicAdminConnectionTest, Update) {
       });
 
   auto topic_admin = MakeTestTopicAdminConnection(mock);
+  internal::OptionsSpan span(topic_admin->options());
   auto response =
       topic_admin->UpdateTopic({TopicBuilder(topic)
                                     .add_label("test-key", "test-value")
@@ -135,7 +139,7 @@ TEST(TopicAdminConnectionTest, List) {
 
   EXPECT_CALL(*mock, ListTopics)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
-      .WillOnce([&](grpc::ClientContext&,
+      .WillOnce([&](grpc::ClientContext&, Options const&,
                     google::pubsub::v1::ListTopicsRequest const& request) {
         EXPECT_EQ("projects/test-project-id", request.project());
         EXPECT_TRUE(request.page_token().empty());
@@ -146,6 +150,7 @@ TEST(TopicAdminConnectionTest, List) {
       });
 
   auto topic_admin = MakeTestTopicAdminConnection(mock);
+  internal::OptionsSpan span(topic_admin->options());
   std::vector<std::string> topic_names;
   for (auto& t : topic_admin->ListTopics({"projects/test-project-id"})) {
     ASSERT_STATUS_OK(t);
@@ -167,14 +172,15 @@ TEST(TopicAdminConnectionTest, DeleteWithLogging) {
 
   EXPECT_CALL(*mock, DeleteTopic)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
-      .WillOnce([&](grpc::ClientContext&,
+      .WillOnce([&](grpc::ClientContext&, Options const&,
                     google::pubsub::v1::DeleteTopicRequest const& request) {
         EXPECT_EQ(topic.FullName(), request.topic());
         return Status{};
       });
 
   auto topic_admin = MakeTestTopicAdminConnection(
-      mock, Options{}.set<TracingComponentsOption>({"rpc"}));
+      mock, Options{}.set<LoggingComponentsOption>({"rpc"}));
+  internal::OptionsSpan span(topic_admin->options());
   auto response = topic_admin->DeleteTopic({topic});
   ASSERT_STATUS_OK(response);
 
@@ -188,7 +194,7 @@ TEST(TopicAdminConnectionTest, DetachSubscription) {
   EXPECT_CALL(*mock, DetachSubscription)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
       .WillOnce(
-          [&](grpc::ClientContext&,
+          [&](grpc::ClientContext&, Options const&,
               google::pubsub::v1::DetachSubscriptionRequest const& request) {
             EXPECT_EQ(subscription.FullName(), request.subscription());
             return make_status_or(
@@ -196,7 +202,8 @@ TEST(TopicAdminConnectionTest, DetachSubscription) {
           });
 
   auto topic_admin = MakeTestTopicAdminConnection(
-      mock, Options{}.set<TracingComponentsOption>({"rpc"}));
+      mock, Options{}.set<LoggingComponentsOption>({"rpc"}));
+  internal::OptionsSpan span(topic_admin->options());
   auto response = topic_admin->DetachSubscription({subscription});
   ASSERT_STATUS_OK(response);
 }
@@ -206,7 +213,7 @@ TEST(TopicAdminConnectionTest, ListSubscriptions) {
   auto const topic_name = Topic("test-project-id", "test-topic-id").FullName();
   EXPECT_CALL(*mock, ListTopicSubscriptions)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
-      .WillOnce([&](grpc::ClientContext&,
+      .WillOnce([&](grpc::ClientContext&, Options const&,
                     google::pubsub::v1::ListTopicSubscriptionsRequest const&
                         request) {
         EXPECT_EQ(topic_name, request.topic());
@@ -218,6 +225,7 @@ TEST(TopicAdminConnectionTest, ListSubscriptions) {
       });
 
   auto topic_admin = MakeTestTopicAdminConnection(mock);
+  internal::OptionsSpan span(topic_admin->options());
   std::vector<std::string> names;
   for (auto& t : topic_admin->ListTopicSubscriptions({topic_name})) {
     ASSERT_STATUS_OK(t);
@@ -233,7 +241,7 @@ TEST(TopicAdminConnectionTest, ListSnapshots) {
   EXPECT_CALL(*mock, ListTopicSnapshots)
       .WillOnce(Return(Status(StatusCode::kUnavailable, "try-again")))
       .WillOnce(
-          [&](grpc::ClientContext&,
+          [&](grpc::ClientContext&, Options const&,
               google::pubsub::v1::ListTopicSnapshotsRequest const& request) {
             EXPECT_EQ(topic_name, request.topic());
             EXPECT_TRUE(request.page_token().empty());
@@ -244,6 +252,7 @@ TEST(TopicAdminConnectionTest, ListSnapshots) {
           });
 
   auto topic_admin = MakeTestTopicAdminConnection(mock);
+  internal::OptionsSpan span(topic_admin->options());
   std::vector<std::string> names;
   for (auto& t : topic_admin->ListTopicSnapshots({topic_name})) {
     ASSERT_STATUS_OK(t);

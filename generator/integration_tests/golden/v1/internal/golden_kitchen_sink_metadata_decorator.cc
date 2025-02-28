@@ -17,13 +17,18 @@
 // source: generator/integration_tests/test.proto
 
 #include "generator/integration_tests/golden/v1/internal/golden_kitchen_sink_metadata_decorator.h"
-#include "google/cloud/common_options.h"
+#include "google/cloud/grpc_options.h"
+#include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/absl_str_join_quiet.h"
 #include "google/cloud/internal/api_client_header.h"
 #include "google/cloud/internal/routing_matcher.h"
+#include "google/cloud/internal/url_encode.h"
 #include "google/cloud/status_or.h"
 #include <generator/integration_tests/test.grpc.pb.h>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -31,73 +36,96 @@ namespace golden_v1_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 GoldenKitchenSinkMetadata::GoldenKitchenSinkMetadata(
-    std::shared_ptr<GoldenKitchenSinkStub> child)
+    std::shared_ptr<GoldenKitchenSinkStub> child,
+    std::multimap<std::string, std::string> fixed_metadata,
+    std::string api_client_header)
     : child_(std::move(child)),
-      api_client_header_(google::cloud::internal::ApiClientHeader("generator")) {}
+      fixed_metadata_(std::move(fixed_metadata)),
+      api_client_header_(
+          api_client_header.empty()
+              ? google::cloud::internal::GeneratedLibClientHeader()
+              : std::move(api_client_header)) {}
 
 StatusOr<google::test::admin::database::v1::GenerateAccessTokenResponse>
 GoldenKitchenSinkMetadata::GenerateAccessToken(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::GenerateAccessTokenRequest const& request) {
-  SetMetadata(context, "name=" + request.name());
-  return child_->GenerateAccessToken(context, request);
+  SetMetadata(context, options, absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GenerateAccessToken(context, options, request);
 }
 
 StatusOr<google::test::admin::database::v1::GenerateIdTokenResponse>
 GoldenKitchenSinkMetadata::GenerateIdToken(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::GenerateIdTokenRequest const& request) {
-  SetMetadata(context);
-  return child_->GenerateIdToken(context, request);
+  SetMetadata(context, options);
+  return child_->GenerateIdToken(context, options, request);
 }
 
 StatusOr<google::test::admin::database::v1::WriteLogEntriesResponse>
 GoldenKitchenSinkMetadata::WriteLogEntries(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::WriteLogEntriesRequest const& request) {
-  SetMetadata(context);
-  return child_->WriteLogEntries(context, request);
+  SetMetadata(context, options);
+  return child_->WriteLogEntries(context, options, request);
 }
 
 StatusOr<google::test::admin::database::v1::ListLogsResponse>
 GoldenKitchenSinkMetadata::ListLogs(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::ListLogsRequest const& request) {
-  SetMetadata(context, "parent=" + request.parent());
-  return child_->ListLogs(context, request);
+  SetMetadata(context, options, absl::StrCat("parent=", internal::UrlEncode(request.parent())));
+  return child_->ListLogs(context, options, request);
 }
 
 StatusOr<google::test::admin::database::v1::ListServiceAccountKeysResponse>
 GoldenKitchenSinkMetadata::ListServiceAccountKeys(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::ListServiceAccountKeysRequest const& request) {
-  SetMetadata(context, "name=" + request.name());
-  return child_->ListServiceAccountKeys(context, request);
+  SetMetadata(context, options, absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->ListServiceAccountKeys(context, options, request);
 }
 
 Status
 GoldenKitchenSinkMetadata::DoNothing(
     grpc::ClientContext& context,
+    Options const& options,
     google::protobuf::Empty const& request) {
-  SetMetadata(context);
-  return child_->DoNothing(context, request);
+  SetMetadata(context, options);
+  return child_->DoNothing(context, options, request);
+}
+
+Status
+GoldenKitchenSinkMetadata::Deprecated2(
+    grpc::ClientContext& context,
+    Options const& options,
+    google::test::admin::database::v1::GenerateAccessTokenRequest const& request) {
+  SetMetadata(context, options);
+  return child_->Deprecated2(context, options, request);
 }
 
 std::unique_ptr<google::cloud::internal::StreamingReadRpc<google::test::admin::database::v1::Response>>
 GoldenKitchenSinkMetadata::StreamingRead(
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    Options const& options,
     google::test::admin::database::v1::Request const& request) {
-  SetMetadata(*context);
-  return child_->StreamingRead(std::move(context), request);
+  SetMetadata(*context, options);
+  return child_->StreamingRead(std::move(context), options, request);
 }
 
 std::unique_ptr<::google::cloud::internal::StreamingWriteRpc<
     google::test::admin::database::v1::Request,
     google::test::admin::database::v1::Response>>
 GoldenKitchenSinkMetadata::StreamingWrite(
-    std::unique_ptr<grpc::ClientContext> context) {
-  SetMetadata(*context);
-  return child_->StreamingWrite(std::move(context));
+    std::shared_ptr<grpc::ClientContext> context,
+    Options const& options) {
+  SetMetadata(*context, options);
+  return child_->StreamingWrite(std::move(context), options);
 }
 
 std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
@@ -105,14 +133,16 @@ std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
       google::test::admin::database::v1::Response>>
 GoldenKitchenSinkMetadata::AsyncStreamingReadWrite(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context) {
-  SetMetadata(*context);
-  return child_->AsyncStreamingReadWrite(cq, std::move(context));
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options) {
+  SetMetadata(*context, *options);
+  return child_->AsyncStreamingReadWrite(cq, std::move(context), std::move(options));
 }
 
 Status
 GoldenKitchenSinkMetadata::ExplicitRouting1(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::ExplicitRoutingRequest const& request) {
   std::vector<std::string> params;
   params.reserve(2);
@@ -152,74 +182,102 @@ GoldenKitchenSinkMetadata::ExplicitRouting1(
   routing_id_matcher->AppendParam(request, params);
 
   if (params.empty()) {
-    SetMetadata(context);
+    SetMetadata(context, options);
   } else {
-    SetMetadata(context, absl::StrJoin(params, "&"));
+    SetMetadata(context, options, absl::StrJoin(params, "&"));
   }
-  return child_->ExplicitRouting1(context, request);
+  return child_->ExplicitRouting1(context, options, request);
 }
 
 Status
 GoldenKitchenSinkMetadata::ExplicitRouting2(
     grpc::ClientContext& context,
+    Options const& options,
     google::test::admin::database::v1::ExplicitRoutingRequest const& request) {
   std::vector<std::string> params;
   params.reserve(2);
 
   if (!request.app_profile_id().empty()) {
-    params.push_back("no_regex_needed=" + request.app_profile_id());
+    params.push_back(absl::StrCat("no_regex_needed=", internal::UrlEncode(request.app_profile_id())));
   } else if (!request.table_name().empty()) {
-    params.push_back("no_regex_needed=" + request.table_name());
+    params.push_back(absl::StrCat("no_regex_needed=", internal::UrlEncode(request.table_name())));
   } else if (!request.no_regex_needed().empty()) {
-    params.push_back("no_regex_needed=" + request.no_regex_needed());
+    params.push_back(absl::StrCat("no_regex_needed=", internal::UrlEncode(request.no_regex_needed())));
   }
 
   if (!request.nested1().nested2().value().empty()) {
-    params.push_back("routing_id=" + request.nested1().nested2().value());
+    params.push_back(absl::StrCat("routing_id=", internal::UrlEncode(request.nested1().nested2().value())));
   }
 
   if (params.empty()) {
-    SetMetadata(context);
+    SetMetadata(context, options);
   } else {
-    SetMetadata(context, absl::StrJoin(params, "&"));
+    SetMetadata(context, options, absl::StrJoin(params, "&"));
   }
-  return child_->ExplicitRouting2(context, request);
+  return child_->ExplicitRouting2(context, options, request);
+}
+
+StatusOr<google::cloud::location::Location>
+GoldenKitchenSinkMetadata::GetLocation(
+    grpc::ClientContext& context,
+    Options const& options,
+    google::cloud::location::GetLocationRequest const& request) {
+  SetMetadata(context, options, absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->GetLocation(context, options, request);
+}
+
+StatusOr<google::iam::v1::Policy>
+GoldenKitchenSinkMetadata::GetIamPolicy(
+    grpc::ClientContext& context,
+    Options const& options,
+    google::iam::v1::GetIamPolicyRequest const& request) {
+  SetMetadata(context, options, absl::StrCat("resource=", internal::UrlEncode(request.resource())));
+  return child_->GetIamPolicy(context, options, request);
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+GoldenKitchenSinkMetadata::ListOperations(
+    grpc::ClientContext& context,
+    Options const& options,
+    google::longrunning::ListOperationsRequest const& request) {
+  SetMetadata(context, options, absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->ListOperations(context, options, request);
 }
 
 std::unique_ptr<::google::cloud::internal::AsyncStreamingReadRpc<
       google::test::admin::database::v1::Response>>
 GoldenKitchenSinkMetadata::AsyncStreamingRead(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::test::admin::database::v1::Request const& request) {
-  SetMetadata(*context);
-  return child_->AsyncStreamingRead(cq, std::move(context), request);
+  SetMetadata(*context, *options);
+  return child_->AsyncStreamingRead(
+      cq, std::move(context), std::move(options), request);
 }
 
 std::unique_ptr<::google::cloud::internal::AsyncStreamingWriteRpc<
     google::test::admin::database::v1::Request, google::test::admin::database::v1::Response>>
 GoldenKitchenSinkMetadata::AsyncStreamingWrite(
     google::cloud::CompletionQueue const& cq,
-    std::unique_ptr<grpc::ClientContext> context) {
-  SetMetadata(*context);
-  return child_->AsyncStreamingWrite(cq, std::move(context));
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options) {
+  SetMetadata(*context, *options);
+  return child_->AsyncStreamingWrite(cq, std::move(context), std::move(options));
 }
 
 void GoldenKitchenSinkMetadata::SetMetadata(grpc::ClientContext& context,
+                                        Options const& options,
                                         std::string const& request_params) {
   context.AddMetadata("x-goog-request-params", request_params);
-  SetMetadata(context);
+  SetMetadata(context, options);
 }
 
-void GoldenKitchenSinkMetadata::SetMetadata(grpc::ClientContext& context) {
-  context.AddMetadata("x-goog-api-client", api_client_header_);
-  auto const& options = internal::CurrentOptions();
-  if (options.has<UserProjectOption>()) {
-    context.AddMetadata(
-        "x-goog-user-project", options.get<UserProjectOption>());
-  }
-  auto const& authority = options.get<AuthorityOption>();
-  if (!authority.empty()) context.set_authority(authority);
+void GoldenKitchenSinkMetadata::SetMetadata(grpc::ClientContext& context,
+                                        Options const& options) {
+  context.AddMetadata("x-goog-api-version", "test-api-version");
+  google::cloud::internal::SetMetadata(
+      context, options, fixed_metadata_, api_client_header_);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

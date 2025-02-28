@@ -23,34 +23,25 @@ ARG NCPU=4
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get --no-install-recommends install -y apt-transport-https apt-utils \
-        automake build-essential ccache cmake ca-certificates curl git \
+        automake build-essential cmake ca-certificates curl git \
         gcc g++ libc-ares-dev libc-ares2 libcurl4-openssl-dev libre2-dev \
         libssl-dev m4 make pkg-config tar wget zlib1g-dev
 # ```
 
 # #### Abseil
 
-# We need a recent version of Abseil.
-
-# :warning: By default, Abseil's ABI changes depending on whether it is used
-# with C++ >= 17 enabled or not. Installing Abseil with the default
-# configuration is error-prone, unless you can guarantee that all the code using
-# Abseil (gRPC, google-cloud-cpp, your own code, etc.) is compiled with the same
-# C++ version. We recommend that you switch the default configuration to pin
-# Abseil's ABI to the version used at compile time. In this case, the compiler
-# defaults to C++17. Nevertheless, gRPC compiles with C++11 and depends on
-# some of the Abseil polyfills, such as `absl::string_view`. Therefore, we
-# pin Abseil's ABI to always use the polyfills. See [abseil/abseil-cpp#696]
-# for more information.
+# We need a recent version of Abseil. Enabling `ABSL_PROPAGATE_CXX_STD` 
+# propagates the version of C++ used to compile Abseil to anything that depends
+# on Abseil.
 
 # ```bash
 WORKDIR /var/tmp/build/abseil-cpp
-RUN curl -sSL https://github.com/abseil/abseil-cpp/archive/20220623.1.tar.gz | \
+RUN curl -fsSL https://github.com/abseil/abseil-cpp/archive/20250127.0.tar.gz | \
     tar -xzf - --strip-components=1 && \
-    sed -i 's/^#define ABSL_OPTION_USE_\(.*\) 2/#define ABSL_OPTION_USE_\1 0/' "absl/base/options.h" && \
     cmake \
       -DCMAKE_BUILD_TYPE=Release \
       -DABSL_BUILD_TESTING=OFF \
+      -DABSL_PROPAGATE_CXX_STD=ON \
       -DBUILD_SHARED_LIBS=yes \
       -S . -B cmake-out && \
     cmake --build cmake-out -- -j ${NCPU:-4} && \
@@ -65,7 +56,7 @@ RUN curl -sSL https://github.com/abseil/abseil-cpp/archive/20220623.1.tar.gz | \
 
 # ```bash
 WORKDIR /var/tmp/build/protobuf
-RUN curl -sSL https://github.com/protocolbuffers/protobuf/archive/v21.12.tar.gz | \
+RUN curl -fsSL https://github.com/protocolbuffers/protobuf/archive/v29.3.tar.gz | \
     tar -xzf - --strip-components=1 && \
     cmake \
         -DCMAKE_BUILD_TYPE=Release \
@@ -85,7 +76,7 @@ RUN curl -sSL https://github.com/protocolbuffers/protobuf/archive/v21.12.tar.gz 
 
 # ```bash
 WORKDIR /var/tmp/build/grpc
-RUN curl -sSL https://github.com/grpc/grpc/archive/v1.51.1.tar.gz | \
+RUN curl -fsSL https://github.com/grpc/grpc/archive/v1.69.0.tar.gz | \
     tar -xzf - --strip-components=1 && \
     cmake \
         -DCMAKE_BUILD_TYPE=Release \
@@ -111,7 +102,7 @@ RUN curl -sSL https://github.com/grpc/grpc/archive/v1.51.1.tar.gz | \
 
 # ```bash
 WORKDIR /var/tmp/build/crc32c
-RUN curl -sSL https://github.com/google/crc32c/archive/1.1.2.tar.gz | \
+RUN curl -fsSL https://github.com/google/crc32c/archive/1.1.2.tar.gz | \
     tar -xzf - --strip-components=1 && \
     cmake \
         -DCMAKE_BUILD_TYPE=Release \
@@ -134,7 +125,7 @@ RUN curl -sSL https://github.com/google/crc32c/archive/1.1.2.tar.gz | \
 
 # ```bash
 WORKDIR /var/tmp/build/json
-RUN curl -sSL https://github.com/nlohmann/json/archive/v3.11.2.tar.gz | \
+RUN curl -fsSL https://github.com/nlohmann/json/archive/v3.11.3.tar.gz | \
     tar -xzf - --strip-components=1 && \
     cmake \
       -DCMAKE_BUILD_TYPE=Release \
@@ -146,8 +137,38 @@ RUN curl -sSL https://github.com/nlohmann/json/archive/v3.11.2.tar.gz | \
     ldconfig
 # ```
 
+# #### opentelemetry-cpp
+
+# The project has an **optional** dependency on the OpenTelemetry library.
+# We recommend installing this library because:
+# - the dependency will become required in the google-cloud-cpp v3.x series.
+# - it is needed to produce distributed traces of the library.
+
+# ```bash
+WORKDIR /var/tmp/build/opentelemetry-cpp
+RUN curl -fsSL https://github.com/open-telemetry/opentelemetry-cpp/archive/v1.19.0.tar.gz | \
+    tar -xzf - --strip-components=1 && \
+    cmake \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_SHARED_LIBS=yes \
+        -DWITH_EXAMPLES=OFF \
+        -DWITH_ABSEIL=ON \
+        -DBUILD_TESTING=OFF \
+        -DOPENTELEMETRY_INSTALL=ON \
+        -DOPENTELEMETRY_ABI_VERSION_NO=2 \
+        -S . -B cmake-out && \
+    cmake --build cmake-out --target install -- -j ${NCPU:-4} && \
+    ldconfig
+# ```
+
 ## [DONE packaging.md]
 
-# Some of the above libraries may have installed in /usr/local, so make sure
-# those library directories will be found.
+WORKDIR /var/tmp/sccache
+RUN curl -fsSL https://github.com/mozilla/sccache/releases/download/v0.10.0/sccache-v0.10.0-x86_64-unknown-linux-musl.tar.gz | \
+    tar -zxf - --strip-components=1 && \
+    mkdir -p /usr/local/bin && \
+    mv sccache /usr/local/bin/sccache && \
+    chmod +x /usr/local/bin/sccache
+
+# Update the ld.conf cache in case any libraries were installed in /usr/local/lib*
 RUN ldconfig /usr/local/lib*

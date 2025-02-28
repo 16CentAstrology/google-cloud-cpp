@@ -26,7 +26,9 @@ add_library(
     mock_grpc_authentication_strategy.h
     mock_minimal_iam_credentials_stub.h
     validate_metadata.cc
-    validate_metadata.h)
+    validate_metadata.h
+    validate_propagator.cc
+    validate_propagator.h)
 target_link_libraries(
     google_cloud_cpp_testing_grpc
     PUBLIC google-cloud-cpp::grpc_utils
@@ -57,8 +59,5 @@ foreach (fname ${google_cloud_cpp_testing_grpc_unit_tests})
                 GTest::gmock
                 GTest::gtest)
     google_cloud_cpp_add_common_options(${target})
-    if (MSVC)
-        target_compile_options(${target} PRIVATE "/bigobj")
-    endif ()
     add_test(NAME ${target} COMMAND ${target})
 endforeach ()

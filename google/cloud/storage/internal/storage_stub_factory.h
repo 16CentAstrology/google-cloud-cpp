@@ -15,13 +15,17 @@
 #ifndef GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_STORAGE_INTERNAL_STORAGE_STUB_FACTORY_H
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_STORAGE_INTERNAL_STORAGE_STUB_FACTORY_H
 
+#include "google/cloud/storage/internal/grpc/channel_refresh.h"
 #include "google/cloud/storage/internal/storage_stub.h"
 #include "google/cloud/completion_queue.h"
 #include "google/cloud/internal/minimal_iam_credentials_stub.h"
 #include "google/cloud/options.h"
 #include "google/cloud/version.h"
+#include <grpcpp/grpcpp.h>
 #include <functional>
 #include <memory>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -32,13 +36,14 @@ using BaseStorageStubFactory =
     std::function<std::shared_ptr<StorageStub>(std::shared_ptr<grpc::Channel>)>;
 
 /// Used in testing to create decorated mocks.
-std::shared_ptr<StorageStub> CreateDecoratedStubs(
-    google::cloud::CompletionQueue cq, Options const& options,
-    BaseStorageStubFactory const& base_factory);
+std::pair<std::vector<std::shared_ptr<grpc::Channel>>,
+          std::shared_ptr<StorageStub>>
+CreateDecoratedStubs(google::cloud::CompletionQueue cq, Options const& options,
+                     BaseStorageStubFactory const& base_factory);
 
-/// Default function used by the `GrpcClient`.
-std::shared_ptr<StorageStub> CreateStorageStub(
-    google::cloud::CompletionQueue cq, Options const& options);
+/// Default function used by the `storage_internal::*Client` classes.
+std::pair<std::shared_ptr<GrpcChannelRefresh>, std::shared_ptr<StorageStub>>
+CreateStorageStub(google::cloud::CompletionQueue cq, Options const& options);
 
 std::shared_ptr<google::cloud::internal::MinimalIamCredentialsStub>
 CreateStorageIamStub(google::cloud::CompletionQueue cq, Options const& options);

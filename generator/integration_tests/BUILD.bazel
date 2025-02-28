@@ -12,11 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load(
+    "@com_google_googleapis_imports//:imports.bzl",
+    "cc_grpc_library",
+    "cc_proto_library",
+)
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
 package(default_visibility = ["//visibility:private"])
 
 licenses(["notice"])  # Apache 2.0
-
-load("@rules_proto//proto:defs.bzl", "proto_library")
 
 proto_library(
     name = "google_cloud_cpp_generator_testing_proto",
@@ -24,11 +29,15 @@ proto_library(
         "backup.proto",
         "common.proto",
         "test.proto",
+        "test2.proto",
+        "test_deprecated.proto",
+        "test_request_id.proto",
     ],
     deps = [
         "@com_google_googleapis//google/api:annotations_proto",
         "@com_google_googleapis//google/api:client_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:field_info_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_googleapis//google/api:routing_proto",
         "@com_google_googleapis//google/iam/v1:iam_policy_proto",
@@ -42,12 +51,6 @@ proto_library(
         "@com_google_protobuf//:struct_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
-)
-
-load(
-    "@com_google_googleapis_imports//:imports.bzl",
-    "cc_grpc_library",
-    "cc_proto_library",
 )
 
 cc_proto_library(
@@ -65,30 +68,33 @@ cc_grpc_library(
 filegroup(
     name = "golden_srcs",
     srcs = glob([
-        "golden/v1/*.cc",
-        "golden/v1/internal/*.cc",
+        "golden/v1/internal/*_sources.cc",
+        "golden/v1/internal/streaming.cc",
     ]),
 )
 
 filegroup(
     name = "golden_hdrs",
-    srcs = glob([
-        "golden/*.h",
-        "golden/mocks/*.h",
-        "golden/v1/*.h",
-        "golden/v1/internal/*.h",
-        "golden/v1/mocks/*.h",
-    ]),
+    srcs = glob(
+        include = [
+            "golden/*.h",
+            "golden/mocks/*.h",
+            "golden/v1/*.cc",
+            "golden/v1/*.h",
+            "golden/v1/internal/*.cc",
+            "golden/v1/internal/*.h",
+            "golden/v1/mocks/*.h",
+        ],
+        exclude = [
+            "golden/v1/internal/*_sources.cc",
+        ],
+    ),
 )
 
 cc_library(
     name = "google_cloud_cpp_generator_golden",
-    srcs = [
-        ":golden_srcs",
-    ],
-    hdrs = [
-        ":golden_hdrs",
-    ],
+    srcs = [":golden_srcs"],
+    hdrs = [":golden_hdrs"],
     copts = [
         "-I$(BINDIR)",
     ],
@@ -100,14 +106,10 @@ cc_library(
         "//:grpc_utils",
         "//google/cloud:google_cloud_cpp_rest_internal",
         "//google/cloud:google_cloud_cpp_rest_protobuf_internal",
-        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
         "@com_google_googleapis//google/longrunning:longrunning_cc_grpc",
-        "@com_google_protobuf//:protoc_lib",
     ],
 )
-
-load(":google_cloud_cpp_generator_golden_tests.bzl", "google_cloud_cpp_generator_golden_tests")
 
 filegroup(
     name = "test_mocks",
@@ -126,12 +128,13 @@ filegroup(
     deps = [
         ":google_cloud_cpp_generator_golden",
         "//:common",
+        "//:mocks",
         "//google/cloud/testing_util:google_cloud_cpp_testing_grpc_private",
         "//google/cloud/testing_util:google_cloud_cpp_testing_private",
         "//google/cloud/testing_util:google_cloud_cpp_testing_rest_private",
         "@com_google_googletest//:gtest_main",
     ],
-) for test in google_cloud_cpp_generator_golden_tests]
+) for test in glob(["tests/*.cc"])]
 
 [cc_test(
     name = sample.replace("/", "_").replace(".cc", ""),
@@ -145,3 +148,16 @@ filegroup(
         "//google/cloud/testing_util:google_cloud_cpp_testing_private",
     ],
 ) for sample in glob(["golden/v1/samples/*.cc"])]
+
+[cc_test(
+    name = benchmark.replace("/", "_").replace(".cc", ""),
+    srcs = [benchmark],
+    copts = [
+        "-I$(BINDIR)",
+    ],
+    tags = ["benchmark"],
+    deps = [
+        ":google_cloud_cpp_generator_golden",
+        "@com_google_benchmark//:benchmark_main",
+    ],
+) for benchmark in glob(["benchmarks/*.cc"])]

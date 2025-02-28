@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -216,7 +216,7 @@ std::shared_ptr<DataClient> MakeDataClient(std::string project_id,
                                            Options options) {
   options = internal::DefaultDataOptions(std::move(options));
   bool tracing_enabled = google::cloud::internal::Contains(
-      options.get<TracingComponentsOption>(), "rpc");
+      options.get<LoggingComponentsOption>(), "rpc");
   auto tracing_options = options.get<GrpcTracingOptionsOption>();
 
   std::shared_ptr<DataClient> client = std::make_shared<DefaultDataClient>(

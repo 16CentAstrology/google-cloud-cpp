@@ -28,6 +28,7 @@
 #include "google/cloud/backoff_policy.h"
 #include "google/cloud/options.h"
 #include "google/cloud/status_or.h"
+#include "google/cloud/stream_range.h"
 #include "google/cloud/version.h"
 #include <memory>
 
@@ -63,41 +64,19 @@ class TopicStatsServiceConnectionImpl
       google::cloud::pubsublite::v1::ComputeTimeCursorRequest const& request)
       override;
 
+  StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status DeleteOperation(
+      google::longrunning::DeleteOperationRequest const& request) override;
+
+  Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  std::unique_ptr<pubsublite::TopicStatsServiceRetryPolicy> retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<pubsublite::TopicStatsServiceRetryPolicyOption>()) {
-      return options.get<pubsublite::TopicStatsServiceRetryPolicyOption>()
-          ->clone();
-    }
-    return options_.get<pubsublite::TopicStatsServiceRetryPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<pubsublite::TopicStatsServiceBackoffPolicyOption>()) {
-      return options.get<pubsublite::TopicStatsServiceBackoffPolicyOption>()
-          ->clone();
-    }
-    return options_.get<pubsublite::TopicStatsServiceBackoffPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<pubsublite::TopicStatsServiceConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<
-            pubsublite::TopicStatsServiceConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<pubsublite::TopicStatsServiceConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<pubsublite::TopicStatsServiceConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<pubsublite_internal::TopicStatsServiceStub> stub_;
   Options options_;

@@ -18,6 +18,7 @@
 
 #include "google/cloud/dialogflow_cx/environments_client.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -75,12 +76,38 @@ EnvironmentsClient::CreateEnvironment(
   return connection_->CreateEnvironment(request);
 }
 
+StatusOr<google::longrunning::Operation> EnvironmentsClient::CreateEnvironment(
+    NoAwaitTag, std::string const& parent,
+    google::cloud::dialogflow::cx::v3::Environment const& environment,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::cloud::dialogflow::cx::v3::CreateEnvironmentRequest request;
+  request.set_parent(parent);
+  *request.mutable_environment() = environment;
+  return connection_->CreateEnvironment(NoAwaitTag{}, request);
+}
+
 future<StatusOr<google::cloud::dialogflow::cx::v3::Environment>>
 EnvironmentsClient::CreateEnvironment(
     google::cloud::dialogflow::cx::v3::CreateEnvironmentRequest const& request,
     Options opts) {
   internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
   return connection_->CreateEnvironment(request);
+}
+
+StatusOr<google::longrunning::Operation> EnvironmentsClient::CreateEnvironment(
+    NoAwaitTag,
+    google::cloud::dialogflow::cx::v3::CreateEnvironmentRequest const& request,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->CreateEnvironment(NoAwaitTag{}, request);
+}
+
+future<StatusOr<google::cloud::dialogflow::cx::v3::Environment>>
+EnvironmentsClient::CreateEnvironment(
+    google::longrunning::Operation const& operation, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->CreateEnvironment(operation);
 }
 
 future<StatusOr<google::cloud::dialogflow::cx::v3::Environment>>
@@ -94,12 +121,38 @@ EnvironmentsClient::UpdateEnvironment(
   return connection_->UpdateEnvironment(request);
 }
 
+StatusOr<google::longrunning::Operation> EnvironmentsClient::UpdateEnvironment(
+    NoAwaitTag,
+    google::cloud::dialogflow::cx::v3::Environment const& environment,
+    google::protobuf::FieldMask const& update_mask, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::cloud::dialogflow::cx::v3::UpdateEnvironmentRequest request;
+  *request.mutable_environment() = environment;
+  *request.mutable_update_mask() = update_mask;
+  return connection_->UpdateEnvironment(NoAwaitTag{}, request);
+}
+
 future<StatusOr<google::cloud::dialogflow::cx::v3::Environment>>
 EnvironmentsClient::UpdateEnvironment(
     google::cloud::dialogflow::cx::v3::UpdateEnvironmentRequest const& request,
     Options opts) {
   internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
   return connection_->UpdateEnvironment(request);
+}
+
+StatusOr<google::longrunning::Operation> EnvironmentsClient::UpdateEnvironment(
+    NoAwaitTag,
+    google::cloud::dialogflow::cx::v3::UpdateEnvironmentRequest const& request,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->UpdateEnvironment(NoAwaitTag{}, request);
+}
+
+future<StatusOr<google::cloud::dialogflow::cx::v3::Environment>>
+EnvironmentsClient::UpdateEnvironment(
+    google::longrunning::Operation const& operation, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->UpdateEnvironment(operation);
 }
 
 Status EnvironmentsClient::DeleteEnvironment(std::string const& name,
@@ -142,6 +195,21 @@ EnvironmentsClient::RunContinuousTest(
   return connection_->RunContinuousTest(request);
 }
 
+StatusOr<google::longrunning::Operation> EnvironmentsClient::RunContinuousTest(
+    NoAwaitTag,
+    google::cloud::dialogflow::cx::v3::RunContinuousTestRequest const& request,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->RunContinuousTest(NoAwaitTag{}, request);
+}
+
+future<StatusOr<google::cloud::dialogflow::cx::v3::RunContinuousTestResponse>>
+EnvironmentsClient::RunContinuousTest(
+    google::longrunning::Operation const& operation, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->RunContinuousTest(operation);
+}
+
 StreamRange<google::cloud::dialogflow::cx::v3::ContinuousTestResult>
 EnvironmentsClient::ListContinuousTestResults(std::string const& parent,
                                               Options opts) {
@@ -165,6 +233,77 @@ EnvironmentsClient::DeployFlow(
     Options opts) {
   internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
   return connection_->DeployFlow(request);
+}
+
+StatusOr<google::longrunning::Operation> EnvironmentsClient::DeployFlow(
+    NoAwaitTag,
+    google::cloud::dialogflow::cx::v3::DeployFlowRequest const& request,
+    Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->DeployFlow(NoAwaitTag{}, request);
+}
+
+future<StatusOr<google::cloud::dialogflow::cx::v3::DeployFlowResponse>>
+EnvironmentsClient::DeployFlow(google::longrunning::Operation const& operation,
+                               Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->DeployFlow(operation);
+}
+
+StreamRange<google::cloud::location::Location>
+EnvironmentsClient::ListLocations(
+    google::cloud::location::ListLocationsRequest request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->ListLocations(std::move(request));
+}
+
+StatusOr<google::cloud::location::Location> EnvironmentsClient::GetLocation(
+    google::cloud::location::GetLocationRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->GetLocation(request);
+}
+
+StreamRange<google::longrunning::Operation> EnvironmentsClient::ListOperations(
+    std::string const& name, std::string const& filter, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::longrunning::ListOperationsRequest request;
+  request.set_name(name);
+  request.set_filter(filter);
+  return connection_->ListOperations(request);
+}
+
+StreamRange<google::longrunning::Operation> EnvironmentsClient::ListOperations(
+    google::longrunning::ListOperationsRequest request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->ListOperations(std::move(request));
+}
+
+StatusOr<google::longrunning::Operation> EnvironmentsClient::GetOperation(
+    std::string const& name, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::longrunning::GetOperationRequest request;
+  request.set_name(name);
+  return connection_->GetOperation(request);
+}
+
+StatusOr<google::longrunning::Operation> EnvironmentsClient::GetOperation(
+    google::longrunning::GetOperationRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->GetOperation(request);
+}
+
+Status EnvironmentsClient::CancelOperation(std::string const& name,
+                                           Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  google::longrunning::CancelOperationRequest request;
+  request.set_name(name);
+  return connection_->CancelOperation(request);
+}
+
+Status EnvironmentsClient::CancelOperation(
+    google::longrunning::CancelOperationRequest const& request, Options opts) {
+  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
+  return connection_->CancelOperation(request);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

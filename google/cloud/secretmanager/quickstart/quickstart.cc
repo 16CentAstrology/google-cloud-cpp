@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/secretmanager/secret_manager_client.h"
+//! [all]
+#include "google/cloud/secretmanager/v1/secret_manager_client.h"
 #include <iostream>
 
 int main(int argc, char* argv[]) try {
@@ -21,7 +22,7 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace secretmanager = ::google::cloud::secretmanager;
+  namespace secretmanager = ::google::cloud::secretmanager_v1;
   auto client = secretmanager::SecretManagerServiceClient(
       secretmanager::MakeSecretManagerServiceConnection());
 
@@ -36,3 +37,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

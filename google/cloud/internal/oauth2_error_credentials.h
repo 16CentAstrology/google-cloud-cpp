@@ -48,8 +48,11 @@ class ErrorCredentials : public oauth2_internal::Credentials {
  public:
   explicit ErrorCredentials(Status status) : status_(std::move(status)) {}
 
-  StatusOr<internal::AccessToken> GetToken(
+  StatusOr<AccessToken> GetToken(
       std::chrono::system_clock::time_point tp) override;
+  StatusOr<std::string> universe_domain() const override;
+  StatusOr<std::string> universe_domain(
+      google::cloud::Options const& options) const override;
 
  private:
   Status status_;

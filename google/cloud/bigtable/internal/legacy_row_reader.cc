@@ -17,7 +17,6 @@
 #include "google/cloud/grpc_error_delegate.h"
 #include "google/cloud/internal/throw_delegate.h"
 #include "google/cloud/log.h"
-#include "absl/memory/memory.h"
 #include <thread>
 
 namespace google {
@@ -75,14 +74,14 @@ void LegacyRowReader::MakeRequest() {
     request.set_rows_limit(rows_limit_ - rows_count_);
   }
 
-  context_ = absl::make_unique<grpc::ClientContext>();
+  context_ = std::make_unique<grpc::ClientContext>();
   retry_policy_->Setup(*context_);
   backoff_policy_->Setup(*context_);
   metadata_update_policy_.Setup(*context_);
   stream_ = client_->ReadRows(context_.get(), request);
   stream_is_open_ = true;
 
-  parser_ = parser_factory_->Create();
+  parser_ = parser_factory_->Create(false);
 }
 
 bool LegacyRowReader::NextChunk() {

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "google/cloud/spanner/timestamp.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/status.h"
 #include <google/protobuf/util/time_util.h>
 #include <string>
@@ -24,16 +25,16 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 namespace {
 
-Status OutOfRange(std::string message) {
-  return Status(StatusCode::kOutOfRange, std::move(message));
+Status OutOfRange(std::string message, internal::ErrorInfoBuilder info) {
+  return internal::OutOfRangeError(std::move(message), std::move(info));
 }
 
 Status PositiveOverflow(std::string const& type) {
-  return OutOfRange(type + " positive overflow");
+  return OutOfRange(type + " positive overflow", GCP_ERROR_INFO());
 }
 
 Status NegativeOverflow(std::string const& type) {
-  return OutOfRange(type + " negative overflow");
+  return OutOfRange(type + " negative overflow", GCP_ERROR_INFO());
 }
 
 }  // namespace
@@ -98,10 +99,6 @@ namespace {
 auto constexpr kFormatSpec = "%E4Y-%m-%d%ET%H:%M:%E*SZ";
 auto constexpr kParseSpec = "%Y-%m-%d%ET%H:%M:%E*S%Ez";
 
-Status InvalidArgument(std::string message) {
-  return Status(StatusCode::kInvalidArgument, std::move(message));
-}
-
 }  // namespace
 
 StatusOr<spanner::Timestamp> TimestampFromRFC3339(std::string const& s) {
@@ -110,7 +107,7 @@ StatusOr<spanner::Timestamp> TimestampFromRFC3339(std::string const& s) {
   if (absl::ParseTime(kParseSpec, s, &t, &err)) {
     return spanner::MakeTimestamp(t);
   }
-  return InvalidArgument(s + ": " + err);
+  return internal::InvalidArgumentError(s + ": " + err, GCP_ERROR_INFO());
 }
 
 std::string TimestampToRFC3339(spanner::Timestamp ts) {

@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/apigeeconnect/connection_client.h"
+//! [all]
+#include "google/cloud/apigeeconnect/v1/connection_client.h"
 #include <iostream>
 
 int main(int argc, char* argv[]) try {
@@ -21,7 +22,7 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace apigeeconnect = ::google::cloud::apigeeconnect;
+  namespace apigeeconnect = ::google::cloud::apigeeconnect_v1;
   auto client = apigeeconnect::ConnectionServiceClient(
       apigeeconnect::MakeConnectionServiceConnection());
 
@@ -37,3 +38,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

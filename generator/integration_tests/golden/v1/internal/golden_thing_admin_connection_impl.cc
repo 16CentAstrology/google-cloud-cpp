@@ -26,11 +26,34 @@
 #include "google/cloud/internal/pagination_range.h"
 #include "google/cloud/internal/retry_loop.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
 namespace golden_v1_internal {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
+namespace {
+
+std::unique_ptr<golden_v1::GoldenThingAdminRetryPolicy>
+retry_policy(Options const& options) {
+  return options.get<golden_v1::GoldenThingAdminRetryPolicyOption>()->clone();
+}
+
+std::unique_ptr<BackoffPolicy>
+backoff_policy(Options const& options) {
+  return options.get<golden_v1::GoldenThingAdminBackoffPolicyOption>()->clone();
+}
+
+std::unique_ptr<golden_v1::GoldenThingAdminConnectionIdempotencyPolicy>
+idempotency_policy(Options const& options) {
+  return options.get<golden_v1::GoldenThingAdminConnectionIdempotencyPolicyOption>()->clone();
+}
+
+std::unique_ptr<PollingPolicy> polling_policy(Options const& options) {
+  return options.get<golden_v1::GoldenThingAdminPollingPolicyOption>()->clone();
+}
+
+} // namespace
 
 GoldenThingAdminConnectionImpl::GoldenThingAdminConnectionImpl(
     std::unique_ptr<google::cloud::BackgroundThreads> background,
@@ -44,21 +67,22 @@ GoldenThingAdminConnectionImpl::GoldenThingAdminConnectionImpl(
 StreamRange<google::test::admin::database::v1::Database>
 GoldenThingAdminConnectionImpl::ListDatabases(google::test::admin::database::v1::ListDatabasesRequest request) {
   request.clear_page_token();
-  auto& stub = stub_;
-  auto retry = std::shared_ptr<golden_v1::GoldenThingAdminRetryPolicy const>(retry_policy());
-  auto backoff = std::shared_ptr<BackoffPolicy const>(backoff_policy());
-  auto idempotency = idempotency_policy()->ListDatabases(request);
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency = idempotency_policy(*current)->ListDatabases(request);
   char const* function_name = __func__;
   return google::cloud::internal::MakePaginationRange<StreamRange<google::test::admin::database::v1::Database>>(
-      std::move(request),
-      [stub, retry, backoff, idempotency, function_name]
-        (google::test::admin::database::v1::ListDatabasesRequest const& r) {
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<golden_v1::GoldenThingAdminRetryPolicy>(retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options, google::test::admin::database::v1::ListDatabasesRequest const& r) {
         return google::cloud::internal::RetryLoop(
             retry->clone(), backoff->clone(), idempotency,
-            [stub](grpc::ClientContext& context, google::test::admin::database::v1::ListDatabasesRequest const& request) {
-              return stub->ListDatabases(context, request);
+            [stub](grpc::ClientContext& context, Options const& options,
+                   google::test::admin::database::v1::ListDatabasesRequest const& request) {
+              return stub->ListDatabases(context, options, request);
             },
-            r, function_name);
+            options, r, function_name);
       },
       [](google::test::admin::database::v1::ListDatabasesResponse r) {
         std::vector<google::test::admin::database::v1::Database> result(r.databases().size());
@@ -70,211 +94,377 @@ GoldenThingAdminConnectionImpl::ListDatabases(google::test::admin::database::v1:
 
 future<StatusOr<google::test::admin::database::v1::Database>>
 GoldenThingAdminConnectionImpl::CreateDatabase(google::test::admin::database::v1::CreateDatabaseRequest const& request) {
-  auto& stub = stub_;
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto request_copy = request;
+  auto const idempotent =
+      idempotency_policy(*current)->CreateDatabase(request_copy);
   return google::cloud::internal::AsyncLongRunningOperation<google::test::admin::database::v1::Database>(
-    background_->cq(), request,
-    [stub](google::cloud::CompletionQueue& cq,
-          std::unique_ptr<grpc::ClientContext> context,
-          google::test::admin::database::v1::CreateDatabaseRequest const& request) {
-     return stub->AsyncCreateDatabase(cq, std::move(context), request);
+    background_->cq(), current, std::move(request_copy),
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::test::admin::database::v1::CreateDatabaseRequest const& request) {
+     return stub->AsyncCreateDatabase(
+         cq, std::move(context), std::move(options), request);
     },
-    [stub](google::cloud::CompletionQueue& cq,
-          std::unique_ptr<grpc::ClientContext> context,
-          google::longrunning::GetOperationRequest const& request) {
-     return stub->AsyncGetOperation(cq, std::move(context), request);
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::GetOperationRequest const& request) {
+     return stub->AsyncGetOperation(
+         cq, std::move(context), std::move(options), request);
     },
-    [stub](google::cloud::CompletionQueue& cq,
-          std::unique_ptr<grpc::ClientContext> context,
-          google::longrunning::CancelOperationRequest const& request) {
-     return stub->AsyncCancelOperation(cq, std::move(context), request);
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::CancelOperationRequest const& request) {
+     return stub->AsyncCancelOperation(
+         cq, std::move(context), std::move(options), request);
     },
     &google::cloud::internal::ExtractLongRunningResultResponse<google::test::admin::database::v1::Database>,
-    retry_policy(), backoff_policy(),
-    idempotency_policy()->CreateDatabase(request),
-    polling_policy(), __func__);
+    retry_policy(*current), backoff_policy(*current), idempotent,
+    polling_policy(*current), __func__);
+}
 
+StatusOr<google::longrunning::Operation>
+GoldenThingAdminConnectionImpl::CreateDatabase(
+      NoAwaitTag, google::test::admin::database::v1::CreateDatabaseRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->CreateDatabase(request),
+      [this](
+          grpc::ClientContext& context, Options const& options,
+          google::test::admin::database::v1::CreateDatabaseRequest const& request) {
+        return stub_->CreateDatabase(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+future<StatusOr<google::test::admin::database::v1::Database>>
+GoldenThingAdminConnectionImpl::CreateDatabase(
+      google::longrunning::Operation const& operation) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  if (!operation.metadata().Is<typename google::test::admin::database::v1::CreateDatabaseMetadata>()) {
+    return make_ready_future<StatusOr<google::test::admin::database::v1::Database>>(
+        internal::InvalidArgumentError("operation does not correspond to CreateDatabase",
+                                       GCP_ERROR_INFO().WithMetadata("operation", operation.metadata().DebugString())));
+  }
+
+  return google::cloud::internal::AsyncAwaitLongRunningOperation<google::test::admin::database::v1::Database>(
+    background_->cq(), current, operation,
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::GetOperationRequest const& request) {
+     return stub->AsyncGetOperation(
+         cq, std::move(context), std::move(options), request);
+    },
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::CancelOperationRequest const& request) {
+     return stub->AsyncCancelOperation(
+         cq, std::move(context), std::move(options), request);
+    },
+    &google::cloud::internal::ExtractLongRunningResultResponse<google::test::admin::database::v1::Database>,
+    polling_policy(*current), __func__);
 }
 
 StatusOr<google::test::admin::database::v1::Database>
 GoldenThingAdminConnectionImpl::GetDatabase(google::test::admin::database::v1::GetDatabaseRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->GetDatabase(request),
-      [this](grpc::ClientContext& context,
-          google::test::admin::database::v1::GetDatabaseRequest const& request) {
-        return stub_->GetDatabase(context, request);
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->GetDatabase(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::test::admin::database::v1::GetDatabaseRequest const& request) {
+        return stub_->GetDatabase(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 future<StatusOr<google::test::admin::database::v1::UpdateDatabaseDdlMetadata>>
 GoldenThingAdminConnectionImpl::UpdateDatabaseDdl(google::test::admin::database::v1::UpdateDatabaseDdlRequest const& request) {
-  auto& stub = stub_;
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto request_copy = request;
+  auto const idempotent =
+      idempotency_policy(*current)->UpdateDatabaseDdl(request_copy);
   return google::cloud::internal::AsyncLongRunningOperation<google::test::admin::database::v1::UpdateDatabaseDdlMetadata>(
-    background_->cq(), request,
-    [stub](google::cloud::CompletionQueue& cq,
-          std::unique_ptr<grpc::ClientContext> context,
-          google::test::admin::database::v1::UpdateDatabaseDdlRequest const& request) {
-     return stub->AsyncUpdateDatabaseDdl(cq, std::move(context), request);
+    background_->cq(), current, std::move(request_copy),
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::test::admin::database::v1::UpdateDatabaseDdlRequest const& request) {
+     return stub->AsyncUpdateDatabaseDdl(
+         cq, std::move(context), std::move(options), request);
     },
-    [stub](google::cloud::CompletionQueue& cq,
-          std::unique_ptr<grpc::ClientContext> context,
-          google::longrunning::GetOperationRequest const& request) {
-     return stub->AsyncGetOperation(cq, std::move(context), request);
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::GetOperationRequest const& request) {
+     return stub->AsyncGetOperation(
+         cq, std::move(context), std::move(options), request);
     },
-    [stub](google::cloud::CompletionQueue& cq,
-          std::unique_ptr<grpc::ClientContext> context,
-          google::longrunning::CancelOperationRequest const& request) {
-     return stub->AsyncCancelOperation(cq, std::move(context), request);
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::CancelOperationRequest const& request) {
+     return stub->AsyncCancelOperation(
+         cq, std::move(context), std::move(options), request);
     },
     &google::cloud::internal::ExtractLongRunningResultMetadata<google::test::admin::database::v1::UpdateDatabaseDdlMetadata>,
-    retry_policy(), backoff_policy(),
-    idempotency_policy()->UpdateDatabaseDdl(request),
-    polling_policy(), __func__);
+    retry_policy(*current), backoff_policy(*current), idempotent,
+    polling_policy(*current), __func__);
+}
 
+StatusOr<google::longrunning::Operation>
+GoldenThingAdminConnectionImpl::UpdateDatabaseDdl(
+      NoAwaitTag, google::test::admin::database::v1::UpdateDatabaseDdlRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->UpdateDatabaseDdl(request),
+      [this](
+          grpc::ClientContext& context, Options const& options,
+          google::test::admin::database::v1::UpdateDatabaseDdlRequest const& request) {
+        return stub_->UpdateDatabaseDdl(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+future<StatusOr<google::test::admin::database::v1::UpdateDatabaseDdlMetadata>>
+GoldenThingAdminConnectionImpl::UpdateDatabaseDdl(
+      google::longrunning::Operation const& operation) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  if (!operation.metadata().Is<typename google::test::admin::database::v1::UpdateDatabaseDdlMetadata>()) {
+    return make_ready_future<StatusOr<google::test::admin::database::v1::UpdateDatabaseDdlMetadata>>(
+        internal::InvalidArgumentError("operation does not correspond to UpdateDatabaseDdl",
+                                       GCP_ERROR_INFO().WithMetadata("operation", operation.metadata().DebugString())));
+  }
+
+  return google::cloud::internal::AsyncAwaitLongRunningOperation<google::test::admin::database::v1::UpdateDatabaseDdlMetadata>(
+    background_->cq(), current, operation,
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::GetOperationRequest const& request) {
+     return stub->AsyncGetOperation(
+         cq, std::move(context), std::move(options), request);
+    },
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::CancelOperationRequest const& request) {
+     return stub->AsyncCancelOperation(
+         cq, std::move(context), std::move(options), request);
+    },
+    &google::cloud::internal::ExtractLongRunningResultMetadata<google::test::admin::database::v1::UpdateDatabaseDdlMetadata>,
+    polling_policy(*current), __func__);
 }
 
 Status
 GoldenThingAdminConnectionImpl::DropDatabase(google::test::admin::database::v1::DropDatabaseRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->DropDatabase(request),
-      [this](grpc::ClientContext& context,
-          google::test::admin::database::v1::DropDatabaseRequest const& request) {
-        return stub_->DropDatabase(context, request);
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->DropDatabase(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::test::admin::database::v1::DropDatabaseRequest const& request) {
+        return stub_->DropDatabase(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StatusOr<google::test::admin::database::v1::GetDatabaseDdlResponse>
 GoldenThingAdminConnectionImpl::GetDatabaseDdl(google::test::admin::database::v1::GetDatabaseDdlRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->GetDatabaseDdl(request),
-      [this](grpc::ClientContext& context,
-          google::test::admin::database::v1::GetDatabaseDdlRequest const& request) {
-        return stub_->GetDatabaseDdl(context, request);
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->GetDatabaseDdl(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::test::admin::database::v1::GetDatabaseDdlRequest const& request) {
+        return stub_->GetDatabaseDdl(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StatusOr<google::iam::v1::Policy>
 GoldenThingAdminConnectionImpl::SetIamPolicy(google::iam::v1::SetIamPolicyRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->SetIamPolicy(request),
-      [this](grpc::ClientContext& context,
-          google::iam::v1::SetIamPolicyRequest const& request) {
-        return stub_->SetIamPolicy(context, request);
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->SetIamPolicy(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::iam::v1::SetIamPolicyRequest const& request) {
+        return stub_->SetIamPolicy(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StatusOr<google::iam::v1::Policy>
 GoldenThingAdminConnectionImpl::GetIamPolicy(google::iam::v1::GetIamPolicyRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->GetIamPolicy(request),
-      [this](grpc::ClientContext& context,
-          google::iam::v1::GetIamPolicyRequest const& request) {
-        return stub_->GetIamPolicy(context, request);
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->GetIamPolicy(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::iam::v1::GetIamPolicyRequest const& request) {
+        return stub_->GetIamPolicy(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StatusOr<google::iam::v1::TestIamPermissionsResponse>
 GoldenThingAdminConnectionImpl::TestIamPermissions(google::iam::v1::TestIamPermissionsRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->TestIamPermissions(request),
-      [this](grpc::ClientContext& context,
-          google::iam::v1::TestIamPermissionsRequest const& request) {
-        return stub_->TestIamPermissions(context, request);
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->TestIamPermissions(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::iam::v1::TestIamPermissionsRequest const& request) {
+        return stub_->TestIamPermissions(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 future<StatusOr<google::test::admin::database::v1::Backup>>
 GoldenThingAdminConnectionImpl::CreateBackup(google::test::admin::database::v1::CreateBackupRequest const& request) {
-  auto& stub = stub_;
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto request_copy = request;
+  auto const idempotent =
+      idempotency_policy(*current)->CreateBackup(request_copy);
   return google::cloud::internal::AsyncLongRunningOperation<google::test::admin::database::v1::Backup>(
-    background_->cq(), request,
-    [stub](google::cloud::CompletionQueue& cq,
-          std::unique_ptr<grpc::ClientContext> context,
-          google::test::admin::database::v1::CreateBackupRequest const& request) {
-     return stub->AsyncCreateBackup(cq, std::move(context), request);
+    background_->cq(), current, std::move(request_copy),
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::test::admin::database::v1::CreateBackupRequest const& request) {
+     return stub->AsyncCreateBackup(
+         cq, std::move(context), std::move(options), request);
     },
-    [stub](google::cloud::CompletionQueue& cq,
-          std::unique_ptr<grpc::ClientContext> context,
-          google::longrunning::GetOperationRequest const& request) {
-     return stub->AsyncGetOperation(cq, std::move(context), request);
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::GetOperationRequest const& request) {
+     return stub->AsyncGetOperation(
+         cq, std::move(context), std::move(options), request);
     },
-    [stub](google::cloud::CompletionQueue& cq,
-          std::unique_ptr<grpc::ClientContext> context,
-          google::longrunning::CancelOperationRequest const& request) {
-     return stub->AsyncCancelOperation(cq, std::move(context), request);
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::CancelOperationRequest const& request) {
+     return stub->AsyncCancelOperation(
+         cq, std::move(context), std::move(options), request);
     },
     &google::cloud::internal::ExtractLongRunningResultResponse<google::test::admin::database::v1::Backup>,
-    retry_policy(), backoff_policy(),
-    idempotency_policy()->CreateBackup(request),
-    polling_policy(), __func__);
+    retry_policy(*current), backoff_policy(*current), idempotent,
+    polling_policy(*current), __func__);
+}
 
+StatusOr<google::longrunning::Operation>
+GoldenThingAdminConnectionImpl::CreateBackup(
+      NoAwaitTag, google::test::admin::database::v1::CreateBackupRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->CreateBackup(request),
+      [this](
+          grpc::ClientContext& context, Options const& options,
+          google::test::admin::database::v1::CreateBackupRequest const& request) {
+        return stub_->CreateBackup(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+future<StatusOr<google::test::admin::database::v1::Backup>>
+GoldenThingAdminConnectionImpl::CreateBackup(
+      google::longrunning::Operation const& operation) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  if (!operation.metadata().Is<typename google::test::admin::database::v1::CreateBackupMetadata>()) {
+    return make_ready_future<StatusOr<google::test::admin::database::v1::Backup>>(
+        internal::InvalidArgumentError("operation does not correspond to CreateBackup",
+                                       GCP_ERROR_INFO().WithMetadata("operation", operation.metadata().DebugString())));
+  }
+
+  return google::cloud::internal::AsyncAwaitLongRunningOperation<google::test::admin::database::v1::Backup>(
+    background_->cq(), current, operation,
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::GetOperationRequest const& request) {
+     return stub->AsyncGetOperation(
+         cq, std::move(context), std::move(options), request);
+    },
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::CancelOperationRequest const& request) {
+     return stub->AsyncCancelOperation(
+         cq, std::move(context), std::move(options), request);
+    },
+    &google::cloud::internal::ExtractLongRunningResultResponse<google::test::admin::database::v1::Backup>,
+    polling_policy(*current), __func__);
 }
 
 StatusOr<google::test::admin::database::v1::Backup>
 GoldenThingAdminConnectionImpl::GetBackup(google::test::admin::database::v1::GetBackupRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->GetBackup(request),
-      [this](grpc::ClientContext& context,
-          google::test::admin::database::v1::GetBackupRequest const& request) {
-        return stub_->GetBackup(context, request);
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->GetBackup(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::test::admin::database::v1::GetBackupRequest const& request) {
+        return stub_->GetBackup(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StatusOr<google::test::admin::database::v1::Backup>
 GoldenThingAdminConnectionImpl::UpdateBackup(google::test::admin::database::v1::UpdateBackupRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->UpdateBackup(request),
-      [this](grpc::ClientContext& context,
-          google::test::admin::database::v1::UpdateBackupRequest const& request) {
-        return stub_->UpdateBackup(context, request);
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->UpdateBackup(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::test::admin::database::v1::UpdateBackupRequest const& request) {
+        return stub_->UpdateBackup(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 Status
 GoldenThingAdminConnectionImpl::DeleteBackup(google::test::admin::database::v1::DeleteBackupRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::internal::RetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->DeleteBackup(request),
-      [this](grpc::ClientContext& context,
-          google::test::admin::database::v1::DeleteBackupRequest const& request) {
-        return stub_->DeleteBackup(context, request);
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->DeleteBackup(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::test::admin::database::v1::DeleteBackupRequest const& request) {
+        return stub_->DeleteBackup(context, options, request);
       },
-      request, __func__);
+      *current, request, __func__);
 }
 
 StreamRange<google::test::admin::database::v1::Backup>
 GoldenThingAdminConnectionImpl::ListBackups(google::test::admin::database::v1::ListBackupsRequest request) {
   request.clear_page_token();
-  auto& stub = stub_;
-  auto retry = std::shared_ptr<golden_v1::GoldenThingAdminRetryPolicy const>(retry_policy());
-  auto backoff = std::shared_ptr<BackoffPolicy const>(backoff_policy());
-  auto idempotency = idempotency_policy()->ListBackups(request);
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency = idempotency_policy(*current)->ListBackups(request);
   char const* function_name = __func__;
   return google::cloud::internal::MakePaginationRange<StreamRange<google::test::admin::database::v1::Backup>>(
-      std::move(request),
-      [stub, retry, backoff, idempotency, function_name]
-        (google::test::admin::database::v1::ListBackupsRequest const& r) {
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<golden_v1::GoldenThingAdminRetryPolicy>(retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options, google::test::admin::database::v1::ListBackupsRequest const& r) {
         return google::cloud::internal::RetryLoop(
             retry->clone(), backoff->clone(), idempotency,
-            [stub](grpc::ClientContext& context, google::test::admin::database::v1::ListBackupsRequest const& request) {
-              return stub->ListBackups(context, request);
+            [stub](grpc::ClientContext& context, Options const& options,
+                   google::test::admin::database::v1::ListBackupsRequest const& request) {
+              return stub->ListBackups(context, options, request);
             },
-            r, function_name);
+            options, r, function_name);
       },
       [](google::test::admin::database::v1::ListBackupsResponse r) {
         std::vector<google::test::admin::database::v1::Backup> result(r.backups().size());
@@ -286,49 +476,102 @@ GoldenThingAdminConnectionImpl::ListBackups(google::test::admin::database::v1::L
 
 future<StatusOr<google::test::admin::database::v1::Database>>
 GoldenThingAdminConnectionImpl::RestoreDatabase(google::test::admin::database::v1::RestoreDatabaseRequest const& request) {
-  auto& stub = stub_;
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto request_copy = request;
+  auto const idempotent =
+      idempotency_policy(*current)->RestoreDatabase(request_copy);
   return google::cloud::internal::AsyncLongRunningOperation<google::test::admin::database::v1::Database>(
-    background_->cq(), request,
-    [stub](google::cloud::CompletionQueue& cq,
-          std::unique_ptr<grpc::ClientContext> context,
-          google::test::admin::database::v1::RestoreDatabaseRequest const& request) {
-     return stub->AsyncRestoreDatabase(cq, std::move(context), request);
+    background_->cq(), current, std::move(request_copy),
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::test::admin::database::v1::RestoreDatabaseRequest const& request) {
+     return stub->AsyncRestoreDatabase(
+         cq, std::move(context), std::move(options), request);
     },
-    [stub](google::cloud::CompletionQueue& cq,
-          std::unique_ptr<grpc::ClientContext> context,
-          google::longrunning::GetOperationRequest const& request) {
-     return stub->AsyncGetOperation(cq, std::move(context), request);
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::GetOperationRequest const& request) {
+     return stub->AsyncGetOperation(
+         cq, std::move(context), std::move(options), request);
     },
-    [stub](google::cloud::CompletionQueue& cq,
-          std::unique_ptr<grpc::ClientContext> context,
-          google::longrunning::CancelOperationRequest const& request) {
-     return stub->AsyncCancelOperation(cq, std::move(context), request);
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::CancelOperationRequest const& request) {
+     return stub->AsyncCancelOperation(
+         cq, std::move(context), std::move(options), request);
     },
     &google::cloud::internal::ExtractLongRunningResultResponse<google::test::admin::database::v1::Database>,
-    retry_policy(), backoff_policy(),
-    idempotency_policy()->RestoreDatabase(request),
-    polling_policy(), __func__);
+    retry_policy(*current), backoff_policy(*current), idempotent,
+    polling_policy(*current), __func__);
+}
 
+StatusOr<google::longrunning::Operation>
+GoldenThingAdminConnectionImpl::RestoreDatabase(
+      NoAwaitTag, google::test::admin::database::v1::RestoreDatabaseRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->RestoreDatabase(request),
+      [this](
+          grpc::ClientContext& context, Options const& options,
+          google::test::admin::database::v1::RestoreDatabaseRequest const& request) {
+        return stub_->RestoreDatabase(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+future<StatusOr<google::test::admin::database::v1::Database>>
+GoldenThingAdminConnectionImpl::RestoreDatabase(
+      google::longrunning::Operation const& operation) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  if (!operation.metadata().Is<typename google::test::admin::database::v1::RestoreDatabaseMetadata>()) {
+    return make_ready_future<StatusOr<google::test::admin::database::v1::Database>>(
+        internal::InvalidArgumentError("operation does not correspond to RestoreDatabase",
+                                       GCP_ERROR_INFO().WithMetadata("operation", operation.metadata().DebugString())));
+  }
+
+  return google::cloud::internal::AsyncAwaitLongRunningOperation<google::test::admin::database::v1::Database>(
+    background_->cq(), current, operation,
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::GetOperationRequest const& request) {
+     return stub->AsyncGetOperation(
+         cq, std::move(context), std::move(options), request);
+    },
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::CancelOperationRequest const& request) {
+     return stub->AsyncCancelOperation(
+         cq, std::move(context), std::move(options), request);
+    },
+    &google::cloud::internal::ExtractLongRunningResultResponse<google::test::admin::database::v1::Database>,
+    polling_policy(*current), __func__);
 }
 
 StreamRange<google::longrunning::Operation>
 GoldenThingAdminConnectionImpl::ListDatabaseOperations(google::test::admin::database::v1::ListDatabaseOperationsRequest request) {
   request.clear_page_token();
-  auto& stub = stub_;
-  auto retry = std::shared_ptr<golden_v1::GoldenThingAdminRetryPolicy const>(retry_policy());
-  auto backoff = std::shared_ptr<BackoffPolicy const>(backoff_policy());
-  auto idempotency = idempotency_policy()->ListDatabaseOperations(request);
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency = idempotency_policy(*current)->ListDatabaseOperations(request);
   char const* function_name = __func__;
   return google::cloud::internal::MakePaginationRange<StreamRange<google::longrunning::Operation>>(
-      std::move(request),
-      [stub, retry, backoff, idempotency, function_name]
-        (google::test::admin::database::v1::ListDatabaseOperationsRequest const& r) {
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<golden_v1::GoldenThingAdminRetryPolicy>(retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options, google::test::admin::database::v1::ListDatabaseOperationsRequest const& r) {
         return google::cloud::internal::RetryLoop(
             retry->clone(), backoff->clone(), idempotency,
-            [stub](grpc::ClientContext& context, google::test::admin::database::v1::ListDatabaseOperationsRequest const& request) {
-              return stub->ListDatabaseOperations(context, request);
+            [stub](grpc::ClientContext& context, Options const& options,
+                   google::test::admin::database::v1::ListDatabaseOperationsRequest const& request) {
+              return stub->ListDatabaseOperations(context, options, request);
             },
-            r, function_name);
+            options, r, function_name);
       },
       [](google::test::admin::database::v1::ListDatabaseOperationsResponse r) {
         std::vector<google::longrunning::Operation> result(r.operations().size());
@@ -341,21 +584,22 @@ GoldenThingAdminConnectionImpl::ListDatabaseOperations(google::test::admin::data
 StreamRange<google::longrunning::Operation>
 GoldenThingAdminConnectionImpl::ListBackupOperations(google::test::admin::database::v1::ListBackupOperationsRequest request) {
   request.clear_page_token();
-  auto& stub = stub_;
-  auto retry = std::shared_ptr<golden_v1::GoldenThingAdminRetryPolicy const>(retry_policy());
-  auto backoff = std::shared_ptr<BackoffPolicy const>(backoff_policy());
-  auto idempotency = idempotency_policy()->ListBackupOperations(request);
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency = idempotency_policy(*current)->ListBackupOperations(request);
   char const* function_name = __func__;
   return google::cloud::internal::MakePaginationRange<StreamRange<google::longrunning::Operation>>(
-      std::move(request),
-      [stub, retry, backoff, idempotency, function_name]
-        (google::test::admin::database::v1::ListBackupOperationsRequest const& r) {
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<golden_v1::GoldenThingAdminRetryPolicy>(retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options, google::test::admin::database::v1::ListBackupOperationsRequest const& r) {
         return google::cloud::internal::RetryLoop(
             retry->clone(), backoff->clone(), idempotency,
-            [stub](grpc::ClientContext& context, google::test::admin::database::v1::ListBackupOperationsRequest const& request) {
-              return stub->ListBackupOperations(context, request);
+            [stub](grpc::ClientContext& context, Options const& options,
+                   google::test::admin::database::v1::ListBackupOperationsRequest const& request) {
+              return stub->ListBackupOperations(context, options, request);
             },
-            r, function_name);
+            options, r, function_name);
       },
       [](google::test::admin::database::v1::ListBackupOperationsResponse r) {
         std::vector<google::longrunning::Operation> result(r.operations().size());
@@ -367,59 +611,162 @@ GoldenThingAdminConnectionImpl::ListBackupOperations(google::test::admin::databa
 
 future<StatusOr<google::test::admin::database::v1::Database>>
 GoldenThingAdminConnectionImpl::LongRunningWithoutRouting(google::test::admin::database::v1::RestoreDatabaseRequest const& request) {
-  auto& stub = stub_;
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto request_copy = request;
+  auto const idempotent =
+      idempotency_policy(*current)->LongRunningWithoutRouting(request_copy);
   return google::cloud::internal::AsyncLongRunningOperation<google::test::admin::database::v1::Database>(
-    background_->cq(), request,
-    [stub](google::cloud::CompletionQueue& cq,
-          std::unique_ptr<grpc::ClientContext> context,
-          google::test::admin::database::v1::RestoreDatabaseRequest const& request) {
-     return stub->AsyncLongRunningWithoutRouting(cq, std::move(context), request);
+    background_->cq(), current, std::move(request_copy),
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::test::admin::database::v1::RestoreDatabaseRequest const& request) {
+     return stub->AsyncLongRunningWithoutRouting(
+         cq, std::move(context), std::move(options), request);
     },
-    [stub](google::cloud::CompletionQueue& cq,
-          std::unique_ptr<grpc::ClientContext> context,
-          google::longrunning::GetOperationRequest const& request) {
-     return stub->AsyncGetOperation(cq, std::move(context), request);
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::GetOperationRequest const& request) {
+     return stub->AsyncGetOperation(
+         cq, std::move(context), std::move(options), request);
     },
-    [stub](google::cloud::CompletionQueue& cq,
-          std::unique_ptr<grpc::ClientContext> context,
-          google::longrunning::CancelOperationRequest const& request) {
-     return stub->AsyncCancelOperation(cq, std::move(context), request);
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::CancelOperationRequest const& request) {
+     return stub->AsyncCancelOperation(
+         cq, std::move(context), std::move(options), request);
     },
     &google::cloud::internal::ExtractLongRunningResultResponse<google::test::admin::database::v1::Database>,
-    retry_policy(), backoff_policy(),
-    idempotency_policy()->LongRunningWithoutRouting(request),
-    polling_policy(), __func__);
+    retry_policy(*current), backoff_policy(*current), idempotent,
+    polling_policy(*current), __func__);
+}
 
+StatusOr<google::longrunning::Operation>
+GoldenThingAdminConnectionImpl::LongRunningWithoutRouting(
+      NoAwaitTag, google::test::admin::database::v1::RestoreDatabaseRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->LongRunningWithoutRouting(request),
+      [this](
+          grpc::ClientContext& context, Options const& options,
+          google::test::admin::database::v1::RestoreDatabaseRequest const& request) {
+        return stub_->LongRunningWithoutRouting(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+future<StatusOr<google::test::admin::database::v1::Database>>
+GoldenThingAdminConnectionImpl::LongRunningWithoutRouting(
+      google::longrunning::Operation const& operation) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  if (!operation.metadata().Is<typename google::test::admin::database::v1::RestoreDatabaseMetadata>()) {
+    return make_ready_future<StatusOr<google::test::admin::database::v1::Database>>(
+        internal::InvalidArgumentError("operation does not correspond to LongRunningWithoutRouting",
+                                       GCP_ERROR_INFO().WithMetadata("operation", operation.metadata().DebugString())));
+  }
+
+  return google::cloud::internal::AsyncAwaitLongRunningOperation<google::test::admin::database::v1::Database>(
+    background_->cq(), current, operation,
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::GetOperationRequest const& request) {
+     return stub->AsyncGetOperation(
+         cq, std::move(context), std::move(options), request);
+    },
+    [stub = stub_](google::cloud::CompletionQueue& cq,
+                   std::shared_ptr<grpc::ClientContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::CancelOperationRequest const& request) {
+     return stub->AsyncCancelOperation(
+         cq, std::move(context), std::move(options), request);
+    },
+    &google::cloud::internal::ExtractLongRunningResultResponse<google::test::admin::database::v1::Database>,
+    polling_policy(*current), __func__);
+}
+
+StatusOr<google::cloud::location::Location>
+GoldenThingAdminConnectionImpl::GetLocation(google::cloud::location::GetLocationRequest const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::internal::RetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->GetLocation(request),
+      [this](grpc::ClientContext& context, Options const& options,
+             google::cloud::location::GetLocationRequest const& request) {
+        return stub_->GetLocation(context, options, request);
+      },
+      *current, request, __func__);
+}
+
+StreamRange<google::longrunning::Operation>
+GoldenThingAdminConnectionImpl::ListOperations(google::longrunning::ListOperationsRequest request) {
+  request.clear_page_token();
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency = idempotency_policy(*current)->ListOperations(request);
+  char const* function_name = __func__;
+  return google::cloud::internal::MakePaginationRange<StreamRange<google::longrunning::Operation>>(
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<golden_v1::GoldenThingAdminRetryPolicy>(retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options, google::longrunning::ListOperationsRequest const& r) {
+        return google::cloud::internal::RetryLoop(
+            retry->clone(), backoff->clone(), idempotency,
+            [stub](grpc::ClientContext& context, Options const& options,
+                   google::longrunning::ListOperationsRequest const& request) {
+              return stub->ListOperations(context, options, request);
+            },
+            options, r, function_name);
+      },
+      [](google::longrunning::ListOperationsResponse r) {
+        std::vector<google::longrunning::Operation> result(r.operations().size());
+        auto& messages = *r.mutable_operations();
+        std::move(messages.begin(), messages.end(), result.begin());
+        return result;
+      });
 }
 
 future<StatusOr<google::test::admin::database::v1::Database>>
 GoldenThingAdminConnectionImpl::AsyncGetDatabase(google::test::admin::database::v1::GetDatabaseRequest const& request) {
-  auto& stub = stub_;
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto request_copy = request;
+  auto const idempotent =
+      idempotency_policy(*current)->GetDatabase(request_copy);
+  auto retry = retry_policy(*current);
+  auto backoff = backoff_policy(*current);
   return google::cloud::internal::AsyncRetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->GetDatabase(request),
-      background_->cq(),
-      [stub](CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::test::admin::database::v1::GetDatabaseRequest const& request) {
-        return stub->AsyncGetDatabase(cq, std::move(context), request);
+      std::move(retry), std::move(backoff), idempotent, background_->cq(),
+      [stub = stub_](CompletionQueue& cq,
+                     std::shared_ptr<grpc::ClientContext> context,
+                     google::cloud::internal::ImmutableOptions options,
+                     google::test::admin::database::v1::GetDatabaseRequest const& request) {
+        return stub->AsyncGetDatabase(
+            cq, std::move(context), std::move(options), request);
       },
-      request, __func__);
+      std::move(current), std::move(request_copy), __func__);
 }
 
 future<Status>
 GoldenThingAdminConnectionImpl::AsyncDropDatabase(google::test::admin::database::v1::DropDatabaseRequest const& request) {
-  auto& stub = stub_;
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto request_copy = request;
+  auto const idempotent =
+      idempotency_policy(*current)->DropDatabase(request_copy);
+  auto retry = retry_policy(*current);
+  auto backoff = backoff_policy(*current);
   return google::cloud::internal::AsyncRetryLoop(
-      retry_policy(), backoff_policy(),
-      idempotency_policy()->DropDatabase(request),
-      background_->cq(),
-      [stub](CompletionQueue& cq,
-             std::unique_ptr<grpc::ClientContext> context,
-             google::test::admin::database::v1::DropDatabaseRequest const& request) {
-        return stub->AsyncDropDatabase(cq, std::move(context), request);
+      std::move(retry), std::move(backoff), idempotent, background_->cq(),
+      [stub = stub_](CompletionQueue& cq,
+                     std::shared_ptr<grpc::ClientContext> context,
+                     google::cloud::internal::ImmutableOptions options,
+                     google::test::admin::database::v1::DropDatabaseRequest const& request) {
+        return stub->AsyncDropDatabase(
+            cq, std::move(context), std::move(options), request);
       },
-      request, __func__);
+      std::move(current), std::move(request_copy), __func__);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

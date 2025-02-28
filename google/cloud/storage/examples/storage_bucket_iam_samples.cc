@@ -16,7 +16,11 @@
 #include "google/cloud/storage/examples/storage_examples_common.h"
 #include "google/cloud/internal/getenv.h"
 #include <iostream>
+#include <random>
+#include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -31,7 +35,7 @@ void NativeGetBucketIamPolicy(google::cloud::storage::Client client,
     auto policy = client.GetNativeBucketIamPolicy(
         bucket_name, gcs::RequestedPolicyVersion(3));
 
-    if (!policy) throw std::runtime_error(policy.status().message());
+    if (!policy) throw std::move(policy).status();
     std::cout << "The IAM policy for bucket " << bucket_name << " is "
               << *policy << "\n";
   }
@@ -49,7 +53,7 @@ void NativeAddBucketIamMember(google::cloud::storage::Client client,
     auto policy = client.GetNativeBucketIamPolicy(
         bucket_name, gcs::RequestedPolicyVersion(3));
 
-    if (!policy) throw std::runtime_error(policy.status().message());
+    if (!policy) throw std::move(policy).status();
 
     policy->set_version(3);
     for (auto& binding : policy->bindings()) {
@@ -63,7 +67,7 @@ void NativeAddBucketIamMember(google::cloud::storage::Client client,
     }
 
     auto updated = client.SetNativeBucketIamPolicy(bucket_name, *policy);
-    if (!updated) throw std::runtime_error(updated.status().message());
+    if (!updated) throw std::move(updated).status();
 
     std::cout << "Updated IAM policy bucket " << bucket_name
               << ". The new policy is " << *updated << "\n";
@@ -86,7 +90,7 @@ void NativeAddBucketConditionalIamBinding(
      std::string const& condition_expression) {
     auto policy = client.GetNativeBucketIamPolicy(
         bucket_name, gcs::RequestedPolicyVersion(3));
-    if (!policy) throw std::runtime_error(policy.status().message());
+    if (!policy) throw std::move(policy).status();
 
     policy->set_version(3);
     policy->bindings().emplace_back(gcs::NativeIamBinding(
@@ -95,7 +99,7 @@ void NativeAddBucketConditionalIamBinding(
                               condition_description)));
 
     auto updated = client.SetNativeBucketIamPolicy(bucket_name, *policy);
-    if (!updated) throw std::runtime_error(updated.status().message());
+    if (!updated) throw std::move(updated).status();
 
     std::cout << "Updated IAM policy bucket " << bucket_name
               << ". The new policy is " << *updated << "\n";
@@ -122,7 +126,7 @@ void NativeRemoveBucketIamMember(google::cloud::storage::Client client,
      std::string const& role, std::string const& member) {
     auto policy = client.GetNativeBucketIamPolicy(
         bucket_name, gcs::RequestedPolicyVersion(3));
-    if (!policy) throw std::runtime_error(policy.status().message());
+    if (!policy) throw std::move(policy).status();
 
     policy->set_version(3);
     std::vector<google::cloud::storage::NativeIamBinding> updated_bindings;
@@ -139,7 +143,7 @@ void NativeRemoveBucketIamMember(google::cloud::storage::Client client,
     policy->bindings() = std::move(updated_bindings);
 
     auto updated = client.SetNativeBucketIamPolicy(bucket_name, *policy);
-    if (!updated) throw std::runtime_error(updated.status().message());
+    if (!updated) throw std::move(updated).status();
 
     std::cout << "Updated IAM policy bucket " << bucket_name
               << ". The new policy is " << *updated << "\n";
@@ -161,7 +165,7 @@ void NativeRemoveBucketConditionalIamBinding(
      std::string const& condition_expression) {
     auto policy = client.GetNativeBucketIamPolicy(
         bucket_name, gcs::RequestedPolicyVersion(3));
-    if (!policy) throw std::runtime_error(policy.status().message());
+    if (!policy) throw std::move(policy).status();
 
     policy->set_version(3);
     auto& bindings = policy->bindings();
@@ -180,7 +184,7 @@ void NativeRemoveBucketConditionalIamBinding(
     }
     bindings.erase(e);
     auto updated = client.SetNativeBucketIamPolicy(bucket_name, *policy);
-    if (!updated) throw std::runtime_error(updated.status().message());
+    if (!updated) throw std::move(updated).status();
 
     std::cout << "Conditional binding was removed.\n";
   }
@@ -203,10 +207,8 @@ void TestBucketIamPermissions(google::cloud::storage::Client client,
      std::vector<std::string> const& permissions) {
     StatusOr<std::vector<std::string>> actual_permissions =
         client.TestBucketIamPermissions(bucket_name, permissions);
+    if (!actual_permissions) throw std::move(actual_permissions).status();
 
-    if (!actual_permissions) {
-      throw std::runtime_error(actual_permissions.status().message());
-    }
     if (actual_permissions->empty()) {
       std::cout << "The caller does not hold any of the tested permissions the"
                 << " bucket " << bucket_name << "\n";
@@ -232,10 +234,7 @@ void NativeSetBucketPublicIam(google::cloud::storage::Client client,
   [](gcs::Client client, std::string const& bucket_name) {
     auto current_policy = client.GetNativeBucketIamPolicy(
         bucket_name, gcs::RequestedPolicyVersion(3));
-
-    if (!current_policy) {
-      throw std::runtime_error(current_policy.status().message());
-    }
+    if (!current_policy) throw std::move(current_policy).status();
 
     current_policy->set_version(3);
     current_policy->bindings().emplace_back(
@@ -243,7 +242,7 @@ void NativeSetBucketPublicIam(google::cloud::storage::Client client,
 
     auto updated =
         client.SetNativeBucketIamPolicy(bucket_name, *current_policy);
-    if (!updated) throw std::runtime_error(updated.status().message());
+    if (!updated) throw std::move(updated).status();
 
     std::cout << "Policy successfully updated: " << *updated << "\n";
   }
@@ -283,7 +282,8 @@ void RunAll(std::vector<std::string> const& argv) {
       client
           .CreateBucketForProject(
               bucket_name, project_id,
-              gcs::BucketMetadata{}.set_iam_configuration(iam_configuration()))
+              gcs::BucketMetadata{}.set_iam_configuration(iam_configuration()),
+              examples::CreateBucketOptions())
           .value();
   // In GCS a single project cannot create or delete buckets more often than
   // once every two seconds. We will pause until that time before deleting the

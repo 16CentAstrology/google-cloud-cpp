@@ -16,13 +16,13 @@
 
 set -euo pipefail
 
-readonly GOOGLE_CLOUD_CPP_CLOUD_SDK_VERSION="393.0.0"
+readonly GOOGLE_CLOUD_CPP_CLOUD_SDK_VERSION="474.0.0"
 declare -A -r GOOGLE_CLOUD_CPP_SDK_SHA256=(
-  ["x86_64"]="6f3aadf553011f9a0478dc1ef029dd71d8ee1b34a6c534653faaca13392a971c"
-  ["arm"]="55d47d9650adccfc592577c052313dad9e54d4e3ea006280d1b35de2104ddaa4"
+  ["x86_64"]="4af0d83c2c8d9b50fc965b314009259ccf8263c1fc8f07fd5b1bfb24f5f5bec5"
+  ["arm"]="794710d1f5acdb7e6466e8879b8650fdc87e3debaaefae8f89b22929165440d4"
 )
 
-ARCH="$(uname -p)"
+ARCH="$(uname -m)"
 if [[ "${ARCH}" == "aarch64" ]]; then
   # The tarball uses this name
   ARCH="arm"

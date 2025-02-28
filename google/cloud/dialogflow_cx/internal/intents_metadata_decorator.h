@@ -20,7 +20,10 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_DIALOGFLOW_CX_INTERNAL_INTENTS_METADATA_DECORATOR_H
 
 #include "google/cloud/dialogflow_cx/internal/intents_stub.h"
+#include "google/cloud/options.h"
 #include "google/cloud/version.h"
+#include <google/longrunning/operations.grpc.pb.h>
+#include <map>
 #include <memory>
 #include <string>
 
@@ -32,39 +35,98 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 class IntentsMetadata : public IntentsStub {
  public:
   ~IntentsMetadata() override = default;
-  explicit IntentsMetadata(std::shared_ptr<IntentsStub> child);
+  IntentsMetadata(std::shared_ptr<IntentsStub> child,
+                  std::multimap<std::string, std::string> fixed_metadata,
+                  std::string api_client_header = "");
 
   StatusOr<google::cloud::dialogflow::cx::v3::ListIntentsResponse> ListIntents(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::ListIntentsRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Intent> GetIntent(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::GetIntentRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Intent> CreateIntent(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::CreateIntentRequest const& request)
       override;
 
   StatusOr<google::cloud::dialogflow::cx::v3::Intent> UpdateIntent(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::UpdateIntentRequest const& request)
       override;
 
   Status DeleteIntent(
-      grpc::ClientContext& context,
+      grpc::ClientContext& context, Options const& options,
       google::cloud::dialogflow::cx::v3::DeleteIntentRequest const& request)
       override;
 
+  future<StatusOr<google::longrunning::Operation>> AsyncImportIntents(
+      google::cloud::CompletionQueue& cq,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::dialogflow::cx::v3::ImportIntentsRequest const& request)
+      override;
+
+  StatusOr<google::longrunning::Operation> ImportIntents(
+      grpc::ClientContext& context, Options options,
+      google::cloud::dialogflow::cx::v3::ImportIntentsRequest const& request)
+      override;
+
+  future<StatusOr<google::longrunning::Operation>> AsyncExportIntents(
+      google::cloud::CompletionQueue& cq,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::cloud::dialogflow::cx::v3::ExportIntentsRequest const& request)
+      override;
+
+  StatusOr<google::longrunning::Operation> ExportIntents(
+      grpc::ClientContext& context, Options options,
+      google::cloud::dialogflow::cx::v3::ExportIntentsRequest const& request)
+      override;
+
+  StatusOr<google::cloud::location::ListLocationsResponse> ListLocations(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::ListLocationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      grpc::ClientContext& context, Options const& options,
+      google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::ListOperationsRequest const& request) override;
+
+  StatusOr<google::longrunning::Operation> GetOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  Status CancelOperation(
+      grpc::ClientContext& context, Options const& options,
+      google::longrunning::CancelOperationRequest const& request) override;
+
+  future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
+      google::cloud::CompletionQueue& cq,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  future<Status> AsyncCancelOperation(
+      google::cloud::CompletionQueue& cq,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions options,
+      google::longrunning::CancelOperationRequest const& request) override;
+
  private:
-  void SetMetadata(grpc::ClientContext& context,
+  void SetMetadata(grpc::ClientContext& context, Options const& options,
                    std::string const& request_params);
-  void SetMetadata(grpc::ClientContext& context);
+  void SetMetadata(grpc::ClientContext& context, Options const& options);
 
   std::shared_ptr<IntentsStub> child_;
+  std::multimap<std::string, std::string> fixed_metadata_;
   std::string api_client_header_;
 };
 

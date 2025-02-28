@@ -15,6 +15,7 @@
 #include "google/cloud/spanner/internal/partial_result_set_source.h"
 #include "google/cloud/spanner/internal/merge_chunk.h"
 #include "google/cloud/spanner/options.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/log.h"
 #include "absl/container/fixed_array.h"
 
@@ -55,8 +56,8 @@ void ExtractSubrangeAndAppend(Values& src, int start, Values& dst) {
 
 }  // namespace
 
-StatusOr<std::unique_ptr<ResultSourceInterface>> PartialResultSetSource::Create(
-    std::unique_ptr<PartialResultSetReader> reader) {
+StatusOr<std::unique_ptr<spanner::ResultSourceInterface>>
+PartialResultSetSource::Create(std::unique_ptr<PartialResultSetReader> reader) {
   std::unique_ptr<PartialResultSetSource> source(
       new PartialResultSetSource(std::move(reader)));
 
@@ -70,8 +71,9 @@ StatusOr<std::unique_ptr<ResultSourceInterface>> PartialResultSetSource::Create(
   // Otherwise we require that the first response contains the metadata.
   // Without it, creating the `PartialResultSetSource` should fail.
   if (!source->metadata_) {
-    return Status(StatusCode::kInternal,
-                  "PartialResultSetSource response contained no metadata");
+    return internal::InternalError(
+        "PartialResultSetSource response contained no metadata",
+        GCP_ERROR_INFO());
   }
 
   return {std::move(source)};
@@ -122,7 +124,8 @@ StatusOr<spanner::Row> PartialResultSetSource::NextRow() {
 Status PartialResultSetSource::ReadFromStream() {
   absl::optional<PartialResultSet> result_set;
   if (state_ == kFinished || !rows_.empty()) {
-    return Status(StatusCode::kInternal, "PartialResultSetSource state error");
+    return internal::InternalError("PartialResultSetSource state error",
+                                   GCP_ERROR_INFO());
   }
   if (state_ == kReading) {
     result_set = reader_->Read(resume_token_);
@@ -172,9 +175,10 @@ Status PartialResultSetSource::ReadFromStream() {
       // The reader claims to have resumed the stream even though we said it
       // should not. That leaves us in the untenable position of possibly
       // having returned data that will be replayed, so fail the stream now.
-      return Status(StatusCode::kInternal,
-                    "PartialResultSetSource reader resumed the stream"
-                    " despite our having asked it not to");
+      return internal::InternalError(
+          "PartialResultSetSource reader resumed the stream"
+          " despite our having asked it not to",
+          GCP_ERROR_INFO());
     }
     values_back_incomplete_ = false;
     values_.Clear();
@@ -200,8 +204,9 @@ Status PartialResultSetSource::ReadFromStream() {
   auto const n_columns = columns_ ? static_cast<int>(columns_->size()) : 0;
   auto n_rows = n_columns ? n_values / n_columns : 0;
   if (n_columns == 0 && !values_.empty()) {
-    return Status(StatusCode::kInternal,
-                  "PartialResultSetSource metadata is missing row type");
+    return internal::InternalError(
+        "PartialResultSetSource metadata is missing row type",
+        GCP_ERROR_INFO());
   }
 
   // If we didn't receive a resume token, and have not exceeded our buffer
@@ -219,14 +224,16 @@ Status PartialResultSetSource::ReadFromStream() {
     resume_token_ = result_set->result.resume_token();
     if (n_rows * n_columns != values_.size()) {
       if (state_ != kEndOfStream) {
-        return Status(StatusCode::kInternal,
-                      "PartialResultSetSource reader produced a resume token"
-                      " that is not on a row boundary");
+        return internal::InternalError(
+            "PartialResultSetSource reader produced a resume token"
+            " that is not on a row boundary",
+            GCP_ERROR_INFO());
       }
       if (n_rows == 0) {
-        return Status(StatusCode::kInternal,
-                      "PartialResultSetSource stream ended at a point"
-                      " that is not on a row boundary");
+        return internal::InternalError(
+            "PartialResultSetSource stream ended at a point"
+            " that is not on a row boundary",
+            GCP_ERROR_INFO());
       }
     }
   } else if (n_rows != 0) {

@@ -19,9 +19,11 @@
 #include "google/cloud/pubsub/testing/mock_publisher_stub.h"
 #include "google/cloud/pubsub/testing/test_retry_policies.h"
 #include "google/cloud/internal/api_client_header.h"
+#include "google/cloud/testing_util/opentelemetry_matchers.h"
 #include "google/cloud/testing_util/scoped_log.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include "google/cloud/testing_util/validate_metadata.h"
+#include "google/cloud/testing_util/validate_propagator.h"
 #include <gmock/gmock.h>
 
 namespace google {
@@ -38,8 +40,8 @@ std::shared_ptr<BlockingPublisherConnection> MakeTestPublisherConnection(
     std::shared_ptr<pubsub_internal::PublisherStub> mock, Options opts = {}) {
   opts = pubsub_internal::DefaultPublisherOptions(
       pubsub_testing::MakeTestOptions(std::move(opts)));
-  return pubsub_internal::MakeTestBlockingPublisherConnection(
-      std::move(opts), {std::move(mock)});
+  return pubsub_testing::MakeTestBlockingPublisherConnection(std::move(opts),
+                                                             {std::move(mock)});
 }
 
 TEST(BlockingPublisherConnectionTest, Basic) {
@@ -47,7 +49,7 @@ TEST(BlockingPublisherConnectionTest, Basic) {
 
   auto mock = std::make_shared<pubsub_testing::MockPublisherStub>();
   EXPECT_CALL(*mock, Publish)
-      .WillOnce([&](grpc::ClientContext&,
+      .WillOnce([&](grpc::ClientContext&, Options const&,
                     google::pubsub::v1::PublishRequest const& request) {
         EXPECT_EQ(topic.FullName(), request.topic());
         EXPECT_EQ(1, request.messages_size());
@@ -71,12 +73,12 @@ TEST(BlockingPublisherConnectionTest, Metadata) {
   auto mock = std::make_shared<pubsub_testing::MockPublisherStub>();
   EXPECT_CALL(*mock, Publish)
       .Times(AtLeast(1))
-      .WillRepeatedly([&](grpc::ClientContext& context,
+      .WillRepeatedly([&](grpc::ClientContext& context, Options const&,
                           google::pubsub::v1::PublishRequest const& request) {
         google::cloud::testing_util::ValidateMetadataFixture fixture;
         fixture.IsContextMDValid(
             context, "google.pubsub.v1.Publisher.Publish", request,
-            google::cloud::internal::ApiClientHeader("generator"));
+            google::cloud::internal::HandCraftedLibClientHeader());
         google::pubsub::v1::PublishResponse response;
         for (auto const& m : request.messages()) {
           response.add_message_ids("ack-" + m.message_id());
@@ -85,7 +87,7 @@ TEST(BlockingPublisherConnectionTest, Metadata) {
       });
 
   auto publisher = MakeTestPublisherConnection(
-      mock, Options{}.set<TracingComponentsOption>({"rpc"}));
+      mock, Options{}.set<LoggingComponentsOption>({"rpc"}));
   google::cloud::internal::OptionsSpan span(publisher->options());
   auto response = publisher->Publish(
       {topic, MessageBuilder{}.SetData("test-data-0").Build()});
@@ -99,7 +101,7 @@ TEST(BlockingPublisherConnectionTest, Logging) {
 
   EXPECT_CALL(*mock, Publish)
       .Times(AtLeast(1))
-      .WillRepeatedly([&](grpc::ClientContext&,
+      .WillRepeatedly([&](grpc::ClientContext&, Options const&,
                           google::pubsub::v1::PublishRequest const& request) {
         google::pubsub::v1::PublishResponse response;
         for (auto const& m : request.messages()) {
@@ -109,7 +111,7 @@ TEST(BlockingPublisherConnectionTest, Logging) {
       });
 
   auto publisher = MakeTestPublisherConnection(
-      mock, Options{}.set<TracingComponentsOption>({"rpc"}));
+      mock, Options{}.set<LoggingComponentsOption>({"rpc"}));
   google::cloud::internal::OptionsSpan span(publisher->options());
   auto response = publisher->Publish(
       {topic, MessageBuilder{}.SetData("test-data-0").Build()});
@@ -123,10 +125,10 @@ TEST(BlockingPublisherConnectionTest, HandlePermanentError) {
   Topic const topic("test-project", "test-topic");
 
   EXPECT_CALL(*mock, Publish)
-      .WillOnce(
-          [](grpc::ClientContext&, google::pubsub::v1::PublishRequest const&) {
-            return Status(StatusCode::kPermissionDenied, "uh-oh");
-          });
+      .WillOnce([](grpc::ClientContext&, Options const&,
+                   google::pubsub::v1::PublishRequest const&) {
+        return Status(StatusCode::kPermissionDenied, "uh-oh");
+      });
 
   auto publisher = MakeTestPublisherConnection(mock);
   google::cloud::internal::OptionsSpan span(publisher->options());
@@ -141,10 +143,10 @@ TEST(BlockingPublisherConnectionTest, HandleTooManyTransients) {
   Topic const topic("test-project", "test-topic");
 
   EXPECT_CALL(*mock, Publish)
-      .WillRepeatedly(
-          [](grpc::ClientContext&, google::pubsub::v1::PublishRequest const&) {
-            return Status(StatusCode::kUnavailable, "try-again");
-          });
+      .WillRepeatedly([](grpc::ClientContext&, Options const&,
+                         google::pubsub::v1::PublishRequest const&) {
+        return Status(StatusCode::kUnavailable, "try-again");
+      });
 
   auto publisher = MakeTestPublisherConnection(mock);
   google::cloud::internal::OptionsSpan span(publisher->options());
@@ -159,16 +161,16 @@ TEST(BlockingPublisherConnectionTest, HandleTransient) {
   Topic const topic("test-project", "test-topic");
 
   EXPECT_CALL(*mock, Publish)
-      .WillOnce(
-          [](grpc::ClientContext&, google::pubsub::v1::PublishRequest const&) {
-            return Status(StatusCode::kUnavailable, "try-again");
-          })
-      .WillOnce(
-          [](grpc::ClientContext&, google::pubsub::v1::PublishRequest const&) {
-            google::pubsub::v1::PublishResponse response;
-            response.add_message_ids("test-message-id");
-            return response;
-          });
+      .WillOnce([](grpc::ClientContext&, Options const&,
+                   google::pubsub::v1::PublishRequest const&) {
+        return Status(StatusCode::kUnavailable, "try-again");
+      })
+      .WillOnce([](grpc::ClientContext&, Options const&,
+                   google::pubsub::v1::PublishRequest const&) {
+        google::pubsub::v1::PublishResponse response;
+        response.add_message_ids("test-message-id");
+        return response;
+      });
 
   auto publisher = MakeTestPublisherConnection(mock);
   google::cloud::internal::OptionsSpan span(publisher->options());
@@ -177,6 +179,69 @@ TEST(BlockingPublisherConnectionTest, HandleTransient) {
   ASSERT_STATUS_OK(response);
   EXPECT_EQ(*response, "test-message-id");
 }
+
+#ifdef GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
+using ::google::cloud::testing_util::DisableTracing;
+using ::google::cloud::testing_util::EnableTracing;
+using ::google::cloud::testing_util::InstallSpanCatcher;
+using ::google::cloud::testing_util::SpanNamed;
+using ::google::cloud::testing_util::ValidatePropagator;
+using ::testing::IsEmpty;
+using ::testing::UnorderedElementsAre;
+
+TEST(BlockingPublisherConnectionTest, TracingEnabled) {
+  auto mock = std::make_shared<pubsub_testing::MockPublisherStub>();
+  Topic const topic("test-project", "test-topic");
+  EXPECT_CALL(*mock, Publish)
+      .WillOnce([&](grpc::ClientContext& context, Options const&,
+                    google::pubsub::v1::PublishRequest const& request) {
+        ValidatePropagator(context);
+        EXPECT_EQ(topic.FullName(), request.topic());
+        EXPECT_EQ(1, request.messages_size());
+        EXPECT_EQ("test-data-0", request.messages(0).data());
+        google::pubsub::v1::PublishResponse response;
+        response.add_message_ids("test-message-id-0");
+        return response;
+      });
+
+  auto publisher = MakeTestPublisherConnection(mock, EnableTracing(Options{}));
+  google::cloud::internal::OptionsSpan span(publisher->options());
+
+  // Only capture spans from the Publish call, not the options call.
+  auto span_catcher = InstallSpanCatcher();
+  auto response = publisher->Publish(
+      {topic, MessageBuilder{}.SetData("test-data-0").Build()});
+
+  EXPECT_THAT(
+      span_catcher->GetSpans(),
+      UnorderedElementsAre(SpanNamed("test-topic create"),
+                           SpanNamed("google.pubsub.v1.Publisher/Publish")));
+}
+
+TEST(BlockingPublisherConnectionTest, TracingDisabled) {
+  auto span_catcher = InstallSpanCatcher();
+  auto mock = std::make_shared<pubsub_testing::MockPublisherStub>();
+  Topic const topic("test-project", "test-topic");
+  EXPECT_CALL(*mock, Publish)
+      .WillOnce([&](grpc::ClientContext&, Options const&,
+                    google::pubsub::v1::PublishRequest const& request) {
+        EXPECT_EQ(topic.FullName(), request.topic());
+        EXPECT_EQ(1, request.messages_size());
+        EXPECT_EQ("test-data-0", request.messages(0).data());
+        google::pubsub::v1::PublishResponse response;
+        response.add_message_ids("test-message-id-0");
+        return response;
+      });
+
+  auto publisher = MakeTestPublisherConnection(mock, DisableTracing(Options{}));
+  google::cloud::internal::OptionsSpan span(publisher->options());
+  auto response = publisher->Publish(
+      {topic, MessageBuilder{}.SetData("test-data-0").Build()});
+
+  EXPECT_THAT(span_catcher->GetSpans(), IsEmpty());
+}
+
+#endif  // GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
 
 }  // namespace
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

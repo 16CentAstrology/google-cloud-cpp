@@ -17,6 +17,7 @@
 set -euo pipefail
 
 source "$(dirname "$0")/../../../../ci/lib/init.sh"
+source module /ci/cloudbuild/builds/lib/cloudcxxrc.sh
 source module /google/cloud/pubsub/ci/lib/pubsub_emulator.sh
 
 if [[ $# -lt 1 ]]; then
@@ -30,13 +31,21 @@ BAZEL_VERB="$1"
 shift
 bazel_test_args=("$@")
 
+if bazel::has_no_tests "//google/cloud/pubsub/..."; then
+  exit 0
+fi
+
 # These can only run against production
 production_only_targets=(
   "//google/cloud/pubsub/samples:iam_samples"
 )
-"${BAZEL_BIN}" "${BAZEL_VERB}" "${bazel_test_args[@]}" \
-  --test_tag_filters="integration-test" -- \
-  "${production_only_targets[@]}"
+
+# Coverage builds are more subject to flakiness, as we must explicitly disable
+# retries. Disable the production-only tests, which also fail more often.
+if [[ "${BAZEL_VERB}" != "coverage" ]]; then
+  io::run "${BAZEL_BIN}" "${BAZEL_VERB}" "${bazel_test_args[@]}" \
+    -- "${production_only_targets[@]}"
+fi
 
 # Start the emulator and arranges to kill it, run in $HOME because
 # pubsub_emulator::start creates unsightly *.log files in the workspace
@@ -53,6 +62,4 @@ done
 
 "${BAZEL_BIN}" "${BAZEL_VERB}" "${bazel_test_args[@]}" \
   --test_env="PUBSUB_EMULATOR_HOST=${PUBSUB_EMULATOR_HOST}" \
-  --test_tag_filters="integration-test" -- \
-  "//google/cloud/pubsub/...:all" \
-  "${excluded_targets[@]}"
+  -- "//google/cloud/pubsub/...:all" "${excluded_targets[@]}"

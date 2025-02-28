@@ -22,10 +22,12 @@ ForwardingOptionsGenerator::ForwardingOptionsGenerator(
     google::protobuf::ServiceDescriptor const* service_descriptor,
     VarsDictionary service_vars,
     std::map<std::string, VarsDictionary> service_method_vars,
-    google::protobuf::compiler::GeneratorContext* context)
+    google::protobuf::compiler::GeneratorContext* context,
+    std::vector<MixinMethod> const& mixin_methods)
     : ServiceCodeGenerator("forwarding_options_header_path", service_descriptor,
                            std::move(service_vars),
-                           std::move(service_method_vars), context) {}
+                           std::move(service_method_vars), context,
+                           mixin_methods) {}
 
 Status ForwardingOptionsGenerator::GenerateHeader() {
   HeaderPrint(CopyrightLicenseFileHeader());
@@ -52,12 +54,21 @@ Status ForwardingOptionsGenerator::GenerateHeader() {
   // forwards
   if (HasLongrunningMethod()) {
     HeaderPrint(R"""(
-using ::google::cloud::$product_namespace$::$service_name$PollingPolicyOption;)""");
+/// @deprecated Use $product_namespace$::$service_name$PollingPolicyOption directly.
+using ::google::cloud::$product_namespace$::$service_name$PollingPolicyOption;
+)""");
   }
   HeaderPrint(R"""(
+/// @deprecated Use $product_namespace$::$service_name$BackoffPolicyOption directly.
 using ::google::cloud::$product_namespace$::$service_name$BackoffPolicyOption;
+
+/// @deprecated Use $product_namespace$::$service_name$ConnectionIdempotencyPolicyOption directly.
 using ::google::cloud::$product_namespace$::$service_name$ConnectionIdempotencyPolicyOption;
+
+/// @deprecated Use $product_namespace$::$service_name$PolicyOptionList directly.
 using ::google::cloud::$product_namespace$::$service_name$PolicyOptionList;
+
+/// @deprecated Use $product_namespace$::$service_name$RetryPolicyOption directly.
 using ::google::cloud::$product_namespace$::$service_name$RetryPolicyOption;
 )""");
 

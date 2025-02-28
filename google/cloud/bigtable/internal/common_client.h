@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -48,11 +48,11 @@ namespace internal {
 template <typename Interface>
 class CommonClient {
  public:
-  //@{
+  ///@{
   /// @name Type traits.
   using StubPtr = std::shared_ptr<typename Interface::StubInterface>;
   using ChannelPtr = std::shared_ptr<grpc::Channel>;
-  //@}
+  ///@}
 
   explicit CommonClient(Options opts)
       : opts_(std::move(opts)),

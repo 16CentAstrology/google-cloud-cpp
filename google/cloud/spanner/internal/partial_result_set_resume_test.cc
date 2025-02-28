@@ -21,7 +21,6 @@
 #include "google/cloud/options.h"
 #include "google/cloud/testing_util/is_proto_equal.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
 #include <google/protobuf/text_format.h>
 #include <gmock/gmock.h>
 #include <array>
@@ -59,7 +58,7 @@ struct MockFactory {
 
 std::unique_ptr<PartialResultSetReader> MakeTestResume(
     PartialResultSetReaderFactory factory, Idempotency idempotency) {
-  return absl::make_unique<PartialResultSetResume>(
+  return std::make_unique<PartialResultSetResume>(
       std::move(factory), idempotency,
       spanner::LimitedErrorCountRetryPolicy(/*maximum_failures=*/2).clone(),
       spanner::ExponentialBackoffPolicy(
@@ -69,8 +68,9 @@ std::unique_ptr<PartialResultSetReader> MakeTestResume(
           .clone());
 }
 
-StatusOr<std::unique_ptr<ResultSourceInterface>> CreatePartialResultSetSource(
-    std::unique_ptr<PartialResultSetReader> reader, Options opts = {}) {
+StatusOr<std::unique_ptr<spanner::ResultSourceInterface>>
+CreatePartialResultSetSource(std::unique_ptr<PartialResultSetReader> reader,
+                             Options opts = {}) {
   internal::OptionsSpan span(
       internal::MergeOptions(std::move(opts), internal::CurrentOptions()));
   return PartialResultSetSource::Create(std::move(reader));
@@ -102,7 +102,7 @@ TEST(PartialResultSetResume, Success) {
   EXPECT_CALL(mock_factory, MakeReader)
       .WillOnce([&response](std::string const& token) {
         EXPECT_TRUE(token.empty());
-        auto mock = absl::make_unique<MockPartialResultSetReader>();
+        auto mock = std::make_unique<MockPartialResultSetReader>();
         EXPECT_CALL(*mock, Read(_))
             .WillOnce([&response] { return ReadReturn(response); })
             .WillOnce(Return(ReadReturn()));
@@ -152,7 +152,7 @@ TEST(PartialResultSetResume, SuccessWithRestart) {
   EXPECT_CALL(mock_factory, MakeReader)
       .WillOnce([&r12](std::string const& token) {
         EXPECT_TRUE(token.empty());
-        auto mock = absl::make_unique<MockPartialResultSetReader>();
+        auto mock = std::make_unique<MockPartialResultSetReader>();
         EXPECT_CALL(*mock, Read(_))
             .WillOnce([&r12] { return ReadReturn(r12); })
             .WillOnce(Return(ReadReturn()));
@@ -162,7 +162,7 @@ TEST(PartialResultSetResume, SuccessWithRestart) {
       })
       .WillOnce([&r34](std::string const& token) {
         EXPECT_EQ("resume-after-2", token);
-        auto mock = absl::make_unique<MockPartialResultSetReader>();
+        auto mock = std::make_unique<MockPartialResultSetReader>();
         EXPECT_CALL(*mock, Read(_))
             .WillOnce([&r34] { return ReadReturn(r34); })
             .WillOnce(Return(ReadReturn()));
@@ -172,7 +172,7 @@ TEST(PartialResultSetResume, SuccessWithRestart) {
       })
       .WillOnce([](std::string const& token) {
         EXPECT_EQ("resume-after-4", token);
-        auto mock = absl::make_unique<MockPartialResultSetReader>();
+        auto mock = std::make_unique<MockPartialResultSetReader>();
         EXPECT_CALL(*mock, Read(_)).WillOnce(Return(ReadReturn()));
         EXPECT_CALL(*mock, Finish()).WillOnce(Return(Status()));
         return mock;
@@ -215,7 +215,7 @@ TEST(PartialResultSetResume, PermanentError) {
   EXPECT_CALL(mock_factory, MakeReader)
       .WillOnce([&r12](std::string const& token) {
         EXPECT_TRUE(token.empty());
-        auto mock = absl::make_unique<MockPartialResultSetReader>();
+        auto mock = std::make_unique<MockPartialResultSetReader>();
         EXPECT_CALL(*mock, Read(_))
             .WillOnce([&r12] { return ReadReturn(r12); })
             .WillOnce(Return(ReadReturn()));
@@ -225,7 +225,7 @@ TEST(PartialResultSetResume, PermanentError) {
       })
       .WillOnce([](std::string const& token) {
         EXPECT_EQ("resume-after-2", token);
-        auto mock = absl::make_unique<MockPartialResultSetReader>();
+        auto mock = std::make_unique<MockPartialResultSetReader>();
         EXPECT_CALL(*mock, Read(_)).WillOnce(Return(ReadReturn()));
         EXPECT_CALL(*mock, Finish())
             .WillOnce(Return(Status(StatusCode::kPermissionDenied, "uh-oh")));
@@ -267,7 +267,7 @@ TEST(PartialResultSetResume, TransientNonIdempotent) {
   EXPECT_CALL(mock_factory, MakeReader)
       .WillOnce([&r12](std::string const& token) {
         EXPECT_TRUE(token.empty());
-        auto mock = absl::make_unique<MockPartialResultSetReader>();
+        auto mock = std::make_unique<MockPartialResultSetReader>();
         EXPECT_CALL(*mock, Read(_))
             .WillOnce([&r12] { return ReadReturn(r12); })
             .WillOnce(Return(ReadReturn()));
@@ -296,7 +296,7 @@ TEST(PartialResultSetResume, TooManyTransients) {
       .Times(AtLeast(2))
       .WillRepeatedly([](std::string const& token) {
         EXPECT_TRUE(token.empty());
-        auto mock = absl::make_unique<MockPartialResultSetReader>();
+        auto mock = std::make_unique<MockPartialResultSetReader>();
         EXPECT_CALL(*mock, Read(_)).WillOnce(Return(ReadReturn()));
         EXPECT_CALL(*mock, Finish())
             .WillOnce(Return(Status(StatusCode::kUnavailable, "Try again")));
@@ -347,7 +347,7 @@ TEST(PartialResultSetResume, ResumptionStart) {
   EXPECT_CALL(mock_factory, MakeReader)
       .WillOnce([&response](std::string const& token) {
         EXPECT_TRUE(token.empty());
-        auto mock = absl::make_unique<MockPartialResultSetReader>();
+        auto mock = std::make_unique<MockPartialResultSetReader>();
         EXPECT_CALL(*mock, Read(_))
             .WillOnce([&response] { return ReadReturn(response[0]); })
             .WillOnce([&response] { return ReadReturn(response[1]); })
@@ -359,7 +359,7 @@ TEST(PartialResultSetResume, ResumptionStart) {
       })
       .WillOnce([&response](std::string const& token) {
         EXPECT_TRUE(token.empty());
-        auto mock = absl::make_unique<MockPartialResultSetReader>();
+        auto mock = std::make_unique<MockPartialResultSetReader>();
         EXPECT_CALL(*mock, Read(_))
             .WillOnce([&response] { return ReadReturn(response[0]); })
             .WillOnce([&response] { return ReadReturn(response[1]); })
@@ -423,7 +423,7 @@ TEST(PartialResultSetResume, ResumptionMidway) {
   EXPECT_CALL(mock_factory, MakeReader)
       .WillOnce([&response](std::string const& token) {
         EXPECT_TRUE(token.empty());
-        auto mock = absl::make_unique<MockPartialResultSetReader>();
+        auto mock = std::make_unique<MockPartialResultSetReader>();
         EXPECT_CALL(*mock, Read(_))
             .WillOnce([&response] { return ReadReturn(response[0]); })
             .WillOnce([&response] { return ReadReturn(response[1]); })
@@ -435,7 +435,7 @@ TEST(PartialResultSetResume, ResumptionMidway) {
       })
       .WillOnce([&response](std::string const& token) {
         EXPECT_EQ("resume-after-4", token);
-        auto mock = absl::make_unique<MockPartialResultSetReader>();
+        auto mock = std::make_unique<MockPartialResultSetReader>();
         EXPECT_CALL(*mock, Read(_))
             .WillOnce([&response] { return ReadReturn(response[2]); })
             .WillOnce(Return(ReadReturn()));
@@ -497,7 +497,7 @@ TEST(PartialResultSetResume, ResumptionAfterResync) {
   EXPECT_CALL(mock_factory, MakeReader)
       .WillOnce([&response](std::string const& token) {
         EXPECT_TRUE(token.empty());
-        auto mock = absl::make_unique<MockPartialResultSetReader>();
+        auto mock = std::make_unique<MockPartialResultSetReader>();
         EXPECT_CALL(*mock, Read(_))
             .WillOnce([&response] { return ReadReturn(response[0]); })
             .WillOnce([&response] { return ReadReturn(response[1]); })
@@ -509,7 +509,7 @@ TEST(PartialResultSetResume, ResumptionAfterResync) {
       })
       .WillOnce([&response](std::string const& token) {
         EXPECT_EQ("resume-after-4", token);
-        auto mock = absl::make_unique<MockPartialResultSetReader>();
+        auto mock = std::make_unique<MockPartialResultSetReader>();
         EXPECT_CALL(*mock, Read(_))
             .WillOnce([&response] { return ReadReturn(response[2]); })
             .WillOnce(Return(ReadReturn()));
@@ -567,7 +567,7 @@ TEST(PartialResultSetResume, ResumptionBeforeResync) {
   EXPECT_CALL(mock_factory, MakeReader)
       .WillOnce([&response](std::string const& token) {
         EXPECT_TRUE(token.empty());
-        auto mock = absl::make_unique<MockPartialResultSetReader>();
+        auto mock = std::make_unique<MockPartialResultSetReader>();
         EXPECT_CALL(*mock, Read(_))
             .WillOnce([&response] { return ReadReturn(response[0]); })
             .WillOnce(Return(ReadReturn()));

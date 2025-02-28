@@ -19,13 +19,15 @@
 #ifndef GOOGLE_CLOUD_CPP_GENERATOR_INTEGRATION_TESTS_GOLDEN_V1_INTERNAL_GOLDEN_THING_ADMIN_REST_STUB_H
 #define GOOGLE_CLOUD_CPP_GENERATOR_INTEGRATION_TESTS_GOLDEN_V1_INTERNAL_GOLDEN_THING_ADMIN_REST_STUB_H
 
+#include "google/cloud/completion_queue.h"
 #include "google/cloud/internal/rest_client.h"
 #include "google/cloud/internal/rest_context.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/version.h"
 #include <generator/integration_tests/backup.pb.h>
-#include <generator/integration_tests/test.pb.h>
+#include <google/cloud/location/locations.pb.h>
 #include <google/longrunning/operations.pb.h>
+#include <generator/integration_tests/test.pb.h>
 #include <memory>
 
 namespace google {
@@ -39,71 +41,127 @@ class GoldenThingAdminRestStub {
 
   virtual StatusOr<google::test::admin::database::v1::ListDatabasesResponse> ListDatabases(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ListDatabasesRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::ListDatabasesRequest const& request) = 0;
+
+  virtual future<StatusOr<google::longrunning::Operation>> AsyncCreateDatabase(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      google::test::admin::database::v1::CreateDatabaseRequest const& request) = 0;
 
   virtual StatusOr<google::longrunning::Operation> CreateDatabase(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::CreateDatabaseRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::CreateDatabaseRequest const& request) = 0;
 
   virtual StatusOr<google::test::admin::database::v1::Database> GetDatabase(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::GetDatabaseRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::GetDatabaseRequest const& request) = 0;
+
+  virtual future<StatusOr<google::longrunning::Operation>> AsyncUpdateDatabaseDdl(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      google::test::admin::database::v1::UpdateDatabaseDdlRequest const& request) = 0;
 
   virtual StatusOr<google::longrunning::Operation> UpdateDatabaseDdl(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::UpdateDatabaseDdlRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::UpdateDatabaseDdlRequest const& request) = 0;
 
   virtual Status DropDatabase(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::DropDatabaseRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::DropDatabaseRequest const& request) = 0;
 
   virtual StatusOr<google::test::admin::database::v1::GetDatabaseDdlResponse> GetDatabaseDdl(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::GetDatabaseDdlRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::GetDatabaseDdlRequest const& request) = 0;
 
   virtual StatusOr<google::iam::v1::Policy> SetIamPolicy(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::iam::v1::SetIamPolicyRequest const& request) = 0;
+      Options const& options, google::iam::v1::SetIamPolicyRequest const& request) = 0;
 
   virtual StatusOr<google::iam::v1::Policy> GetIamPolicy(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::iam::v1::GetIamPolicyRequest const& request) = 0;
+      Options const& options, google::iam::v1::GetIamPolicyRequest const& request) = 0;
 
   virtual StatusOr<google::iam::v1::TestIamPermissionsResponse> TestIamPermissions(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::iam::v1::TestIamPermissionsRequest const& request) = 0;
+      Options const& options, google::iam::v1::TestIamPermissionsRequest const& request) = 0;
+
+  virtual future<StatusOr<google::longrunning::Operation>> AsyncCreateBackup(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      google::test::admin::database::v1::CreateBackupRequest const& request) = 0;
 
   virtual StatusOr<google::longrunning::Operation> CreateBackup(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::CreateBackupRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::CreateBackupRequest const& request) = 0;
 
   virtual StatusOr<google::test::admin::database::v1::Backup> GetBackup(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::GetBackupRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::GetBackupRequest const& request) = 0;
 
   virtual StatusOr<google::test::admin::database::v1::Backup> UpdateBackup(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::UpdateBackupRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::UpdateBackupRequest const& request) = 0;
 
   virtual Status DeleteBackup(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::DeleteBackupRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::DeleteBackupRequest const& request) = 0;
 
   virtual StatusOr<google::test::admin::database::v1::ListBackupsResponse> ListBackups(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ListBackupsRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::ListBackupsRequest const& request) = 0;
+
+  virtual future<StatusOr<google::longrunning::Operation>> AsyncRestoreDatabase(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      google::test::admin::database::v1::RestoreDatabaseRequest const& request) = 0;
 
   virtual StatusOr<google::longrunning::Operation> RestoreDatabase(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::RestoreDatabaseRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::RestoreDatabaseRequest const& request) = 0;
 
   virtual StatusOr<google::test::admin::database::v1::ListDatabaseOperationsResponse> ListDatabaseOperations(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ListDatabaseOperationsRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::ListDatabaseOperationsRequest const& request) = 0;
 
   virtual StatusOr<google::test::admin::database::v1::ListBackupOperationsResponse> ListBackupOperations(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ListBackupOperationsRequest const& request) = 0;
+      Options const& options, google::test::admin::database::v1::ListBackupOperationsRequest const& request) = 0;
+
+  virtual StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::rest_internal::RestContext& rest_context,
+      Options const& options, google::cloud::location::GetLocationRequest const& request) = 0;
+
+  virtual StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      google::cloud::rest_internal::RestContext& rest_context,
+      Options const& options, google::longrunning::ListOperationsRequest const& request) = 0;
+
+  virtual future<StatusOr<google::test::admin::database::v1::Database>> AsyncGetDatabase(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      google::test::admin::database::v1::GetDatabaseRequest const& request) = 0;
+
+  virtual future<Status> AsyncDropDatabase(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      google::test::admin::database::v1::DropDatabaseRequest const& request) = 0;
+
+  virtual future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      google::longrunning::GetOperationRequest const& request) = 0;
+
+  virtual future<Status> AsyncCancelOperation(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      google::longrunning::CancelOperationRequest const& request) = 0;
 };
 
 class DefaultGoldenThingAdminRestStub : public GoldenThingAdminRestStub {
@@ -112,79 +170,137 @@ class DefaultGoldenThingAdminRestStub : public GoldenThingAdminRestStub {
 
   explicit DefaultGoldenThingAdminRestStub(Options options);
   DefaultGoldenThingAdminRestStub(
-      std::shared_ptr<rest_internal::RestClient> rest_client,
+      std::shared_ptr<rest_internal::RestClient> service,
+      std::shared_ptr<rest_internal::RestClient> operations,
       Options options);
 
   StatusOr<google::test::admin::database::v1::ListDatabasesResponse> ListDatabases(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ListDatabasesRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::ListDatabasesRequest const& request) override;
+
+  future<StatusOr<google::longrunning::Operation>> AsyncCreateDatabase(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      google::test::admin::database::v1::CreateDatabaseRequest const& request) override;
 
   StatusOr<google::longrunning::Operation> CreateDatabase(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::CreateDatabaseRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::CreateDatabaseRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::Database> GetDatabase(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::GetDatabaseRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::GetDatabaseRequest const& request) override;
+
+  future<StatusOr<google::longrunning::Operation>> AsyncUpdateDatabaseDdl(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      google::test::admin::database::v1::UpdateDatabaseDdlRequest const& request) override;
 
   StatusOr<google::longrunning::Operation> UpdateDatabaseDdl(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::UpdateDatabaseDdlRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::UpdateDatabaseDdlRequest const& request) override;
 
   Status DropDatabase(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::DropDatabaseRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::DropDatabaseRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::GetDatabaseDdlResponse> GetDatabaseDdl(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::GetDatabaseDdlRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::GetDatabaseDdlRequest const& request) override;
 
   StatusOr<google::iam::v1::Policy> SetIamPolicy(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::iam::v1::SetIamPolicyRequest const& request) override;
+      Options const& options, google::iam::v1::SetIamPolicyRequest const& request) override;
 
   StatusOr<google::iam::v1::Policy> GetIamPolicy(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::iam::v1::GetIamPolicyRequest const& request) override;
+      Options const& options, google::iam::v1::GetIamPolicyRequest const& request) override;
 
   StatusOr<google::iam::v1::TestIamPermissionsResponse> TestIamPermissions(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::iam::v1::TestIamPermissionsRequest const& request) override;
+      Options const& options, google::iam::v1::TestIamPermissionsRequest const& request) override;
+
+  future<StatusOr<google::longrunning::Operation>> AsyncCreateBackup(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      google::test::admin::database::v1::CreateBackupRequest const& request) override;
 
   StatusOr<google::longrunning::Operation> CreateBackup(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::CreateBackupRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::CreateBackupRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::Backup> GetBackup(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::GetBackupRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::GetBackupRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::Backup> UpdateBackup(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::UpdateBackupRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::UpdateBackupRequest const& request) override;
 
   Status DeleteBackup(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::DeleteBackupRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::DeleteBackupRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::ListBackupsResponse> ListBackups(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ListBackupsRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::ListBackupsRequest const& request) override;
+
+  future<StatusOr<google::longrunning::Operation>> AsyncRestoreDatabase(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      google::test::admin::database::v1::RestoreDatabaseRequest const& request) override;
 
   StatusOr<google::longrunning::Operation> RestoreDatabase(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::RestoreDatabaseRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::RestoreDatabaseRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::ListDatabaseOperationsResponse> ListDatabaseOperations(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ListDatabaseOperationsRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::ListDatabaseOperationsRequest const& request) override;
 
   StatusOr<google::test::admin::database::v1::ListBackupOperationsResponse> ListBackupOperations(
       google::cloud::rest_internal::RestContext& rest_context,
-      google::test::admin::database::v1::ListBackupOperationsRequest const& request) override;
+      Options const& options, google::test::admin::database::v1::ListBackupOperationsRequest const& request) override;
+
+  StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::rest_internal::RestContext& rest_context,
+      Options const& options, google::cloud::location::GetLocationRequest const& request) override;
+
+  StatusOr<google::longrunning::ListOperationsResponse> ListOperations(
+      google::cloud::rest_internal::RestContext& rest_context,
+      Options const& options, google::longrunning::ListOperationsRequest const& request) override;
+
+  future<StatusOr<google::test::admin::database::v1::Database>> AsyncGetDatabase(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      google::test::admin::database::v1::GetDatabaseRequest const& request) override;
+
+  future<Status> AsyncDropDatabase(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      google::test::admin::database::v1::DropDatabaseRequest const& request) override;
+
+  future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      google::longrunning::GetOperationRequest const& request) override;
+
+  future<Status> AsyncCancelOperation(
+      google::cloud::CompletionQueue& cq,
+      std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      google::longrunning::CancelOperationRequest const& request) override;
 
  private:
-  std::shared_ptr<rest_internal::RestClient> rest_client_;
+  std::shared_ptr<rest_internal::RestClient> service_;
+  std::shared_ptr<rest_internal::RestClient> operations_;
   Options options_;
 };
 

@@ -22,6 +22,7 @@
 #include "google/cloud/internal/populate_common_options.h"
 #include "google/cloud/internal/populate_grpc_options.h"
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -33,12 +34,11 @@ auto constexpr kBackoffScaling = 2.0;
 }  // namespace
 
 Options GoldenKitchenSinkDefaultOptions(Options options) {
-  options = google::cloud::internal::PopulateCommonOptions(
+  options = internal::PopulateCommonOptions(
       std::move(options), "GOLDEN_KITCHEN_SINK_ENDPOINT",
       "GOLDEN_KITCHEN_SINK_EMULATOR_HOST", "GOLDEN_KITCHEN_SINK_AUTHORITY",
       "goldenkitchensink.googleapis.com");
-  options = google::cloud::internal::PopulateGrpcOptions(
-      std::move(options), "GOLDEN_KITCHEN_SINK_EMULATOR_HOST");
+  options = internal::PopulateGrpcOptions(std::move(options));
   if (!options.has<golden_v1::GoldenKitchenSinkRetryPolicyOption>()) {
     options.set<golden_v1::GoldenKitchenSinkRetryPolicyOption>(
         golden_v1::GoldenKitchenSinkLimitedTimeRetryPolicy(
@@ -46,8 +46,8 @@ Options GoldenKitchenSinkDefaultOptions(Options options) {
   }
   if (!options.has<golden_v1::GoldenKitchenSinkBackoffPolicyOption>()) {
     options.set<golden_v1::GoldenKitchenSinkBackoffPolicyOption>(
-        ExponentialBackoffPolicy(std::chrono::seconds(1),
-            std::chrono::minutes(5), kBackoffScaling).clone());
+        ExponentialBackoffPolicy(std::chrono::seconds(0), std::chrono::seconds(1),
+            std::chrono::minutes(5), kBackoffScaling, kBackoffScaling).clone());
   }
   if (!options.has<golden_v1::GoldenKitchenSinkConnectionIdempotencyPolicyOption>()) {
     options.set<golden_v1::GoldenKitchenSinkConnectionIdempotencyPolicyOption>(

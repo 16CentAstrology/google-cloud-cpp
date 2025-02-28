@@ -19,9 +19,11 @@
 #include "google/cloud/spanner/testing/database_integration_test.h"
 #include "google/cloud/spanner/timestamp.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
 #include "absl/time/time.h"
+#include <google/cloud/spanner/testing/singer.pb.h>
 #include <gmock/gmock.h>
+#include <cstdint>
+#include <string>
 #include <vector>
 
 namespace google {
@@ -31,15 +33,26 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
 using ::google::cloud::testing_util::IsOk;
+using ::google::cloud::testing_util::IsOkAndHolds;
 using ::google::cloud::testing_util::StatusIs;
-using ::testing::AllOf;
 using ::testing::AnyOf;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
+using ::testing::ResultOf;
 using ::testing::UnorderedElementsAreArray;
 
 absl::Time MakeTime(std::time_t sec, int nanos) {
   return absl::FromTimeT(sec) + absl::Nanoseconds(nanos);
+}
+
+testing::SingerInfo MakeSinger(std::int64_t singer_id, std::string birth_date,
+                               std::string nationality, testing::Genre genre) {
+  testing::SingerInfo singer;
+  singer.set_singer_id(singer_id);
+  singer.set_birth_date(std::move(birth_date));
+  singer.set_nationality(std::move(nationality));
+  singer.set_genre(genre);
+  return singer;
 }
 
 // A helper function used in the test fixtures below. This function writes the
@@ -72,21 +85,14 @@ class DataTypeIntegrationTestTmpl : public T {
  protected:
   static void SetUpTestSuite() {
     T::SetUpTestSuite();
-    client_ = absl::make_unique<Client>(MakeConnection(T::GetDatabase()));
+    client_ = std::make_unique<Client>(MakeConnection(T::GetDatabase()));
   }
 
   void SetUp() override {
     auto commit_result = client_->Commit(Mutations{
         MakeDeleteMutation("DataTypes", KeySet::All()),
     });
-    if (T::UsingEmulator()) {
-      // PgDataTypeIntegrationTest::SetUpTestSuite() will fail until
-      // the emulator supports PostgreSQL syntax to quote identifiers.
-      ASSERT_THAT(commit_result,
-                  AnyOf(IsOk(), StatusIs(StatusCode::kNotFound)));
-    } else {
-      ASSERT_THAT(commit_result, IsOk());
-    }
+    ASSERT_THAT(commit_result, IsOk());
   }
 
   static void TearDownTestSuite() {
@@ -157,9 +163,102 @@ TEST_F(DataTypeIntegrationTest, WriteReadFloat64NaN) {
       std::numeric_limits<double>::quiet_NaN(),
   };
   auto result = WriteReadData(*client_, data, "Float64Value");
-  ASSERT_STATUS_OK(result);
-  EXPECT_EQ(1, result->size());
-  EXPECT_TRUE(std::isnan(result->front()));
+  EXPECT_THAT(result, IsOkAndHolds(ElementsAre(ResultOf(
+                          [](double d) { return std::isnan(d); }, true))));
+}
+
+TEST_F(DataTypeIntegrationTest, WriteReadFloat32) {
+  std::vector<float> const data = {
+      -std::numeric_limits<float>::infinity(),
+      std::numeric_limits<float>::lowest(),
+      std::numeric_limits<float>::min(),
+      -123.456F,
+      -123,
+      -42.42F,
+      -42,
+      -1.5,
+      -1,
+      -0.5,
+      0,
+      0.5,
+      1,
+      1.5,
+      42,
+      42.42F,
+      123,
+      123.456F,
+      std::numeric_limits<float>::max(),
+      std::numeric_limits<float>::infinity(),
+  };
+  auto result = WriteReadData(*client_, data, "Float32Value");
+  if (UsingEmulator()) {
+    EXPECT_THAT(result, StatusIs(StatusCode::kNotFound));
+  } else {
+    ASSERT_STATUS_OK(result);
+    EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  }
+}
+
+TEST_F(PgDataTypeIntegrationTest, WriteReadFloat32) {
+  std::vector<float> const data = {
+      -std::numeric_limits<float>::infinity(),
+      std::numeric_limits<float>::lowest(),
+      std::numeric_limits<float>::min(),
+      -123.456F,
+      -123,
+      -42.42F,
+      -42,
+      -1.5,
+      -1,
+      -0.5,
+      0,
+      0.5,
+      1,
+      1.5,
+      42,
+      42.42F,
+      123,
+      123.456F,
+      std::numeric_limits<float>::max(),
+      std::numeric_limits<float>::infinity(),
+  };
+  auto result = WriteReadData(*client_, data, "Float32Value");
+  if (UsingEmulator()) {
+    EXPECT_THAT(result, StatusIs(StatusCode::kNotFound));
+  } else {
+    ASSERT_STATUS_OK(result);
+    EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  }
+}
+
+TEST_F(DataTypeIntegrationTest, WriteReadFloat32NaN) {
+  // Since NaN is not equal to anything, including itself, we need to handle
+  // NaN separately from other Float32 values.
+  std::vector<float> const data = {
+      std::numeric_limits<float>::quiet_NaN(),
+  };
+  auto result = WriteReadData(*client_, data, "Float32Value");
+  if (UsingEmulator()) {
+    EXPECT_THAT(result, StatusIs(StatusCode::kNotFound));
+  } else {
+    EXPECT_THAT(result, IsOkAndHolds(ElementsAre(ResultOf(
+                            [](float d) { return std::isnan(d); }, true))));
+  }
+}
+
+TEST_F(PgDataTypeIntegrationTest, WriteReadFloat32NaN) {
+  // Since NaN is not equal to anything, including itself, we need to handle
+  // NaN separately from other Float32 values.
+  std::vector<float> const data = {
+      std::numeric_limits<float>::quiet_NaN(),
+  };
+  auto result = WriteReadData(*client_, data, "Float32Value");
+  if (UsingEmulator()) {
+    EXPECT_THAT(result, StatusIs(StatusCode::kNotFound));
+  } else {
+    EXPECT_THAT(result, IsOkAndHolds(ElementsAre(ResultOf(
+                            [](float d) { return std::isnan(d); }, true))));
+  }
 }
 
 TEST_F(DataTypeIntegrationTest, WriteReadString) {
@@ -171,8 +270,7 @@ TEST_F(DataTypeIntegrationTest, WriteReadString) {
       std::string(1024, 'x'),
   };
   auto result = WriteReadData(*client_, data, "StringValue");
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
 }
 
 TEST_F(DataTypeIntegrationTest, WriteReadBytes) {
@@ -190,8 +288,7 @@ TEST_F(DataTypeIntegrationTest, WriteReadBytes) {
       Bytes(blob),
   };
   auto result = WriteReadData(*client_, data, "BytesValue");
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
 }
 
 TEST_F(DataTypeIntegrationTest, WriteReadTimestamp) {
@@ -214,8 +311,7 @@ TEST_F(DataTypeIntegrationTest, WriteReadTimestamp) {
       *max,
   };
   auto result = WriteReadData(*client_, data, "TimestampValue");
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
 }
 
 TEST_F(DataTypeIntegrationTest, WriteReadDate) {
@@ -227,8 +323,7 @@ TEST_F(DataTypeIntegrationTest, WriteReadDate) {
       absl::CivilDay(9999, 12, 31),  //
   };
   auto result = WriteReadData(*client_, data, "DateValue");
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
 }
 
 TEST_F(DataTypeIntegrationTest, WriteReadJson) {
@@ -239,13 +334,10 @@ TEST_F(DataTypeIntegrationTest, WriteReadJson) {
       Json("true"),               //
   };
   auto result = WriteReadData(*client_, data, "JsonValue");
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
 }
 
 TEST_F(PgDataTypeIntegrationTest, WriteReadJson) {
-  if (UsingEmulator()) GTEST_SKIP() << "emulator does not support PostgreSQL";
-
   std::vector<JsonB> const data = {
       JsonB(),                     //
       JsonB(R"("Hello world!")"),  //
@@ -253,8 +345,7 @@ TEST_F(PgDataTypeIntegrationTest, WriteReadJson) {
       JsonB("true"),               //
   };
   auto result = WriteReadData(*client_, data, "JsonValue");
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
 }
 
 TEST_F(DataTypeIntegrationTest, WriteReadNumeric) {
@@ -273,13 +364,10 @@ TEST_F(DataTypeIntegrationTest, WriteReadNumeric) {
       *max,                                //
   };
   auto result = WriteReadData(*client_, data, "NumericValue");
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
 }
 
 TEST_F(PgDataTypeIntegrationTest, WriteReadNumeric) {
-  if (UsingEmulator()) GTEST_SKIP() << "emulator does not support PostgreSQL";
-
   auto limit = std::string(131072, '9') + "." + std::string(16383, '9');
   auto min = MakePgNumeric("-" + limit);
   ASSERT_STATUS_OK(min);
@@ -296,8 +384,35 @@ TEST_F(PgDataTypeIntegrationTest, WriteReadNumeric) {
       *max,                                  //
   };
   auto result = WriteReadData(*client_, data, "NumericValue");
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
+}
+
+TEST_F(DataTypeIntegrationTest, WriteReadProtoEnum) {
+  std::vector<ProtoEnum<testing::Genre>> const data = {
+      testing::Genre::POP,
+      testing::Genre::JAZZ,
+      testing::Genre::FOLK,
+      testing::Genre::ROCK,
+  };
+  auto result = WriteReadData(*client_, data, "SingerGenre");
+  if (UsingEmulator()) {
+    EXPECT_THAT(result, StatusIs(StatusCode::kNotFound));
+  } else {
+    EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
+  }
+}
+
+TEST_F(DataTypeIntegrationTest, WriteReadProtoMessage) {
+  std::vector<ProtoMessage<testing::SingerInfo>> const data = {
+      MakeSinger(1, "1817-05-25", "French", testing::Genre::FOLK),
+      MakeSinger(2123139547, "1942-06-18", "British", testing::Genre::POP),
+  };
+  auto result = WriteReadData(*client_, data, "SingerInfo");
+  if (UsingEmulator()) {
+    EXPECT_THAT(result, StatusIs(StatusCode::kNotFound));
+  } else {
+    EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
+  }
 }
 
 TEST_F(DataTypeIntegrationTest, WriteReadArrayBool) {
@@ -309,8 +424,7 @@ TEST_F(DataTypeIntegrationTest, WriteReadArrayBool) {
       std::vector<bool>{false, true},
   };
   auto result = WriteReadData(*client_, data, "ArrayBoolValue");
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
 }
 
 TEST_F(DataTypeIntegrationTest, WriteReadArrayInt64) {
@@ -320,8 +434,7 @@ TEST_F(DataTypeIntegrationTest, WriteReadArrayInt64) {
       std::vector<std::int64_t>{-1, 0, 1},
   };
   auto result = WriteReadData(*client_, data, "ArrayInt64Value");
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
 }
 
 TEST_F(DataTypeIntegrationTest, WriteReadArrayFloat64) {
@@ -331,8 +444,21 @@ TEST_F(DataTypeIntegrationTest, WriteReadArrayFloat64) {
       std::vector<double>{-0.5, 0.5, 1.5},
   };
   auto result = WriteReadData(*client_, data, "ArrayFloat64Value");
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
+}
+
+TEST_F(DataTypeIntegrationTest, WriteReadArrayFloat32) {
+  std::vector<std::vector<float>> const data = {
+      std::vector<float>{},
+      std::vector<float>{-0.5},
+      std::vector<float>{-0.5, 0.5, 1.5},
+  };
+  auto result = WriteReadData(*client_, data, "ArrayFloat32Value");
+  if (UsingEmulator()) {
+    EXPECT_THAT(result, StatusIs(StatusCode::kNotFound));
+  } else {
+    EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
+  }
 }
 
 TEST_F(DataTypeIntegrationTest, WriteReadArrayString) {
@@ -342,8 +468,7 @@ TEST_F(DataTypeIntegrationTest, WriteReadArrayString) {
       std::vector<std::string>{"", "foo", "bar"},
   };
   auto result = WriteReadData(*client_, data, "ArrayStringValue");
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
 }
 
 TEST_F(DataTypeIntegrationTest, WriteReadArrayBytes) {
@@ -353,8 +478,7 @@ TEST_F(DataTypeIntegrationTest, WriteReadArrayBytes) {
       std::vector<Bytes>{Bytes(""), Bytes("foo"), Bytes("bar")},
   };
   auto result = WriteReadData(*client_, data, "ArrayBytesValue");
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
 }
 
 TEST_F(DataTypeIntegrationTest, WriteReadArrayTimestamp) {
@@ -368,8 +492,7 @@ TEST_F(DataTypeIntegrationTest, WriteReadArrayTimestamp) {
       },
   };
   auto result = WriteReadData(*client_, data, "ArrayTimestampValue");
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
 }
 
 TEST_F(DataTypeIntegrationTest, WriteReadArrayDate) {
@@ -383,8 +506,7 @@ TEST_F(DataTypeIntegrationTest, WriteReadArrayDate) {
       },
   };
   auto result = WriteReadData(*client_, data, "ArrayDateValue");
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
 }
 
 TEST_F(DataTypeIntegrationTest, WriteReadArrayJson) {
@@ -399,13 +521,10 @@ TEST_F(DataTypeIntegrationTest, WriteReadArrayJson) {
       },
   };
   auto result = WriteReadData(*client_, data, "ArrayJsonValue");
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
 }
 
 TEST_F(PgDataTypeIntegrationTest, WriteReadArrayJson) {
-  if (UsingEmulator()) GTEST_SKIP() << "emulator does not support PostgreSQL";
-
   std::vector<std::vector<JsonB>> const data = {
       std::vector<JsonB>{},
       std::vector<JsonB>{JsonB()},
@@ -417,18 +536,7 @@ TEST_F(PgDataTypeIntegrationTest, WriteReadArrayJson) {
       },
   };
   auto result = WriteReadData(*client_, data, "ArrayJsonValue");
-  {
-    // TODO(#10095): Remove this when JSONB[] is supported.
-    auto matcher = StatusIs(StatusCode::kNotFound,
-                            AnyOf(HasSubstr("Column not found in table"),
-                                  HasSubstr("is not a column in")));
-    testing::StringMatchResultListener listener;
-    if (matcher.impl().MatchAndExplain(result, &listener)) {
-      GTEST_SKIP();
-    }
-  }
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
 }
 
 TEST_F(DataTypeIntegrationTest, WriteReadArrayNumeric) {
@@ -442,13 +550,10 @@ TEST_F(DataTypeIntegrationTest, WriteReadArrayNumeric) {
       },
   };
   auto result = WriteReadData(*client_, data, "ArrayNumericValue");
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
 }
 
 TEST_F(PgDataTypeIntegrationTest, WriteReadArrayNumeric) {
-  if (UsingEmulator()) GTEST_SKIP() << "emulator does not support PostgreSQL";
-
   std::vector<std::vector<PgNumeric>> const data = {
       std::vector<PgNumeric>{},
       std::vector<PgNumeric>{PgNumeric()},
@@ -459,8 +564,41 @@ TEST_F(PgDataTypeIntegrationTest, WriteReadArrayNumeric) {
       },
   };
   auto result = WriteReadData(*client_, data, "ArrayNumericValue");
-  ASSERT_STATUS_OK(result);
-  EXPECT_THAT(*result, UnorderedElementsAreArray(data));
+  EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
+}
+
+TEST_F(DataTypeIntegrationTest, WriteReadArrayProtoEnum) {
+  std::vector<std::vector<ProtoEnum<testing::Genre>>> const data = {
+      std::vector<ProtoEnum<testing::Genre>>{},
+      std::vector<ProtoEnum<testing::Genre>>{
+          testing::Genre::POP,
+          testing::Genre::JAZZ,
+          testing::Genre::FOLK,
+          testing::Genre::ROCK,
+      },
+  };
+  auto result = WriteReadData(*client_, data, "ArraySingerGenre");
+  if (UsingEmulator()) {
+    EXPECT_THAT(result, StatusIs(StatusCode::kNotFound));
+  } else {
+    EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
+  }
+}
+
+TEST_F(DataTypeIntegrationTest, WriteReadArrayProtoMessage) {
+  std::vector<std::vector<ProtoMessage<testing::SingerInfo>>> const data = {
+      std::vector<ProtoMessage<testing::SingerInfo>>{},
+      std::vector<ProtoMessage<testing::SingerInfo>>{
+          MakeSinger(1, "1817-05-25", "French", testing::Genre::FOLK),
+          MakeSinger(2123139547, "1942-06-18", "British", testing::Genre::POP),
+      },
+  };
+  auto result = WriteReadData(*client_, data, "ArraySingerInfo");
+  if (UsingEmulator()) {
+    EXPECT_THAT(result, StatusIs(StatusCode::kNotFound));
+  } else {
+    EXPECT_THAT(result, IsOkAndHolds(UnorderedElementsAreArray(data)));
+  }
 }
 
 TEST_F(DataTypeIntegrationTest, JsonIndexAndPrimaryKey) {
@@ -476,12 +614,9 @@ TEST_F(DataTypeIntegrationTest, JsonIndexAndPrimaryKey) {
   auto metadata =
       admin_client.UpdateDatabaseDdl(GetDatabase().FullName(), statements)
           .get();
-  EXPECT_THAT(metadata,
-              StatusIs(StatusCode::kFailedPrecondition,
-                       AnyOf(AllOf(HasSubstr("Index DataTypesByJsonValue"),
-                                   HasSubstr("unsupported type JSON")),
-                             AllOf(HasSubstr("index DataTypesByJsonValue"),
-                                   HasSubstr("Cannot reference JSON")))));
+  EXPECT_THAT(metadata, StatusIs(StatusCode::kFailedPrecondition,
+                                 AnyOf(HasSubstr("unsupported type JSON"),
+                                       HasSubstr("Cannot reference JSON"))));
 
   // Verify that a JSON column cannot be used as a primary key.
   statements.clear();
@@ -494,13 +629,10 @@ TEST_F(DataTypeIntegrationTest, JsonIndexAndPrimaryKey) {
       admin_client.UpdateDatabaseDdl(GetDatabase().FullName(), statements)
           .get();
   EXPECT_THAT(metadata, StatusIs(StatusCode::kInvalidArgument,
-                                 AllOf(HasSubstr("has type JSON"),
-                                       HasSubstr("part of the primary key"))));
+                                 HasSubstr("has type JSON")));
 }
 
 TEST_F(PgDataTypeIntegrationTest, JsonIndexAndPrimaryKey) {
-  if (UsingEmulator()) GTEST_SKIP() << "emulator does not support PostgreSQL";
-
   spanner_admin::DatabaseAdminClient admin_client(
       spanner_admin::MakeDatabaseAdminConnection());
 
@@ -513,10 +645,13 @@ TEST_F(PgDataTypeIntegrationTest, JsonIndexAndPrimaryKey) {
   auto metadata =
       admin_client.UpdateDatabaseDdl(GetDatabase().FullName(), statements)
           .get();
-  EXPECT_THAT(metadata,
-              StatusIs(StatusCode::kFailedPrecondition,
-                       AllOf(HasSubstr("Index datatypesbyjsonvalue"),
-                             HasSubstr("unsupported type PG.JSONB"))));
+  if (UsingEmulator()) {
+    EXPECT_THAT(metadata, StatusIs(StatusCode::kFailedPrecondition,
+                                   HasSubstr("Cannot reference PG.JSONB")));
+  } else {
+    EXPECT_THAT(metadata, StatusIs(StatusCode::kFailedPrecondition,
+                                   HasSubstr("unsupported type PG.JSONB")));
+  }
 
   // Verify that a JSONB column cannot be used as a primary key.
   statements.clear();
@@ -530,13 +665,10 @@ TEST_F(PgDataTypeIntegrationTest, JsonIndexAndPrimaryKey) {
       admin_client.UpdateDatabaseDdl(GetDatabase().FullName(), statements)
           .get();
   EXPECT_THAT(metadata, StatusIs(StatusCode::kInvalidArgument,
-                                 AllOf(HasSubstr("has type PG.JSONB"),
-                                       HasSubstr("part of the primary key"))));
+                                 HasSubstr("has type PG.JSONB")));
 }
 
 TEST_F(PgDataTypeIntegrationTest, InsertAndQueryWithJson) {
-  if (UsingEmulator()) GTEST_SKIP() << "emulator does not support PostgreSQL";
-
   auto& client = *client_;
   auto commit_result =
       client.Commit([&client](Transaction const& txn) -> StatusOr<Mutations> {
@@ -581,8 +713,6 @@ TEST_F(DataTypeIntegrationTest, InsertAndQueryWithNumericKey) {
 }
 
 TEST_F(PgDataTypeIntegrationTest, NumericPrimaryKey) {
-  if (UsingEmulator()) GTEST_SKIP() << "emulator does not support PostgreSQL";
-
   spanner_admin::DatabaseAdminClient admin_client(
       spanner_admin::MakeDatabaseAdminConnection());
 
@@ -598,13 +728,30 @@ TEST_F(PgDataTypeIntegrationTest, NumericPrimaryKey) {
       admin_client.UpdateDatabaseDdl(GetDatabase().FullName(), statements)
           .get();
   EXPECT_THAT(metadata, StatusIs(StatusCode::kInvalidArgument,
-                                 AllOf(HasSubstr("has type PG.NUMERIC"),
-                                       HasSubstr("part of the primary key"))));
+                                 HasSubstr("has type PG.NUMERIC")));
+}
+
+TEST_F(DataTypeIntegrationTest, InsertAndQueryWithProtoEnumKey) {
+  auto& client = *client_;
+  auto const key = testing::Genre::POP;
+
+  auto commit_result = client.Commit(
+      Mutations{InsertOrUpdateMutationBuilder("ProtoEnumKey", {"Key"})
+                    .EmplaceRow(key)
+                    .Build()});
+  if (UsingEmulator()) {
+    EXPECT_THAT(commit_result, StatusIs(StatusCode::kNotFound));
+  } else {
+    ASSERT_STATUS_OK(commit_result);
+    auto rows = client.Read("ProtoEnumKey", KeySet::All(), {"Key"});
+    using RowType = std::tuple<ProtoEnum<testing::Genre>>;
+    auto row = GetSingularRow(StreamOf<RowType>(rows));
+    ASSERT_STATUS_OK(row);
+    EXPECT_EQ(std::get<0>(*std::move(row)), key);
+  }
 }
 
 TEST_F(DataTypeIntegrationTest, DmlReturning) {
-  if (UsingEmulator()) GTEST_SKIP() << "emulator does not support THEN RETURN";
-
   auto& client = *client_;
   using RowType = std::tuple<std::string, std::int64_t>;
 
@@ -619,8 +766,9 @@ TEST_F(DataTypeIntegrationTest, DmlReturning) {
                      ('Id-Ret-4', 4)
               THEN RETURN Id, Int64Value
         )""");
-        auto rows = client.ExecuteQuery(std::move(txn), std::move(sql));
-        EXPECT_EQ(rows.RowsModified(), 4);
+        auto rows = client.ExecuteQuery(txn, std::move(sql));
+        EXPECT_EQ(rows.RowsModified(), UsingEmulator() ? 0 : 4);
+        insert_actual.clear();  // may be a re-run
         for (auto& row : StreamOf<RowType>(rows)) {
           if (row) insert_actual.push_back(*std::move(row));
         }
@@ -639,8 +787,9 @@ TEST_F(DataTypeIntegrationTest, DmlReturning) {
               WHERE Id LIKE 'Id-Ret-%%'
               THEN RETURN Id, Int64Value
         )""");
-        auto rows = client.ExecuteQuery(std::move(txn), std::move(sql));
-        EXPECT_EQ(rows.RowsModified(), 4);
+        auto rows = client.ExecuteQuery(txn, std::move(sql));
+        EXPECT_EQ(rows.RowsModified(), UsingEmulator() ? 0 : 4);
+        update_actual.clear();  // may be a re-run
         for (auto& row : StreamOf<RowType>(rows)) {
           if (row) update_actual.push_back(*std::move(row));
         }
@@ -659,8 +808,9 @@ TEST_F(DataTypeIntegrationTest, DmlReturning) {
               WHERE Id LIKE 'Id-Ret-%%'
               THEN RETURN Id, Int64Value
         )""");
-        auto rows = client.ExecuteQuery(std::move(txn), std::move(sql));
-        EXPECT_EQ(rows.RowsModified(), 4);
+        auto rows = client.ExecuteQuery(txn, std::move(sql));
+        EXPECT_EQ(rows.RowsModified(), UsingEmulator() ? 0 : 4);
+        delete_actual.clear();  // may be a re-run
         for (auto& row : StreamOf<RowType>(rows)) {
           if (row) delete_actual.push_back(*std::move(row));
         }
@@ -673,10 +823,6 @@ TEST_F(DataTypeIntegrationTest, DmlReturning) {
 }
 
 TEST_F(PgDataTypeIntegrationTest, DmlReturning) {
-  if (UsingEmulator()) {
-    GTEST_SKIP() << "emulator does not support PostgreSQL or RETURNING";
-  }
-
   auto& client = *client_;
   using RowType = std::tuple<std::string, std::int64_t>;
 
@@ -691,8 +837,9 @@ TEST_F(PgDataTypeIntegrationTest, DmlReturning) {
                      ('Id-Ret-4', 4)
               RETURNING Id, Int64Value
         )""");
-        auto rows = client.ExecuteQuery(std::move(txn), std::move(sql));
-        EXPECT_EQ(rows.RowsModified(), 4);
+        auto rows = client.ExecuteQuery(txn, std::move(sql));
+        EXPECT_EQ(rows.RowsModified(), UsingEmulator() ? 0 : 4);
+        insert_actual.clear();  // may be a re-run
         for (auto& row : StreamOf<RowType>(rows)) {
           if (row) insert_actual.push_back(*std::move(row));
         }
@@ -711,8 +858,9 @@ TEST_F(PgDataTypeIntegrationTest, DmlReturning) {
               WHERE Id LIKE 'Id-Ret-%%'
               RETURNING Id, Int64Value
         )""");
-        auto rows = client.ExecuteQuery(std::move(txn), std::move(sql));
-        EXPECT_EQ(rows.RowsModified(), 4);
+        auto rows = client.ExecuteQuery(txn, std::move(sql));
+        EXPECT_EQ(rows.RowsModified(), UsingEmulator() ? 0 : 4);
+        update_actual.clear();  // may be a re-run
         for (auto& row : StreamOf<RowType>(rows)) {
           if (row) update_actual.push_back(*std::move(row));
         }
@@ -731,8 +879,9 @@ TEST_F(PgDataTypeIntegrationTest, DmlReturning) {
               WHERE Id LIKE 'Id-Ret-%%'
               RETURNING Id, Int64Value
         )""");
-        auto rows = client.ExecuteQuery(std::move(txn), std::move(sql));
-        EXPECT_EQ(rows.RowsModified(), 4);
+        auto rows = client.ExecuteQuery(txn, std::move(sql));
+        EXPECT_EQ(rows.RowsModified(), UsingEmulator() ? 0 : 4);
+        delete_actual.clear();  // may be a re-run
         for (auto& row : StreamOf<RowType>(rows)) {
           if (row) delete_actual.push_back(*std::move(row));
         }
@@ -783,8 +932,7 @@ TEST_F(DataTypeIntegrationTest, InsertAndQueryWithStruct) {
   ASSERT_STATUS_OK(row);
 
   auto const& v = std::get<0>(*row);
-  EXPECT_EQ(1, v.size());
-  EXPECT_EQ(data, v[0]);
+  EXPECT_THAT(v, ElementsAre(data));
 }
 
 }  // namespace

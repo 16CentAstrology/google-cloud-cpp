@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,19 +26,19 @@ namespace google {
 namespace cloud {
 namespace bigtable {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
+
 /**
  * Define the interfaces to create row key ranges.
  *
  * Example:
  * @code
  * // Create a range for the keys starting with the given prefix.
- * auto range = bigtable::RowRange("foo/");
+ * auto range = bigtable::RowRange::StartingAt("foo/");
  * @endcode
  */
 class RowRange {
  public:
-  explicit RowRange(::google::bigtable::v2::RowRange rhs)
-      : row_range_(std::move(rhs)) {}
+  explicit RowRange(::google::bigtable::v2::RowRange rhs);
 
   RowRange(RowRange&&) = default;
   RowRange& operator=(RowRange&&) = default;
@@ -87,7 +87,7 @@ class RowRange {
     return RightOpen(std::forward<T>(prefix), std::move(end));
   }
 
-  //@{
+  ///@{
   /// @name Less common, yet sometimes useful, ranges.
   /// Return a range representing the interval [@p begin, @p end).
   template <typename T, typename U>
@@ -132,7 +132,7 @@ class RowRange {
     }
     return result;
   }
-  //@}
+  ///@}
 
   /**
    * Return true if the range is empty.

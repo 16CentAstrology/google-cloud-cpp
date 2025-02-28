@@ -18,29 +18,45 @@ set -euo pipefail
 
 source "$(dirname "$0")/../../lib/init.sh"
 source module ci/cloudbuild/builds/lib/cmake.sh
-source module ci/cloudbuild/builds/lib/integration.sh
+source module ci/cloudbuild/builds/lib/ctest.sh
 source module ci/cloudbuild/builds/lib/features.sh
+source module ci/cloudbuild/builds/lib/integration.sh
+source module ci/lib/io.sh
+source module ci/lib/shard.sh
 
 export CC=clang
 export CXX=clang++
-export CTCACHE_DIR=~/.cache/ctcache
-read -r ENABLED_FEATURES < <(features::always_build_cmake)
-ENABLED_FEATURES="${ENABLED_FEATURES},experimental-storage-grpc,generator"
+# Use a directory *not* saved by the CI builds, but is preserved in local
+# builds. For example, when using `build.sh --docker`.
+export CTCACHE_DIR=~/.ctcache
+
 mapfile -t cmake_args < <(cmake::common_args)
+mapfile -t features < <(shard::cmake_features "${SHARD}")
+ENABLED_FEATURES="$(printf ",%s" "${features[@]}")"
+ENABLED_FEATURES="${ENABLED_FEATURES:1}"
+readonly ENABLED_FEATURES
+
+enable_docfx=OFF
+if shard::cmake_features "${SHARD}" | grep -q docfx; then
+  enable_docfx=ON
+fi
 
 # See https://github.com/matus-chochlik/ctcache for docs about the clang-tidy-cache
 # Note: we use C++14 for this build because we don't want tidy suggestions that
 # require a newer C++ standard.
-cmake "${cmake_args[@]}" \
+io::run cmake "${cmake_args[@]}" \
   -DCMAKE_CXX_CLANG_TIDY=/usr/local/bin/clang-tidy-wrapper \
+  -DGOOGLE_CLOUD_CPP_ENABLE_CLANG_ABI_COMPAT_17=ON \
   -DCMAKE_CXX_STANDARD=14 \
-  -DGOOGLE_CLOUD_CPP_ENABLE="${ENABLED_FEATURES}"
-cmake --build cmake-out
+  -DGOOGLE_CLOUD_CPP_ENABLE_EXAMPLES=ON \
+  -DGOOGLE_CLOUD_CPP_ENABLE="${ENABLED_FEATURES}" \
+  -DGOOGLE_CLOUD_CPP_INTERNAL_DOCFX="${enable_docfx}"
+io::run cmake --build cmake-out
 
+# Does not build integration tests.
+# -LE excludes any test matching the label `integration-test`.
 mapfile -t ctest_args < <(ctest::common_args)
-env -C cmake-out ctest "${ctest_args[@]}" -LE integration-test
-
-integration::ctest_with_emulators "cmake-out"
+io::run env -C cmake-out ctest "${ctest_args[@]}" -LE integration-test
 
 if [[ "${TRIGGER_TYPE}" != "manual" ]]; then
   # This build should fail if any of the above work generated
@@ -50,7 +66,7 @@ if [[ "${TRIGGER_TYPE}" != "manual" ]]; then
 fi
 
 if [[ "${TRIGGER_TYPE}" != "manual" || "${VERBOSE_FLAG}" == "true" ]]; then
-  io::log_h2 "ctcache stats"
+  io::log "===> ctcache stats"
   printf "%s: %s\n" "total size" "$(du -sh "${CTCACHE_DIR}")"
   printf "%s: %s\n" " num files" "$(find "${CTCACHE_DIR}" | wc -l)"
   echo

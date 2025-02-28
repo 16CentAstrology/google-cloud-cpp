@@ -80,9 +80,11 @@ StatusOr<QueryPartition> DeserializeQueryPartition(
  * The `QueryPartition` class is a regular type that represents a single slice
  * of a parallel SQL read.
  *
- * Instances of `QueryPartition` are created by `Client::PartitionSql`. Once
+ * Instances of `QueryPartition` are created by `Client::PartitionQuery`. Once
  * created, `QueryPartition` objects can be serialized, transmitted to separate
- * process, and used to read data in parallel using `Client::ExecuteQuery`.
+ * processes, and used to read data in parallel using `Client::ExecuteQuery`.
+ * If `data_boost` is set, those requests will be executed using the
+ * independent compute resources of Cloud Spanner Data Boost.
  */
 class QueryPartition {
  public:
@@ -121,20 +123,25 @@ class QueryPartition {
   friend StatusOr<QueryPartition> DeserializeQueryPartition(
       std::string const& serialized_query_partition);
 
-  QueryPartition(std::string transaction_id, std::string transaction_tag,
-                 std::string session_id, std::string partition_token,
+  QueryPartition(std::string transaction_id, bool route_to_leader,
+                 std::string transaction_tag, std::string session_id,
+                 std::string partition_token, bool data_boost,
                  SqlStatement sql_statement);
 
   // Accessor methods for use by friends.
-  std::string const& partition_token() const { return partition_token_; }
-  std::string const& session_id() const { return session_id_; }
-  std::string const& transaction_tag() const { return transaction_tag_; }
   std::string const& transaction_id() const { return transaction_id_; }
+  bool route_to_leader() const { return route_to_leader_; }
+  std::string const& transaction_tag() const { return transaction_tag_; }
+  std::string const& session_id() const { return session_id_; }
+  std::string const& partition_token() const { return partition_token_; }
+  bool data_boost() const { return data_boost_; }
 
   std::string transaction_id_;
+  bool route_to_leader_;
   std::string transaction_tag_;
   std::string session_id_;
   std::string partition_token_;
+  bool data_boost_;
   SqlStatement sql_statement_;
 };
 
@@ -147,36 +154,47 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 struct QueryPartitionInternals {
   static spanner::QueryPartition MakeQueryPartition(
-      std::string const& transaction_id, std::string const& transaction_tag,
-      std::string const& session_id, std::string const& partition_token,
+      std::string const& transaction_id, bool route_to_leader,
+      std::string const& transaction_tag, std::string const& session_id,
+      std::string const& partition_token, bool data_boost,
       spanner::SqlStatement const& sql_statement) {
-    return spanner::QueryPartition(transaction_id, transaction_tag, session_id,
-                                   partition_token, sql_statement);
+    return spanner::QueryPartition(transaction_id, route_to_leader,
+                                   transaction_tag, session_id, partition_token,
+                                   data_boost, sql_statement);
   }
 
   static spanner::Connection::SqlParams MakeSqlParams(
-      spanner::QueryPartition const& query_partition) {
-    spanner::QueryOptions query_options;  // not serialized
+      spanner::QueryPartition const& query_partition,
+      spanner::QueryOptions const& query_options,
+      spanner::DirectedReadOption::Type directed_read_option) {
     return {MakeTransactionFromIds(query_partition.session_id(),
                                    query_partition.transaction_id(),
+                                   query_partition.route_to_leader(),
                                    query_partition.transaction_tag()),
-            query_partition.sql_statement(), query_options,
-            query_partition.partition_token()};
+            query_partition.sql_statement(),
+            query_options,
+            query_partition.partition_token(),
+            query_partition.data_boost(),
+            std::move(directed_read_option)};
   }
 };
 
 inline spanner::QueryPartition MakeQueryPartition(
-    std::string const& transaction_id, std::string const& transaction_tag,
-    std::string const& session_id, std::string const& partition_token,
+    std::string const& transaction_id, bool route_to_leader,
+    std::string const& transaction_tag, std::string const& session_id,
+    std::string const& partition_token, bool data_boost,
     spanner::SqlStatement const& sql_statement) {
   return QueryPartitionInternals::MakeQueryPartition(
-      transaction_id, transaction_tag, session_id, partition_token,
-      sql_statement);
+      transaction_id, route_to_leader, transaction_tag, session_id,
+      partition_token, data_boost, sql_statement);
 }
 
 inline spanner::Connection::SqlParams MakeSqlParams(
-    spanner::QueryPartition const& query_partition) {
-  return QueryPartitionInternals::MakeSqlParams(query_partition);
+    spanner::QueryPartition const& query_partition,
+    spanner::QueryOptions const& query_options,
+    spanner::DirectedReadOption::Type directed_read_option) {
+  return QueryPartitionInternals::MakeSqlParams(
+      query_partition, query_options, std::move(directed_read_option));
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

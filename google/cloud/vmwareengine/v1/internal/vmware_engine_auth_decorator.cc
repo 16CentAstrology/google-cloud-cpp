@@ -19,6 +19,7 @@
 #include "google/cloud/vmwareengine/v1/internal/vmware_engine_auth_decorator.h"
 #include <google/cloud/vmwareengine/v1/vmwareengine.grpc.pb.h>
 #include <memory>
+#include <utility>
 
 namespace google {
 namespace cloud {
@@ -32,499 +33,1611 @@ VmwareEngineAuth::VmwareEngineAuth(
 
 StatusOr<google::cloud::vmwareengine::v1::ListPrivateCloudsResponse>
 VmwareEngineAuth::ListPrivateClouds(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::vmwareengine::v1::ListPrivateCloudsRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->ListPrivateClouds(context, request);
+  return child_->ListPrivateClouds(context, options, request);
 }
 
 StatusOr<google::cloud::vmwareengine::v1::PrivateCloud>
 VmwareEngineAuth::GetPrivateCloud(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::vmwareengine::v1::GetPrivateCloudRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->GetPrivateCloud(context, request);
+  return child_->GetPrivateCloud(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 VmwareEngineAuth::AsyncCreatePrivateCloud(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::vmwareengine::v1::CreatePrivateCloudRequest const& request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
-        return child->AsyncCreatePrivateCloud(cq, *std::move(context), request);
+        return child->AsyncCreatePrivateCloud(cq, *std::move(context),
+                                              std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::CreatePrivateCloud(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::CreatePrivateCloudRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->CreatePrivateCloud(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 VmwareEngineAuth::AsyncUpdatePrivateCloud(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::vmwareengine::v1::UpdatePrivateCloudRequest const& request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
-        return child->AsyncUpdatePrivateCloud(cq, *std::move(context), request);
+        return child->AsyncUpdatePrivateCloud(cq, *std::move(context),
+                                              std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::UpdatePrivateCloud(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::UpdatePrivateCloudRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->UpdatePrivateCloud(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 VmwareEngineAuth::AsyncDeletePrivateCloud(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::vmwareengine::v1::DeletePrivateCloudRequest const& request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
-        return child->AsyncDeletePrivateCloud(cq, *std::move(context), request);
+        return child->AsyncDeletePrivateCloud(cq, *std::move(context),
+                                              std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::DeletePrivateCloud(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::DeletePrivateCloudRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->DeletePrivateCloud(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 VmwareEngineAuth::AsyncUndeletePrivateCloud(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::vmwareengine::v1::UndeletePrivateCloudRequest const&
         request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
         return child->AsyncUndeletePrivateCloud(cq, *std::move(context),
-                                                request);
+                                                std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::UndeletePrivateCloud(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::UndeletePrivateCloudRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->UndeletePrivateCloud(context, options, request);
 }
 
 StatusOr<google::cloud::vmwareengine::v1::ListClustersResponse>
 VmwareEngineAuth::ListClusters(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::vmwareengine::v1::ListClustersRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->ListClusters(context, request);
+  return child_->ListClusters(context, options, request);
 }
 
 StatusOr<google::cloud::vmwareengine::v1::Cluster> VmwareEngineAuth::GetCluster(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::vmwareengine::v1::GetClusterRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->GetCluster(context, request);
+  return child_->GetCluster(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 VmwareEngineAuth::AsyncCreateCluster(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::vmwareengine::v1::CreateClusterRequest const& request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
-        return child->AsyncCreateCluster(cq, *std::move(context), request);
+        return child->AsyncCreateCluster(cq, *std::move(context),
+                                         std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::CreateCluster(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::CreateClusterRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->CreateCluster(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 VmwareEngineAuth::AsyncUpdateCluster(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::vmwareengine::v1::UpdateClusterRequest const& request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
-        return child->AsyncUpdateCluster(cq, *std::move(context), request);
+        return child->AsyncUpdateCluster(cq, *std::move(context),
+                                         std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::UpdateCluster(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::UpdateClusterRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->UpdateCluster(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 VmwareEngineAuth::AsyncDeleteCluster(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::vmwareengine::v1::DeleteClusterRequest const& request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
-        return child->AsyncDeleteCluster(cq, *std::move(context), request);
+        return child->AsyncDeleteCluster(cq, *std::move(context),
+                                         std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::DeleteCluster(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::DeleteClusterRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->DeleteCluster(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::ListNodesResponse>
+VmwareEngineAuth::ListNodes(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::ListNodesRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ListNodes(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::Node> VmwareEngineAuth::GetNode(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::GetNodeRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetNode(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::ListExternalAddressesResponse>
+VmwareEngineAuth::ListExternalAddresses(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::ListExternalAddressesRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ListExternalAddresses(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::
+             FetchNetworkPolicyExternalAddressesResponse>
+VmwareEngineAuth::FetchNetworkPolicyExternalAddresses(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::
+        FetchNetworkPolicyExternalAddressesRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->FetchNetworkPolicyExternalAddresses(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::ExternalAddress>
+VmwareEngineAuth::GetExternalAddress(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::GetExternalAddressRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetExternalAddress(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncCreateExternalAddress(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::CreateExternalAddressRequest const&
+        request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncCreateExternalAddress(cq, *std::move(context),
+                                                 std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::CreateExternalAddress(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::CreateExternalAddressRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->CreateExternalAddress(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncUpdateExternalAddress(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::UpdateExternalAddressRequest const&
+        request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncUpdateExternalAddress(cq, *std::move(context),
+                                                 std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::UpdateExternalAddress(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::UpdateExternalAddressRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->UpdateExternalAddress(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncDeleteExternalAddress(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::DeleteExternalAddressRequest const&
+        request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncDeleteExternalAddress(cq, *std::move(context),
+                                                 std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::DeleteExternalAddress(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::DeleteExternalAddressRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->DeleteExternalAddress(context, options, request);
 }
 
 StatusOr<google::cloud::vmwareengine::v1::ListSubnetsResponse>
 VmwareEngineAuth::ListSubnets(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::vmwareengine::v1::ListSubnetsRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->ListSubnets(context, request);
+  return child_->ListSubnets(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::Subnet> VmwareEngineAuth::GetSubnet(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::GetSubnetRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetSubnet(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncUpdateSubnet(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::UpdateSubnetRequest const& request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncUpdateSubnet(cq, *std::move(context),
+                                        std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::UpdateSubnet(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::UpdateSubnetRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->UpdateSubnet(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::ListExternalAccessRulesResponse>
+VmwareEngineAuth::ListExternalAccessRules(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::ListExternalAccessRulesRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ListExternalAccessRules(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::ExternalAccessRule>
+VmwareEngineAuth::GetExternalAccessRule(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::GetExternalAccessRuleRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetExternalAccessRule(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncCreateExternalAccessRule(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::CreateExternalAccessRuleRequest const&
+        request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncCreateExternalAccessRule(
+            cq, *std::move(context), std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::CreateExternalAccessRule(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::CreateExternalAccessRuleRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->CreateExternalAccessRule(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncUpdateExternalAccessRule(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::UpdateExternalAccessRuleRequest const&
+        request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncUpdateExternalAccessRule(
+            cq, *std::move(context), std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::UpdateExternalAccessRule(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::UpdateExternalAccessRuleRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->UpdateExternalAccessRule(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncDeleteExternalAccessRule(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::DeleteExternalAccessRuleRequest const&
+        request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncDeleteExternalAccessRule(
+            cq, *std::move(context), std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::DeleteExternalAccessRule(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::DeleteExternalAccessRuleRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->DeleteExternalAccessRule(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::ListLoggingServersResponse>
+VmwareEngineAuth::ListLoggingServers(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::ListLoggingServersRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ListLoggingServers(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::LoggingServer>
+VmwareEngineAuth::GetLoggingServer(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::GetLoggingServerRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetLoggingServer(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncCreateLoggingServer(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::CreateLoggingServerRequest const&
+        request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncCreateLoggingServer(cq, *std::move(context),
+                                               std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::CreateLoggingServer(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::CreateLoggingServerRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->CreateLoggingServer(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncUpdateLoggingServer(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::UpdateLoggingServerRequest const&
+        request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncUpdateLoggingServer(cq, *std::move(context),
+                                               std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::UpdateLoggingServer(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::UpdateLoggingServerRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->UpdateLoggingServer(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncDeleteLoggingServer(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::DeleteLoggingServerRequest const&
+        request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncDeleteLoggingServer(cq, *std::move(context),
+                                               std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::DeleteLoggingServer(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::DeleteLoggingServerRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->DeleteLoggingServer(context, options, request);
 }
 
 StatusOr<google::cloud::vmwareengine::v1::ListNodeTypesResponse>
 VmwareEngineAuth::ListNodeTypes(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::vmwareengine::v1::ListNodeTypesRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->ListNodeTypes(context, request);
+  return child_->ListNodeTypes(context, options, request);
 }
 
 StatusOr<google::cloud::vmwareengine::v1::NodeType>
 VmwareEngineAuth::GetNodeType(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::vmwareengine::v1::GetNodeTypeRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->GetNodeType(context, request);
+  return child_->GetNodeType(context, options, request);
 }
 
 StatusOr<google::cloud::vmwareengine::v1::Credentials>
 VmwareEngineAuth::ShowNsxCredentials(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::vmwareengine::v1::ShowNsxCredentialsRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->ShowNsxCredentials(context, request);
+  return child_->ShowNsxCredentials(context, options, request);
 }
 
 StatusOr<google::cloud::vmwareengine::v1::Credentials>
 VmwareEngineAuth::ShowVcenterCredentials(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::vmwareengine::v1::ShowVcenterCredentialsRequest const&
         request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->ShowVcenterCredentials(context, request);
+  return child_->ShowVcenterCredentials(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 VmwareEngineAuth::AsyncResetNsxCredentials(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::vmwareengine::v1::ResetNsxCredentialsRequest const&
         request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
         return child->AsyncResetNsxCredentials(cq, *std::move(context),
-                                               request);
+                                               std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::ResetNsxCredentials(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::ResetNsxCredentialsRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ResetNsxCredentials(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 VmwareEngineAuth::AsyncResetVcenterCredentials(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::vmwareengine::v1::ResetVcenterCredentialsRequest const&
         request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
         return child->AsyncResetVcenterCredentials(cq, *std::move(context),
-                                                   request);
+                                                   std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::ResetVcenterCredentials(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::ResetVcenterCredentialsRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ResetVcenterCredentials(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::DnsForwarding>
+VmwareEngineAuth::GetDnsForwarding(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::GetDnsForwardingRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetDnsForwarding(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncUpdateDnsForwarding(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::UpdateDnsForwardingRequest const&
+        request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncUpdateDnsForwarding(cq, *std::move(context),
+                                               std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::UpdateDnsForwarding(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::UpdateDnsForwardingRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->UpdateDnsForwarding(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::NetworkPeering>
+VmwareEngineAuth::GetNetworkPeering(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::GetNetworkPeeringRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetNetworkPeering(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::ListNetworkPeeringsResponse>
+VmwareEngineAuth::ListNetworkPeerings(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::ListNetworkPeeringsRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ListNetworkPeerings(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncCreateNetworkPeering(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::CreateNetworkPeeringRequest const&
+        request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncCreateNetworkPeering(cq, *std::move(context),
+                                                std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::CreateNetworkPeering(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::CreateNetworkPeeringRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->CreateNetworkPeering(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncDeleteNetworkPeering(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::DeleteNetworkPeeringRequest const&
+        request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncDeleteNetworkPeering(cq, *std::move(context),
+                                                std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::DeleteNetworkPeering(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::DeleteNetworkPeeringRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->DeleteNetworkPeering(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncUpdateNetworkPeering(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::UpdateNetworkPeeringRequest const&
+        request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncUpdateNetworkPeering(cq, *std::move(context),
+                                                std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::UpdateNetworkPeering(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::UpdateNetworkPeeringRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->UpdateNetworkPeering(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::ListPeeringRoutesResponse>
+VmwareEngineAuth::ListPeeringRoutes(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::ListPeeringRoutesRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ListPeeringRoutes(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 VmwareEngineAuth::AsyncCreateHcxActivationKey(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::vmwareengine::v1::CreateHcxActivationKeyRequest const&
         request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
         return child->AsyncCreateHcxActivationKey(cq, *std::move(context),
-                                                  request);
+                                                  std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::CreateHcxActivationKey(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::CreateHcxActivationKeyRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->CreateHcxActivationKey(context, options, request);
 }
 
 StatusOr<google::cloud::vmwareengine::v1::ListHcxActivationKeysResponse>
 VmwareEngineAuth::ListHcxActivationKeys(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::vmwareengine::v1::ListHcxActivationKeysRequest const&
         request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->ListHcxActivationKeys(context, request);
+  return child_->ListHcxActivationKeys(context, options, request);
 }
 
 StatusOr<google::cloud::vmwareengine::v1::HcxActivationKey>
 VmwareEngineAuth::GetHcxActivationKey(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::vmwareengine::v1::GetHcxActivationKeyRequest const&
         request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->GetHcxActivationKey(context, request);
+  return child_->GetHcxActivationKey(context, options, request);
 }
 
 StatusOr<google::cloud::vmwareengine::v1::NetworkPolicy>
 VmwareEngineAuth::GetNetworkPolicy(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::vmwareengine::v1::GetNetworkPolicyRequest const& request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->GetNetworkPolicy(context, request);
+  return child_->GetNetworkPolicy(context, options, request);
 }
 
 StatusOr<google::cloud::vmwareengine::v1::ListNetworkPoliciesResponse>
 VmwareEngineAuth::ListNetworkPolicies(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::vmwareengine::v1::ListNetworkPoliciesRequest const&
         request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->ListNetworkPolicies(context, request);
+  return child_->ListNetworkPolicies(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 VmwareEngineAuth::AsyncCreateNetworkPolicy(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::vmwareengine::v1::CreateNetworkPolicyRequest const&
         request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
         return child->AsyncCreateNetworkPolicy(cq, *std::move(context),
-                                               request);
+                                               std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::CreateNetworkPolicy(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::CreateNetworkPolicyRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->CreateNetworkPolicy(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 VmwareEngineAuth::AsyncUpdateNetworkPolicy(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::vmwareengine::v1::UpdateNetworkPolicyRequest const&
         request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
         return child->AsyncUpdateNetworkPolicy(cq, *std::move(context),
-                                               request);
+                                               std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::UpdateNetworkPolicy(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::UpdateNetworkPolicyRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->UpdateNetworkPolicy(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 VmwareEngineAuth::AsyncDeleteNetworkPolicy(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::vmwareengine::v1::DeleteNetworkPolicyRequest const&
         request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
         return child->AsyncDeleteNetworkPolicy(cq, *std::move(context),
-                                               request);
+                                               std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::DeleteNetworkPolicy(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::DeleteNetworkPolicyRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->DeleteNetworkPolicy(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::ListManagementDnsZoneBindingsResponse>
+VmwareEngineAuth::ListManagementDnsZoneBindings(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::ListManagementDnsZoneBindingsRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ListManagementDnsZoneBindings(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::ManagementDnsZoneBinding>
+VmwareEngineAuth::GetManagementDnsZoneBinding(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::GetManagementDnsZoneBindingRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetManagementDnsZoneBinding(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncCreateManagementDnsZoneBinding(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::
+        CreateManagementDnsZoneBindingRequest const& request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncCreateManagementDnsZoneBinding(
+            cq, *std::move(context), std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::CreateManagementDnsZoneBinding(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::
+        CreateManagementDnsZoneBindingRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->CreateManagementDnsZoneBinding(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncUpdateManagementDnsZoneBinding(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::
+        UpdateManagementDnsZoneBindingRequest const& request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncUpdateManagementDnsZoneBinding(
+            cq, *std::move(context), std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::UpdateManagementDnsZoneBinding(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::
+        UpdateManagementDnsZoneBindingRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->UpdateManagementDnsZoneBinding(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncDeleteManagementDnsZoneBinding(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::
+        DeleteManagementDnsZoneBindingRequest const& request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncDeleteManagementDnsZoneBinding(
+            cq, *std::move(context), std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::DeleteManagementDnsZoneBinding(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::
+        DeleteManagementDnsZoneBindingRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->DeleteManagementDnsZoneBinding(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncRepairManagementDnsZoneBinding(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::
+        RepairManagementDnsZoneBindingRequest const& request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncRepairManagementDnsZoneBinding(
+            cq, *std::move(context), std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::RepairManagementDnsZoneBinding(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::
+        RepairManagementDnsZoneBindingRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->RepairManagementDnsZoneBinding(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 VmwareEngineAuth::AsyncCreateVmwareEngineNetwork(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::vmwareengine::v1::CreateVmwareEngineNetworkRequest const&
         request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
-        return child->AsyncCreateVmwareEngineNetwork(cq, *std::move(context),
-                                                     request);
+        return child->AsyncCreateVmwareEngineNetwork(
+            cq, *std::move(context), std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::CreateVmwareEngineNetwork(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::CreateVmwareEngineNetworkRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->CreateVmwareEngineNetwork(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 VmwareEngineAuth::AsyncUpdateVmwareEngineNetwork(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::vmwareengine::v1::UpdateVmwareEngineNetworkRequest const&
         request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
-        return child->AsyncUpdateVmwareEngineNetwork(cq, *std::move(context),
-                                                     request);
+        return child->AsyncUpdateVmwareEngineNetwork(
+            cq, *std::move(context), std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::UpdateVmwareEngineNetwork(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::UpdateVmwareEngineNetworkRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->UpdateVmwareEngineNetwork(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 VmwareEngineAuth::AsyncDeleteVmwareEngineNetwork(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::cloud::vmwareengine::v1::DeleteVmwareEngineNetworkRequest const&
         request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
-        return child->AsyncDeleteVmwareEngineNetwork(cq, *std::move(context),
-                                                     request);
+        return child->AsyncDeleteVmwareEngineNetwork(
+            cq, *std::move(context), std::move(options), request);
       });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::DeleteVmwareEngineNetwork(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::DeleteVmwareEngineNetworkRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->DeleteVmwareEngineNetwork(context, options, request);
 }
 
 StatusOr<google::cloud::vmwareengine::v1::VmwareEngineNetwork>
 VmwareEngineAuth::GetVmwareEngineNetwork(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::vmwareengine::v1::GetVmwareEngineNetworkRequest const&
         request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->GetVmwareEngineNetwork(context, request);
+  return child_->GetVmwareEngineNetwork(context, options, request);
 }
 
 StatusOr<google::cloud::vmwareengine::v1::ListVmwareEngineNetworksResponse>
 VmwareEngineAuth::ListVmwareEngineNetworks(
-    grpc::ClientContext& context,
+    grpc::ClientContext& context, Options const& options,
     google::cloud::vmwareengine::v1::ListVmwareEngineNetworksRequest const&
         request) {
   auto status = auth_->ConfigureContext(context);
   if (!status.ok()) return status;
-  return child_->ListVmwareEngineNetworks(context, request);
+  return child_->ListVmwareEngineNetworks(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncCreatePrivateConnection(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::CreatePrivateConnectionRequest const&
+        request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncCreatePrivateConnection(cq, *std::move(context),
+                                                   std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::CreatePrivateConnection(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::CreatePrivateConnectionRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->CreatePrivateConnection(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::PrivateConnection>
+VmwareEngineAuth::GetPrivateConnection(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::GetPrivateConnectionRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetPrivateConnection(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::ListPrivateConnectionsResponse>
+VmwareEngineAuth::ListPrivateConnections(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::ListPrivateConnectionsRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ListPrivateConnections(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncUpdatePrivateConnection(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::UpdatePrivateConnectionRequest const&
+        request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncUpdatePrivateConnection(cq, *std::move(context),
+                                                   std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::UpdatePrivateConnection(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::UpdatePrivateConnectionRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->UpdatePrivateConnection(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncDeletePrivateConnection(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::DeletePrivateConnectionRequest const&
+        request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncDeletePrivateConnection(cq, *std::move(context),
+                                                   std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::DeletePrivateConnection(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::DeletePrivateConnectionRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->DeletePrivateConnection(context, options, request);
+}
+
+StatusOr<
+    google::cloud::vmwareengine::v1::ListPrivateConnectionPeeringRoutesResponse>
+VmwareEngineAuth::ListPrivateConnectionPeeringRoutes(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::
+        ListPrivateConnectionPeeringRoutesRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ListPrivateConnectionPeeringRoutes(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncGrantDnsBindPermission(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::GrantDnsBindPermissionRequest const&
+        request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncGrantDnsBindPermission(cq, *std::move(context),
+                                                  std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::GrantDnsBindPermission(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::GrantDnsBindPermissionRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GrantDnsBindPermission(context, options, request);
+}
+
+StatusOr<google::cloud::vmwareengine::v1::DnsBindPermission>
+VmwareEngineAuth::GetDnsBindPermission(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::vmwareengine::v1::GetDnsBindPermissionRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetDnsBindPermission(context, options, request);
+}
+
+future<StatusOr<google::longrunning::Operation>>
+VmwareEngineAuth::AsyncRevokeDnsBindPermission(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::cloud::vmwareengine::v1::RevokeDnsBindPermissionRequest const&
+        request) {
+  using ReturnType = StatusOr<google::longrunning::Operation>;
+  return auth_->AsyncConfigureContext(std::move(context))
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
+                          f) mutable {
+        auto context = f.get();
+        if (!context) {
+          return make_ready_future(ReturnType(std::move(context).status()));
+        }
+        return child->AsyncRevokeDnsBindPermission(cq, *std::move(context),
+                                                   std::move(options), request);
+      });
+}
+
+StatusOr<google::longrunning::Operation>
+VmwareEngineAuth::RevokeDnsBindPermission(
+    grpc::ClientContext& context, Options options,
+    google::cloud::vmwareengine::v1::RevokeDnsBindPermissionRequest const&
+        request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->RevokeDnsBindPermission(context, options, request);
+}
+
+StatusOr<google::cloud::location::ListLocationsResponse>
+VmwareEngineAuth::ListLocations(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::ListLocationsRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ListLocations(context, options, request);
+}
+
+StatusOr<google::cloud::location::Location> VmwareEngineAuth::GetLocation(
+    grpc::ClientContext& context, Options const& options,
+    google::cloud::location::GetLocationRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetLocation(context, options, request);
+}
+
+StatusOr<google::iam::v1::Policy> VmwareEngineAuth::SetIamPolicy(
+    grpc::ClientContext& context, Options const& options,
+    google::iam::v1::SetIamPolicyRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->SetIamPolicy(context, options, request);
+}
+
+StatusOr<google::iam::v1::Policy> VmwareEngineAuth::GetIamPolicy(
+    grpc::ClientContext& context, Options const& options,
+    google::iam::v1::GetIamPolicyRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetIamPolicy(context, options, request);
+}
+
+StatusOr<google::iam::v1::TestIamPermissionsResponse>
+VmwareEngineAuth::TestIamPermissions(
+    grpc::ClientContext& context, Options const& options,
+    google::iam::v1::TestIamPermissionsRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->TestIamPermissions(context, options, request);
+}
+
+StatusOr<google::longrunning::ListOperationsResponse>
+VmwareEngineAuth::ListOperations(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::ListOperationsRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->ListOperations(context, options, request);
+}
+
+StatusOr<google::longrunning::Operation> VmwareEngineAuth::GetOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::GetOperationRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->GetOperation(context, options, request);
+}
+
+Status VmwareEngineAuth::DeleteOperation(
+    grpc::ClientContext& context, Options const& options,
+    google::longrunning::DeleteOperationRequest const& request) {
+  auto status = auth_->ConfigureContext(context);
+  if (!status.ok()) return status;
+  return child_->DeleteOperation(context, options, request);
 }
 
 future<StatusOr<google::longrunning::Operation>>
 VmwareEngineAuth::AsyncGetOperation(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::longrunning::GetOperationRequest const& request) {
   using ReturnType = StatusOr<google::longrunning::Operation>;
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) {
           return make_ready_future(ReturnType(std::move(context).status()));
         }
-        return child->AsyncGetOperation(cq, *std::move(context), request);
+        return child->AsyncGetOperation(cq, *std::move(context),
+                                        std::move(options), request);
       });
 }
 
 future<Status> VmwareEngineAuth::AsyncCancelOperation(
     google::cloud::CompletionQueue& cq,
-    std::unique_ptr<grpc::ClientContext> context,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
     google::longrunning::CancelOperationRequest const& request) {
-  auto& child = child_;
   return auth_->AsyncConfigureContext(std::move(context))
-      .then([cq, child,
-             request](future<StatusOr<std::unique_ptr<grpc::ClientContext>>>
+      .then([cq, child = child_, options = std::move(options),
+             request](future<StatusOr<std::shared_ptr<grpc::ClientContext>>>
                           f) mutable {
         auto context = f.get();
         if (!context) return make_ready_future(std::move(context).status());
-        return child->AsyncCancelOperation(cq, *std::move(context), request);
+        return child->AsyncCancelOperation(cq, *std::move(context),
+                                           std::move(options), request);
       });
 }
 

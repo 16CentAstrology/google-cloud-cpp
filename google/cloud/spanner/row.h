@@ -18,6 +18,7 @@
 #include "google/cloud/spanner/internal/tuple_utils.h"
 #include "google/cloud/spanner/value.h"
 #include "google/cloud/spanner/version.h"
+#include "google/cloud/internal/make_status.h"
 #include "google/cloud/status.h"
 #include "google/cloud/status_or.h"
 #include <functional>
@@ -67,7 +68,7 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
  * accessor.
  *
  * Perhaps the most convenient way to access the `Values` in a row is through
- * the variety of "get" accessors. A user may access a column's `Value' by
+ * the variety of "get" accessors. A user may access a column's `Value` by
  * calling `get` with a `std::size_t` 0-indexed position, or a `std::string`
  * column name. Furthermore, callers may directly extract the native C++ type
  * by specifying the C++ type along with the column's position or name.
@@ -135,7 +136,7 @@ class Row {
   StatusOr<Tuple> get() const& {
     if (size() != std::tuple_size<Tuple>::value) {
       auto constexpr kMsg = "Tuple has the wrong number of elements";
-      return Status(StatusCode::kInvalidArgument, kMsg);
+      return internal::InvalidArgumentError(kMsg, GCP_ERROR_INFO());
     }
     Tuple tup;
     auto it = values_.begin();
@@ -193,10 +194,10 @@ class Row {
    * @note columns.size() must equal values.size()
    */
   Row(std::vector<Value> values,
-      std::shared_ptr<const std::vector<std::string>> columns);
+      std::shared_ptr<std::vector<std::string> const> columns);
 
   std::vector<Value> values_;
-  std::shared_ptr<const std::vector<std::string>> columns_;
+  std::shared_ptr<std::vector<std::string> const> columns_;
 };
 
 /**
@@ -243,7 +244,7 @@ Row MakeTestRow(Ts&&... ts) {
  * represents "end".
  *
  * @note The term "stream" in this name refers to the general nature
- *     of the the data source, and is not intended to suggest any similarity to
+ *     of the data source, and is not intended to suggest any similarity to
  *     C++'s I/O streams library. Syntactically, this class is an "iterator".
  *
  * [input-iterator]: https://en.cppreference.com/w/cpp/named_req/InputIterator
@@ -308,7 +309,7 @@ class RowStreamIterator {
  * to the specified `Tuple` template parameter.
  *
  * @note The term "stream" in this name refers to the general nature
- *     of the the data source, and is not intended to suggest any similarity to
+ *     of the data source, and is not intended to suggest any similarity to
  *     C++'s I/O streams library. Syntactically, this class is an "iterator".
  *
  * @tparam Tuple the std::tuple<...> to parse each `Row` into.
@@ -402,7 +403,7 @@ class TupleStreamIterator {
  * @endcode
  *
  * @note The term "stream" in this name refers to the general nature
- *     of the the data source, and is not intended to suggest any similarity to
+ *     of the data source, and is not intended to suggest any similarity to
  *     C++'s I/O streams library. Syntactically, this class is a "range"
  *     defined by two "iterator" objects of type `TupleStreamIterator<Tuple>`.
  *
@@ -464,13 +465,16 @@ TupleStream<Tuple> StreamOf(RowRange&& range) {
  * @snippet samples.cc get-singular-row
  */
 template <typename RowRange>
-auto GetSingularRow(RowRange range) ->
-    typename std::decay<decltype(*range.begin())>::type {
+auto GetSingularRow(RowRange range) -> std::decay_t<decltype(*range.begin())> {
   auto const e = range.end();
   auto it = range.begin();
-  if (it == e) return Status(StatusCode::kInvalidArgument, "no rows");
+  if (it == e) {
+    return internal::InvalidArgumentError("no rows", GCP_ERROR_INFO());
+  }
   auto row = std::move(*it);
-  if (++it != e) return Status(StatusCode::kInvalidArgument, "too many rows");
+  if (++it != e) {
+    return internal::InvalidArgumentError("too many rows", GCP_ERROR_INFO());
+  }
   return row;
 }
 

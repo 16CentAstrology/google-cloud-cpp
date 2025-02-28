@@ -19,7 +19,10 @@
 #include "google/cloud/log.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
+#include <iostream>
+#include <string>
 #include <thread>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -43,15 +46,13 @@ class SlowReaderChunkIntegrationTest
 };
 
 TEST_F(SlowReaderChunkIntegrationTest, LongPauses) {
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
 
   // Construct an object too large to fit in the first chunk.
   auto const read_size = 1024 * 1024L;
   auto const large_text = MakeRandomData(4 * read_size);
-  StatusOr<ObjectMetadata> source_meta = client->InsertObject(
+  StatusOr<ObjectMetadata> source_meta = client.InsertObject(
       bucket_name_, object_name, large_text, IfGenerationMatch(0));
   ASSERT_STATUS_OK(source_meta);
   ScheduleForDelete(*source_meta);
@@ -61,13 +62,12 @@ TEST_F(SlowReaderChunkIntegrationTest, LongPauses) {
   // in the middle.
   auto make_reader = [this, object_name, &client](int64_t offset) {
     if (UsingEmulator()) {
-      return client->ReadObject(
+      return client.ReadObject(
           bucket_name_, object_name,
           CustomHeader("x-goog-emulator-instructions", "return-broken-stream"),
           ReadFromOffset(offset));
     }
-    return client->ReadObject(bucket_name_, object_name,
-                              ReadFromOffset(offset));
+    return client.ReadObject(bucket_name_, object_name, ReadFromOffset(offset));
   };
 
   ObjectReadStream stream = make_reader(0);
@@ -88,7 +88,7 @@ TEST_F(SlowReaderChunkIntegrationTest, LongPauses) {
               << std::flush;
     std::this_thread::sleep_for(slow_reader_period);
     stream.read(buffer.data(), size);
-    if (!stream.status().ok()) {
+    if (stream.bad()) {
       std::cout << " restart after (" << stream.status() << ")" << std::flush;
       stream = make_reader(offset);
       continue;

@@ -17,6 +17,7 @@
 
 #include "google/cloud/storage/internal/complex_option.h"
 #include "google/cloud/storage/object_access_control.h"
+#include "google/cloud/storage/object_retention.h"
 #include "google/cloud/storage/owner.h"
 #include "google/cloud/storage/version.h"
 #include "google/cloud/optional.h"
@@ -426,6 +427,29 @@ class ObjectMetadata {
     return *this;
   }
 
+  /// Returns `true` if the object has a retention configuration.
+  bool has_retention() const { return retention_.has_value(); }
+
+  /**
+   * The object's retention configuration.
+   *
+   * It is undefined behavior to call this member function if
+   * `has_retention() == false`.
+   */
+  ObjectRetention const& retention() const { return *retention_; }
+
+  /// Change or set the object retention value.
+  ObjectMetadata& set_retention(ObjectRetention v) {
+    retention_ = std::move(v);
+    return *this;
+  }
+
+  /// Reset the object retention.
+  ObjectMetadata& reset_retention() {
+    retention_.reset();
+    return *this;
+  }
+
   /// An HTTPS link to the object metadata.
   std::string const& self_link() const { return self_link_; }
 
@@ -505,6 +529,60 @@ class ObjectMetadata {
     return *this;
   }
 
+  /// Returns true if the object has a soft delete timestamp.
+  bool has_soft_delete_time() const { return soft_delete_time_.has_value(); }
+
+  /**
+   * This is the time when the object became soft-deleted.
+   *
+   * Soft-deleted objects are only accessible if a `soft_delete_policy` is
+   * enabled in their bucket. Also see `hard_delete_time()`.
+   */
+  std::chrono::system_clock::time_point soft_delete_time() const {
+    return soft_delete_time_.value_or(std::chrono::system_clock::time_point{});
+  }
+
+  /// @note This is only intended for mocking.
+  ObjectMetadata& set_soft_delete_time(
+      std::chrono::system_clock::time_point v) {
+    soft_delete_time_ = v;
+    return *this;
+  }
+
+  /// @note This is only intended for mocking.
+  ObjectMetadata& reset_soft_delete_time() {
+    soft_delete_time_.reset();
+    return *this;
+  }
+
+  /// Returns true if the object has a hard delete timestamp.
+  bool has_hard_delete_time() const { return hard_delete_time_.has_value(); }
+
+  /**
+   * The time when the object will be permanently deleted.
+   *
+   * Soft-deleted objects are permanently deleted after some time, based on the
+   * `soft_delete_policy` in their bucket. This is only set on soft-deleted
+   * objects, and indicates the earliest time at which the object will be
+   * permanently deleted.
+   */
+  std::chrono::system_clock::time_point hard_delete_time() const {
+    return hard_delete_time_.value_or(std::chrono::system_clock::time_point{});
+  }
+
+  /// @note This is only intended for mocking.
+  ObjectMetadata& set_hard_delete_time(
+      std::chrono::system_clock::time_point v) {
+    hard_delete_time_ = v;
+    return *this;
+  }
+
+  /// @note This is only intended for mocking.
+  ObjectMetadata& reset_hard_delete_time() {
+    hard_delete_time_.reset();
+    return *this;
+  }
+
   friend bool operator==(ObjectMetadata const& lhs, ObjectMetadata const& rhs);
   friend bool operator!=(ObjectMetadata const& lhs, ObjectMetadata const& rhs) {
     return !(lhs == rhs);
@@ -537,6 +615,7 @@ class ObjectMetadata {
   std::string name_;
   absl::optional<Owner> owner_;
   std::chrono::system_clock::time_point retention_expiration_time_;
+  absl::optional<ObjectRetention> retention_;
   std::string self_link_;
   std::uint64_t size_{0};
   std::string storage_class_;
@@ -545,6 +624,8 @@ class ObjectMetadata {
   std::chrono::system_clock::time_point time_deleted_;
   std::chrono::system_clock::time_point time_storage_class_updated_;
   std::chrono::system_clock::time_point updated_;
+  absl::optional<std::chrono::system_clock::time_point> soft_delete_time_;
+  absl::optional<std::chrono::system_clock::time_point> hard_delete_time_;
 };
 
 std::ostream& operator<<(std::ostream& os, ObjectMetadata const& rhs);
@@ -606,6 +687,15 @@ class ObjectMetadataPatchBuilder {
   ObjectMetadataPatchBuilder& SetCustomTime(
       std::chrono::system_clock::time_point tp);
   ObjectMetadataPatchBuilder& ResetCustomTime();
+
+  /**
+   * Change the `retention` field.
+   *
+   * @par Example
+   * @snippet storage_object_retention_samples.cc patch-object-retention
+   */
+  ObjectMetadataPatchBuilder& SetRetention(ObjectRetention const& tp);
+  ObjectMetadataPatchBuilder& ResetRetention();
 
  private:
   friend struct internal::PatchBuilderDetails;

@@ -16,16 +16,40 @@
 #include "google/cloud/storage/oauth2/credential_constants.h"
 #include "google/cloud/storage/testing/mock_http_request.h"
 #include "google/cloud/testing_util/mock_fake_clock.h"
+#include "google/cloud/testing_util/mock_http_payload.h"
+#include "google/cloud/testing_util/mock_rest_client.h"
+#include "google/cloud/testing_util/mock_rest_response.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
 #include <nlohmann/json.hpp>
 #include <cstring>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
 namespace storage {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace oauth2 {
+
+// Define a helper to test the specialization.
+struct AuthorizedUserCredentialsTester {
+  static StatusOr<std::string> Header(
+      AuthorizedUserCredentials<>& tested,
+      std::chrono::system_clock::time_point tp) {
+    return tested.AuthorizationHeaderForTesting(tp);
+  }
+
+  static AuthorizedUserCredentials<> MakeAuthorizedUserCredentials(
+      google::cloud::oauth2_internal::AuthorizedUserCredentialsInfo info,
+      oauth2_internal::HttpClientFactory factory) {
+    return AuthorizedUserCredentials<>(std::move(info), Options{},
+                                       std::move(factory));
+  }
+};
+
 namespace {
 
 using ::google::cloud::storage::internal::HttpResponse;
@@ -33,11 +57,16 @@ using ::google::cloud::storage::testing::MockHttpRequest;
 using ::google::cloud::storage::testing::MockHttpRequestBuilder;
 using ::google::cloud::testing_util::FakeClock;
 using ::google::cloud::testing_util::IsOk;
+using ::google::cloud::testing_util::IsOkAndHolds;
+using ::google::cloud::testing_util::MakeMockHttpPayloadSuccess;
+using ::google::cloud::testing_util::MockRestClient;
+using ::google::cloud::testing_util::MockRestResponse;
 using ::google::cloud::testing_util::StatusIs;
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::An;
 using ::testing::AtLeast;
+using ::testing::ByMove;
 using ::testing::HasSubstr;
 using ::testing::Not;
 using ::testing::Return;
@@ -79,7 +108,7 @@ TEST_F(AuthorizedUserCredentialsTest, Simple) {
     result.mock = mock_request;
     return result;
   });
-  EXPECT_CALL(*mock_builder, MakeEscapedString(An<std::string const&>()))
+  EXPECT_CALL(*mock_builder, MakeEscapedString)
       .WillRepeatedly([](std::string const& s) {
         auto t = std::unique_ptr<char[]>(new char[s.size() + 1]);
         std::copy(s.begin(), s.end(), t.get());
@@ -136,7 +165,7 @@ TEST_F(AuthorizedUserCredentialsTest, Refresh) {
       });
   EXPECT_CALL(*mock_builder, Constructor(GoogleOAuthRefreshEndpoint(), _, _))
       .Times(AtLeast(1));
-  EXPECT_CALL(*mock_builder, MakeEscapedString(An<std::string const&>()))
+  EXPECT_CALL(*mock_builder, MakeEscapedString)
       .WillRepeatedly([](std::string const& s) {
         auto t = std::unique_ptr<char[]>(new char[s.size() + 1]);
         std::copy(s.begin(), s.end(), t.get());
@@ -411,6 +440,60 @@ TEST_F(AuthorizedUserCredentialsTest, ParseAuthorizedUserRefreshResponse) {
           .count(),
       FakeClock::now_value_ + expires_in);
   EXPECT_EQ(token.token, "Authorization: Type access-token-r1");
+}
+
+TEST_F(AuthorizedUserCredentialsTest, Caching) {
+  // We need to mock the Security Token Service or this would be an
+  // integration test that requires a valid user account.
+  auto make_mock_client = [](std::string const& payload) {
+    auto response = std::make_unique<MockRestResponse>();
+    EXPECT_CALL(*response, StatusCode)
+        .WillRepeatedly(
+            Return(google::cloud::rest_internal::HttpStatusCode::kOk));
+    EXPECT_CALL(std::move(*response), ExtractPayload)
+        .WillOnce(Return(ByMove(MakeMockHttpPayloadSuccess(payload))));
+    auto mock = std::make_unique<MockRestClient>();
+    using PostPayloadType = std::vector<std::pair<std::string, std::string>>;
+    EXPECT_CALL(*mock, Post(_, _, An<PostPayloadType const&>()))
+        .WillOnce(Return(ByMove(std::unique_ptr<rest_internal::RestResponse>(
+            std::move(response)))));
+    return std::unique_ptr<rest_internal::RestClient>(std::move(mock));
+  };
+
+  auto constexpr kPayload1 = R"js({
+    "access_token": "access-token-1", "id_token": "id-token-1",
+    "token_type": "Bearer", "expires_in": 3600})js";
+  auto constexpr kPayload2 = R"js({
+    "access_token": "access-token-2", "id_token": "id-token-2",
+    "token_type": "Bearer", "expires_in": 3600})js";
+
+  using MockHttpClientFactory =
+      ::testing::MockFunction<std::unique_ptr<rest_internal::RestClient>(
+          Options const&)>;
+  MockHttpClientFactory mock_factory;
+  EXPECT_CALL(mock_factory, Call)
+      .WillOnce(Return(ByMove(make_mock_client(kPayload1))))
+      .WillOnce(Return(ByMove(make_mock_client(kPayload2))));
+
+  auto tested = AuthorizedUserCredentialsTester::MakeAuthorizedUserCredentials(
+      oauth2_internal::AuthorizedUserCredentialsInfo{},
+      mock_factory.AsStdFunction());
+  auto const tp = std::chrono::system_clock::now();
+  auto initial = AuthorizedUserCredentialsTester::Header(tested, tp);
+  ASSERT_STATUS_OK(initial);
+
+  auto cached = AuthorizedUserCredentialsTester::Header(
+      tested, tp + std::chrono::seconds(30));
+  EXPECT_THAT(cached, IsOkAndHolds(*initial));
+
+  cached = AuthorizedUserCredentialsTester::Header(
+      tested, tp + std::chrono::seconds(300));
+  EXPECT_THAT(cached, IsOkAndHolds(*initial));
+
+  auto uncached = AuthorizedUserCredentialsTester::Header(
+      tested, tp + std::chrono::hours(2));
+  ASSERT_STATUS_OK(uncached);
+  EXPECT_NE(*initial, *uncached);
 }
 
 }  // namespace

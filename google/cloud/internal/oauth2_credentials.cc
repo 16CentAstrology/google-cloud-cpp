@@ -14,6 +14,8 @@
 
 #include "google/cloud/internal/oauth2_credentials.h"
 #include "google/cloud/internal/absl_str_cat_quiet.h"
+#include "google/cloud/internal/make_status.h"
+#include "google/cloud/internal/oauth2_universe_domain.h"
 
 namespace google {
 namespace cloud {
@@ -22,25 +24,43 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 StatusOr<std::vector<std::uint8_t>> Credentials::SignBlob(
     absl::optional<std::string> const&, std::string const&) const {
-  return Status(StatusCode::kUnimplemented,
-                "The current credentials cannot sign blobs locally");
+  return internal::UnimplementedError(
+      "The current credentials cannot sign blobs locally", GCP_ERROR_INFO());
 }
 
-StatusOr<std::pair<std::string, std::string>> AuthorizationHeader(
-    Credentials& credentials, std::chrono::system_clock::time_point tp) {
-  auto token = credentials.GetToken(tp);
+StatusOr<std::string> Credentials::universe_domain() const {
+  return GoogleDefaultUniverseDomain();
+}
+
+StatusOr<std::string> Credentials::universe_domain(
+    google::cloud::Options const&) const {
+  return universe_domain();
+}
+
+StatusOr<std::string> Credentials::project_id() const {
+  return internal::UnimplementedError("unimplemented", GCP_ERROR_INFO());
+}
+
+StatusOr<std::string> Credentials::project_id(
+    google::cloud::Options const&) const {
+  return project_id();
+}
+
+StatusOr<std::pair<std::string, std::string>> Credentials::AuthenticationHeader(
+    std::chrono::system_clock::time_point tp) {
+  auto token = GetToken(tp);
   if (!token) return std::move(token).status();
   if (token->token.empty()) return std::make_pair(std::string{}, std::string{});
   return std::make_pair(std::string{"Authorization"},
                         absl::StrCat("Bearer ", token->token));
 }
 
-StatusOr<std::string> AuthorizationHeaderJoined(
+StatusOr<std::string> AuthenticationHeaderJoined(
     Credentials& credentials, std::chrono::system_clock::time_point tp) {
-  auto token = credentials.GetToken(tp);
-  if (!token) return std::move(token).status();
-  if (token->token.empty()) return std::string{};
-  return absl::StrCat("Authorization: Bearer ", token->token);
+  auto header = credentials.AuthenticationHeader(tp);
+  if (!header) return std::move(header).status();
+  if (header->first.empty()) return std::string{};
+  return absl::StrCat(header->first, ": ", header->second);
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

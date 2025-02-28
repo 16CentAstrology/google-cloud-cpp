@@ -17,7 +17,6 @@
 // source: google/cloud/dialogflow/cx/v3/session.proto
 
 #include "google/cloud/dialogflow_cx/sessions_connection_idempotency_policy.h"
-#include "absl/memory/memory.h"
 #include <memory>
 
 namespace google {
@@ -32,7 +31,7 @@ SessionsConnectionIdempotencyPolicy::~SessionsConnectionIdempotencyPolicy() =
 
 std::unique_ptr<SessionsConnectionIdempotencyPolicy>
 SessionsConnectionIdempotencyPolicy::clone() const {
-  return absl::make_unique<SessionsConnectionIdempotencyPolicy>(*this);
+  return std::make_unique<SessionsConnectionIdempotencyPolicy>(*this);
 }
 
 Idempotency SessionsConnectionIdempotencyPolicy::DetectIntent(
@@ -50,9 +49,39 @@ Idempotency SessionsConnectionIdempotencyPolicy::FulfillIntent(
   return Idempotency::kNonIdempotent;
 }
 
+Idempotency SessionsConnectionIdempotencyPolicy::SubmitAnswerFeedback(
+    google::cloud::dialogflow::cx::v3::SubmitAnswerFeedbackRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
+Idempotency SessionsConnectionIdempotencyPolicy::ListLocations(
+    google::cloud::location::ListLocationsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency SessionsConnectionIdempotencyPolicy::GetLocation(
+    google::cloud::location::GetLocationRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency SessionsConnectionIdempotencyPolicy::ListOperations(
+    google::longrunning::ListOperationsRequest) {  // NOLINT
+  return Idempotency::kIdempotent;
+}
+
+Idempotency SessionsConnectionIdempotencyPolicy::GetOperation(
+    google::longrunning::GetOperationRequest const&) {
+  return Idempotency::kIdempotent;
+}
+
+Idempotency SessionsConnectionIdempotencyPolicy::CancelOperation(
+    google::longrunning::CancelOperationRequest const&) {
+  return Idempotency::kNonIdempotent;
+}
+
 std::unique_ptr<SessionsConnectionIdempotencyPolicy>
 MakeDefaultSessionsConnectionIdempotencyPolicy() {
-  return absl::make_unique<SessionsConnectionIdempotencyPolicy>();
+  return std::make_unique<SessionsConnectionIdempotencyPolicy>();
 }
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

@@ -56,6 +56,14 @@ class BigtableInstanceAdminConnectionImpl
       google::bigtable::admin::v2::CreateInstanceRequest const& request)
       override;
 
+  StatusOr<google::longrunning::Operation> CreateInstance(
+      NoAwaitTag,
+      google::bigtable::admin::v2::CreateInstanceRequest const& request)
+      override;
+
+  future<StatusOr<google::bigtable::admin::v2::Instance>> CreateInstance(
+      google::longrunning::Operation const& operation) override;
+
   StatusOr<google::bigtable::admin::v2::Instance> GetInstance(
       google::bigtable::admin::v2::GetInstanceRequest const& request) override;
 
@@ -70,6 +78,14 @@ class BigtableInstanceAdminConnectionImpl
       google::bigtable::admin::v2::PartialUpdateInstanceRequest const& request)
       override;
 
+  StatusOr<google::longrunning::Operation> PartialUpdateInstance(
+      NoAwaitTag,
+      google::bigtable::admin::v2::PartialUpdateInstanceRequest const& request)
+      override;
+
+  future<StatusOr<google::bigtable::admin::v2::Instance>> PartialUpdateInstance(
+      google::longrunning::Operation const& operation) override;
+
   Status DeleteInstance(
       google::bigtable::admin::v2::DeleteInstanceRequest const& request)
       override;
@@ -77,6 +93,14 @@ class BigtableInstanceAdminConnectionImpl
   future<StatusOr<google::bigtable::admin::v2::Cluster>> CreateCluster(
       google::bigtable::admin::v2::CreateClusterRequest const& request)
       override;
+
+  StatusOr<google::longrunning::Operation> CreateCluster(
+      NoAwaitTag,
+      google::bigtable::admin::v2::CreateClusterRequest const& request)
+      override;
+
+  future<StatusOr<google::bigtable::admin::v2::Cluster>> CreateCluster(
+      google::longrunning::Operation const& operation) override;
 
   StatusOr<google::bigtable::admin::v2::Cluster> GetCluster(
       google::bigtable::admin::v2::GetClusterRequest const& request) override;
@@ -87,9 +111,23 @@ class BigtableInstanceAdminConnectionImpl
   future<StatusOr<google::bigtable::admin::v2::Cluster>> UpdateCluster(
       google::bigtable::admin::v2::Cluster const& request) override;
 
+  StatusOr<google::longrunning::Operation> UpdateCluster(
+      NoAwaitTag, google::bigtable::admin::v2::Cluster const& request) override;
+
+  future<StatusOr<google::bigtable::admin::v2::Cluster>> UpdateCluster(
+      google::longrunning::Operation const& operation) override;
+
   future<StatusOr<google::bigtable::admin::v2::Cluster>> PartialUpdateCluster(
       google::bigtable::admin::v2::PartialUpdateClusterRequest const& request)
       override;
+
+  StatusOr<google::longrunning::Operation> PartialUpdateCluster(
+      NoAwaitTag,
+      google::bigtable::admin::v2::PartialUpdateClusterRequest const& request)
+      override;
+
+  future<StatusOr<google::bigtable::admin::v2::Cluster>> PartialUpdateCluster(
+      google::longrunning::Operation const& operation) override;
 
   Status DeleteCluster(google::bigtable::admin::v2::DeleteClusterRequest const&
                            request) override;
@@ -109,6 +147,14 @@ class BigtableInstanceAdminConnectionImpl
       google::bigtable::admin::v2::UpdateAppProfileRequest const& request)
       override;
 
+  StatusOr<google::longrunning::Operation> UpdateAppProfile(
+      NoAwaitTag,
+      google::bigtable::admin::v2::UpdateAppProfileRequest const& request)
+      override;
+
+  future<StatusOr<google::bigtable::admin::v2::AppProfile>> UpdateAppProfile(
+      google::longrunning::Operation const& operation) override;
+
   Status DeleteAppProfile(
       google::bigtable::admin::v2::DeleteAppProfileRequest const& request)
       override;
@@ -126,63 +172,6 @@ class BigtableInstanceAdminConnectionImpl
       google::bigtable::admin::v2::ListHotTabletsRequest request) override;
 
  private:
-  std::unique_ptr<bigtable_admin::BigtableInstanceAdminRetryPolicy>
-  retry_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<bigtable_admin::BigtableInstanceAdminRetryPolicyOption>()) {
-      return options
-          .get<bigtable_admin::BigtableInstanceAdminRetryPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<bigtable_admin::BigtableInstanceAdminRetryPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<BackoffPolicy> backoff_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options
-            .has<bigtable_admin::BigtableInstanceAdminBackoffPolicyOption>()) {
-      return options
-          .get<bigtable_admin::BigtableInstanceAdminBackoffPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<bigtable_admin::BigtableInstanceAdminBackoffPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<
-      bigtable_admin::BigtableInstanceAdminConnectionIdempotencyPolicy>
-  idempotency_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options.has<
-            bigtable_admin::
-                BigtableInstanceAdminConnectionIdempotencyPolicyOption>()) {
-      return options
-          .get<bigtable_admin::
-                   BigtableInstanceAdminConnectionIdempotencyPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<bigtable_admin::
-                 BigtableInstanceAdminConnectionIdempotencyPolicyOption>()
-        ->clone();
-  }
-
-  std::unique_ptr<PollingPolicy> polling_policy() {
-    auto const& options = internal::CurrentOptions();
-    if (options
-            .has<bigtable_admin::BigtableInstanceAdminPollingPolicyOption>()) {
-      return options
-          .get<bigtable_admin::BigtableInstanceAdminPollingPolicyOption>()
-          ->clone();
-    }
-    return options_
-        .get<bigtable_admin::BigtableInstanceAdminPollingPolicyOption>()
-        ->clone();
-  }
-
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<bigtable_admin_internal::BigtableInstanceAdminStub> stub_;
   Options options_;

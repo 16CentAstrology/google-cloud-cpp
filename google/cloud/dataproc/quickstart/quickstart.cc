@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/dataproc/cluster_controller_client.h"
+//! [all]
+#include "google/cloud/dataproc/v1/cluster_controller_client.h"
 #include "google/cloud/common_options.h"
 #include <iostream>
 
@@ -24,7 +25,7 @@ int main(int argc, char* argv[]) try {
   std::string const project_id = argv[1];
   std::string const region = argv[2];
 
-  namespace dataproc = ::google::cloud::dataproc;
+  namespace dataproc = ::google::cloud::dataproc_v1;
 
   auto client = dataproc::ClusterControllerClient(
       dataproc::MakeClusterControllerConnection(region == "global" ? ""
@@ -40,3 +41,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/contactcenterinsights/contact_center_insights_client.h"
+//! [all]
+#include "google/cloud/contactcenterinsights/v1/contact_center_insights_client.h"
+#include "google/cloud/location.h"
 #include <google/protobuf/util/time_util.h>
 #include <iostream>
 
@@ -22,13 +24,13 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace ccai = ::google::cloud::contactcenterinsights;
+  auto const location = google::cloud::Location(argv[1], argv[2]);
+
+  namespace ccai = ::google::cloud::contactcenterinsights_v1;
   auto client = ccai::ContactCenterInsightsClient(
       ccai::MakeContactCenterInsightsConnection());
 
-  auto const parent =
-      std::string{"projects/"} + argv[1] + "/locations/" + argv[2];
-  for (auto c : client.ListConversations(parent)) {
+  for (auto c : client.ListConversations(location.FullName())) {
     if (!c) throw std::move(c).status();
 
     using ::google::protobuf::util::TimeUtil;
@@ -42,3 +44,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

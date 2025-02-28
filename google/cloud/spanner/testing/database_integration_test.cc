@@ -17,8 +17,10 @@
 #include "google/cloud/spanner/testing/cleanup_stale_databases.h"
 #include "google/cloud/spanner/testing/pick_random_instance.h"
 #include "google/cloud/spanner/testing/random_database_name.h"
+#include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/getenv.h"
 #include "google/cloud/testing_util/status_matchers.h"
+#include <google/cloud/spanner/testing/singer.pb.h>
 #include <chrono>
 #include <iostream>
 
@@ -46,7 +48,8 @@ void DatabaseIntegrationTest::SetUpTestSuite() {
 
   auto project_id = internal::GetEnv("GOOGLE_CLOUD_PROJECT").value_or("");
   ASSERT_FALSE(project_id.empty());
-  auto instance_id = PickRandomInstance(*generator_, project_id);
+  auto instance_id = PickRandomInstance(*generator_, project_id,
+                                        "NOT labels.edition:enterprise");
   ASSERT_THAT(instance_id, IsOk());
   auto database_id = RandomDatabaseName(*generator_);
   db_ = new spanner::Database(project_id, *instance_id, database_id);
@@ -73,12 +76,18 @@ void DatabaseIntegrationTest::SetUpTestSuite() {
           LastName   STRING(1024)
         ) PRIMARY KEY (SingerId)
       )sql");
-  request.add_extra_statements(R"sql(
+  request.add_extra_statements(absl::StrCat(
+      R"sql(
         CREATE TABLE DataTypes (
           Id STRING(256) NOT NULL,
           BoolValue BOOL,
           Int64Value INT64,
           Float64Value FLOAT64,
+          )sql",
+      (emulator_ ? "" : R"sql(
+          Float32Value FLOAT32,
+      )sql"),
+      R"sql(
           StringValue STRING(1024),
           BytesValue BYTES(1024),
           TimestampValue TIMESTAMP,
@@ -88,6 +97,11 @@ void DatabaseIntegrationTest::SetUpTestSuite() {
           ArrayBoolValue ARRAY<BOOL>,
           ArrayInt64Value ARRAY<INT64>,
           ArrayFloat64Value ARRAY<FLOAT64>,
+          )sql",
+      (emulator_ ? "" : R"sql(
+          ArrayFloat32Value ARRAY<FLOAT32>,
+      )sql"),
+      R"sql(
           ArrayStringValue ARRAY<STRING(1024)>,
           ArrayBytesValue ARRAY<BYTES(1024)>,
           ArrayTimestampValue ARRAY<TIMESTAMP>,
@@ -95,13 +109,53 @@ void DatabaseIntegrationTest::SetUpTestSuite() {
           ArrayJsonValue ARRAY<JSON>,
           ArrayNumericValue ARRAY<NUMERIC>
         ) PRIMARY KEY (Id)
+      )sql"));
+  if (!emulator_) {  // proto columns
+    google::protobuf::FileDescriptorSet fds;
+    google::cloud::spanner::testing::SingerInfo::default_instance()
+        .GetMetadata()
+        .descriptor->file()
+        ->CopyTo(fds.add_file());
+    fds.SerializeToString(request.mutable_proto_descriptors());
+    request.add_extra_statements(R"sql(
+        CREATE PROTO BUNDLE (
+          google.cloud.spanner.testing.SingerInfo,
+          google.cloud.spanner.testing.Genre,
+        )
       )sql");
+    request.add_extra_statements(R"sql(
+          ALTER TABLE DataTypes
+            ADD COLUMN SingerInfo google.cloud.spanner.testing.SingerInfo
+      )sql");
+    request.add_extra_statements(R"sql(
+          ALTER TABLE DataTypes
+            ADD COLUMN SingerGenre google.cloud.spanner.testing.Genre
+      )sql");
+    request.add_extra_statements(R"sql(
+          ALTER TABLE DataTypes
+            ADD COLUMN ArraySingerInfo
+              ARRAY<google.cloud.spanner.testing.SingerInfo>
+      )sql");
+    request.add_extra_statements(R"sql(
+          ALTER TABLE DataTypes
+            ADD COLUMN ArraySingerGenre
+              ARRAY<google.cloud.spanner.testing.Genre>
+      )sql");
+  }
   // Verify that NUMERIC can be used as a table key.
   request.add_extra_statements(R"sql(
         CREATE TABLE NumericKey (
           Key NUMERIC NOT NULL
         ) PRIMARY KEY (Key)
       )sql");
+  if (!emulator_) {  // proto columns
+    // Verify that ProtoEnum<T> can be used as a table key.
+    request.add_extra_statements(R"sql(
+          CREATE TABLE ProtoEnumKey (
+            Key google.cloud.spanner.testing.Genre NOT NULL
+          ) PRIMARY KEY (Key)
+        )sql");
+  }
   auto database_future = admin_client.CreateDatabase(request);
 
   int i = 0;
@@ -145,7 +199,8 @@ void PgDatabaseIntegrationTest::SetUpTestSuite() {
 
   auto project_id = internal::GetEnv("GOOGLE_CLOUD_PROJECT").value_or("");
   ASSERT_FALSE(project_id.empty());
-  auto instance_id = PickRandomInstance(*generator_, project_id);
+  auto instance_id = PickRandomInstance(*generator_, project_id,
+                                        "NOT labels.edition:enterprise");
   ASSERT_THAT(instance_id, IsOk());
   auto database_id = RandomDatabaseName(*generator_);
   db_ = new spanner::Database(project_id, *instance_id, database_id);
@@ -177,11 +232,6 @@ void PgDatabaseIntegrationTest::SetUpTestSuite() {
     FAIL();
   }
   auto database = database_future.get();
-  if (emulator_ && database.status().code() == StatusCode::kInvalidArgument) {
-    // The emulator does not support PostgreSQL syntax to quote identifiers.
-    std::cout << "INVALID-IGNORED\n";
-    return;
-  }
   ASSERT_THAT(database, IsOk());
 
   // DDL statements other than <CREATE DATABASE> are not allowed in database
@@ -196,12 +246,18 @@ void PgDatabaseIntegrationTest::SetUpTestSuite() {
           PRIMARY KEY(SingerId)
         )
       )sql");
-  statements.emplace_back(R"sql(
+  statements.emplace_back(absl::StrCat(
+      R"sql(
         CREATE TABLE DataTypes (
           Id CHARACTER VARYING(256) NOT NULL,
           BoolValue BOOLEAN,
           Int64Value BIGINT,
           Float64Value DOUBLE PRECISION,
+          )sql",
+      (emulator_ ? "" : R"sql(
+          Float32Value REAL,
+      )sql"),
+      R"sql(
           StringValue CHARACTER VARYING(1024),
           BytesValue BYTEA,
           TimestampValue TIMESTAMP WITH TIME ZONE,
@@ -211,15 +267,20 @@ void PgDatabaseIntegrationTest::SetUpTestSuite() {
           ArrayBoolValue BOOLEAN[],
           ArrayInt64Value BIGINT[],
           ArrayFloat64Value DOUBLE PRECISION[],
+          )sql",
+      (emulator_ ? "" : R"sql(
+          ArrayFloat32Value REAL[],
+      )sql"),
+      R"sql(
           ArrayStringValue CHARACTER VARYING(1024)[],
           ArrayBytesValue BYTEA[],
           ArrayTimestampValue TIMESTAMP WITH TIME ZONE[],
           ArrayDateValue DATE[],
-          -- TODO(#10095): ArrayJsonValue JSONB[],
+          ArrayJsonValue JSONB[],
           ArrayNumericValue NUMERIC[],
           PRIMARY KEY(Id)
         )
-      )sql");
+      )sql"));
   auto metadata_future =
       admin_client.UpdateDatabaseDdl(db_->FullName(), statements);
   while (++i < timeout) {

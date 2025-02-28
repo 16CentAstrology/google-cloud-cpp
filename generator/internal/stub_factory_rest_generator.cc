@@ -25,11 +25,12 @@ StubFactoryRestGenerator::StubFactoryRestGenerator(
     google::protobuf::ServiceDescriptor const* service_descriptor,
     VarsDictionary service_vars,
     std::map<std::string, VarsDictionary> service_method_vars,
-    google::protobuf::compiler::GeneratorContext* context)
-    : ServiceCodeGenerator("stub_factory_rest_header_path",
-                           "stub_factory_rest_cc_path", service_descriptor,
-                           std::move(service_vars),
-                           std::move(service_method_vars), context) {}
+    google::protobuf::compiler::GeneratorContext* context,
+    std::vector<MixinMethod> const& mixin_methods)
+    : ServiceCodeGenerator(
+          "stub_factory_rest_header_path", "stub_factory_rest_cc_path",
+          service_descriptor, std::move(service_vars),
+          std::move(service_method_vars), context, mixin_methods) {}
 
 Status StubFactoryRestGenerator::GenerateHeader() {
   HeaderPrint(CopyrightLicenseFileHeader());
@@ -75,10 +76,11 @@ Status StubFactoryRestGenerator::GenerateCc() {
   CcLocalIncludes(
       {vars("stub_factory_rest_header_path"), vars("logging_rest_header_path"),
        vars("metadata_rest_header_path"), vars("stub_rest_header_path"),
-       "google/cloud/common_options.h", "google/cloud/credentials.h",
+       "google/cloud/common_options.h",
+       "google/cloud/internal/populate_rest_options.h",
        "google/cloud/rest_options.h", "google/cloud/internal/algorithm.h",
-       "google/cloud/options.h", "google/cloud/log.h"});
-  CcSystemIncludes({"memory"});
+       "google/cloud/options.h", "google/cloud/log.h", "absl/strings/match.h"});
+  CcSystemIncludes({"memory", "utility"});
 
   auto result = CcOpenNamespaces(NamespaceType::kInternal);
   if (!result.ok()) return result;
@@ -87,20 +89,17 @@ Status StubFactoryRestGenerator::GenerateCc() {
   CcPrint(R"""(
 std::shared_ptr<$stub_rest_class_name$>
 CreateDefault$stub_rest_class_name$(Options const& options) {
-  Options opts = options;
-  if (!opts.has<UnifiedCredentialsOption>()) {
-    opts.set<UnifiedCredentialsOption>(MakeGoogleDefaultCredentials());
-  }
+  auto opts = internal::PopulateRestOptions(options);
   std::shared_ptr<$stub_rest_class_name$> stub =
       std::make_shared<Default$stub_rest_class_name$>(std::move(opts));
   stub = std::make_shared<$metadata_rest_class_name$>(std::move(stub));
   if (internal::Contains(
-      options.get<TracingComponentsOption>(), "rpc")) {
+      options.get<LoggingComponentsOption>(), "rpc")) {
     GCP_LOG(INFO) << "Enabled logging for REST rpc calls";
     stub = std::make_shared<$logging_rest_class_name$>(
         std::move(stub),
         options.get<RestTracingOptionsOption>(),
-        options.get<TracingComponentsOption>());
+        options.get<LoggingComponentsOption>());
   }
   return stub;
 }

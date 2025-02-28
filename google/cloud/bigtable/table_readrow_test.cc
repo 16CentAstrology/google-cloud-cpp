@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 #include "google/cloud/bigtable/testing/mock_read_rows_reader.h"
 #include "google/cloud/bigtable/testing/table_test_fixture.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
 
 namespace google {
 namespace cloud {
@@ -36,7 +35,8 @@ class TableReadRowTest : public bigtable::testing::TableTestFixture {
   void IsContextMDValid(grpc::ClientContext& context, std::string const& method,
                         google::protobuf::Message const& request) {
     return validate_metadata_fixture_.IsContextMDValid(
-        context, method, request, google::cloud::internal::ApiClientHeader());
+        context, method, request,
+        google::cloud::internal::HandCraftedLibClientHeader());
   }
 
  private:
@@ -58,7 +58,7 @@ TEST_F(TableReadRowTest, ReadRowSimple) {
   EXPECT_CALL(*client_, ReadRows)
       .WillOnce([&response, this](grpc::ClientContext* context,
                                   btproto::ReadRowsRequest const& req) {
-        auto stream = absl::make_unique<MockReadRowsReader>(
+        auto stream = std::make_unique<MockReadRowsReader>(
             "google.bigtable.v2.Bigtable.ReadRows");
         EXPECT_CALL(*stream, Read)
             .WillOnce([response](btproto::ReadRowsResponse* r) {
@@ -87,7 +87,7 @@ TEST_F(TableReadRowTest, ReadRowMissing) {
   EXPECT_CALL(*client_, ReadRows)
       .WillOnce([this](grpc::ClientContext* context,
                        btproto::ReadRowsRequest const& req) {
-        auto stream = absl::make_unique<MockReadRowsReader>(
+        auto stream = std::make_unique<MockReadRowsReader>(
             "google.bigtable.v2.Bigtable.ReadRows");
         EXPECT_CALL(*stream, Read).WillOnce(Return(false));
         EXPECT_CALL(*stream, Finish).WillOnce(Return(grpc::Status::OK));
@@ -109,7 +109,7 @@ TEST_F(TableReadRowTest, UnrecoverableFailure) {
   EXPECT_CALL(*client_, ReadRows)
       .WillRepeatedly([this](grpc::ClientContext* context,
                              btproto::ReadRowsRequest const& request) {
-        auto stream = absl::make_unique<MockReadRowsReader>(
+        auto stream = std::make_unique<MockReadRowsReader>(
             "google.bigtable.v2.Bigtable.ReadRows");
         EXPECT_CALL(*stream, Read).WillRepeatedly(Return(false));
         EXPECT_CALL(*stream, Finish)

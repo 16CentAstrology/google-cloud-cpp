@@ -13,7 +13,10 @@
 // limitations under the License.
 
 #include "google/cloud/storage/internal/notification_metadata_parser.h"
+#include "google/cloud/storage/internal/metadata_parser.h"
+#include "google/cloud/internal/make_status.h"
 #include <iostream>
+#include <string>
 
 namespace google {
 namespace cloud {
@@ -22,9 +25,7 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace internal {
 StatusOr<NotificationMetadata> NotificationMetadataParser::FromJson(
     nlohmann::json const& json) {
-  if (!json.is_object()) {
-    return Status(StatusCode::kInvalidArgument, __func__);
-  }
+  if (!json.is_object()) return NotJsonObject(json, GCP_ERROR_INFO());
   NotificationMetadata result{};
 
   if (json.count("custom_attributes") != 0) {

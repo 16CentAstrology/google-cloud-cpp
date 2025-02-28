@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/iam/iam_credentials_client.h"
+#include "google/cloud/iam/credentials/v1/iam_credentials_client.h"
 #include "google/cloud/spanner/admin/instance_admin_client.h"
 #include "google/cloud/common_options.h"
+#include "google/cloud/credentials.h"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/getenv.h"
 #include "google/cloud/log.h"
@@ -40,6 +41,14 @@ extern "C" size_t CurlOnWriteData(char* ptr, size_t size, size_t nmemb,
   return size * nmemb;
 }
 
+struct CurlPtrCleanup {
+  void operator()(CURL* arg) const { return curl_easy_cleanup(arg); }
+};
+
+struct CurlSListFreeAll {
+  void operator()(curl_slist* arg) const { return curl_slist_free_all(arg); }
+};
+
 google::cloud::StatusOr<std::string> HttpGet(std::string const& url,
                                              std::string const& token) {
   static auto const kCurlInit = [] {
@@ -47,11 +56,11 @@ google::cloud::StatusOr<std::string> HttpGet(std::string const& url,
   }();
   (void)kCurlInit;
   auto const authorization = "Authorization: Bearer " + token;
-  using Headers = std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)>;
-  auto const headers = Headers{
-      curl_slist_append(nullptr, authorization.c_str()), curl_slist_free_all};
-  using CurlHandle = std::unique_ptr<CURL, decltype(&curl_easy_cleanup)>;
-  auto curl = CurlHandle(curl_easy_init(), curl_easy_cleanup);
+  using Headers = std::unique_ptr<curl_slist, CurlSListFreeAll>;
+  auto const headers =
+      Headers{curl_slist_append(nullptr, authorization.c_str())};
+  using CurlHandle = std::unique_ptr<CURL, CurlPtrCleanup>;
+  auto curl = CurlHandle(curl_easy_init());
   if (!curl) throw std::runtime_error("Failed to create CurlHandle");
   std::string buffer;
   curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
@@ -80,18 +89,10 @@ google::cloud::StatusOr<std::string> HttpGet(std::string const& url,
   return buffer;
 }
 
-// TODO(#6185) - this should be done by the generated code
-std::set<std::string> DefaultTracingComponents() {
-  return absl::StrSplit(
-      google::cloud::internal::GetEnv("GOOGLE_CLOUD_CPP_ENABLE_TRACING")
-          .value_or(""),
-      ',');
-}
-
 google::iam::credentials::v1::GenerateAccessTokenResponse UseAccessToken(
-    google::cloud::iam::IAMCredentialsClient client,
+    google::cloud::iam_credentials_v1::IAMCredentialsClient client,
     std::vector<std::string> const& argv) {
-  namespace iam = ::google::cloud::iam;
+  namespace iam = ::google::cloud::iam_credentials_v1;
   return [](iam::IAMCredentialsClient client,
             std::string const& service_account, std::string const& project_id) {
     google::protobuf::Duration duration;
@@ -100,26 +101,25 @@ google::iam::credentials::v1::GenerateAccessTokenResponse UseAccessToken(
     auto token = client.GenerateAccessToken(
         "projects/-/serviceAccounts/" + service_account, /*delegates=*/{},
         /*scope=*/{"https://www.googleapis.com/auth/cloud-platform"}, duration);
-    if (!token) throw std::runtime_error(token.status().message());
+    if (!token) throw std::move(token).status();
 
-    auto const expiration =
-        std::chrono::system_clock::from_time_t(token->expire_time().seconds());
+    auto const expiration = absl::ToChronoTime(
+        absl::FromUnixSeconds(token->expire_time().seconds()));
     std::cout << "Fetched token starting with "
               << token->access_token().substr(0, 8)
               << ", which will expire around " << absl::FromChrono(expiration)
               << std::endl;
 
-    auto credentials = grpc::CompositeChannelCredentials(
-        grpc::SslCredentials({}),
-        grpc::AccessTokenCredentials(token->access_token()));
+    auto credentials = google::cloud::MakeAccessTokenCredentials(
+        token->access_token(), expiration);
 
     google::cloud::spanner_admin::InstanceAdminClient admin(
         google::cloud::spanner_admin::MakeInstanceAdminConnection(
-            google::cloud::Options{}.set<google::cloud::GrpcCredentialOption>(
-                credentials)));
+            google::cloud::Options{}
+                .set<google::cloud::UnifiedCredentialsOption>(credentials)));
     for (auto config : admin.ListInstanceConfigs(
              google::cloud::Project(project_id).FullName())) {
-      if (!config) throw std::runtime_error(config.status().message());
+      if (!config) throw std::move(config).status();
       std::cout << "InstanceConfig: " << config->name() << "\n";
     }
 
@@ -127,25 +127,25 @@ google::iam::credentials::v1::GenerateAccessTokenResponse UseAccessToken(
   }(std::move(client), argv.at(0), argv.at(1));
 }
 
-void UseAccessTokenUntilExpired(google::cloud::iam::IAMCredentialsClient client,
-                                std::vector<std::string> const& argv) {
+void UseAccessTokenUntilExpired(
+    google::cloud::iam_credentials_v1::IAMCredentialsClient client,
+    std::vector<std::string> const& argv) {
   auto token = UseAccessToken(std::move(client), argv);
   auto const& project_id = argv.at(1);
   auto const expiration =
-      std::chrono::system_clock::from_time_t(token.expire_time().seconds());
+      absl::ToChronoTime(absl::FromUnixSeconds(token.expire_time().seconds()));
   auto const deadline = expiration + 4 * kTokenValidationPeriod;
   std::cout << "Running until " << absl::FromChrono(deadline)
             << ". This is past the access token expiration time ("
             << absl::FromChrono(expiration) << ")" << std::endl;
 
   auto iteration = [=](bool expired) {
-    auto credentials = grpc::CompositeChannelCredentials(
-        grpc::SslCredentials({}),
-        grpc::AccessTokenCredentials(token.access_token()));
+    auto credentials = google::cloud::MakeAccessTokenCredentials(
+        token.access_token(), expiration);
     google::cloud::spanner_admin::InstanceAdminClient admin(
         google::cloud::spanner_admin::MakeInstanceAdminConnection(
-            google::cloud::Options{}.set<google::cloud::GrpcCredentialOption>(
-                credentials)));
+            google::cloud::Options{}
+                .set<google::cloud::UnifiedCredentialsOption>(credentials)));
     for (auto config : admin.ListInstanceConfigs(
              google::cloud::Project(project_id).FullName())) {
       // kUnauthenticated receives special treatment, it is the error received
@@ -161,7 +161,7 @@ void UseAccessTokenUntilExpired(google::cloud::iam::IAMCredentialsClient client,
         std::cout << ": this is expected as the token is expired\n";
         return false;
       }
-      if (!config) throw std::runtime_error(config.status().message());
+      if (!config) throw std::move(config).status();
       std::cout << "success (" << config->name() << ")\n";
       return true;
     }
@@ -178,16 +178,17 @@ void UseAccessTokenUntilExpired(google::cloud::iam::IAMCredentialsClient client,
   }
 }
 
-void UseIdTokenHttp(google::cloud::iam::IAMCredentialsClient client,
-                    std::vector<std::string> const& argv) {
-  namespace iam = ::google::cloud::iam;
+void UseIdTokenHttp(
+    google::cloud::iam_credentials_v1::IAMCredentialsClient client,
+    std::vector<std::string> const& argv) {
+  namespace iam = ::google::cloud::iam_credentials_v1;
   [](iam::IAMCredentialsClient client, std::string const& service_account,
      std::string const& hello_world_url) {
     auto token = client.GenerateIdToken(
         "projects/-/serviceAccounts/" + service_account, /*delegates=*/{},
         /*audience=*/{hello_world_url},
         /*include_email=*/true);
-    if (!token) throw std::runtime_error(token.status().message());
+    if (!token) throw std::move(token).status();
 
     auto backoff = std::chrono::milliseconds(250);
     for (int i = 0; i != 3; ++i) {
@@ -203,16 +204,17 @@ void UseIdTokenHttp(google::cloud::iam::IAMCredentialsClient client,
   }(std::move(client), argv.at(0), argv.at(1));
 }
 
-void UseIdTokenGrpc(google::cloud::iam::IAMCredentialsClient client,
-                    std::vector<std::string> const& argv) {
-  namespace iam = ::google::cloud::iam;
+void UseIdTokenGrpc(
+    google::cloud::iam_credentials_v1::IAMCredentialsClient client,
+    std::vector<std::string> const& argv) {
+  namespace iam = ::google::cloud::iam_credentials_v1;
   [](iam::IAMCredentialsClient client, std::string const& service_account,
      std::string const& url) {
     auto token = client.GenerateIdToken(
         "projects/-/serviceAccounts/" + service_account, /*delegates=*/{},
         /*audience=*/{url},
         /*include_email=*/true);
-    if (!token) throw std::runtime_error(token.status().message());
+    if (!token) throw std::move(token).status();
 
     auto const prefix = std::string{"https://"};
     if (!absl::StartsWith(url, prefix)) {
@@ -245,6 +247,7 @@ void UseIdTokenGrpc(google::cloud::iam::IAMCredentialsClient client,
 
 void AutoRun(std::vector<std::string> const& argv) {
   namespace examples = ::google::cloud::testing_util;
+  namespace iam = ::google::cloud::iam_credentials_v1;
   using ::google::cloud::internal::GetEnv;
 
   if (!argv.empty()) throw examples::Usage{"auto"};
@@ -265,17 +268,13 @@ void AutoRun(std::vector<std::string> const& argv) {
   auto const hello_world_grpc_url =
       GetEnv("GOOGLE_CLOUD_CPP_TEST_HELLO_WORLD_GRPC_URL").value_or("");
 
-  auto client = google::cloud::iam::IAMCredentialsClient(
-      google::cloud::iam::MakeIAMCredentialsConnection(
-          google::cloud::Options{}
-              .set<google::cloud::TracingComponentsOption>(
-                  DefaultTracingComponents())
-              .set<google::cloud::GrpcTracingOptionsOption>(
-                  // There are some credentials returned by RPCs. On an error
-                  // these are printed. This truncates them, making the output
-                  // safe, and yet useful for debugging.
-                  google::cloud::TracingOptions{}.SetOptions(
-                      "truncate_string_field_longer_than=32"))));
+  auto client = iam::IAMCredentialsClient(iam::MakeIAMCredentialsConnection(
+      google::cloud::Options{}.set<google::cloud::GrpcTracingOptionsOption>(
+          // There are some credentials returned by RPCs. On an error
+          // these are printed. This truncates them, making the output
+          // safe, and yet useful for debugging.
+          google::cloud::TracingOptions{}.SetOptions(
+              "truncate_string_field_longer_than=32"))));
 
   std::cout << "\nRunning UseAccessToken() example" << std::endl;
   UseAccessToken(client, {test_iam_service_account, project_id});
@@ -294,9 +293,10 @@ void AutoRun(std::vector<std::string> const& argv) {
 
 int main(int argc, char* argv[]) {  // NOLINT(bugprone-exception-escape)
   using ::google::cloud::testing_util::Example;
+  namespace iam = ::google::cloud::iam_credentials_v1;
 
-  using ClientCommand = std::function<void(
-      google::cloud::iam::IAMCredentialsClient, std::vector<std::string> argv)>;
+  using ClientCommand = std::function<void(iam::IAMCredentialsClient,
+                                           std::vector<std::string> argv)>;
 
   auto make_entry = [](std::string name,
                        std::vector<std::string> const& arg_names,
@@ -308,11 +308,8 @@ int main(int argc, char* argv[]) {  // NOLINT(bugprone-exception-escape)
         for (auto const& a : arg_names) usage += " <" + a + ">";
         throw google::cloud::testing_util::Usage{std::move(usage)};
       }
-      auto client = google::cloud::iam::IAMCredentialsClient(
-          google::cloud::iam::MakeIAMCredentialsConnection(
-              google::cloud::Options{}
-                  .set<google::cloud::TracingComponentsOption>(
-                      DefaultTracingComponents())));
+      auto client =
+          iam::IAMCredentialsClient(iam::MakeIAMCredentialsConnection());
       command(client, std::move(argv));
     };
     return google::cloud::testing_util::Commands::value_type(std::move(name),

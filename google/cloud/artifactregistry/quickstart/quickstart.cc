@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/artifactregistry/artifact_registry_client.h"
+//! [all]
+#include "google/cloud/artifactregistry/v1/artifact_registry_client.h"
+#include "google/cloud/location.h"
 #include <iostream>
 
 int main(int argc, char* argv[]) try {
@@ -21,13 +23,13 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace artifactregistry = ::google::cloud::artifactregistry;
+  auto const location = google::cloud::Location(argv[1], argv[2]);
+
+  namespace artifactregistry = ::google::cloud::artifactregistry_v1;
   auto client = artifactregistry::ArtifactRegistryClient(
       artifactregistry::MakeArtifactRegistryConnection());
 
-  auto const parent =
-      std::string{"projects/"} + argv[1] + "/locations/" + argv[2];
-  for (auto r : client.ListRepositories(parent)) {
+  for (auto r : client.ListRepositories(location.FullName())) {
     if (!r) throw std::move(r).status();
     std::cout << r->DebugString() << "\n";
   }
@@ -37,3 +39,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

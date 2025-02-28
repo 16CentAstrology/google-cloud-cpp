@@ -12,51 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("//bazel:gapic.bzl", "cc_gapic_library")
+
 package(default_visibility = ["//visibility:private"])
 
 licenses(["notice"])  # Apache 2.0
 
-filegroup(
-    name = "srcs",
-    srcs = glob([
-        "*.cc",
-        "internal/*.cc",
-    ]),
-)
+service_dirs = [
+    "",
+    "livestream/v1/",
+    "stitcher/v1/",
+    "transcoder/v1/",
+]
 
-filegroup(
-    name = "hdrs",
-    srcs = glob([
-        "*.h",
-        "internal/*.h",
-    ]),
-)
+googleapis_deps = [
+    "@com_google_googleapis//google/cloud/video/livestream/v1:livestream_cc_grpc",
+    "@com_google_googleapis//google/cloud/video/stitcher/v1:stitcher_cc_grpc",
+    "@com_google_googleapis//google/cloud/video/transcoder/v1:transcoder_cc_grpc",
+]
 
-filegroup(
-    name = "mocks",
-    srcs = glob(["mocks/*.h"]),
-)
-
-cc_library(
-    name = "google_cloud_cpp_video",
-    srcs = [":srcs"],
-    hdrs = [":hdrs"],
-    visibility = ["//:__pkg__"],
-    deps = [
-        "//:common",
-        "//:grpc_utils",
-        "@com_google_googleapis//google/cloud/video/livestream/v1:livestream_cc_grpc",
-        "@com_google_googleapis//google/cloud/video/stitcher/v1:stitcher_cc_grpc",
-        "@com_google_googleapis//google/cloud/video/transcoder/v1:transcoder_cc_grpc",
-    ],
-)
-
-cc_library(
-    name = "google_cloud_cpp_video_mocks",
-    hdrs = [":mocks"],
-    visibility = ["//:__pkg__"],
-    deps = [
-        ":google_cloud_cpp_video",
-        "@com_google_googletest//:gtest",
-    ],
+cc_gapic_library(
+    name = "video",
+    googleapis_deps = googleapis_deps,
+    service_dirs = service_dirs,
 )

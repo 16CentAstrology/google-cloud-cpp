@@ -18,7 +18,6 @@
 #include "google/cloud/log.h"
 #include "google/cloud/testing_util/scoped_log.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
 #include <gmock/gmock.h>
 #include <grpcpp/grpcpp.h>
 
@@ -64,17 +63,17 @@ TEST_F(InstanceAdminLoggingTest, GetInstance) {
 
 TEST_F(InstanceAdminLoggingTest, CreateInstance) {
   EXPECT_CALL(*mock_, AsyncCreateInstance)
-      .WillOnce([](CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
-                   gsai::v1::CreateInstanceRequest const&) {
-        return make_ready_future(
-            StatusOr<google::longrunning::Operation>(TransientError()));
-      });
+      .WillOnce(
+          [](CompletionQueue&, auto, gsai::v1::CreateInstanceRequest const&) {
+            return make_ready_future(
+                StatusOr<google::longrunning::Operation>(TransientError()));
+          });
 
   InstanceAdminLogging stub(mock_, TracingOptions{});
 
   CompletionQueue cq;
   auto response =
-      stub.AsyncCreateInstance(cq, absl::make_unique<grpc::ClientContext>(),
+      stub.AsyncCreateInstance(cq, std::make_shared<grpc::ClientContext>(),
                                gsai::v1::CreateInstanceRequest{});
   EXPECT_EQ(TransientError(), response.get().status());
 
@@ -85,17 +84,17 @@ TEST_F(InstanceAdminLoggingTest, CreateInstance) {
 
 TEST_F(InstanceAdminLoggingTest, UpdateInstance) {
   EXPECT_CALL(*mock_, AsyncUpdateInstance)
-      .WillOnce([](CompletionQueue&, std::unique_ptr<grpc::ClientContext>,
-                   gsai::v1::UpdateInstanceRequest const&) {
-        return make_ready_future(
-            StatusOr<google::longrunning::Operation>(TransientError()));
-      });
+      .WillOnce(
+          [](CompletionQueue&, auto, gsai::v1::UpdateInstanceRequest const&) {
+            return make_ready_future(
+                StatusOr<google::longrunning::Operation>(TransientError()));
+          });
 
   InstanceAdminLogging stub(mock_, TracingOptions{});
 
   CompletionQueue cq;
   auto response =
-      stub.AsyncUpdateInstance(cq, absl::make_unique<grpc::ClientContext>(),
+      stub.AsyncUpdateInstance(cq, std::make_shared<grpc::ClientContext>(),
                                gsai::v1::UpdateInstanceRequest{});
   EXPECT_EQ(TransientError(), response.get().status());
 

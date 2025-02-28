@@ -8,15 +8,14 @@ experience as a C++ developer and that you have a working C++ toolchain
 - Packaging maintainers or developers who prefer to install the library in a
   fixed directory (such as `/usr/local` or `/opt`) should consult the
   [packaging guide](/doc/packaging.md).
-- Developers that prefer using a package manager such as
-  [vcpkg](https://vcpkg.io), [Conda](https://conda.io),
-  or [Conan](https://conan.io) should follow the instructions for their package
-  manager.
+- Developers who prefer using a package manager such as
+  [vcpkg](https://vcpkg.io), or [Conda](https://conda.io), should follow the
+  instructions for their package manager.
 - Developers wanting to use the libraries as part of a larger CMake or Bazel
   project should consult the current document. Note that there are similar
   documents for each library in their corresponding directories.
-- Developers wanting to compile the library just to run some examples or
-  tests should consult the
+- Developers wanting to compile the library just to run some examples or tests
+  should consult the
   [building and installing](/README.md#building-and-installing) section of the
   top-level README file.
 - Contributors and developers to `google-cloud-cpp` should consult the guide to
@@ -25,34 +24,17 @@ experience as a C++ developer and that you have a working C++ toolchain
 ## Before you begin
 
 To run the quickstart examples you will need a working Google Cloud Platform
-(GCP) project and an existing bucket.
-The [GCS quickstarts](https://cloud.google.com/storage/docs/introduction#quickstarts) cover
-the necessary steps in detail. Make a note of the GCP project id and the bucket
-name as you will need them below.
+(GCP) project and an existing bucket. The
+[GCS quickstarts](https://cloud.google.com/storage/docs/introduction#quickstarts)
+cover the necessary steps in detail. Make a note of the GCP project id and the
+bucket name as you will need them below.
 
 ## Configuring authentication for the C++ Client Library
 
-Like most Google Cloud Platform services, GCS requires that
-your application authenticates with the service before accessing any data. If
-you are not familiar with GCP authentication please take this opportunity to
-review the [Authentication Overview][authentication-quickstart]. This library
-uses the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to find the
-credentials file. For example:
-
-| Shell              | Command                                                                              |
-| :----------------- | ------------------------------------------------------------------------------------ |
-| Bash/zsh/ksh/etc.  | `export GOOGLE_APPLICATION_CREDENTIALS=[PATH]`                                       |
-| sh                 | `GOOGLE_APPLICATION_CREDENTIALS=[PATH];`<br> `export GOOGLE_APPLICATION_CREDENTIALS` |
-| csh/tsch           | `setenv GOOGLE_APPLICATION_CREDENTIALS [PATH]`                                       |
-| Windows Powershell | `$env:GOOGLE_APPLICATION_CREDENTIALS=[PATH]`                                         |
-| Windows cmd.exe    | `set GOOGLE_APPLICATION_CREDENTIALS=[PATH]`                                          |
-
-Setting this environment variable is the recommended way to configure the
-authentication preferences, though if the environment variable is not set, the
-library searches for a credentials file in the same location as the [Cloud
-SDK](https://cloud.google.com/sdk/). For more information about *Application
-Default Credentials*, see
-https://cloud.google.com/docs/authentication/production
+Like most Google Cloud Platform services, GCS requires that your application
+authenticates with the service before accessing any data. If you are not
+familiar with GCP authentication please take this opportunity to review the
+[Authentication methods at Google][authentication-quickstart].
 
 ## Using with Bazel
 
@@ -104,8 +86,8 @@ https://cloud.google.com/docs/authentication/production
    the dependencies:
 
    ```bash
-   cd $HOME/gooogle-cloud-cpp/google/cloud/storage/quickstart
-   cmake -H. -B.build -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake
+   cd $HOME/google-cloud-cpp/google/cloud/storage/quickstart
+   cmake -S . -B .build -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake
    cmake --build .build
    ```
 
@@ -122,15 +104,13 @@ https://cloud.google.com/docs/authentication/production
 
 ## The gRPC plugin
 
-The Google Cloud Storage client library includes an experimental plugin to use
-gRPC as the transport to access GCS.  For the most part, only applications with
-very large workloads (several Tbits/s of upload and/or download bandwidth)
-benefit from GCS+gRPC.  Furthermore, this GCS feature is not generally
-available in GCP, please talk to your sales rep if you have an interest in using
-this feature.
+The Google Cloud Storage client library includes a plugin to use gRPC as the
+transport to access GCS. For the most part, only applications with very large
+workloads (several Tbits/s of upload and/or download bandwidth) benefit from
+GCS+gRPC.
 
-To enable the GCS+gRPC plugin you need to (a) link your application
-with an additional library, and (b) use a different function to initialize the
+To enable the GCS+gRPC plugin you need to (a) link your application with an
+additional library, and (b) use a different function to initialize the
 `google::cloud::storage::Client` object. Both changes are illustrated in the
 `quickstart_grpc` program included in this directory.
 
@@ -142,8 +122,8 @@ feature. To enable the feature add `-DGOOGLE_CLOUD_CPP_STORAGE_ENABLE_GRPC=ON`
 to your CMake configuration step. Using the previous example:
 
 ```sh
-cd $HOME/gooogle-cloud-cpp/google/cloud/storage/quickstart
-cmake -H. -B.build -DGOOGLE_CLOUD_CPP_STORAGE_ENABLE_GRPC=ON \
+cd $HOME/google-cloud-cpp/google/cloud/storage/quickstart
+cmake -S . -B .build -DGOOGLE_CLOUD_CPP_STORAGE_ENABLE_GRPC=ON \
     -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake
 cmake --build .build --target quickstart_grpc
 ```
@@ -174,19 +154,11 @@ curl -Lo roots.pem https://pki.google.com/roots.pem
 export GRPC_DEFAULT_SSL_ROOTS_FILE_PATH="$PWD/roots.pem"
 ```
 
-To workaround a [bug in Bazel][bazel-grpc-macos-bug], gRPC requires this flag on
-macOS builds, you can add the option manually or include it in your `.bazelrc`
-file:
-
-```bash
-bazel build --copt=-DGRPC_BAZEL_BUILD ...
-```
-
 ### Windows
 
 Bazel tends to create very long file names and paths. You may need to use a
-short directory to store the build output, such as `c:\b`, and instruct Bazel
-to use it via:
+short directory to store the build output, such as `c:\b`, and instruct Bazel to
+use it via:
 
 ```shell
 bazel --output_user_root=c:\b build ...
@@ -202,8 +174,7 @@ trust store for SSL certificates, you can download and configure this using:
 set GRPC_DEFAULT_SSL_ROOTS_FILE_PATH=%cd%\roots.pem
 ```
 
-[authentication-quickstart]: https://cloud.google.com/docs/authentication/getting-started "Authentication Getting Started"
-[bazel-grpc-macos-bug]: https://github.com/bazelbuild/bazel/issues/4341
+[authentication-quickstart]: https://cloud.google.com/docs/authentication/client-libraries "Authenticate for using client libraries"
 [bazel-install]: https://docs.bazel.build/versions/main/install.html
 [bucket-naming-link]: https://cloud.google.com/storage/docs/naming-buckets
 [choco-cmake-link]: https://chocolatey.org/packages/cmake

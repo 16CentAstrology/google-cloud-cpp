@@ -12,25 +12,59 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load(":google_cloud_cpp_storage.bzl", "google_cloud_cpp_storage_hdrs", "google_cloud_cpp_storage_srcs")
+load(":google_cloud_cpp_storage_grpc.bzl", "google_cloud_cpp_storage_grpc_hdrs", "google_cloud_cpp_storage_grpc_srcs")
+load(":google_cloud_cpp_storage_grpc_mocks.bzl", "google_cloud_cpp_storage_grpc_mocks_hdrs")
+load(":storage_client_benchmarks.bzl", "storage_client_benchmarks")
+load(":storage_client_grpc_unit_tests.bzl", "storage_client_grpc_unit_tests")
+load(":storage_client_testing.bzl", "storage_client_testing_hdrs", "storage_client_testing_srcs")
+load(":storage_client_unit_tests.bzl", "storage_client_unit_tests")
+
 package(default_visibility = ["//visibility:private"])
 
 licenses(["notice"])  # Apache 2.0
 
-# These are needed to use the BoringSSL libraries, and should be set in any
-# downstream dependency too.
 GOOGLE_CLOUD_STORAGE_WIN_DEFINES = [
     "WIN32_LEAN_AND_MEAN",
+    "_WIN32_WINNT=0x0A00",
 ]
 
-load(":google_cloud_cpp_storage.bzl", "google_cloud_cpp_storage_hdrs", "google_cloud_cpp_storage_srcs")
-load(":google_cloud_cpp_storage_grpc.bzl", "google_cloud_cpp_storage_grpc_hdrs", "google_cloud_cpp_storage_grpc_srcs")
+config_setting(
+    name = "ctype_cord_workaround_enabled",
+    flag_values = {"//:enable-ctype-cord-workaround": "true"},
+    visibility = [":__subpackages__"],
+)
+
+bool_flag(
+    name = "enable_grpc_metrics",
+    build_setting_default = True,
+)
+
+config_setting(
+    name = "grpc_metrics_enabled",
+    flag_values = {":enable_grpc_metrics": "true"},
+)
+
+filegroup(
+    name = "public_grpc_hdrs",
+    srcs = [h for h in google_cloud_cpp_storage_grpc_hdrs if not h.startswith("internal/")],
+    visibility = ["//:__pkg__"],
+)
 
 cc_library(
     name = "google_cloud_cpp_storage_grpc",
     srcs = google_cloud_cpp_storage_grpc_srcs,
     hdrs = google_cloud_cpp_storage_grpc_hdrs,
-    defines = ["GOOGLE_CLOUD_CPP_STORAGE_HAVE_GRPC"] + select({
+    defines = ["GOOGLE_CLOUD_CPP_STORAGE_HAVE_GRPC"],
+    local_defines = select({
         "@platforms//os:windows": GOOGLE_CLOUD_STORAGE_WIN_DEFINES,
+        "//conditions:default": [],
+    }) + select({
+        ":ctype_cord_workaround_enabled": ["GOOGLE_CLOUD_CPP_ENABLE_CTYPE_CORD_WORKAROUND"],
+        "//conditions:default": [],
+    }) + select({
+        ":grpc_metrics_enabled": ["GOOGLE_CLOUD_CPP_STORAGE_WITH_OTEL_METRICS"],
         "//conditions:default": [],
     }),
     visibility = [
@@ -40,26 +74,63 @@ cc_library(
     deps = [
         ":google_cloud_cpp_storage",
         "//:grpc_utils",
-        "@boringssl//:crypto",
-        "@boringssl//:ssl",
         "@com_github_curl_curl//:curl",
         "@com_github_google_crc32c//:crc32c",
-        "@com_github_nlohmann_json//:nlohmann_json",
+        "@com_github_grpc_grpc//:grpc++",
+        "@com_github_nlohmann_json//:json",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@com_google_googleapis//google/storage/v2:storage_cc_grpc",
         "@com_google_googleapis//google/storage/v2:storage_cc_proto",
-        # Do not sort: grpc++ must come last
-        "@com_github_grpc_grpc//:grpc++",
+    ] + select({
+        ":grpc_metrics_enabled": [
+            "//:opentelemetry",
+            "@com_github_grpc_grpc//:grpcpp_otel_plugin",
+            "@io_opentelemetry_cpp//sdk/src/metrics",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "grpc_mocks_hdrs",
+    srcs = [h for h in google_cloud_cpp_storage_grpc_mocks_hdrs if not h.startswith("internal/")],
+    visibility = ["//:__pkg__"],
+)
+
+cc_library(
+    name = "google_cloud_cpp_storage_grpc_mocks",
+    testonly = True,
+    hdrs = google_cloud_cpp_storage_grpc_mocks_hdrs,
+    visibility = [
+        ":__subpackages__",
+        "//:__pkg__",
     ],
+    deps = [
+        ":google_cloud_cpp_storage",
+        ":google_cloud_cpp_storage_grpc",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+filegroup(
+    name = "public_hdrs",
+    srcs = [h for h in google_cloud_cpp_storage_hdrs if not h.startswith("internal/")],
+    visibility = ["//:__pkg__"],
 )
 
 cc_library(
     name = "google_cloud_cpp_storage",
     srcs = google_cloud_cpp_storage_srcs,
     hdrs = google_cloud_cpp_storage_hdrs,
-    defines = select({
+    linkopts = select({
+        "@platforms//os:windows": [
+            "-DEFAULTLIB:bcrypt.lib",
+        ],
+        "//conditions:default": [],
+    }),
+    local_defines = select({
         "@platforms//os:windows": GOOGLE_CLOUD_STORAGE_WIN_DEFINES,
         "//conditions:default": [],
     }),
@@ -70,20 +141,45 @@ cc_library(
     deps = [
         "//:common",
         "//google/cloud:google_cloud_cpp_rest_internal",
-        "@boringssl//:crypto",
-        "@boringssl//:ssl",
         "@com_github_curl_curl//:curl",
         "@com_github_google_crc32c//:crc32c",
-        "@com_github_nlohmann_json//:nlohmann_json",
-        "@com_google_absl//absl/memory",
+        "@com_github_nlohmann_json//:json",
+        "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
-    ],
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            "@boringssl//:crypto",
+            "@boringssl//:ssl",
+        ],
+    }),
 )
 
-load(":storage_client_testing.bzl", "storage_client_testing_hdrs", "storage_client_testing_srcs")
+filegroup(
+    name = "mocks",
+    srcs = [],
+    visibility = ["//:__pkg__"],
+)
+
+# This empty library is used to simplify the top-level BUILD.bazel file.
+cc_library(
+    name = "google_cloud_cpp_storage_mocks",
+    testonly = True,
+    srcs = [],
+    hdrs = [],
+    visibility = [
+        ":__subpackages__",
+        "//:__pkg__",
+    ],
+    deps = [
+        ":google_cloud_cpp_storage",
+        "//:common",
+        "@com_google_googletest//:gtest",
+    ],
+)
 
 cc_library(
     name = "storage_client_testing",
@@ -95,17 +191,13 @@ cc_library(
         ":google_cloud_cpp_storage",
         ":google_cloud_cpp_storage_grpc",
         "//:common",
+        "//google/cloud:google_cloud_cpp_mocks",
         "//google/cloud/testing_util:google_cloud_cpp_testing_private",
         "//google/cloud/testing_util:google_cloud_cpp_testing_rest_private",
-        "@boringssl//:crypto",
-        "@boringssl//:ssl",
         "@com_github_curl_curl//:curl",
-        "@com_google_absl//absl/memory",
         "@com_google_googletest//:gtest_main",
     ],
 )
-
-load(":storage_client_unit_tests.bzl", "storage_client_unit_tests")
 
 [cc_test(
     name = test.replace("/", "_").replace(".cc", ""),
@@ -119,15 +211,16 @@ load(":storage_client_unit_tests.bzl", "storage_client_unit_tests")
         ":storage_client_testing",
         "//:common",
         "//google/cloud/testing_util:google_cloud_cpp_testing_private",
-        "@boringssl//:crypto",
-        "@boringssl//:ssl",
         "@com_github_curl_curl//:curl",
-        "@com_google_absl//absl/memory",
         "@com_google_googletest//:gtest_main",
-    ],
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            "@boringssl//:crypto",
+            "@boringssl//:ssl",
+        ],
+    }),
 ) for test in storage_client_unit_tests]
-
-load(":storage_client_grpc_unit_tests.bzl", "storage_client_grpc_unit_tests")
 
 [cc_test(
     name = test.replace("/", "_").replace(".cc", ""),
@@ -136,27 +229,36 @@ load(":storage_client_grpc_unit_tests.bzl", "storage_client_grpc_unit_tests")
         "@platforms//os:windows": [],
         "//conditions:default": ["-lpthread"],
     }),
+    local_defines = select({
+        "@platforms//os:windows": GOOGLE_CLOUD_STORAGE_WIN_DEFINES,
+        "//conditions:default": [],
+    }) + select({
+        ":ctype_cord_workaround_enabled": ["GOOGLE_CLOUD_CPP_ENABLE_CTYPE_CORD_WORKAROUND"],
+        "//conditions:default": [],
+    }) + select({
+        ":grpc_metrics_enabled": ["GOOGLE_CLOUD_CPP_STORAGE_WITH_OTEL_METRICS"],
+        "//conditions:default": [],
+    }),
     deps = [
         ":google_cloud_cpp_storage",
+        ":google_cloud_cpp_storage_grpc_mocks",
         ":storage_client_testing",
+        "//:mocks",
         "//google/cloud/testing_util:google_cloud_cpp_testing_grpc_private",
         "//google/cloud/testing_util:google_cloud_cpp_testing_private",
-        "@boringssl//:crypto",
-        "@boringssl//:ssl",
         "@com_github_curl_curl//:curl",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",
     ],
 ) for test in storage_client_grpc_unit_tests]
 
-load(":google_cloud_cpp_storage_benchmarks.bzl", "google_cloud_cpp_storage_benchmarks")
-
-[cc_test(
+[cc_binary(
     name = benchmark.replace("/", "_").replace(".cc", ""),
     srcs = [benchmark],
     tags = ["benchmark"],
     deps = [
         ":google_cloud_cpp_storage",
+        "//:common",
         "@com_google_benchmark//:benchmark_main",
     ],
-) for benchmark in google_cloud_cpp_storage_benchmarks]
+) for benchmark in storage_client_benchmarks]

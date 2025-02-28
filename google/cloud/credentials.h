@@ -39,14 +39,22 @@ class CredentialsVisitor;
  * (intentionally) very narrow. Only the internal components in the client
  * libraries should need to access the details of this class.
  *
+ * You can use the [OAuth2 Library] to create access tokens from a `Credentials`
+ * object.
+ *
  * @see https://cloud.google.com/docs/authentication for more information on
  *     authentication in GCP.
+ *
+ * @see https://cloud.google.com/docs/authentication/client-libraries for more
+ *     information on authentication for client libraries.
  *
  * @see https://cloud.google.com/iam for more information on the IAM Service.
  *
  * [IAM overview]: https://cloud.google.com/iam/docs/overview
  * [IAM Service]: https://cloud.google.com/iam/docs
- * [C++ IAM client library]: https://googleapis.dev/cpp/google-cloud-iam/latest/
+ * [C++ IAM client library]:
+ * https://cloud.google.com/cpp/docs/reference/iam/latest/
+ * [OAuth2 Library]: https://cloud.google.com/cpp/docs/reference/oauth2/latest
  *
  * @ingroup guac
  */
@@ -56,7 +64,7 @@ class Credentials {
 
  private:
   friend class internal::CredentialsVisitor;
-  virtual void dispatch(internal::CredentialsVisitor& visitor) = 0;
+  virtual void dispatch(internal::CredentialsVisitor& visitor) const = 0;
 };
 
 /**
@@ -86,7 +94,7 @@ struct UnifiedCredentialsOption {
  *
  * @param opts optional configuration values.  Note that the effect of these
  *     parameters depends on the underlying transport. For example,
- *     `TracingComponentsOption` is ignored by gRPC-based services.
+ *     `LoggingComponentsOption` is ignored by gRPC-based services.
  */
 std::shared_ptr<Credentials> MakeInsecureCredentials(Options opts = {});
 
@@ -111,8 +119,19 @@ std::shared_ptr<Credentials> MakeInsecureCredentials(Options opts = {});
  *   service account key file, or a JSON object describing your user
  *   credentials.
  *
+ * @warning If you accept a credential configuration (credential
+ * JSON/File/Stream) from an external source for authentication to Google Cloud
+ * Platform, you must validate it before providing it to any Google API or
+ * client library. Providing an unvalidated credential configuration to Google
+ * APIs can compromise the security of your systems and data. For more
+ * information, refer to
+ * https://cloud.google.com/docs/authentication/external/externally-sourced-credentials.
+ *
  * @see https://cloud.google.com/docs/authentication for more information on
  *     authentication in GCP.
+ *
+ * @see https://cloud.google.com/docs/authentication/client-libraries for more
+ *     information on authentication for client libraries.
  *
  * [aip/4110]: https://google.aip.dev/auth/4110
  * [gcloud auth application-default]:
@@ -122,7 +141,7 @@ std::shared_ptr<Credentials> MakeInsecureCredentials(Options opts = {});
  *
  * @param opts optional configuration values.  Note that the effect of these
  *     parameters depends on the underlying transport. For example,
- *     `TracingComponentsOption` is ignored by gRPC-based services.
+ *     `LoggingComponentsOption` is ignored by gRPC-based services.
  */
 std::shared_ptr<Credentials> MakeGoogleDefaultCredentials(Options opts = {});
 
@@ -130,11 +149,14 @@ std::shared_ptr<Credentials> MakeGoogleDefaultCredentials(Options opts = {});
  * Creates credentials with a fixed access token.
  *
  * These credentials are useful when using an out-of-band mechanism to fetch
- * access tokens. Note that access tokens are time limited, you will need to
- * manually refresh the tokens created by the
+ * access tokens. Note that access tokens are time limited. You will need to
+ * manually refresh the tokens, and pass the new `Credentials` to a new client.
  *
  * @see https://cloud.google.com/docs/authentication for more information on
  *     authentication in GCP.
+ *
+ * @see https://cloud.google.com/docs/authentication/client-libraries for more
+ *     information on authentication for client libraries.
  *
  * @ingroup guac
  *
@@ -142,7 +164,7 @@ std::shared_ptr<Credentials> MakeGoogleDefaultCredentials(Options opts = {});
  * @param expiration the expiration time for the token.
  * @param opts optional configuration values.  Note that the effect of these
  *     parameters depends on the underlying transport. For example,
- *     `TracingComponentsOption` is ignored by gRPC-based services.
+ *     `LoggingComponentsOption` is ignored by gRPC-based services.
  */
 std::shared_ptr<Credentials> MakeAccessTokenCredentials(
     std::string const& access_token,
@@ -176,6 +198,8 @@ std::shared_ptr<Credentials> MakeAccessTokenCredentials(
  * [IAM quotas]: https://cloud.google.com/iam/quotas
  * @see https://cloud.google.com/docs/authentication for more information on
  *     authentication in GCP.
+ * @see https://cloud.google.com/docs/authentication/client-libraries for more
+ *     information on authentication for client libraries.
  * @see https://cloud.google.com/iam/docs/impersonating-service-accounts for
  *     information on managing service account impersonation.
  * @see https://developers.google.com/identity/protocols/oauth2/scopes for
@@ -189,7 +213,7 @@ std::shared_ptr<Credentials> MakeAccessTokenCredentials(
  * impersonate.
  * @param opts optional configuration values.  Note that the effect of these
  *     parameters depends on the underlying transport. For example,
- *     `TracingComponentsOption` is ignored by gRPC-based services.
+ *     `LoggingComponentsOption` is ignored by gRPC-based services.
  */
 std::shared_ptr<Credentials> MakeImpersonateServiceAccountCredentials(
     std::shared_ptr<Credentials> base_credentials,
@@ -235,10 +259,79 @@ std::shared_ptr<Credentials> MakeImpersonateServiceAccountCredentials(
  * something like Google's secret manager service.
  * @param opts optional configuration values.  Note that the effect of these
  *     parameters depends on the underlying transport. For example,
- *     `TracingComponentsOption` is ignored by gRPC-based services.
+ *     `LoggingComponentsOption` is ignored by gRPC-based services.
  */
 std::shared_ptr<Credentials> MakeServiceAccountCredentials(
     std::string json_object, Options opts = {});
+
+/**
+ * Creates credentials based on external accounts.
+ *
+ * [Workload Identity Federation] can grant on-premises or multi-cloud workloads
+ * access to Google Cloud resources, without using a service account key. You
+ * can use identity federation with Amazon Web Services (AWS), or with any
+ * identity provider that supports OpenID Connect (OIDC), such as Microsoft
+ * Azure, or SAML 2.0.
+ *
+ * @warning If you accept a credential configuration (credential
+ * JSON/File/Stream) from an external source for authentication to Google Cloud
+ * Platform, you must validate it before providing it to any Google API or
+ * client library. Providing an unvalidated credential configuration to Google
+ * APIs can compromise the security of your systems and data. For more
+ * information, refer to
+ * https://cloud.google.com/docs/authentication/external/externally-sourced-credentials.
+ *
+ * @see https://cloud.google.com/docs/authentication for more information on
+ *     authentication in GCP.
+ *
+ * @see https://cloud.google.com/docs/authentication/client-libraries for more
+ *     information on authentication for client libraries.
+ *
+ * @ingroup guac
+ *
+ * @param json_object the external account configuration as a JSON string.
+ *     Typically applications read this from a file, or download the contents
+ *     from something like Google's secret manager service. The configuration
+ *     file can be created using the [create-cred-config] `gcloud` subcommand.
+ * @param opts optional configuration values.  Note that the effect of these
+ *     parameters depends on the underlying transport. For example,
+ *     `LoggingComponentsOption` is ignored by gRPC-based services.
+ *
+ * [create-cred-config]:
+ * https://cloud.google.com/sdk/gcloud/reference/iam/workload-identity-pools/create-cred-config
+ * [IAM quotas]: https://cloud.google.com/iam/quotas
+ * [Workload Identity Federation]:
+ * https://cloud.google.com/iam/docs/workload-identity-federation
+ */
+std::shared_ptr<Credentials> MakeExternalAccountCredentials(
+    std::string json_object, Options opts = {});
+
+/**
+ * Create credentials that authenticate using an [API key].
+ *
+ * API keys are convenient because no [principal] is needed. The API key
+ * associates the request with a Google Cloud project for billing and quota
+ * purposes.
+ *
+ * @note Most Cloud APIs do not support API keys, instead requiring full
+ * credentials.
+ *
+ * @note This authentication scheme does not involve access tokens. The returned
+ * `Credentials` are incompatible with an `oauth2::AccessTokenGenerator`.
+ *
+ * @see https://cloud.google.com/docs/authentication for more information on
+ *     authentication in GCP.
+ *
+ * @see https://cloud.google.com/docs/authentication/client-libraries for more
+ *     information on authentication for client libraries.
+ *
+ * @ingroup guac
+ *
+ * [API key]: https://cloud.google.com/docs/authentication/api-keys-use
+ * [principal]: https://cloud.google.com/docs/authentication#principal
+ */
+std::shared_ptr<Credentials> MakeApiKeyCredentials(std::string api_key,
+                                                   Options opts = {});
 
 /**
  * Configure the delegates for `MakeImpersonateServiceAccountCredentials()`
@@ -274,15 +367,36 @@ struct AccessTokenLifetimeOption {
  * Configures a custom CA (Certificates Authority) certificates file.
  *
  * Most applications should use the system's root certificates and should avoid
- * setting this option unnecessarily. A common exception to this recommendation
- * are containerized applications. These often deploy without system's root
- * certificates and need to explicitly configure a root of trust.
+ * setting this option unnecessarily.
  *
  * The value of this option should be the name of a file in [PEM format].
  * Consult your security team and/or system administrator for the contents of
  * this file. Be aware of the security implications of adding new CA
  * certificates to this file. Only use trustworthy sources for the CA
  * certificates.
+ *
+ * The most common cases where this option is needed include:
+ *
+ * - Containerized applications that deploy without the system's root
+ *   certificates and need to explicitly configure a root of trust.
+ * - Applications using gRPC-based services on Windows and macOS, where gRPC
+ *   does not use the default root of trust. Though it might be possible to
+ *   set the `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH` environment variable instead.
+ *
+ * You should set this option both in the credentials and in the connection
+ * `google::cloud::Options` parameter. For example:
+ * @code
+ * namespace gc = ::google::cloud;
+ * auto ca = gc::Options{}.set<gc::CARootsFilePathOption>("path/to/roots.pem");
+ * auto credentials = gc::MakeServiceAccountCredentials(..., ca);
+ * // Make a copy, only needed if you plan to use `ca` again.
+ * auto opts = ca;
+ * // Using bigtable to illustrate the option usage, this applies to all
+ * // libraries in `google-cloud-cpp`.
+ * auto connection = gc::bigtable::MakeDataConnection(
+ *     opts.set<gc::UnifiedCredentialsOption>(credentials));
+ * // Use `connection` as usual.
+ * @endcode
  *
  * For REST-based libraries this configures the [CAINFO option] in libcurl.
  * These are used for all credentials that require authentication, including the
@@ -293,8 +407,7 @@ struct AccessTokenLifetimeOption {
  *
  * @warning gRPC does not have a programmatic mechanism to set the CA
  *     certificates for the default credentials. This option only has no effect
- *     with `MakeGoogleDefaultCredentials()`, or
- *     `MakeServiceAccountCredentials()`.
+ *     with `MakeGoogleDefaultCredentials()`.
  *     Consider using the `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH` environment
  *     variable in these cases.
  *
@@ -319,22 +432,9 @@ struct CARootsFilePathOption {
 /// A list of  options related to authentication.
 using UnifiedCredentialsOptionList =
     OptionList<AccessTokenLifetimeOption, CARootsFilePathOption,
-               DelegatesOption, ScopesOption, TracingComponentsOption,
+               DelegatesOption, ScopesOption, LoggingComponentsOption,
                UnifiedCredentialsOption>;
 
-namespace internal {
-
-/**
- * Use an insecure channel for AccessToken authentication.
- *
- * This is useful when testing against emulators, where it is impossible to
- * create a secure channel.
- */
-struct UseInsecureChannelOption {
-  using Type = bool;
-};
-
-}  // namespace internal
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace cloud
 }  // namespace google

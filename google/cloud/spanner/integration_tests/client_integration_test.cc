@@ -12,14 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "google/cloud/spanner/admin/database_admin_client.h"
 #include "google/cloud/spanner/client.h"
 #include "google/cloud/spanner/database.h"
 #include "google/cloud/spanner/mutations.h"
 #include "google/cloud/spanner/testing/database_integration_test.h"
+#include "google/cloud/credentials.h"
 #include "google/cloud/internal/random.h"
 #include "google/cloud/testing_util/status_matchers.h"
-#include "absl/memory/memory.h"
 #include <gmock/gmock.h>
+#include <map>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -29,7 +34,13 @@ namespace {
 
 using ::google::cloud::testing_util::IsOk;
 using ::google::cloud::testing_util::StatusIs;
+using ::testing::AllOf;
 using ::testing::AnyOf;
+using ::testing::Eq;
+using ::testing::Ge;
+using ::testing::HasSubstr;
+using ::testing::IsEmpty;
+using ::testing::Lt;
 using ::testing::NotNull;
 using ::testing::UnorderedElementsAre;
 using ::testing::UnorderedElementsAreArray;
@@ -38,21 +49,36 @@ class ClientIntegrationTest : public spanner_testing::DatabaseIntegrationTest {
  protected:
   static void SetUpTestSuite() {
     spanner_testing::DatabaseIntegrationTest::SetUpTestSuite();
-    client_ = absl::make_unique<Client>(MakeConnection(GetDatabase()));
+    client_ = std::make_unique<Client>(MakeConnection(
+        GetDatabase(),
+        Options{}.set<GrpcCompressionAlgorithmOption>(GRPC_COMPRESS_GZIP)));
   }
 
   void SetUp() override {
     auto commit_result = client_->Commit(
-        Mutations{MakeDeleteMutation("Singers", KeySet::All())});
+        Mutations{MakeDeleteMutation("Singers", KeySet::All())},
+        Options{}.set<GrpcCompressionAlgorithmOption>(GRPC_COMPRESS_DEFLATE));
     ASSERT_STATUS_OK(commit_result);
   }
 
+  static StatusOr<Timestamp> DatabaseNow() {
+    auto statement = SqlStatement("SELECT CURRENT_TIMESTAMP()");
+    auto rows = client_->ExecuteQuery(
+        std::move(statement),
+        Options{}.set<GrpcCompressionAlgorithmOption>(GRPC_COMPRESS_NONE));
+    auto row = GetSingularRow(StreamOf<std::tuple<Timestamp>>(rows));
+    if (!row) return std::move(row).status();
+    return std::get<0>(*row);
+  }
+
   static void InsertTwoSingers() {
-    auto commit_result = client_->Commit(Mutations{
-        InsertMutationBuilder("Singers", {"SingerId", "FirstName", "LastName"})
-            .EmplaceRow(1, "test-fname-1", "test-lname-1")
-            .EmplaceRow(2, "test-fname-2", "test-lname-2")
-            .Build()});
+    auto commit_result = client_->Commit(
+        Mutations{InsertMutationBuilder("Singers",
+                                        {"SingerId", "FirstName", "LastName"})
+                      .EmplaceRow(1, "test-fname-1", "test-lname-1")
+                      .EmplaceRow(2, "test-fname-2", "test-lname-2")
+                      .Build()},
+        Options{}.set<GrpcCompressionAlgorithmOption>(GRPC_COMPRESS_DEFLATE));
     ASSERT_STATUS_OK(commit_result);
   }
 
@@ -61,14 +87,48 @@ class ClientIntegrationTest : public spanner_testing::DatabaseIntegrationTest {
     spanner_testing::DatabaseIntegrationTest::TearDownTestSuite();
   }
 
-  static bool EmulatorUnimplemented(Status const& status) {
-    return UsingEmulator() && status.code() == StatusCode::kUnimplemented;
+  static std::unique_ptr<Client> client_;
+};
+
+std::unique_ptr<Client> ClientIntegrationTest::client_;
+
+class PgClientIntegrationTest
+    : public spanner_testing::PgDatabaseIntegrationTest {
+ protected:
+  static void SetUpTestSuite() {
+    spanner_testing::PgDatabaseIntegrationTest::SetUpTestSuite();
+    client_ = std::make_unique<Client>(MakeConnection(
+        GetDatabase(),
+        Options{}.set<GrpcCompressionAlgorithmOption>(GRPC_COMPRESS_DEFLATE)));
+  }
+
+  void SetUp() override {
+    auto commit_result = client_->Commit(
+        Mutations{MakeDeleteMutation("Singers", KeySet::All())},
+        Options{}.set<GrpcCompressionAlgorithmOption>(GRPC_COMPRESS_DEFLATE));
+    ASSERT_STATUS_OK(commit_result);
+  }
+
+  static void InsertTwoSingers() {
+    auto commit_result = client_->Commit(
+        Mutations{InsertMutationBuilder("Singers",
+                                        {"SingerId", "FirstName", "LastName"})
+                      .EmplaceRow(1, "test-fname-1", "test-lname-1")
+                      .EmplaceRow(2, "test-fname-2", "test-lname-2")
+                      .Build()},
+        Options{}.set<GrpcCompressionAlgorithmOption>(GRPC_COMPRESS_DEFLATE));
+    ASSERT_STATUS_OK(commit_result);
+  }
+
+  static void TearDownTestSuite() {
+    client_ = nullptr;
+    spanner_testing::PgDatabaseIntegrationTest::TearDownTestSuite();
   }
 
   static std::unique_ptr<Client> client_;
 };
 
-std::unique_ptr<Client> ClientIntegrationTest::client_;
+std::unique_ptr<Client> PgClientIntegrationTest::client_;
 
 /// @test Verify the basic insert operations for transaction commits.
 TEST_F(ClientIntegrationTest, InsertAndCommit) {
@@ -248,13 +308,13 @@ TEST_F(ClientIntegrationTest, Commit) {
           .EmplaceRow(102, "first-name-102", "last-name-102")
           .EmplaceRow(199, "first-name-199", "last-name-199");
   auto insert_result = client_->Commit(Mutations{isb.Build()});
-  EXPECT_STATUS_OK(insert_result);
+  ASSERT_STATUS_OK(insert_result);
   EXPECT_NE(Timestamp{}, insert_result->commit_timestamp);
 
   // Delete SingerId 102.
   auto delete_result = client_->Commit(
       Mutations{MakeDeleteMutation("Singers", KeySet().AddKey(MakeKey(102)))});
-  EXPECT_STATUS_OK(delete_result);
+  ASSERT_STATUS_OK(delete_result);
   EXPECT_LT(insert_result->commit_timestamp, delete_result->commit_timestamp);
 
   // Read SingerIds [100 ... 200).
@@ -267,6 +327,203 @@ TEST_F(ClientIntegrationTest, Commit) {
     if (row) ids.push_back(std::get<0>(*row));
   }
   EXPECT_THAT(ids, UnorderedElementsAre(100, 199));
+}
+
+/// @test Verify the basics of CommitAtLeastOnce().
+TEST_F(ClientIntegrationTest, CommitAtLeastOnce) {
+  // Insert SingerIds 200, 202, and 299.
+  auto isb =
+      InsertMutationBuilder("Singers", {"SingerId", "FirstName", "LastName"})
+          .EmplaceRow(200, "first-name-200", "last-name-200")
+          .EmplaceRow(202, "first-name-202", "last-name-202")
+          .EmplaceRow(299, "first-name-299", "last-name-299");
+  auto insert_result = client_->CommitAtLeastOnce(
+      Transaction::ReadWriteOptions{}, Mutations{isb.Build()});
+  if (insert_result) {
+    EXPECT_NE(Timestamp{}, insert_result->commit_timestamp);
+  } else {
+    if (insert_result.status().code() == StatusCode::kAborted) {
+      return;  // try another day
+    }
+    // A replay will make it look like the row already exists.
+    EXPECT_THAT(insert_result, StatusIs(StatusCode::kAlreadyExists));
+  }
+
+  // Delete SingerId 202.
+  auto delete_result = client_->CommitAtLeastOnce(
+      Transaction::ReadWriteOptions{},
+      Mutations{MakeDeleteMutation("Singers", KeySet().AddKey(MakeKey(202)))});
+  if (delete_result) {
+    EXPECT_LT(insert_result->commit_timestamp, delete_result->commit_timestamp);
+  } else {
+    if (delete_result.status().code() == StatusCode::kAborted) {
+      return;  // try another day
+    }
+    // A replay will make it look like the row doesn't exist.
+    EXPECT_THAT(delete_result, StatusIs(StatusCode::kNotFound));
+  }
+
+  // Read SingerIds [200 ... 300).
+  using RowType = std::tuple<std::int64_t>;
+  std::vector<std::int64_t> ids;
+  auto ks = KeySet().AddRange(MakeKeyBoundClosed(200), MakeKeyBoundOpen(300));
+  auto rows = client_->Read("Singers", std::move(ks), {"SingerId"});
+  for (auto const& row : StreamOf<RowType>(rows)) {
+    EXPECT_STATUS_OK(row);
+    if (row) ids.push_back(std::get<0>(*row));
+  }
+  EXPECT_THAT(ids, UnorderedElementsAre(200, 299));
+}
+
+/// @test Verify the basics of batched CommitAtLeastOnce().
+TEST_F(ClientIntegrationTest, CommitAtLeastOnceBatched) {
+  auto const now = DatabaseNow();
+  ASSERT_THAT(now, IsOk());
+
+  std::string const table = "Singers";
+  std::vector<std::string> const columns = {
+      "SingerId", "FirstName", "LastName"  //
+  };
+  using RowType = std::tuple<std::int64_t, std::string, std::string>;
+  std::vector<std::vector<std::vector<RowType>>> const groups = {
+      // group #0
+      {
+          {
+              {1894, "Bessie", "Smith"},
+              {1901, "Louis", "Armstrong"},
+              {1911, "Mahalia", "Jackson"},
+          },
+          {
+              {1915, "Frank", "Sinatra"},
+              {1923, "Hank", "Williams"},
+          },
+          {
+              {1925, "Celia", "Cruz"},
+          },
+      },
+      // group #1
+      {
+          {
+              {1930, "Ray", "Charles"},
+              {1931, "Sam", "Cooke"},
+              {1932, "Patsy", "Cline"},
+          },
+          {
+              {1933, "Nina", "Simone"},
+              {1935, "Elvis", "Presley"},
+          },
+      },
+      // group #2
+      {
+          {
+              {1939, "Dusty", "Springfield"},
+              {1940, "Smokey", "Robinson"},
+          },
+          {
+              {1941, "Otis", "Redding"},
+              {1942, "Aretha", "Franklin"},
+          },
+          {
+              {1945, "Van", "Morrison"},
+          },
+      },
+      // group #3
+      {
+          {
+              {1946, "Freddie", "Mercury"},
+          },
+          {
+              {1947, "David", "Bowie"},
+          },
+          {
+              {1950, "Stevie", "Wonder"},
+          },
+          {
+              {1951, "Luther", "Vandross"},
+          },
+          {
+              {1953, "Chaka", "Khan"},
+          },
+      },
+      // group #4
+      {
+          {
+              {1958, "Prince", ""},
+              {1963, "Whitney", "Houston"},
+              {1967, "Kurt", "Cobain"},
+              {1968, "Thom", "Yorke"},
+              {1969, "Mariah", "Carey"},
+              {1988, "Adele", ""},
+          },
+      },
+  };
+  std::vector<Mutations> mutation_groups;
+  for (auto const& group : groups) {
+    Mutations mutations;
+    for (auto const& mutation : group) {
+      // Use upserts as mutation groups are not replay protected.
+      InsertOrUpdateMutationBuilder b(table, columns);
+      for (auto const& row : mutation) {
+        b.EmplaceRow(std::get<0>(row), std::get<1>(row), std::get<2>(row));
+      }
+      mutations.push_back(std::move(b).Build());
+    }
+    mutation_groups.push_back(std::move(mutations));
+  }
+
+  auto commit_results = client_->CommitAtLeastOnce(std::move(mutation_groups));
+  std::map<std::size_t, StatusOr<Timestamp>> results;
+  for (auto& commit_result : commit_results) {
+    if (UsingEmulator()) {
+      EXPECT_THAT(commit_result, StatusIs(StatusCode::kUnimplemented));
+      EXPECT_THAT(results, IsEmpty());
+      GTEST_SKIP();
+    }
+    ASSERT_THAT(commit_result, IsOk());
+    EXPECT_THAT(commit_result->indexes, Not(IsEmpty()));
+    for (auto index : commit_result->indexes) {
+      ASSERT_THAT(index, Lt(groups.size()));
+      auto ins = results.emplace(index, commit_result->commit_timestamp);
+      EXPECT_TRUE(ins.second);  // Check that the indexes are unique.
+    }
+    if (commit_result->commit_timestamp) {
+      // Check that we got a reasonable commit_timestamp.
+      EXPECT_THAT(*commit_result->commit_timestamp, Ge(*now));
+    }
+  }
+
+  // Check that all indexes are accounted for.
+  for (std::size_t i = 0; i != groups.size(); ++i) {
+    if (results.find(i) == results.end()) {
+      ADD_FAILURE() << "Expected: " << i << ", actual: missing";
+    }
+  }
+
+  // Snapshot the updated table.
+  auto rows = client_->Read(table, KeySet::All(), columns);
+  std::map<std::int64_t, RowType> singers;
+  for (auto& row : StreamOf<RowType>(rows)) {
+    EXPECT_THAT(row, IsOk());
+    if (!row) break;
+    auto const singer_id = std::get<0>(*row);
+    singers.emplace(singer_id, std::move(*row));
+  }
+
+  // Check that the (successful) mutations were applied.
+  for (auto const& result : results) {
+    if (!result.second) continue;  // skip failed groups
+    for (auto const& mutation : groups[result.first]) {
+      for (auto const& row : mutation) {
+        auto const itr = singers.find(std::get<0>(row));
+        if (itr == singers.end()) {
+          ADD_FAILURE() << "Expected: " << testing::PrintToString(row)
+                        << ", actual: missing";
+        } else {
+          EXPECT_THAT(itr->second, Eq(row));
+        }
+      }
+    }
+  }
 }
 
 /// @test Test various forms of ExecuteQuery() and ExecuteDml()
@@ -301,8 +558,7 @@ TEST_F(ClientIntegrationTest, ExecuteQueryDml) {
                                  {"fname", Value("test-fname-" + s)},
                                  {"lname", Value("test-lname-" + s)}}));
           if (!insert) return std::move(insert).status();
-          expected_rows.emplace_back(
-              std::make_tuple(i, "test-fname-" + s, "test-lname-" + s));
+          expected_rows.emplace_back(i, "test-fname-" + s, "test-lname-" + s);
         }
 
         auto delete_result =
@@ -313,7 +569,7 @@ TEST_F(ClientIntegrationTest, ExecuteQueryDml) {
 
         return Mutations{};
       });
-  ASSERT_STATUS_OK(commit_result);
+  EXPECT_STATUS_OK(commit_result);
 
   auto rows = client_->ExecuteQuery(
       SqlStatement("SELECT SingerId, FirstName, LastName FROM Singers", {}));
@@ -338,8 +594,8 @@ TEST_F(ClientIntegrationTest, QueryOptionsWork) {
       QueryOptions().set_optimizer_version("latest"));
   int row_count = 0;
   for (auto const& row : rows) {
-    ASSERT_STATUS_OK(row);
-    ++row_count;
+    EXPECT_STATUS_OK(row);
+    if (row) ++row_count;
   }
   EXPECT_EQ(2, row_count);
 
@@ -408,7 +664,7 @@ void CheckReadWithOptions(
         }
         return Mutations{std::move(insert).Build()};
       });
-  ASSERT_STATUS_OK(commit);
+  EXPECT_STATUS_OK(commit);
 
   auto rows = client.Read(options_generator(*commit), "Singers", KeySet::All(),
                           {"SingerId", "FirstName", "LastName"});
@@ -489,7 +745,7 @@ void CheckExecuteQueryWithSingleUseOptions(
         }
         return Mutations{std::move(insert).Build()};
       });
-  ASSERT_STATUS_OK(commit);
+  EXPECT_STATUS_OK(commit);
 
   auto rows = client.ExecuteQuery(
       options_generator(*commit),
@@ -553,6 +809,29 @@ TEST_F(ClientIntegrationTest, ExecuteQueryExactStalenessDuration) {
     return Transaction::SingleUseOptions(Transaction::ReadOnlyOptions(
         /*exact_staleness=*/std::chrono::nanoseconds(0)));
   });
+}
+
+/// @test Test that a directed read within a read-write transaction fails.
+TEST_F(ClientIntegrationTest, DirectedReadWithinReadWriteTransaction) {
+  auto& client = *client_;
+  auto commit =
+      client_->Commit([&client](Transaction const& txn) -> StatusOr<Mutations> {
+        auto rows =
+            client.Read(txn, "Singers", KeySet::All(),
+                        {"SingerId", "FirstName", "LastName"},
+                        Options{}.set<DirectedReadOption>(IncludeReplicas(
+                            {ReplicaSelection(ReplicaType::kReadOnly)},
+                            /*auto_failover_disabled=*/true)));
+        using RowType = std::tuple<std::int64_t, std::string, std::string>;
+        for (auto& row : StreamOf<RowType>(rows)) {
+          if (!row) return row.status();
+        }
+        return Mutations{};
+      });
+  EXPECT_THAT(commit, StatusIs(UsingEmulator() ? StatusCode::kFailedPrecondition
+                                               : StatusCode::kInvalidArgument,
+                               HasSubstr("Directed reads can only be performed "
+                                         "in a read-only transaction")));
 }
 
 StatusOr<std::vector<std::vector<Value>>> AddSingerDataToTable(Client client) {
@@ -682,14 +961,14 @@ TEST_F(ClientIntegrationTest, ExecuteBatchDml) {
         return Mutations{};
       });
 
-  ASSERT_STATUS_OK(commit_result);
+  EXPECT_STATUS_OK(commit_result);
   ASSERT_STATUS_OK(batch_result);
-  ASSERT_STATUS_OK(batch_result->status);
+  EXPECT_STATUS_OK(batch_result->status);
   ASSERT_EQ(batch_result->stats.size(), 4);
-  ASSERT_EQ(batch_result->stats[0].row_count, 1);
-  ASSERT_EQ(batch_result->stats[1].row_count, 1);
-  ASSERT_EQ(batch_result->stats[2].row_count, 1);
-  ASSERT_EQ(batch_result->stats[3].row_count, 2);
+  EXPECT_EQ(batch_result->stats[0].row_count, 1);
+  EXPECT_EQ(batch_result->stats[1].row_count, 1);
+  EXPECT_EQ(batch_result->stats[2].row_count, 1);
+  EXPECT_EQ(batch_result->stats[3].row_count, 2);
 
   auto rows = client_->ExecuteQuery(SqlStatement(
       "SELECT SingerId, FirstName, LastName FROM Singers ORDER BY SingerId"));
@@ -708,12 +987,13 @@ TEST_F(ClientIntegrationTest, ExecuteBatchDml) {
   for (auto const& row :
        StreamOf<std::tuple<std::int64_t, std::string, std::string>>(rows)) {
     ASSERT_STATUS_OK(row);
-    ASSERT_EQ(std::get<0>(*row), expected[counter].id);
-    ASSERT_EQ(std::get<1>(*row), expected[counter].fname);
-    ASSERT_EQ(std::get<2>(*row), expected[counter].lname);
+    ASSERT_LT(counter, expected.size());
+    EXPECT_EQ(std::get<0>(*row), expected[counter].id);
+    EXPECT_EQ(std::get<1>(*row), expected[counter].fname);
+    EXPECT_EQ(std::get<2>(*row), expected[counter].lname);
     ++counter;
   }
-  ASSERT_EQ(counter, expected.size());
+  EXPECT_EQ(counter, expected.size());
 }
 
 TEST_F(ClientIntegrationTest, ExecuteBatchDmlMany) {
@@ -751,20 +1031,20 @@ TEST_F(ClientIntegrationTest, ExecuteBatchDmlMany) {
         return Mutations{};
       });
 
-  ASSERT_STATUS_OK(commit_result);
+  EXPECT_STATUS_OK(commit_result);
 
   ASSERT_STATUS_OK(batch_result_left);
   EXPECT_EQ(batch_result_left->stats.size(), left.size());
   EXPECT_STATUS_OK(batch_result_left->status);
   for (auto const& stats : batch_result_left->stats) {
-    ASSERT_EQ(stats.row_count, 1);
+    EXPECT_EQ(stats.row_count, 1);
   }
 
   ASSERT_STATUS_OK(batch_result_right);
   EXPECT_EQ(batch_result_right->stats.size(), right.size());
   EXPECT_STATUS_OK(batch_result_right->status);
   for (auto const& stats : batch_result_right->stats) {
-    ASSERT_EQ(stats.row_count, 1);
+    EXPECT_EQ(stats.row_count, 1);
   }
 
   auto rows = client_->ExecuteQuery(SqlStatement(
@@ -777,13 +1057,13 @@ TEST_F(ClientIntegrationTest, ExecuteBatchDmlMany) {
     std::string const singer_id = std::to_string(counter);
     std::string const first_name = "Foo" + singer_id;
     std::string const last_name = "Bar" + singer_id;
-    ASSERT_EQ(std::get<0>(*row), counter);
-    ASSERT_EQ(std::get<1>(*row), first_name);
-    ASSERT_EQ(std::get<2>(*row), last_name);
+    EXPECT_EQ(std::get<0>(*row), counter);
+    EXPECT_EQ(std::get<1>(*row), first_name);
+    EXPECT_EQ(std::get<2>(*row), last_name);
     ++counter;
   }
 
-  ASSERT_EQ(counter, kBatchSize);
+  EXPECT_EQ(counter, kBatchSize);
 }
 
 TEST_F(ClientIntegrationTest, ExecuteBatchDmlFailure) {
@@ -808,12 +1088,12 @@ TEST_F(ClientIntegrationTest, ExecuteBatchDmlFailure) {
         return Mutations{};
       });
 
-  ASSERT_FALSE(commit_result.ok());
+  EXPECT_THAT(commit_result, Not(IsOk()));
   ASSERT_STATUS_OK(batch_result);
-  ASSERT_FALSE(batch_result->status.ok());
+  EXPECT_THAT(batch_result->status, Not(IsOk()));
   ASSERT_EQ(batch_result->stats.size(), 2);
-  ASSERT_EQ(batch_result->stats[0].row_count, 1);
-  ASSERT_EQ(batch_result->stats[1].row_count, 1);
+  EXPECT_EQ(batch_result->stats[0].row_count, 1);
+  EXPECT_EQ(batch_result->stats[1].row_count, 1);
 }
 
 TEST_F(ClientIntegrationTest, AnalyzeSql) {
@@ -824,10 +1104,8 @@ TEST_F(ClientIntegrationTest, AnalyzeSql) {
 
   // This returns a ExecutionPlan without executing the query.
   auto plan = client_->AnalyzeSql(std::move(txn), std::move(sql));
-  if (!EmulatorUnimplemented(plan.status())) {
-    ASSERT_STATUS_OK(plan);
-    EXPECT_GT(plan->plan_nodes_size(), 0);
-  }
+  ASSERT_STATUS_OK(plan);
+  EXPECT_GT(plan->plan_nodes_size(), 0);
 }
 
 TEST_F(ClientIntegrationTest, ProfileQuery) {
@@ -837,16 +1115,18 @@ TEST_F(ClientIntegrationTest, ProfileQuery) {
   auto rows = client_->ProfileQuery(std::move(txn), std::move(sql));
   // Consume all the rows to make the profile info available.
   for (auto const& row : rows) {
-    ASSERT_STATUS_OK(row);
+    EXPECT_STATUS_OK(row);
   }
 
   auto stats = rows.ExecutionStats();
-  EXPECT_TRUE(stats);
+  ASSERT_TRUE(stats);
   EXPECT_GT(stats->size(), 0);
 
   auto plan = rows.ExecutionPlan();
-  if (!UsingEmulator() || plan) {
-    EXPECT_TRUE(plan);
+  if (UsingEmulator()) {
+    EXPECT_FALSE(plan);
+  } else {
+    ASSERT_TRUE(plan);
     EXPECT_GT(plan->plan_nodes_size(), 0);
   }
 }
@@ -864,19 +1144,17 @@ TEST_F(ClientIntegrationTest, ProfileDml) {
         profile_result = std::move(*dml_profile);
         return Mutations{};
       });
-  ASSERT_STATUS_OK(commit_result);
+  EXPECT_STATUS_OK(commit_result);
 
   EXPECT_EQ(1, profile_result.RowsModified());
 
   auto stats = profile_result.ExecutionStats();
-  EXPECT_TRUE(stats);
+  ASSERT_TRUE(stats);
   EXPECT_GT(stats->size(), 0);
 
   auto plan = profile_result.ExecutionPlan();
-  if (!UsingEmulator() || plan) {
-    EXPECT_TRUE(plan);
-    EXPECT_GT(plan->plan_nodes_size(), 0);
-  }
+  ASSERT_TRUE(plan);
+  EXPECT_GT(plan->plan_nodes_size(), 0);
 }
 
 /// @test Verify database_dialect is returned in information schema.
@@ -888,14 +1166,387 @@ TEST_F(ClientIntegrationTest, DatabaseDialect) {
       )"""));
   using RowType = std::tuple<std::string>;
   for (auto& row : StreamOf<RowType>(rows)) {
-    if (UsingEmulator()) {
-      EXPECT_THAT(row, AnyOf(IsOk(), StatusIs(StatusCode::kInvalidArgument)));
-    } else {
-      EXPECT_THAT(row, IsOk());
-    }
+    EXPECT_THAT(row, IsOk());
     if (!row) break;
     EXPECT_EQ("GOOGLE_STANDARD_SQL", std::get<0>(*row));
   }
+}
+
+/// @test Verify database_dialect is returned in information schema.
+TEST_F(PgClientIntegrationTest, DatabaseDialect) {
+  auto rows = client_->ExecuteQuery(SqlStatement(R"""(
+        SELECT s.OPTION_VALUE
+        FROM INFORMATION_SCHEMA.DATABASE_OPTIONS s
+        WHERE s.OPTION_NAME = 'database_dialect'
+      )"""));
+  using RowType = std::tuple<std::string>;
+  for (auto& row : StreamOf<RowType>(rows)) {
+    EXPECT_THAT(row, IsOk());
+    if (!row) break;
+    EXPECT_EQ("POSTGRESQL", std::get<0>(*row));
+  }
+}
+
+/// @test Verify use of database role to read data.
+TEST_F(ClientIntegrationTest, FineGrainedAccessControl) {
+  ASSERT_NO_FATAL_FAILURE(InsertTwoSingers());
+
+  spanner_admin::DatabaseAdminClient admin_client(
+      spanner_admin::MakeDatabaseAdminConnection());
+
+  std::vector<std::string> statements = {
+      "CREATE ROLE Reader",
+      "GRANT SELECT ON TABLE Singers TO ROLE Reader",
+  };
+  auto metadata =
+      admin_client.UpdateDatabaseDdl(GetDatabase().FullName(), statements)
+          .get();
+  if (UsingEmulator()) {
+    EXPECT_THAT(metadata, StatusIs(StatusCode::kInternal));
+    GTEST_SKIP();
+  }
+  ASSERT_STATUS_OK(metadata);
+
+  // Connect to the database using the Reader role.
+  auto client = Client(MakeConnection(
+      GetDatabase(),
+      google::cloud::Options{}.set<SessionCreatorRoleOption>("Reader")));
+  auto rows = client.ExecuteQuery(
+      SqlStatement("SELECT SingerId, FirstName, LastName FROM Singers"));
+  using RowType = std::tuple<std::int64_t, std::string, std::string>;
+  for (auto& row : StreamOf<RowType>(rows)) {
+    EXPECT_STATUS_OK(row);
+    if (!row) break;
+  }
+
+  statements = {
+      "REVOKE SELECT ON TABLE Singers FROM ROLE Reader",
+      "DROP ROLE Reader",
+  };
+  metadata =
+      admin_client.UpdateDatabaseDdl(GetDatabase().FullName(), statements)
+          .get();
+  ASSERT_STATUS_OK(metadata);
+}
+
+/// @test Verify use of database role to read data.
+TEST_F(PgClientIntegrationTest, FineGrainedAccessControl) {
+  ASSERT_NO_FATAL_FAILURE(InsertTwoSingers());
+
+  spanner_admin::DatabaseAdminClient admin_client(
+      spanner_admin::MakeDatabaseAdminConnection());
+
+  std::vector<std::string> statements = {
+      "CREATE ROLE Reader",
+      "GRANT SELECT ON TABLE Singers TO Reader",
+  };
+  auto metadata =
+      admin_client.UpdateDatabaseDdl(GetDatabase().FullName(), statements)
+          .get();
+  if (UsingEmulator()) {
+    EXPECT_THAT(metadata, StatusIs(StatusCode::kFailedPrecondition));
+    GTEST_SKIP();
+  }
+  ASSERT_STATUS_OK(metadata);
+
+  // Connect to the database using the Reader role.
+  auto client = Client(MakeConnection(
+      GetDatabase(),
+      google::cloud::Options{}.set<SessionCreatorRoleOption>("Reader")));
+  auto rows = client.ExecuteQuery(
+      SqlStatement("SELECT SingerId, FirstName, LastName FROM Singers"));
+  using RowType = std::tuple<std::int64_t, std::string, std::string>;
+  for (auto& row : StreamOf<RowType>(rows)) {
+    EXPECT_STATUS_OK(row);
+    if (!row) break;
+  }
+
+  statements = {
+      "REVOKE SELECT ON TABLE Singers FROM Reader",
+      "DROP ROLE Reader",
+  };
+  metadata =
+      admin_client.UpdateDatabaseDdl(GetDatabase().FullName(), statements)
+          .get();
+  ASSERT_STATUS_OK(metadata);
+}
+
+/// @test Verify "FOREIGN KEY" "ON DELETE CASCADE".
+TEST_F(ClientIntegrationTest, ForeignKeyDeleteCascade) {
+  spanner_admin::DatabaseAdminClient admin_client(
+      spanner_admin::MakeDatabaseAdminConnection());
+
+  // CREATE TABLE with ON DELETE CASCADE.
+  std::vector<std::string> statements;
+  statements.emplace_back(R"""(
+      CREATE TABLE Customers (
+          CustomerId   INT64 NOT NULL,
+          CustomerName STRING(62) NOT NULL
+      ) PRIMARY KEY (CustomerId))""");
+  statements.emplace_back(R"""(
+      CREATE TABLE ShoppingCarts (
+          CartId       INT64 NOT NULL,
+          CustomerId   INT64 NOT NULL,
+          CustomerName STRING(62) NOT NULL,
+          CONSTRAINT FKShoppingCartsCustomerId
+              FOREIGN KEY (CustomerId)
+              REFERENCES Customers (CustomerId)
+              ON DELETE CASCADE
+      ) PRIMARY KEY (CartId))""");
+  auto create_metadata =
+      admin_client
+          .UpdateDatabaseDdl(GetDatabase().FullName(), std::move(statements))
+          .get();
+  ASSERT_STATUS_OK(create_metadata);
+
+  // ALTER TABLE with ON DELETE CASCADE.
+  statements.clear();
+  statements.emplace_back(R"""(
+      ALTER TABLE ShoppingCarts
+      ADD CONSTRAINT FKShoppingCartsCustomerName
+          FOREIGN KEY (CustomerName)
+          REFERENCES Customers (CustomerName)
+          ON DELETE CASCADE)""");
+  auto add_metadata =
+      admin_client
+          .UpdateDatabaseDdl(GetDatabase().FullName(), std::move(statements))
+          .get();
+  ASSERT_STATUS_OK(add_metadata);
+
+  // Insert a row into the referenced table, and then a referencing row into
+  // the referencing table.
+  auto insert_commit = client_->Commit(
+      Mutations{MakeInsertMutation("Customers", {"CustomerId", "CustomerName"},
+                                   1, "FKCustomer"),
+                MakeInsertMutation("ShoppingCarts",
+                                   {"CartId", "CustomerId", "CustomerName"},  //
+                                   1, 1, "FKCustomer")});
+  ASSERT_STATUS_OK(insert_commit);
+
+  // Cannot insert a row into the referencing table when the key is not
+  // present in the referenced table.
+  auto bad_key = client_->Commit(Mutations{MakeInsertMutation(
+      "ShoppingCarts", {"CartId", "CustomerId", "CustomerName"},  //
+      2, 2, "FKCustomer")});
+  EXPECT_THAT(bad_key, StatusIs(StatusCode::kFailedPrecondition,
+                                AllOf(HasSubstr("FKShoppingCartsCustomerId"),
+                                      HasSubstr("ShoppingCarts"))));
+
+  // Delete a row in the referenced table. All rows referencing that key
+  // from the referencing table will also be deleted.
+  auto delete_commit = client_->Commit(
+      Mutations{MakeDeleteMutation("Customers", KeySet().AddKey(MakeKey(1)))});
+  ASSERT_STATUS_OK(delete_commit);
+  auto carts =
+      client_->ExecuteQuery(SqlStatement("SELECT CartId FROM ShoppingCarts"));
+  for (auto& cart : StreamOf<std::tuple<std::int64_t>>(carts)) {
+    EXPECT_THAT(cart, IsOk());
+    if (!cart) break;
+    EXPECT_FALSE(true) << "Unexpected cart " << std::get<0>(*cart);
+  }
+
+  // Conflicting operation: insert and delete referenced key within the
+  // same mutation.
+  auto conflict_commit = client_->Commit(
+      Mutations{MakeInsertMutation("Customers", {"CustomerId", "CustomerName"},
+                                   1, "FKCustomer1"),
+                MakeDeleteMutation("Customers", KeySet().AddKey(MakeKey(1)))});
+  EXPECT_THAT(conflict_commit,
+              StatusIs(StatusCode::kFailedPrecondition,
+                       AllOf(HasSubstr("Cannot write"), HasSubstr("and delete"),
+                             HasSubstr("same transaction"))));
+
+  // Conflicting operation: reference foreign key in referencing table
+  // and delete key from referenced table in the same mutation.
+  auto reinsert_commit = client_->Commit(
+      Mutations{MakeInsertMutation("Customers", {"CustomerId", "CustomerName"},
+                                   1, "FKCustomer1"),
+                MakeInsertMutation("Customers", {"CustomerId", "CustomerName"},
+                                   2, "FKCustomer2"),
+                MakeInsertMutation("ShoppingCarts",
+                                   {"CartId", "CustomerId", "CustomerName"},  //
+                                   1, 1, "FKCustomer1")});
+  ASSERT_STATUS_OK(reinsert_commit);
+  auto reconflict_commit = client_->Commit(
+      Mutations{MakeInsertMutation("ShoppingCarts",
+                                   {"CartId", "CustomerId", "CustomerName"},  //
+                                   1, 2, "FKCustomer2"),
+                MakeDeleteMutation("Customers", KeySet().AddKey(MakeKey(1)))});
+  if (UsingEmulator()) {
+    EXPECT_THAT(reconflict_commit, StatusIs(StatusCode::kAlreadyExists,
+                                            HasSubstr("ShoppingCarts")));
+  } else {
+    EXPECT_THAT(reconflict_commit,
+                StatusIs(StatusCode::kFailedPrecondition,
+                         AllOf(HasSubstr("Cannot modify a row"),
+                               HasSubstr("ShoppingCarts"),
+                               HasSubstr("referential action is deleting it"),
+                               HasSubstr("in the same transaction"))));
+  }
+
+  // Query INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS and validate DELETE_RULE.
+  auto delete_rules = client_->ExecuteQuery(SqlStatement(R"""(
+        SELECT c.DELETE_RULE
+        FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS c
+        WHERE c.CONSTRAINT_NAME = "FKShoppingCartsCustomerId"
+      )"""));
+  using RowType = std::tuple<std::string>;
+  for (auto& delete_rule : StreamOf<RowType>(delete_rules)) {
+    EXPECT_THAT(delete_rule, IsOk());
+    if (!delete_rule) break;
+    EXPECT_EQ(UsingEmulator() ? "NO ACTION" : "CASCADE",
+              std::get<0>(*delete_rule));
+  }
+
+  // Drop ON DELETE CASCADE constraint.
+  statements.clear();
+  statements.emplace_back(R"""(
+      ALTER TABLE ShoppingCarts
+      DROP CONSTRAINT FKShoppingCartsCustomerName)""");
+  auto drop_metadata =
+      admin_client
+          .UpdateDatabaseDdl(GetDatabase().FullName(), std::move(statements))
+          .get();
+  ASSERT_STATUS_OK(drop_metadata);
+}
+
+/// @test Verify "FOREIGN KEY" "ON DELETE CASCADE".
+TEST_F(PgClientIntegrationTest, ForeignKeyDeleteCascade) {
+  spanner_admin::DatabaseAdminClient admin_client(
+      spanner_admin::MakeDatabaseAdminConnection());
+
+  // CREATE TABLE with ON DELETE CASCADE.
+  std::vector<std::string> statements;
+  statements.emplace_back(R"""(
+      CREATE TABLE Customers (
+          CustomerId   BIGINT NOT NULL PRIMARY KEY,
+          CustomerName CHARACTER VARYING(62) NOT NULL
+      ))""");
+  statements.emplace_back(R"""(
+      CREATE TABLE ShoppingCarts (
+          CartId       BIGINT NOT NULL PRIMARY KEY,
+          CustomerId   BIGINT NOT NULL,
+          CustomerName CHARACTER VARYING(62) NOT NULL,
+          CONSTRAINT FKShoppingCartsCustomerId
+              FOREIGN KEY (CustomerId)
+              REFERENCES Customers (CustomerId)
+              ON DELETE CASCADE
+      ))""");
+  auto create_metadata =
+      admin_client
+          .UpdateDatabaseDdl(GetDatabase().FullName(), std::move(statements))
+          .get();
+  ASSERT_STATUS_OK(create_metadata);
+
+  // ALTER TABLE with ON DELETE CASCADE.
+  statements.clear();
+  statements.emplace_back(R"""(
+      ALTER TABLE ShoppingCarts
+      ADD CONSTRAINT FKShoppingCartsCustomerName
+          FOREIGN KEY (CustomerName)
+          REFERENCES Customers (CustomerName)
+          ON DELETE CASCADE)""");
+  auto add_metadata =
+      admin_client
+          .UpdateDatabaseDdl(GetDatabase().FullName(), std::move(statements))
+          .get();
+  ASSERT_STATUS_OK(add_metadata);
+
+  // Insert a row into the referenced table, and then a referencing row into
+  // the referencing table.
+  auto insert_commit = client_->Commit(
+      Mutations{MakeInsertMutation("Customers", {"CustomerId", "CustomerName"},
+                                   1, "FKCustomer"),
+                MakeInsertMutation("ShoppingCarts",
+                                   {"CartId", "CustomerId", "CustomerName"},  //
+                                   1, 1, "FKCustomer")});
+  ASSERT_STATUS_OK(insert_commit);
+
+  // Cannot insert a row into the referencing table when the key is not
+  // present in the referenced table.
+  auto bad_key = client_->Commit(Mutations{MakeInsertMutation(
+      "ShoppingCarts", {"CartId", "CustomerId", "CustomerName"},  //
+      2, 2, "FKCustomer")});
+  EXPECT_THAT(bad_key, StatusIs(StatusCode::kFailedPrecondition,
+                                AllOf(HasSubstr("fkshoppingcartscustomerid"),
+                                      HasSubstr("shoppingcarts"))));
+
+  // Delete a row in the referenced table. All rows referencing that key
+  // from the referencing table will also be deleted.
+  auto delete_commit = client_->Commit(
+      Mutations{MakeDeleteMutation("Customers", KeySet().AddKey(MakeKey(1)))});
+  ASSERT_STATUS_OK(delete_commit);
+  auto carts =
+      client_->ExecuteQuery(SqlStatement("SELECT CartId FROM ShoppingCarts"));
+  for (auto& cart : StreamOf<std::tuple<std::int64_t>>(carts)) {
+    EXPECT_THAT(cart, IsOk());
+    if (!cart) break;
+    EXPECT_FALSE(true) << "Unexpected cart " << std::get<0>(*cart);
+  }
+
+  // Conflicting operation: insert and delete referenced key within the
+  // same mutation.
+  auto conflict_commit = client_->Commit(
+      Mutations{MakeInsertMutation("Customers", {"CustomerId", "CustomerName"},
+                                   1, "FKCustomer1"),
+                MakeDeleteMutation("Customers", KeySet().AddKey(MakeKey(1)))});
+  EXPECT_THAT(conflict_commit,
+              StatusIs(StatusCode::kFailedPrecondition,
+                       AllOf(HasSubstr("Cannot write"), HasSubstr("and delete"),
+                             HasSubstr("same transaction"))));
+
+  // Conflicting operation: reference foreign key in referencing table
+  // and delete key from referenced table in the same mutation.
+  auto reinsert_commit = client_->Commit(
+      Mutations{MakeInsertMutation("Customers", {"CustomerId", "CustomerName"},
+                                   1, "FKCustomer1"),
+                MakeInsertMutation("Customers", {"CustomerId", "CustomerName"},
+                                   2, "FKCustomer2"),
+                MakeInsertMutation("ShoppingCarts",
+                                   {"CartId", "CustomerId", "CustomerName"},  //
+                                   1, 1, "FKCustomer1")});
+  ASSERT_STATUS_OK(reinsert_commit);
+  auto reconflict_commit = client_->Commit(
+      Mutations{MakeInsertMutation("ShoppingCarts",
+                                   {"CartId", "CustomerId", "CustomerName"},  //
+                                   1, 2, "FKCustomer2"),
+                MakeDeleteMutation("Customers", KeySet().AddKey(MakeKey(1)))});
+  if (UsingEmulator()) {
+    EXPECT_THAT(reconflict_commit, StatusIs(StatusCode::kAlreadyExists,
+                                            HasSubstr("shoppingcarts")));
+  } else {
+    EXPECT_THAT(reconflict_commit,
+                StatusIs(StatusCode::kFailedPrecondition,
+                         AllOf(HasSubstr("Cannot modify a row"),
+                               HasSubstr("shoppingcarts"),
+                               HasSubstr("referential action is deleting it"),
+                               HasSubstr("in the same transaction"))));
+  }
+
+  // Query INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS and validate DELETE_RULE.
+  auto delete_rules = client_->ExecuteQuery(SqlStatement(R"""(
+        SELECT c.DELETE_RULE
+        FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS c
+        WHERE c.CONSTRAINT_NAME = 'fkshoppingcartscustomerid'
+      )"""));
+  using RowType = std::tuple<std::string>;
+  for (auto& delete_rule : StreamOf<RowType>(delete_rules)) {
+    EXPECT_THAT(delete_rule, IsOk());
+    if (!delete_rule) break;
+    EXPECT_EQ(UsingEmulator() ? "NO ACTION" : "CASCADE",
+              std::get<0>(*delete_rule));
+  }
+
+  // Drop ON DELETE CASCADE constraint.
+  statements.clear();
+  statements.emplace_back(R"""(
+      ALTER TABLE ShoppingCarts
+      DROP CONSTRAINT FKShoppingCartsCustomerName)""");
+  auto drop_metadata =
+      admin_client
+          .UpdateDatabaseDdl(GetDatabase().FullName(), std::move(statements))
+          .get();
+  ASSERT_STATUS_OK(drop_metadata);
 }
 
 /// @test Verify version_retention_period is returned in information schema.
@@ -946,11 +1597,7 @@ TEST_F(ClientIntegrationTest, SupportedOptimizerVersions) {
       )"""));
   using RowType = std::tuple<std::int64_t, absl::CivilDay>;
   for (auto& row : StreamOf<RowType>(rows)) {
-    if (UsingEmulator()) {
-      EXPECT_THAT(row, StatusIs(StatusCode::kInvalidArgument));
-    } else {
-      EXPECT_THAT(row, IsOk());
-    }
+    EXPECT_THAT(row, IsOk());
     if (!row) break;
     EXPECT_GT(std::get<0>(*row), 0);
     EXPECT_GE(std::get<1>(*row), absl::CivilDay(1998, 9, 4));
@@ -976,20 +1623,6 @@ TEST_F(ClientIntegrationTest, SpannerStatistics) {
     // refine the column expectations beyond a non-empty package name.
     EXPECT_NE(std::get<1>(*row), "");
   }
-}
-
-/// @test Verify the use of unified credentials.
-TEST_F(ClientIntegrationTest, UnifiedCredentials) {
-  auto options =
-      Options{}.set<UnifiedCredentialsOption>(MakeGoogleDefaultCredentials());
-  if (UsingEmulator()) {
-    options = Options{}
-                  .set<UnifiedCredentialsOption>(MakeInsecureCredentials())
-                  .set<internal::UseInsecureChannelOption>(true);
-  }
-  // Reconnect to the database using the new credentials.
-  client_ = absl::make_unique<Client>(MakeConnection(GetDatabase(), options));
-  ASSERT_NO_FATAL_FAILURE(InsertTwoSingers());
 }
 
 /// @test Verify backwards compatibility for MakeConnection() arguments.

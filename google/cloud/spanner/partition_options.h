@@ -30,10 +30,19 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 /**
  * Options passed to `Client::PartitionRead` or `Client::PartitionQuery`.
  *
+ * @deprecated Use [`Options`](@ref google::cloud::Options) instead,
+ *     and set (as needed)
+ *     [`PartitionSizeOption`](
+ *     @ref google::cloud::spanner::PartitionSizeOption),
+ *     [`PartitionsMaximumOption`](
+ *     @ref google::cloud::spanner::PartitionsMaximumOption), or
+ *     [`PartitionDataBoostOption`](
+ *     @ref google::cloud::spanner::PartitionDataBoostOption).
+ *
  * See documentation in [spanner.proto][spanner-proto].
  *
  * [spanner-proto]:
- * https://github.com/googleapis/googleapis/blob/0ed34e9fdf601dfc37eb24c40e17495b86771ff4/google/spanner/v1/spanner.proto#L651
+ * https://github.com/googleapis/googleapis/blob/70147caca58ebf4c8cd7b96f5d569a72723e11c1/google/spanner/v1/spanner.proto#L758
  */
 struct PartitionOptions {
   /**
@@ -54,11 +63,20 @@ struct PartitionOptions {
    * returned may be smaller or larger than this maximum count request.
    */
   absl::optional<std::int64_t> max_partitions;
+
+  /**
+   * Use "data boost" in the returned partitions.
+   *
+   * If true, the requests from the subsequent partitioned `Client::Read()`
+   * and `Client::ExecuteQuery()` calls will be executed using the independent
+   * compute resources of Cloud Spanner Data Boost.
+   */
+  bool data_boost = false;
 };
 
 inline bool operator==(PartitionOptions const& a, PartitionOptions const& b) {
   return a.partition_size_bytes == b.partition_size_bytes &&
-         a.max_partitions == b.max_partitions;
+         a.max_partitions == b.max_partitions && a.data_boost == b.data_boost;
 }
 
 inline bool operator!=(PartitionOptions const& a, PartitionOptions const& b) {

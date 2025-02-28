@@ -23,7 +23,7 @@ namespace cloud {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 using ::testing::HasSubstr;
-using testing_util::chrono_literals::operator"" _ms;  // NOLINT
+using testing_util::chrono_literals::operator""_ms;
 using testing_util::ExpectFutureError;
 using testing_util::ScopedThread;
 
@@ -769,9 +769,10 @@ struct FromInt {
 TEST(FutureTestConvertingConstructor, ConvertFuture) {
   promise<int> p0;
   future<FromInt> f0{p0.get_future()};
+  EXPECT_FALSE(f0.is_ready());
 }
 
-static_assert(!std::is_constructible<future<FromInt>, future<int*>>{},
+static_assert(!std::is_constructible<future<FromInt>, future<int*>>::value,
               "Should not compile.");
 
 }  // namespace

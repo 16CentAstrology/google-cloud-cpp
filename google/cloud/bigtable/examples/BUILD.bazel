@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load(":bigtable_examples.bzl", "bigtable_examples")
+load(":bigtable_examples_common.bzl", "bigtable_examples_common_hdrs", "bigtable_examples_common_srcs")
+load(":bigtable_examples_unit_tests.bzl", "bigtable_examples_unit_tests")
+
 package(default_visibility = ["//visibility:private"])
 
 licenses(["notice"])  # Apache 2.0
-
-load(":bigtable_examples_common.bzl", "bigtable_examples_common_hdrs", "bigtable_examples_common_srcs")
 
 cc_library(
     name = "bigtable_examples_common",
@@ -34,7 +36,9 @@ cc_library(
     ],
 )
 
-load(":bigtable_examples_unit_tests.bzl", "bigtable_examples_unit_tests")
+EXCLUDED_UNIT_TESTS = ["howto_mock_data_api.cc"]
+
+filtered_unit_tests = [test for test in bigtable_examples_unit_tests if not test in EXCLUDED_UNIT_TESTS]
 
 [cc_test(
     name = test.replace("/", "_").replace(".cc", ""),
@@ -48,9 +52,17 @@ load(":bigtable_examples_unit_tests.bzl", "bigtable_examples_unit_tests")
         "//google/cloud/testing_util:google_cloud_cpp_testing_private",
         "@com_google_googletest//:gtest_main",
     ],
-) for test in bigtable_examples_unit_tests]
+) for test in filtered_unit_tests]
 
-load(":bigtable_examples.bzl", "bigtable_examples")
+cc_test(
+    name = "howto_mock_data_api",
+    srcs = ["howto_mock_data_api.cc"],
+    deps = [
+        "//google/cloud/bigtable:google_cloud_cpp_bigtable",
+        "//google/cloud/bigtable:google_cloud_cpp_bigtable_mocks",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
 
 [cc_test(
     name = test.replace("/", "_").replace(".cc", ""),

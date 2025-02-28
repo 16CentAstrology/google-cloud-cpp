@@ -25,10 +25,12 @@ RetryTraitsGenerator::RetryTraitsGenerator(
     google::protobuf::ServiceDescriptor const* service_descriptor,
     VarsDictionary service_vars,
     std::map<std::string, VarsDictionary> service_method_vars,
-    google::protobuf::compiler::GeneratorContext* context)
+    google::protobuf::compiler::GeneratorContext* context,
+    std::vector<MixinMethod> const& mixin_methods)
     : ServiceCodeGenerator("retry_traits_header_path", service_descriptor,
                            std::move(service_vars),
-                           std::move(service_method_vars), context) {}
+                           std::move(service_method_vars), context,
+                           mixin_methods) {}
 
 Status RetryTraitsGenerator::GenerateHeader() {
   HeaderPrint(CopyrightLicenseFileHeader());
@@ -53,7 +55,7 @@ Status RetryTraitsGenerator::GenerateHeader() {
     "\n"
     "/// Define the gRPC status code semantics for retrying requests.\n"
     "struct $retry_traits_name$ {\n"
-    "  static inline bool IsPermanentFailure(google::cloud::Status const& status) {\n"
+    "  static bool IsPermanentFailure(google::cloud::Status const& status) {\n"
     "    return $retry_status_code_expression$;\n"
     "  }\n"
     "};\n"

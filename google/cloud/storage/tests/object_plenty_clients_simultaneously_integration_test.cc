@@ -20,13 +20,14 @@
 #include "google/cloud/testing_util/expect_exception.h"
 #include "google/cloud/testing_util/status_matchers.h"
 #include <gmock/gmock.h>
-#include <sys/types.h>
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace google {
 namespace cloud {
@@ -44,31 +45,27 @@ TEST_F(ObjectPlentyClientsSimultaneouslyIntegrationTest,
   // own tests.
   if (UsingGrpc()) GTEST_SKIP();
 
-  StatusOr<Client> client = MakeIntegrationTestClient();
-  ASSERT_STATUS_OK(client);
-
+  auto client = MakeIntegrationTestClient();
   auto object_name = MakeRandomObjectName();
 
   std::string expected = LoremIpsum();
 
   // Create the object, but only if it does not exist already.
-  StatusOr<ObjectMetadata> meta = client->InsertObject(
+  StatusOr<ObjectMetadata> meta = client.InsertObject(
       bucket_name_, object_name, expected, IfGenerationMatch(0));
   ASSERT_STATUS_OK(meta);
   ScheduleForDelete(*meta);
 
-  // Create an iostream to read the object back.
   auto num_fds_before_test = GetNumOpenFiles();
   std::vector<Client> read_clients;
   std::vector<ObjectReadStream> read_streams;
   for (int i = 0; i != 100; ++i) {
     auto read_client = MakeIntegrationTestClient();
-    ASSERT_STATUS_OK(read_client);
-    auto stream = read_client->ReadObject(bucket_name_, object_name);
+    auto stream = read_client.ReadObject(bucket_name_, object_name);
     char c;
     stream.read(&c, 1);
     read_streams.emplace_back(std::move(stream));
-    read_clients.emplace_back(*std::move(read_client));
+    read_clients.emplace_back(std::move(read_client));
   }
   auto num_fds_during_test = GetNumOpenFiles();
   read_streams.clear();

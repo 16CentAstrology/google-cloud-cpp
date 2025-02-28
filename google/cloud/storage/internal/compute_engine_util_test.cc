@@ -15,6 +15,7 @@
 #include "google/cloud/storage/internal/compute_engine_util.h"
 #include "google/cloud/testing_util/scoped_environment.h"
 #include <gmock/gmock.h>
+#include <string>
 
 namespace google {
 namespace cloud {
@@ -41,7 +42,7 @@ TEST_F(ComputeEngineUtilTest, CanOverrideGceMetadataHostname) {
   // If not overridden for testing, we should get the actual hostname.
   google::cloud::testing_util::ScopedEnvironment gce_metadata_hostname_unset(
       GceMetadataHostnameEnvVar(), {});
-  EXPECT_EQ(std::string("metadata.google.internal"), GceMetadataHostname());
+  EXPECT_EQ(std::string("metadata.google.internal."), GceMetadataHostname());
 }
 
 }  // namespace

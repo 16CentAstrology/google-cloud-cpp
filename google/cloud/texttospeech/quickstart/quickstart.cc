@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/texttospeech/text_to_speech_client.h"
+//! [all]
+#include "google/cloud/texttospeech/v1/text_to_speech_client.h"
 #include <iostream>
 
 auto constexpr kText = R"""(
@@ -26,7 +27,7 @@ int main(int argc, char* argv[]) try {
     return 1;
   }
 
-  namespace texttospeech = ::google::cloud::texttospeech;
+  namespace texttospeech = ::google::cloud::texttospeech_v1;
   auto client = texttospeech::TextToSpeechClient(
       texttospeech::MakeTextToSpeechConnection());
 
@@ -52,3 +53,4 @@ int main(int argc, char* argv[]) try {
   std::cerr << "google::cloud::Status thrown: " << status << "\n";
   return 1;
 }
+//! [all]

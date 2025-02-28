@@ -29,17 +29,30 @@ source module ci/cloudbuild/builds/lib/quickstart.sh
 source module ci/lib/io.sh
 
 # We cannot use `cmake --install` below. That flag was introduced
-# in CMake == 3.15, and we use (and tell folks to use this code)
-# with versions as old as 3.5.
+# in CMake == 3.15, and we support CMake >= 3.13.
+
+cmake_config_testing_details=(
+  -DCMAKE_INSTALL_MESSAGE=NEVER
+  -DGOOGLE_CLOUD_CPP_ENABLE_CCACHE=OFF
+  -DGOOGLE_CLOUD_CPP_ENABLE_WERROR=ON
+)
+if command -v /usr/local/bin/sccache >/dev/null 2>&1; then
+  cmake_config_testing_details+=(
+    -DCMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/sccache
+  )
+fi
 
 ## [BEGIN packaging.md]
 # Pick a location to install the artifacts, e.g., `/usr/local` or `/opt`
 PREFIX="${HOME}/google-cloud-cpp-installed"
-cmake -H. -Bcmake-out \
+cmake -S . -B cmake-out \
+  "${cmake_config_testing_details[@]}" \
+  -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
-  -DCMAKE_INSTALL_MESSAGE=NEVER \
   -DBUILD_TESTING=OFF \
-  -DGOOGLE_CLOUD_CPP_ENABLE_EXAMPLES=OFF
+  -DGOOGLE_CLOUD_CPP_WITH_MOCKS=OFF \
+  -DGOOGLE_CLOUD_CPP_ENABLE_EXAMPLES=OFF \
+  -DGOOGLE_CLOUD_CPP_ENABLE=__ga_libraries__,opentelemetry
 cmake --build cmake-out -- -j "$(nproc)"
 cmake --build cmake-out --target install
 ## [DONE packaging.md]

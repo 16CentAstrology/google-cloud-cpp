@@ -15,10 +15,12 @@
 #include "google/cloud/storage/client.h"
 #include "google/cloud/storage/internal/object_requests.h"
 #include "google/cloud/storage/testing/mock_client.h"
-#include "absl/memory/memory.h"
 #include <gmock/gmock.h>
+#include <algorithm>
 #include <iostream>
+#include <memory>
 #include <string>
+#include <utility>
 
 namespace {
 
@@ -30,7 +32,7 @@ TEST(StorageMockingSamples, MockReadObject) {
 
   std::shared_ptr<gcs::testing::MockClient> mock =
       std::make_shared<gcs::testing::MockClient>();
-  auto client = gcs::testing::ClientFromMock(mock);
+  auto client = gcs::testing::UndecoratedClientFromMock(mock);
 
   std::string const text = "this is a mock http response";
   std::size_t offset = 0;
@@ -73,7 +75,7 @@ TEST(StorageMockingSamples, MockWriteObject) {
 
   std::shared_ptr<gcs::testing::MockClient> mock =
       std::make_shared<gcs::testing::MockClient>();
-  auto client = gcs::testing::ClientFromMock(mock);
+  auto client = gcs::testing::UndecoratedClientFromMock(mock);
 
   gcs::ObjectMetadata expected_metadata;
 
@@ -98,7 +100,7 @@ TEST(StorageMockingSamples, MockReadObjectFailure) {
 
   std::shared_ptr<gcs::testing::MockClient> mock =
       std::make_shared<gcs::testing::MockClient>();
-  auto client = gcs::testing::ClientFromMock(mock);
+  auto client = gcs::testing::UndecoratedClientFromMock(mock);
 
   std::string text = "this is a mock http response";
   EXPECT_CALL(*mock, ReadObject)
@@ -131,7 +133,7 @@ TEST(StorageMockingSamples, MockWriteObjectFailure) {
 
   std::shared_ptr<gcs::testing::MockClient> mock =
       std::make_shared<gcs::testing::MockClient>();
-  auto client = gcs::testing::ClientFromMock(mock);
+  auto client = gcs::testing::UndecoratedClientFromMock(mock);
 
   using gcs::internal::CreateResumableUploadResponse;
   using gcs::internal::QueryResumableUploadResponse;

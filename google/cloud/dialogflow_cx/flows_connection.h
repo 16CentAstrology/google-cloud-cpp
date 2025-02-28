@@ -21,15 +21,18 @@
 
 #include "google/cloud/dialogflow_cx/flows_connection_idempotency_policy.h"
 #include "google/cloud/dialogflow_cx/internal/flows_retry_traits.h"
-#include "google/cloud/dialogflow_cx/internal/flows_stub.h"
 #include "google/cloud/backoff_policy.h"
 #include "google/cloud/future.h"
+#include "google/cloud/internal/retry_policy_impl.h"
+#include "google/cloud/no_await_tag.h"
 #include "google/cloud/options.h"
 #include "google/cloud/polling_policy.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/stream_range.h"
 #include "google/cloud/version.h"
+#include <google/cloud/dialogflow/cx/v3/flow.pb.h>
 #include <google/longrunning/operations.grpc.pb.h>
+#include <google/protobuf/struct.pb.h>
 #include <memory>
 #include <string>
 
@@ -38,16 +41,130 @@ namespace cloud {
 namespace dialogflow_cx {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
-using FlowsRetryPolicy = ::google::cloud::internal::TraitBasedRetryPolicy<
-    dialogflow_cx_internal::FlowsRetryTraits>;
+/// The retry policy for `FlowsConnection`.
+class FlowsRetryPolicy : public ::google::cloud::RetryPolicy {
+ public:
+  /// Creates a new instance of the policy, reset to the initial state.
+  virtual std::unique_ptr<FlowsRetryPolicy> clone() const = 0;
+};
 
-using FlowsLimitedTimeRetryPolicy =
-    ::google::cloud::internal::LimitedTimeRetryPolicy<
-        dialogflow_cx_internal::FlowsRetryTraits>;
+/**
+ * A retry policy for `FlowsConnection` based on counting errors.
+ *
+ * This policy stops retrying if:
+ * - An RPC returns a non-transient error.
+ * - More than a prescribed number of transient failures is detected.
+ *
+ * In this class the following status codes are treated as transient errors:
+ * - [`kUnavailable`](@ref google::cloud::StatusCode)
+ */
+class FlowsLimitedErrorCountRetryPolicy : public FlowsRetryPolicy {
+ public:
+  /**
+   * Create an instance that tolerates up to @p maximum_failures transient
+   * errors.
+   *
+   * @note Disable the retry loop by providing an instance of this policy with
+   *     @p maximum_failures == 0.
+   */
+  explicit FlowsLimitedErrorCountRetryPolicy(int maximum_failures)
+      : impl_(maximum_failures) {}
 
-using FlowsLimitedErrorCountRetryPolicy =
-    ::google::cloud::internal::LimitedErrorCountRetryPolicy<
-        dialogflow_cx_internal::FlowsRetryTraits>;
+  FlowsLimitedErrorCountRetryPolicy(
+      FlowsLimitedErrorCountRetryPolicy&& rhs) noexcept
+      : FlowsLimitedErrorCountRetryPolicy(rhs.maximum_failures()) {}
+  FlowsLimitedErrorCountRetryPolicy(
+      FlowsLimitedErrorCountRetryPolicy const& rhs) noexcept
+      : FlowsLimitedErrorCountRetryPolicy(rhs.maximum_failures()) {}
+
+  int maximum_failures() const { return impl_.maximum_failures(); }
+
+  bool OnFailure(Status const& status) override {
+    return impl_.OnFailure(status);
+  }
+  bool IsExhausted() const override { return impl_.IsExhausted(); }
+  bool IsPermanentFailure(Status const& status) const override {
+    return impl_.IsPermanentFailure(status);
+  }
+  std::unique_ptr<FlowsRetryPolicy> clone() const override {
+    return std::make_unique<FlowsLimitedErrorCountRetryPolicy>(
+        maximum_failures());
+  }
+
+  // This is provided only for backwards compatibility.
+  using BaseType = FlowsRetryPolicy;
+
+ private:
+  google::cloud::internal::LimitedErrorCountRetryPolicy<
+      dialogflow_cx_internal::FlowsRetryTraits>
+      impl_;
+};
+
+/**
+ * A retry policy for `FlowsConnection` based on elapsed time.
+ *
+ * This policy stops retrying if:
+ * - An RPC returns a non-transient error.
+ * - The elapsed time in the retry loop exceeds a prescribed duration.
+ *
+ * In this class the following status codes are treated as transient errors:
+ * - [`kUnavailable`](@ref google::cloud::StatusCode)
+ */
+class FlowsLimitedTimeRetryPolicy : public FlowsRetryPolicy {
+ public:
+  /**
+   * Constructor given a `std::chrono::duration<>` object.
+   *
+   * @tparam DurationRep a placeholder to match the `Rep` tparam for @p
+   *     duration's type. The semantics of this template parameter are
+   *     documented in `std::chrono::duration<>`. In brief, the underlying
+   *     arithmetic type used to store the number of ticks. For our purposes it
+   *     is simply a formal parameter.
+   * @tparam DurationPeriod a placeholder to match the `Period` tparam for @p
+   *     duration's type. The semantics of this template parameter are
+   *     documented in `std::chrono::duration<>`. In brief, the length of the
+   *     tick in seconds, expressed as a `std::ratio<>`. For our purposes it is
+   *     simply a formal parameter.
+   * @param maximum_duration the maximum time allowed before the policy expires.
+   *     While the application can express this time in any units they desire,
+   *     the class truncates to milliseconds.
+   *
+   * @see https://en.cppreference.com/w/cpp/chrono/duration for more information
+   *     about `std::chrono::duration`.
+   */
+  template <typename DurationRep, typename DurationPeriod>
+  explicit FlowsLimitedTimeRetryPolicy(
+      std::chrono::duration<DurationRep, DurationPeriod> maximum_duration)
+      : impl_(maximum_duration) {}
+
+  FlowsLimitedTimeRetryPolicy(FlowsLimitedTimeRetryPolicy&& rhs) noexcept
+      : FlowsLimitedTimeRetryPolicy(rhs.maximum_duration()) {}
+  FlowsLimitedTimeRetryPolicy(FlowsLimitedTimeRetryPolicy const& rhs) noexcept
+      : FlowsLimitedTimeRetryPolicy(rhs.maximum_duration()) {}
+
+  std::chrono::milliseconds maximum_duration() const {
+    return impl_.maximum_duration();
+  }
+
+  bool OnFailure(Status const& status) override {
+    return impl_.OnFailure(status);
+  }
+  bool IsExhausted() const override { return impl_.IsExhausted(); }
+  bool IsPermanentFailure(Status const& status) const override {
+    return impl_.IsPermanentFailure(status);
+  }
+  std::unique_ptr<FlowsRetryPolicy> clone() const override {
+    return std::make_unique<FlowsLimitedTimeRetryPolicy>(maximum_duration());
+  }
+
+  // This is provided only for backwards compatibility.
+  using BaseType = FlowsRetryPolicy;
+
+ private:
+  google::cloud::internal::LimitedTimeRetryPolicy<
+      dialogflow_cx_internal::FlowsRetryTraits>
+      impl_;
+};
 
 /**
  * The `FlowsConnection` object for `FlowsClient`.
@@ -85,6 +202,13 @@ class FlowsConnection {
   virtual future<StatusOr<google::protobuf::Struct>> TrainFlow(
       google::cloud::dialogflow::cx::v3::TrainFlowRequest const& request);
 
+  virtual StatusOr<google::longrunning::Operation> TrainFlow(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::TrainFlowRequest const& request);
+
+  virtual future<StatusOr<google::protobuf::Struct>> TrainFlow(
+      google::longrunning::Operation const& operation);
+
   virtual StatusOr<google::cloud::dialogflow::cx::v3::FlowValidationResult>
   ValidateFlow(
       google::cloud::dialogflow::cx::v3::ValidateFlowRequest const& request);
@@ -99,10 +223,41 @@ class FlowsConnection {
   ImportFlow(
       google::cloud::dialogflow::cx::v3::ImportFlowRequest const& request);
 
+  virtual StatusOr<google::longrunning::Operation> ImportFlow(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::ImportFlowRequest const& request);
+
+  virtual future<
+      StatusOr<google::cloud::dialogflow::cx::v3::ImportFlowResponse>>
+  ImportFlow(google::longrunning::Operation const& operation);
+
   virtual future<
       StatusOr<google::cloud::dialogflow::cx::v3::ExportFlowResponse>>
   ExportFlow(
       google::cloud::dialogflow::cx::v3::ExportFlowRequest const& request);
+
+  virtual StatusOr<google::longrunning::Operation> ExportFlow(
+      NoAwaitTag,
+      google::cloud::dialogflow::cx::v3::ExportFlowRequest const& request);
+
+  virtual future<
+      StatusOr<google::cloud::dialogflow::cx::v3::ExportFlowResponse>>
+  ExportFlow(google::longrunning::Operation const& operation);
+
+  virtual StreamRange<google::cloud::location::Location> ListLocations(
+      google::cloud::location::ListLocationsRequest request);
+
+  virtual StatusOr<google::cloud::location::Location> GetLocation(
+      google::cloud::location::GetLocationRequest const& request);
+
+  virtual StreamRange<google::longrunning::Operation> ListOperations(
+      google::longrunning::ListOperationsRequest request);
+
+  virtual StatusOr<google::longrunning::Operation> GetOperation(
+      google::longrunning::GetOperationRequest const& request);
+
+  virtual Status CancelOperation(
+      google::longrunning::CancelOperationRequest const& request);
 };
 
 /**
